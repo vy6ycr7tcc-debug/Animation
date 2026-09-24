@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#060a18">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Three Islands</title>
+<link rel="stylesheet" href="./src/style.css">
+</head>
+<body>
+<canvas id="gl" aria-hidden="true"></canvas>
+<div id="world" aria-hidden="true"></div>
+
+<p id="hint" class="whisper" aria-hidden="true"></p>
+<p id="sub" class="whisper" aria-live="polite"></p>
+
+<div id="gate">
+  <h1>Three Islands</h1>
+  <p>A first test of light and sound. Tap Enter, then tap the gold disk.</p>
+  <button id="enter" type="button">Enter</button>
+  <p class="small">Sound and voice begin softly. Both can be turned off.</p>
+</div>
+
+<nav id="controls" aria-label="Controls" hidden>
+  <button id="b-sound" type="button" aria-pressed="true">Sound</button>
+  <button id="b-voice" type="button" aria-pressed="true">Voice</button>
+  <button id="b-motion" type="button" aria-pressed="false">Less motion</button>
+  <button id="b-ignite" type="button">Open</button>
+  <button id="b-stats" type="button" aria-pressed="true" aria-controls="stats">Stats</button>
+</nav>
+
+<section id="stats" aria-label="Test readings" hidden>
+  <pre id="stats-text">measuring…</pre>
+  <button id="b-copy" type="button">Copy readings</button>
+</section>
+
+<div id="live" class="sr" aria-live="polite"></div>
+<script type="module" src="./src/main.ts"></script>
+</body>
+</html>
