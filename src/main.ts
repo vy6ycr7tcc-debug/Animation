@@ -123,8 +123,9 @@ scene.add(mandala);
 const motes = new Motes(500);
 scene.add(motes.points);
 
-const wanderer = new Wanderer();
-scene.add(wanderer.root, wanderer.motes.points);
+const wanderer = new Wanderer(camera);
+scene.add(wanderer.root, wanderer.fx);
+wanderer.load("models/wanderer.glb");
 const player = new Controller();
 player.pos.set(SPAWN.x, spawnY + 0.13, SPAWN.z);
 player.heading = SPAWN.heading;
@@ -399,7 +400,7 @@ function update(dt: number): void {
   wanderer.root.rotation.y = player.heading;
   wanderer.root.visible = S.mode !== "intro";
   wanderer.animate(dt, player.pose, player.speed, t, S.reduced, dpr);
-  wanderer.motes.points.visible = wanderer.root.visible;
+  wanderer.fx.visible = wanderer.root.visible;
 
   if (S.mode === "play") {
     // Footprints on sand, rings on water.

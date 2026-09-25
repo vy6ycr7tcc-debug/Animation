@@ -5,8 +5,8 @@ import { colliders, heightAt, WATER_Y } from "../world/terrain";
 import type { Pose } from "./wanderer";
 
 // A stroll, not a run. Swimming is buoyant and unhurried.
-const WALK = 2.3;
-const GLIDE = 4.2;
+const WALK = 1.6;
+const GLIDE = 3.2;
 const SWIM = 2.6;
 const GRAVITY = 16;
 const JUMP_V = 5.6;

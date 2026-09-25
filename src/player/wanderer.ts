@@ -1,65 +1,119 @@
-/* The wanderer: a body of flowing light, not a solid figure.
-   - The body is smooth, tapered forms drawn additively: faint at the centre, bright at
-     the silhouette, with slow bands of light rising through it and a surface that ripples.
-   - Several hundred motes flow up through the limbs toward the heart and head. Each
-     follows the body with its own lag, so when the wanderer moves the energy streams behind.
-   - Procedural animation with knees, elbows, spine twist and sway; every joint eases toward
-     its pose, so motion carries follow-through instead of snapping. */
+/* The wanderer: a body of flowing light.
+   - A smoothly deforming, motion-captured figure (Mixamo "X Bot", featureless and androgynous)
+     animated with blended idle / walk / run cycles, paced to the actual speed.
+   - The body is drawn as light: a translucent core crossed by fine, flowing currents (like the
+     linework of the drawings), a bright silhouette, and a soft outer aura that breathes.
+   - Motes ride the moving skin and stream behind; ribbons of light trail from the hands and crown.
+   - Swimming is a slow breaststroke laid over the rig, blended in and out. */
 import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
+import { loadBytes } from "../core/assets";
 
 export type Pose = "idle" | "walk" | "glide" | "swim" | "air";
 
-const bodyUniforms = {
+const HEIGHT = 1.65;
+const WALK_NATURAL = 1.3; // metres per second the walk cycle covers at timeScale 1 (after scaling)
+const RUN_NATURAL = 3.5;
+
+const U = {
   uT: { value: 0 },
-  uForm: { value: 0 }, // 0 → 1 as the wanderer gathers out of light
+  uForm: { value: 0 },
   uPulse: { value: 1 },
-  uWobble: { value: 0.012 },
+  uWobble: { value: 0.006 },
 };
+
+const NOISE = /* glsl */ `
+float h13(vec3 p){p=fract(p*0.3183099+0.1);p*=17.0;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}
+float vnoise(vec3 x){vec3 i=floor(x);vec3 f=fract(x);f=f*f*(3.0-2.0*f);
+  return mix(mix(mix(h13(i),h13(i+vec3(1,0,0)),f.x),mix(h13(i+vec3(0,1,0)),h13(i+vec3(1,1,0)),f.x),f.y),
+             mix(mix(h13(i+vec3(0,0,1)),h13(i+vec3(1,0,1)),f.x),mix(h13(i+vec3(0,1,1)),h13(i+vec3(1,1,1)),f.x),f.y),f.z);}
+`;
+
+const SKIN_VERT_HEAD = /* glsl */ `
+#include <common>
+#include <skinning_pars_vertex>
+uniform float uT,uWobble;
+varying vec3 vN;varying vec3 vW;varying vec3 vL;
+${NOISE}
+`;
+const SKIN_VERT_BODY = /* glsl */ `
+  #include <beginnormal_vertex>
+  #include <skinbase_vertex>
+  #include <skinnormal_vertex>
+  #include <begin_vertex>
+  #include <skinning_vertex>
+  vec3 n=normalize(objectNormal);
+  vL=position*0.01; // rest-pose coordinates (the rig is in centimetres): patterns stay on the body
+`;
 
 function bodyMaterial(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
-    uniforms: bodyUniforms,
+    uniforms: U,
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
-    vertexShader: /* glsl */ `
-      uniform float uT,uWobble;
-      varying vec3 vN;varying vec3 vW;
+    vertexShader: /* glsl */ `${SKIN_VERT_HEAD}
       void main(){
-        vec4 wp0=modelMatrix*vec4(position,1.0);
-        // the surface ripples like something liquid
-        float w=sin(wp0.y*17.0+uT*3.1+wp0.x*9.0)*sin(wp0.x*13.0-uT*2.3+wp0.z*11.0)
-               +0.5*sin(wp0.y*31.0-uT*4.7+wp0.z*7.0);
-        vec3 p=position+normal*w*uWobble;
-        vec4 wp=modelMatrix*vec4(p,1.0);
-        vW=wp.xyz;
-        vN=normalize(mat3(modelMatrix)*normal);
+        ${SKIN_VERT_BODY}
+        float w=vnoise(vL*9.0+vec3(0.0,-uT*0.8,uT*0.3))-0.5;
+        transformed+=n*w*uWobble*100.0;
+        vec4 wp=modelMatrix*vec4(transformed,1.0);
+        vW=wp.xyz;vN=normalize(mat3(modelMatrix)*n);
         gl_Position=projectionMatrix*viewMatrix*wp;
       }`,
     fragmentShader: /* glsl */ `
       uniform float uT,uForm,uPulse;
-      varying vec3 vN;varying vec3 vW;
+      varying vec3 vN;varying vec3 vW;varying vec3 vL;
+      ${NOISE}
       void main(){
         vec3 v=normalize(cameraPosition-vW);
         float f=1.0-abs(dot(normalize(vN),v));
-        float rim=pow(f,2.2);
-        // bands of light rising through the body
-        float flow=0.5+0.5*sin(vW.y*15.0-uT*2.4+sin(vW.x*8.0+uT*0.7)*1.6+sin(vW.z*7.0-uT*0.9));
-        float flow2=0.5+0.5*sin(vW.y*6.0-uT*1.1);
-        vec3 core=vec3(1.0,0.84,0.60);
-        vec3 edge=vec3(0.80,0.92,1.0);
-        vec3 c=core*(0.08+0.22*flow*flow2)*(1.0-rim)+mix(core,edge,0.45)*rim*1.25;
+        float rim=pow(f,2.4);
+        // currents: fine ridged lines of light flowing up through the body
+        vec3 q=vL*7.0+vec3(0.0,-uT*0.55,0.0);
+        float n1=vnoise(q+vec3(vnoise(q*0.7+uT*0.1)*1.8));
+        float lines=pow(1.0-abs(n1*2.0-1.0),9.0);
+        float n2=vnoise(vL*3.0+vec3(0.0,-uT*0.25,uT*0.12));
+        float heart=exp(-pow(length(vL-vec3(0.0,1.35,0.05))*3.2,2.0)); // warmth at the heart
+        vec3 gold=vec3(1.0,0.80,0.52);
+        vec3 pearl=vec3(1.0,0.95,0.88);
+        vec3 cyan=vec3(0.62,0.88,1.0);
+        vec3 c=gold*(0.07+0.12*n2)                    // translucent core
+              +pearl*lines*0.7*(0.4+0.6*n2)           // flowing linework
+              +gold*heart*0.35
+              +mix(pearl,cyan,0.55)*rim*1.1;           // luminous silhouette
         gl_FragColor=vec4(c*uForm*uPulse,1.0);
       }`,
   });
 }
 
-/** A tapered solid of revolution along -y (for limbs) or +y (torso, head). */
-function lathe(profile: [number, number][], mat: THREE.Material): THREE.Mesh {
-  const pts = profile.map(([r, y]) => new THREE.Vector2(r, y));
-  const m = new THREE.Mesh(new THREE.LatheGeometry(pts, 20), mat);
-  m.frustumCulled = false;
-  return m;
+function auraMaterial(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: U,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.BackSide,
+    vertexShader: /* glsl */ `${SKIN_VERT_HEAD}
+      void main(){
+        ${SKIN_VERT_BODY}
+        float w=vnoise(vL*4.0+vec3(0.0,-uT*0.9,0.0));
+        transformed+=n*(2.2+w*2.4); // an outer shell, a few centimetres out, breathing
+        vec4 wp=modelMatrix*vec4(transformed,1.0);
+        vW=wp.xyz;vN=normalize(mat3(modelMatrix)*n);
+        gl_Position=projectionMatrix*viewMatrix*wp;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float uForm,uPulse;
+      varying vec3 vN;varying vec3 vW;
+      void main(){
+        vec3 v=normalize(cameraPosition-vW);
+        float f=abs(dot(normalize(vN),v));
+        float a=pow(f,1.5)*0.16; // soft, strongest toward the body, fading at the shell's edge
+        gl_FragColor=vec4(vec3(1.0,0.86,0.66)*a*uForm*uPulse,1.0);
+      }`,
+  });
 }
 
 function glowTexture(): THREE.Texture {
@@ -67,8 +121,8 @@ function glowTexture(): THREE.Texture {
   c.width = c.height = 128;
   const g = c.getContext("2d")!;
   const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-  grd.addColorStop(0, "rgba(255,236,205,0.9)");
-  grd.addColorStop(0.3, "rgba(255,215,170,0.28)");
+  grd.addColorStop(0, "rgba(255,236,205,0.8)");
+  grd.addColorStop(0.3, "rgba(255,215,170,0.22)");
   grd.addColorStop(1, "rgba(255,200,160,0)");
   g.fillStyle = grd;
   g.fillRect(0, 0, 128, 128);
@@ -77,55 +131,35 @@ function glowTexture(): THREE.Texture {
   return t;
 }
 
-/* ---------- flowing motes ---------- */
-interface Stream {
-  part: THREE.Object3D;
-  len: number; // along the part's axis
-  dir: 1 | -1; // +1: part extends up (+y); -1: hangs down (-y)
-  radius: number;
-  share: number; // fraction of motes
-}
-
-class Motes {
+/* ---------- motes that ride the skin ---------- */
+class SkinMotes {
   points: THREE.Points;
-  private n: number;
-  private part: Int16Array;
-  private phase: Float32Array;
-  private ang: Float32Array;
-  private rad: Float32Array;
+  private idx: Int32Array;
+  private lift: Float32Array;
   private follow: Float32Array;
+  private phase: Float32Array;
   private pos: Float32Array;
   private alpha: Float32Array;
   private started = false;
   private v = new THREE.Vector3();
   private mat: THREE.ShaderMaterial;
+  mesh: THREE.SkinnedMesh | null = null;
 
-  constructor(private streams: Stream[], n: number) {
-    this.n = n;
-    this.part = new Int16Array(n);
-    this.phase = new Float32Array(n);
-    this.ang = new Float32Array(n);
-    this.rad = new Float32Array(n);
+  constructor(private n: number) {
+    this.idx = new Int32Array(n);
+    this.lift = new Float32Array(n);
     this.follow = new Float32Array(n);
+    this.phase = new Float32Array(n);
     this.pos = new Float32Array(n * 3);
     this.alpha = new Float32Array(n);
     const size = new Float32Array(n);
     const tint = new Float32Array(n);
-    const total = streams.reduce((a, s) => a + s.share, 0);
-    let i = 0;
-    streams.forEach((s, si) => {
-      const count = si === streams.length - 1 ? n - i : Math.round((s.share / total) * n);
-      for (let k = 0; k < count && i < n; k++, i++) {
-        this.part[i] = si;
-        this.phase[i] = Math.random();
-        this.ang[i] = Math.random() * Math.PI * 2;
-        this.rad[i] = Math.sqrt(Math.random()) * 0.9 + 0.1;
-        // most motes cling to the body; some lag far behind as streamers
-        this.follow[i] = Math.random() < 0.18 ? 1.5 + Math.random() * 2.5 : 9 + Math.random() * 12;
-        size[i] = 0.5 + Math.random() * Math.random() * 1.8;
-        tint[i] = Math.random();
-      }
-    });
+    for (let i = 0; i < n; i++) {
+      this.follow[i] = Math.random() < 0.3 ? 1.2 + Math.random() * 2.5 : 10 + Math.random() * 14;
+      this.phase[i] = Math.random();
+      size[i] = 0.4 + Math.pow(Math.random(), 2) * 1.8;
+      tint[i] = Math.random();
+    }
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
     g.setAttribute("aAlpha", new THREE.BufferAttribute(this.alpha, 1).setUsage(THREE.DynamicDrawUsage));
@@ -135,244 +169,327 @@ class Motes {
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
-      uniforms: { uDpr: { value: 1 }, uForm: bodyUniforms.uForm },
+      uniforms: { uDpr: { value: 1 }, uForm: U.uForm },
       vertexShader: /* glsl */ `attribute float aAlpha,aSize,aTint;uniform float uDpr;varying float vA;varying float vT;
         void main(){vec4 mv=modelViewMatrix*vec4(position,1.0);gl_Position=projectionMatrix*mv;
-          gl_PointSize=clamp(aSize*uDpr*28.0/max(-mv.z,0.5),1.0,9.0*uDpr);vA=aAlpha;vT=aTint;}`,
+          gl_PointSize=clamp(aSize*uDpr*26.0/max(-mv.z,0.5),1.0,8.0*uDpr);vA=aAlpha;vT=aTint;}`,
       fragmentShader: /* glsl */ `uniform float uForm;varying float vA;varying float vT;
         void main(){float r=length(gl_PointCoord-0.5);float a=smoothstep(0.5,0.0,r)*vA*uForm;
-          vec3 c=vT<0.7?vec3(1.0,0.88,0.66):vT<0.9?vec3(0.85,0.95,1.0):vec3(1.0,0.72,0.45);
-          gl_FragColor=vec4(c*a*1.6,1.0);}`,
+          vec3 c=vT<0.65?vec3(1.0,0.88,0.66):vT<0.9?vec3(0.8,0.93,1.0):vec3(1.0,0.7,0.45);
+          gl_FragColor=vec4(c*a*1.5,1.0);}`,
     });
     this.points = new THREE.Points(g, this.mat);
     this.points.frustumCulled = false;
   }
 
-  update(dt: number, t: number, speedFlow: number, dpr: number): void {
+  attach(mesh: THREE.SkinnedMesh): void {
+    this.mesh = mesh;
+    const count = (mesh.geometry.attributes.position as THREE.BufferAttribute).count;
+    for (let i = 0; i < this.n; i++) this.respawn(i, count);
+    this.started = false;
+  }
+
+  private respawn(i: number, count: number): void {
+    this.idx[i] = Math.floor(Math.random() * count);
+    this.lift[i] = 0;
+  }
+
+  update(dt: number, dpr: number, flow: number): void {
+    const m = this.mesh;
+    if (!m) return;
     this.mat.uniforms.uDpr.value = dpr;
+    const count = (m.geometry.attributes.position as THREE.BufferAttribute).count;
     const p = this.pos;
     for (let i = 0; i < this.n; i++) {
-      const s = this.streams[this.part[i]];
-      // flow toward the heart: limbs upward, torso upward into the head
-      let u = (this.phase[i] + t * (0.22 + speedFlow * 0.12) * (0.6 + (i % 7) * 0.08)) % 1;
-      const along = s.dir === 1 ? u * s.len : -(1 - u) * s.len;
-      const a = this.ang[i] + t * 0.8;
-      const r = s.radius * this.rad[i] * (1 + 0.25 * Math.sin(t * 2 + i));
-      this.v.set(Math.cos(a) * r, along, Math.sin(a) * r).applyMatrix4(s.part.matrixWorld);
+      // each mote lives a short while on the skin, rises a little off it, then is reborn elsewhere
+      this.phase[i] += dt * (0.35 + (i % 5) * 0.06 + flow * 0.08);
+      let fresh = false;
+      if (this.phase[i] >= 1) {
+        this.phase[i] -= 1;
+        this.respawn(i, count);
+        fresh = true;
+      }
+      this.lift[i] += dt * 0.12;
+      m.getVertexPosition(this.idx[i], this.v);
+      this.v.applyMatrix4(m.matrixWorld);
+      this.v.y += this.lift[i];
       const j = i * 3;
-      if (!this.started) {
+      if (!this.started || fresh) {
         p[j] = this.v.x;
         p[j + 1] = this.v.y;
         p[j + 2] = this.v.z;
       } else {
         const k = Math.min(1, dt * this.follow[i]);
         p[j] += (this.v.x - p[j]) * k;
-        p[j + 1] += (this.v.y - p[j + 1]) * k + (this.follow[i] < 5 ? dt * 0.25 : 0); // streamers drift upward
+        p[j + 1] += (this.v.y - p[j + 1]) * k;
         p[j + 2] += (this.v.z - p[j + 2]) * k;
       }
-      // fade in and out along the stream
-      u = Math.min(u, 1 - u) * 2;
-      this.alpha[i] = Math.min(1, u * 3) * (this.follow[i] < 5 ? 0.55 : 0.85);
+      const u = this.phase[i];
+      this.alpha[i] = Math.min(1, u * 6) * Math.min(1, (1 - u) * 2.5) * (this.follow[i] < 5 ? 0.6 : 0.9);
     }
     this.started = true;
     const g = this.points.geometry;
     (g.attributes.position as THREE.BufferAttribute).needsUpdate = true;
     (g.attributes.aAlpha as THREE.BufferAttribute).needsUpdate = true;
   }
+}
 
-  reset(): void {
-    this.started = false;
+/* ---------- ribbons of light ---------- */
+class Ribbon {
+  mesh: THREE.Mesh;
+  private pts: THREE.Vector3[] = [];
+  private ages: number[] = [];
+  private pos: Float32Array;
+  private a: Float32Array;
+  private side = new THREE.Vector3();
+  private tan = new THREE.Vector3();
+  private view = new THREE.Vector3();
+
+  constructor(private max = 28, private width = 0.07) {
+    this.pos = new Float32Array(max * 2 * 3);
+    this.a = new Float32Array(max * 2);
+    const edge = new Float32Array(max * 2);
+    for (let i = 0; i < max; i++) {
+      edge[i * 2] = -1;
+      edge[i * 2 + 1] = 1;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute("aA", new THREE.BufferAttribute(this.a, 1).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute("aE", new THREE.BufferAttribute(edge, 1));
+    const index: number[] = [];
+    for (let i = 0; i < max - 1; i++) {
+      const k = i * 2;
+      index.push(k, k + 1, k + 2, k + 1, k + 3, k + 2);
+    }
+    g.setIndex(index);
+    this.mesh = new THREE.Mesh(
+      g,
+      new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        uniforms: { uForm: U.uForm },
+        vertexShader: /* glsl */ `attribute float aA,aE;varying float vA;varying float vE;void main(){vA=aA;vE=aE;gl_Position=projectionMatrix*viewMatrix*vec4(position,1.0);}`,
+        fragmentShader: /* glsl */ `uniform float uForm;varying float vA;varying float vE;void main(){
+          float soft=pow(1.0-vE*vE,2.0);  // bright thread in the middle, feathered edges
+          gl_FragColor=vec4(vec3(1.0,0.82,0.52)*vA*vA*soft*0.9*uForm,1.0);}`,
+      }),
+    );
+    this.mesh.frustumCulled = false;
+  }
+
+  update(dt: number, head: THREE.Vector3, cam: THREE.Vector3, strength: number): void {
+    for (let i = 0; i < this.ages.length; i++) this.ages[i] += dt;
+    const last = this.pts[0];
+    if (last && last.distanceTo(head) > 1.5) {
+      this.pts.length = 0; // jumped (a restored save, a teleport): start the trail afresh
+      this.ages.length = 0;
+    }
+    if (!this.pts[0] || this.pts[0].distanceTo(head) > 0.025) {
+      this.pts.unshift(head.clone());
+      this.ages.unshift(0);
+      if (this.pts.length > this.max) {
+        this.pts.pop();
+        this.ages.pop();
+      }
+    } else {
+      this.pts[0].copy(head);
+      this.ages[0] = 0;
+    }
+    const n = this.pts.length;
+    for (let i = 0; i < this.max; i++) {
+      const pi = this.pts[Math.min(i, n - 1)];
+      const pn = this.pts[Math.min(i + 1, n - 1)];
+      this.tan.subVectors(pi, pn);
+      if (this.tan.lengthSq() < 1e-8) this.tan.set(0, 1, 0);
+      this.view.subVectors(cam, pi);
+      this.side.crossVectors(this.tan, this.view).normalize();
+      const u = i / (this.max - 1);
+      const w = this.width * (1 - u) * (0.4 + 0.6 * strength);
+      const alive = i < n ? Math.max(0, 1 - this.ages[i] / 0.9) : 0;
+      const a = (1 - u) * alive * strength;
+      const k = i * 6;
+      this.pos[k] = pi.x + this.side.x * w;
+      this.pos[k + 1] = pi.y + this.side.y * w;
+      this.pos[k + 2] = pi.z + this.side.z * w;
+      this.pos[k + 3] = pi.x - this.side.x * w;
+      this.pos[k + 4] = pi.y - this.side.y * w;
+      this.pos[k + 5] = pi.z - this.side.z * w;
+      this.a[i * 2] = this.a[i * 2 + 1] = a;
+    }
+    const g = this.mesh.geometry;
+    (g.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+    (g.attributes.aA as THREE.BufferAttribute).needsUpdate = true;
   }
 }
 
 /* ---------- the figure ---------- */
-type Joint = "hipL" | "hipR" | "kneeL" | "kneeR" | "shL" | "shR" | "elL" | "elR" | "spine" | "neck";
-
 export class Wanderer {
   root = new THREE.Group(); // at the feet; rotation.y is the heading
-  motes: Motes;
-  private pelvis = new THREE.Group();
-  private spine = new THREE.Group();
-  private chest!: THREE.Mesh;
-  private neck = new THREE.Group();
-  private j: Record<Joint, THREE.Group>;
-  // current (smoothed) joint rotations: [x, y, z]
-  private cur: Record<Joint, THREE.Vector3>;
+  /** Everything drawn in world space (motes, ribbons): add to the scene. */
+  fx = new THREE.Group();
+  ready = false;
+  private body = new THREE.Group(); // pitches forward to swim
+  private bones: Record<string, THREE.Bone> = {};
+  private mixer: THREE.AnimationMixer | null = null;
+  private act: Partial<Record<"idle" | "walk" | "run", THREE.AnimationAction>> = {};
+  private motes = new SkinMotes(420);
+  private ribbons = [new Ribbon(30, 0.035), new Ribbon(30, 0.035), new Ribbon(22, 0.05)];
   private halo: THREE.Sprite;
   private light: THREE.PointLight;
-  private phase = 0;
-  private k = { swim: 0, air: 0, glide: 0, move: 0 };
+  private k = { swim: 0, glide: 0, move: 0 };
   private form = 0;
-  private flowSpeed = 0;
+  private flow = 0;
+  private swimPhase = 0;
+  private tmp = { a: new THREE.Vector3(), b: new THREE.Vector3(), q: new THREE.Quaternion(), q2: new THREE.Quaternion(), cam: new THREE.Vector3() };
 
-  constructor() {
-    const mat = bodyMaterial();
-    const g = () => new THREE.Group();
-    this.j = {
-      hipL: g(), hipR: g(), kneeL: g(), kneeR: g(), shL: g(), shR: g(), elL: g(), elR: g(),
-      spine: this.spine, neck: this.neck,
-    };
-    this.cur = Object.fromEntries(Object.keys(this.j).map((k) => [k, new THREE.Vector3()])) as Record<Joint, THREE.Vector3>;
-
-    this.root.scale.setScalar(0.92);
-    this.pelvis.position.y = 0.95;
-    this.root.add(this.pelvis);
-
-    // Torso: hips → waist → chest → shoulders, one continuous form.
-    const hips = lathe([[0.001, -0.08], [0.12, -0.05], [0.15, 0.04], [0.13, 0.14]], mat);
-    this.pelvis.add(hips, this.spine);
-    this.chest = lathe([[0.125, 0.0], [0.12, 0.1], [0.155, 0.26], [0.19, 0.4], [0.17, 0.5], [0.1, 0.57], [0.045, 0.6]], mat);
-    this.chest.scale.z = 0.72;
-    this.spine.position.y = 0.12;
-    this.spine.add(this.chest);
-    // Neck and head.
-    this.neck.position.y = 0.6;
-    this.spine.add(this.neck);
-    const head = lathe([[0.001, 0.0], [0.045, 0.02], [0.05, 0.06], [0.1, 0.1], [0.118, 0.18], [0.105, 0.26], [0.06, 0.31], [0.001, 0.325]], mat);
-    head.scale.z = 0.9;
-    this.neck.add(head);
-
-    // Legs: thigh → knee → shin → foot.
-    for (const side of [-1, 1] as const) {
-      const hip = side < 0 ? this.j.hipL : this.j.hipR;
-      const knee = side < 0 ? this.j.kneeL : this.j.kneeR;
-      hip.position.set(0.085 * side, 0, 0);
-      hip.add(lathe([[0.085, 0.02], [0.09, -0.05], [0.07, -0.3], [0.058, -0.44]], mat));
-      knee.position.y = -0.44;
-      knee.add(lathe([[0.058, 0.0], [0.055, -0.12], [0.04, -0.4], [0.034, -0.44], [0.001, -0.47]], mat));
-      const foot = lathe([[0.001, 0.05], [0.04, 0.03], [0.035, -0.02], [0.001, -0.03]], mat);
-      foot.rotation.x = -Math.PI / 2;
-      foot.position.set(0, -0.44, -0.06);
-      knee.add(foot);
-      hip.add(knee);
-      this.pelvis.add(hip);
-    }
-    // Arms: shoulder → elbow → forearm → hand.
-    for (const side of [-1, 1] as const) {
-      const sh = side < 0 ? this.j.shL : this.j.shR;
-      const el = side < 0 ? this.j.elL : this.j.elR;
-      sh.position.set(0.2 * side, 0.5, 0);
-      sh.add(lathe([[0.001, 0.05], [0.058, 0.02], [0.056, -0.06], [0.043, -0.28]], mat));
-      el.position.y = -0.28;
-      el.add(lathe([[0.043, 0.0], [0.04, -0.08], [0.029, -0.26], [0.032, -0.31], [0.022, -0.37], [0.001, -0.39]], mat));
-      sh.add(el);
-      this.spine.add(sh);
-    }
-
+  constructor(private camera: THREE.Camera) {
+    this.root.add(this.body);
     this.halo = new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: glowTexture(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.4 }),
+      new THREE.SpriteMaterial({ map: glowTexture(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.35 }),
     );
-    this.halo.scale.setScalar(2.6);
-    this.halo.position.y = 1.15;
+    this.halo.scale.setScalar(2.4);
+    this.halo.position.y = 1.1;
     this.root.add(this.halo);
-
     this.light = new THREE.PointLight(0xffdcb0, 6, 9, 1.6);
     this.light.position.y = 1.2;
     this.root.add(this.light);
-
-    this.motes = new Motes(
-      [
-        { part: this.spine, len: 0.6, dir: 1, radius: 0.14, share: 5 },
-        { part: this.neck, len: 0.3, dir: 1, radius: 0.09, share: 2 },
-        { part: this.j.hipL, len: 0.44, dir: -1, radius: 0.07, share: 1.5 },
-        { part: this.j.hipR, len: 0.44, dir: -1, radius: 0.07, share: 1.5 },
-        { part: this.j.kneeL, len: 0.44, dir: -1, radius: 0.045, share: 1.2 },
-        { part: this.j.kneeR, len: 0.44, dir: -1, radius: 0.045, share: 1.2 },
-        { part: this.j.shL, len: 0.28, dir: -1, radius: 0.045, share: 1 },
-        { part: this.j.shR, len: 0.28, dir: -1, radius: 0.045, share: 1 },
-        { part: this.j.elL, len: 0.38, dir: -1, radius: 0.032, share: 1.1 },
-        { part: this.j.elR, len: 0.38, dir: -1, radius: 0.032, share: 1.1 },
-      ],
-      460,
-    );
+    this.fx.add(this.motes.points, ...this.ribbons.map((r) => r.mesh));
   }
 
-  /** Called every frame with the controller's state. */
+  async load(path: string): Promise<void> {
+    const bytes = await loadBytes(path);
+    if (!bytes) return;
+    const loader = new GLTFLoader();
+    loader.setMeshoptDecoder(MeshoptDecoder);
+    const gltf = await loader.parseAsync(bytes, "");
+    const model = gltf.scene;
+    let skinned: THREE.SkinnedMesh | null = null;
+    model.traverse((o) => {
+      if ((o as THREE.SkinnedMesh).isSkinnedMesh) skinned = o as THREE.SkinnedMesh;
+      if ((o as THREE.Bone).isBone) this.bones[o.name.replace(/^mixamorig:?/, "")] = o as THREE.Bone;
+    });
+    if (!skinned) return;
+    const sk: THREE.SkinnedMesh = skinned;
+    sk.material = bodyMaterial();
+    sk.frustumCulled = false;
+    const aura = new THREE.SkinnedMesh(sk.geometry, auraMaterial());
+    aura.bind(sk.skeleton, sk.bindMatrix);
+    aura.frustumCulled = false;
+    sk.parent!.add(aura);
+
+    // Scale to height, face -z like the rest of the game.
+    model.rotation.y = Math.PI;
+    model.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(model);
+    const h = box.max.y - box.min.y || 1.8;
+    model.scale.setScalar(HEIGHT / h);
+    this.body.add(model);
+
+    this.mixer = new THREE.AnimationMixer(model);
+    for (const name of ["idle", "walk", "run"] as const) {
+      const clip = gltf.animations.find((a) => a.name === name);
+      if (!clip) continue;
+      const a = this.mixer.clipAction(clip);
+      a.setEffectiveWeight(name === "idle" ? 1 : 0);
+      a.play();
+      this.act[name] = a;
+    }
+    this.motes.attach(sk);
+    this.ready = true;
+  }
+
+  /** Aim a bone so that its child points along a direction given in the body's frame. */
+  private aim(bone: THREE.Bone | undefined, dirBody: THREE.Vector3, w: number): void {
+    if (!bone || !bone.parent || w < 0.001) return;
+    const child = bone.children.find((c) => (c as THREE.Bone).isBone);
+    if (!child) return;
+    const { a, b, q, q2 } = this.tmp;
+    this.body.getWorldQuaternion(q);
+    a.copy(dirBody).normalize().applyQuaternion(q);
+    bone.parent.getWorldQuaternion(q2);
+    a.applyQuaternion(q2.invert());
+    b.copy(child.position).normalize();
+    q.setFromUnitVectors(b, a);
+    bone.quaternion.slerp(q, w);
+    bone.updateMatrixWorld(true);
+  }
+
   animate(dt: number, pose: Pose, speed: number, t: number, reduced: boolean, dpr = 1): void {
-    bodyUniforms.uT.value = reduced ? t * 0.4 : t;
-    bodyUniforms.uWobble.value = reduced ? 0.004 : 0.012;
+    U.uT.value = reduced ? t * 0.4 : t;
+    U.uWobble.value = reduced ? 0.002 : 0.006;
     this.form = Math.min(1, this.form + dt / 2.5);
     const f = THREE.MathUtils.smoothstep(this.form, 0, 1);
-    bodyUniforms.uForm.value = f;
-    this.halo.material.opacity = 0.4 * f + (1 - f) * 0.8 * this.form;
-    this.halo.scale.setScalar(2.6 + (1 - f) * 3);
+    U.uForm.value = f;
+    this.halo.material.opacity = 0.35 * f + (1 - f) * 0.8 * this.form;
+    this.halo.scale.setScalar(2.4 + (1 - f) * 3);
 
-    const ease = (key: keyof typeof this.k, on: boolean, rate: number) =>
-      (this.k[key] += ((on ? 1 : 0) - this.k[key]) * Math.min(1, dt * rate));
-    const swim = ease("swim", pose === "swim", 3);
-    const air = ease("air", pose === "air", 7);
-    const glide = ease("glide", pose === "glide", 3);
+    const ease = (key: keyof typeof this.k, target: number, rate: number) =>
+      (this.k[key] += (target - this.k[key]) * Math.min(1, dt * rate));
+    const swim = ease("swim", pose === "swim" ? 1 : 0, 2.5);
+    const glide = ease("glide", pose === "glide" ? 1 : 0, 3);
     const moving = pose === "walk" || pose === "glide" || (pose === "swim" && speed > 0.2);
-    const amt = (this.k.move += ((moving ? Math.min(1, speed / 2.3) : 0) - this.k.move) * Math.min(1, dt * 5));
-    this.phase += dt * (pose === "swim" ? 1.5 : 1.6 + speed * 1.15) * (moving ? 1 : 0.3);
-    const p = this.phase;
-    const s = Math.sin(p);
-    const land = (1 - swim) * (1 - air * 0.6);
+    const sp = ease("move", moving ? speed : 0, 6);
 
-    // Target pose: [x, y, z] per joint.
-    const T = {} as Record<Joint, [number, number, number]>;
-    const kneeBend = (ph: number) => -(0.12 + 0.75 * Math.max(0, Math.sin(ph + 1.3))) * amt;
-    const idleDrift = reduced ? 0 : 1;
-    T.hipL = [s * 0.5 * amt * land * (1 - glide * 0.4) - air * 0.7, 0, -0.02];
-    T.hipR = [-s * 0.5 * amt * land * (1 - glide * 0.4) - air * 0.25, 0, 0.02];
-    T.kneeL = [kneeBend(p) * land - air * 0.9 - 0.06, 0, 0];
-    T.kneeR = [kneeBend(p + Math.PI) * land - air * 0.4 - 0.06, 0, 0];
-    const armSwing = -s * 0.42 * amt * land;
-    const drift = Math.sin(t * 0.7) * 0.05 * idleDrift;
-    T.shL = [armSwing - glide * 0.45 + air * 0.5, 0, -0.14 - drift - glide * 0.55 - air * 0.4];
-    T.shR = [-armSwing - glide * 0.45 + air * 0.5, 0, 0.14 + drift + glide * 0.55 + air * 0.4];
-    T.elL = [0.22 + 0.25 * amt * Math.max(0, -s) + glide * 0.1, 0, 0];
-    T.elR = [0.22 + 0.25 * amt * Math.max(0, s) + glide * 0.1, 0, 0];
-    T.spine = [0.05 * amt + glide * 0.12, s * 0.14 * amt, Math.sin(p * 0.5) * 0.03 * amt + Math.sin(t * 0.4) * 0.02 * idleDrift * (1 - amt)];
-    T.neck = [-0.05 * amt - glide * 0.1, -s * 0.08 * amt + Math.sin(t * 0.23) * 0.2 * idleDrift * (1 - amt), 0];
-    if (swim > 0.01) {
-      // Breaststroke, slow and buoyant: arms reach, part and sweep; legs flutter.
-      const sw = p * 1.1;
-      const reach = 0.5 + 0.5 * Math.sin(sw);
-      const mix = (a: [number, number, number], b: [number, number, number]) => a.map((v, i) => v * (1 - swim) + b[i] * swim) as [number, number, number];
-      // arms reach ahead, then part and sweep down through the water
-      T.shL = mix(T.shL, [-2.9 - (1 - reach) * 1.0, 0, -0.25 - (1 - reach) * 0.7]);
-      T.shR = mix(T.shR, [-2.9 - (1 - reach) * 1.0, 0, 0.25 + (1 - reach) * 0.7]);
-      T.elL = mix(T.elL, [0.1 + (1 - reach) * 0.7, 0, 0]);
-      T.elR = mix(T.elR, [0.1 + (1 - reach) * 0.7, 0, 0]);
-      T.hipL = mix(T.hipL, [Math.sin(sw * 2) * 0.25, 0, -0.05]);
-      T.hipR = mix(T.hipR, [-Math.sin(sw * 2) * 0.25, 0, 0.05]);
-      T.kneeL = mix(T.kneeL, [-0.2 - Math.max(0, Math.sin(sw * 2)) * 0.3, 0, 0]);
-      T.kneeR = mix(T.kneeR, [-0.2 - Math.max(0, -Math.sin(sw * 2)) * 0.3, 0, 0]);
-      T.neck = mix(T.neck, [0.9, 0, 0]); // look ahead while lying in the water
-    }
-    // Every joint eases toward its target: follow-through instead of snapping.
-    const rate = Math.min(1, dt * 11);
-    for (const key of Object.keys(T) as Joint[]) {
-      const c = this.cur[key];
-      const tg = T[key];
-      c.x += (tg[0] - c.x) * rate;
-      c.y += (tg[1] - c.y) * rate;
-      c.z += (tg[2] - c.z) * rate;
-      this.j[key].rotation.set(c.x, c.y, c.z);
+    if (this.mixer) {
+      // Blend idle → walk → run by speed; pace the cycles to the ground speed.
+      const land = 1 - swim;
+      const wRun = THREE.MathUtils.smoothstep(sp, 2.2, 3.3);
+      const wWalk = THREE.MathUtils.smoothstep(sp, 0.08, 0.9) * (1 - wRun);
+      const wIdle = Math.max(0, 1 - wWalk - wRun);
+      this.act.idle?.setEffectiveWeight(wIdle * land + swim);
+      this.act.walk?.setEffectiveWeight(wWalk * land);
+      this.act.run?.setEffectiveWeight(wRun * land);
+      if (this.act.walk) this.act.walk.timeScale = THREE.MathUtils.clamp(sp / WALK_NATURAL, 0.55, 1.6);
+      if (this.act.run) this.act.run.timeScale = THREE.MathUtils.clamp(sp / RUN_NATURAL, 0.6, 1.3);
+      if (this.act.idle) this.act.idle.timeScale = reduced ? 0.5 : 0.8;
+      this.mixer.update(dt);
+
+      // Swimming: lie forward in the water and stroke slowly, laid over the rig.
+      this.body.rotation.x = -swim * 1.25 - glide * 0.08;
+      this.body.position.set(0, swim * 0.85, swim * 0.35);
+      if (swim > 0.01) {
+        this.root.updateMatrixWorld(true);
+        this.swimPhase += dt * (0.7 + Math.min(speed, 3) * 0.35);
+        const sweep = 0.5 - 0.5 * Math.sin(this.swimPhase * Math.PI); // 0: reaching ahead, 1: swept out and back
+        const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+        for (const side of [-1, 1]) {
+          const L = side < 0 ? "Left" : "Right";
+          // Body frame: +y runs from feet to head (ahead while swimming), -z is the chest.
+          this.aim(this.bones[`${L}Arm`], V(side * (0.25 + sweep * 0.9), 1 - sweep * 1.1, -0.15 - sweep * 0.4), swim);
+          this.aim(this.bones[`${L}ForeArm`], V(side * (0.2 + sweep * 0.15), 1 - sweep * 0.8, -0.2 - sweep * 0.9), swim);
+          const kick = Math.sin(this.swimPhase * Math.PI * 2 + (side < 0 ? 0 : Math.PI));
+          this.aim(this.bones[`${L}UpLeg`], V(side * 0.12, -1, kick * 0.18), swim);
+          this.aim(this.bones[`${L}Leg`], V(side * 0.1, -1, 0.15 + Math.max(0, kick) * 0.35), swim);
+        }
+        this.aim(this.bones.Neck, V(0, 0.8, 0.6), swim); // head up, looking ahead
+      }
     }
 
-    // Whole body: lean, bob, float, swim.
-    const bob = Math.abs(Math.cos(p)) * 0.045 * amt * land;
     const breathe = reduced ? 0 : Math.sin(t * 0.63);
-    this.pelvis.rotation.x = -swim * 1.2 - glide * 0.1;
-    this.pelvis.rotation.y = -s * 0.07 * amt;
-    this.pelvis.position.set(Math.sin(t * 0.4) * 0.015 * idleDrift * (1 - amt), 0.95 - 0.04 * amt * land + bob - swim * 0.08 + breathe * 0.006, swim * 0.3);
-    this.chest.scale.set(1 + breathe * 0.012, 1, 0.72 + breathe * 0.01);
-    bodyUniforms.uPulse.value = 1 + 0.12 * breathe + glide * 0.2;
-
-    this.halo.position.y = 1.15 + swim * 0.3;
-    this.halo.scale.multiplyScalar(1 - swim * 0.45);
+    U.uPulse.value = 1 + 0.1 * breathe + glide * 0.2;
+    this.halo.position.y = 1.1 + swim * 0.2;
+    this.halo.scale.multiplyScalar(1 - swim * 0.4);
+    this.halo.material.opacity *= 1 - swim; // the water would slice it into a box
     this.light.intensity = 6 + glide * 2;
 
     this.root.updateMatrixWorld(true);
-    this.flowSpeed += ((moving ? speed : 0) - this.flowSpeed) * Math.min(1, dt * 2);
-    this.motes.update(dt, reduced ? t * 0.5 : t, this.flowSpeed, dpr);
+    this.flow += ((moving ? speed : 0) - this.flow) * Math.min(1, dt * 2);
+    this.motes.update(dt, dpr, this.flow);
+
+    // Ribbons trail from the hands and the crown, stronger in motion.
+    const cam = this.tmp.cam.copy(this.camera.position);
+    const strength = Math.min(1, 0.25 + this.flow * 0.4) * f;
+    [this.bones.LeftHand, this.bones.RightHand, this.bones.HeadTop_End].forEach((b, i) => {
+      if (!b) return;
+      b.getWorldPosition(this.tmp.a);
+      this.ribbons[i].update(dt, this.tmp.a, cam, i === 2 ? strength * 0.7 : strength);
+    });
   }
 
-  /** The wanderer gathers out of light (0) at the start. */
   setForm(v: number): void {
     this.form = v;
-    this.motes.reset();
   }
 }

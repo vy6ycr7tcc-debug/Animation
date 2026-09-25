@@ -27,13 +27,14 @@ To start the story again, clear the site's data in Safari.
 
 ## Placeholder in this milestone
 - The stations are only lights (milestone 2), and J04–J11 aren't wired yet.
-- The island and figure are simple shapes; the look comes from light, water and the gold linework.
+- The island is a simple shape; the look comes from light, water and the gold linework.
+- The wanderer is a motion-captured body of light (flowing currents, aura, motes, ribbons from the hands and crown). The swim stroke and jump are procedural for now.
 
 ## Known issues
 - Subtitle timings were aligned automatically to the pauses in each recording. A line may change a moment early or late.
 
 ## Frame rate
 - Measured only in a headless software renderer here, which says nothing about a phone.
-- About 25–55 draw calls and 50–60k triangles per frame, well within an iPhone's budget.
+- About 30–60 draw calls and 60–75k triangles per frame, including the wanderer (about 8k vertices, skinned twice for the body and aura), well within an iPhone's budget.
 - Quality lowers itself automatically if frames run slow.
 - Audio adds about 5 MB (11 narrations and the water bed), loaded as needed.
