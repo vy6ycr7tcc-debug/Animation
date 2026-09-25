@@ -68,7 +68,7 @@ renderer.toneMapping = THREE.NoToneMapping;
 renderer.info.autoReset = false;
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(58, 1, 0.1, 1500);
+const camera = new THREE.PerspectiveCamera(58, 1, 0.15, 6000);
 const FOG_COLOR = FOG.color;
 scene.fog = new THREE.FogExp2(FOG_COLOR, FOG.density);
 
@@ -127,7 +127,7 @@ water.uniforms.uFogDensity.value = (scene.fog as THREE.FogExp2).density;
 scene.add(water.mesh);
 const terrain = new Terrain();
 scene.add(terrain.group);
-const clouds = new Clouds(MOBILE ? 34 : 44);
+const clouds = new Clouds(MOBILE ? 60 : 80);
 scene.add(clouds.mesh);
 const reflection = new Reflection();
 water.uniforms.uRefl.value = reflection.target.texture;
@@ -725,7 +725,7 @@ function update(dt: number): void {
   mandala.rotation.y = S.reduced ? 0 : wt * 0.01;
   center.set(camera.position.x, 0, camera.position.z);
   motes.update(wt, center, dpr, S.reduced);
-  clouds.update(wt);
+  clouds.update(wt, camera.position);
   footprints.update(t);
 
   // The starlight's shadow follows the wanderer.
