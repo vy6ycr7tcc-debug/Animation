@@ -9,6 +9,11 @@ export class Input {
   lookY = 0;
   zoom = 1;
   onAction: (() => void) | null = null;
+  /** Space or the round button is being held (for gliding). */
+  get hold(): boolean {
+    return this.enabled && (this.keys.has(" ") || this.actHeld);
+  }
+  private actHeld = false;
   /** A short tap or click without dragging: walk there. */
   onTap: ((x: number, y: number) => void) | null = null;
   private downAt = new Map<number, { x: number; y: number; t: number }>();
@@ -50,9 +55,11 @@ export class Input {
       this.zoom *= Math.exp(e.deltaY * 0.001);
     }, { passive: false });
 
+    for (const ev of ["pointerup", "pointercancel", "pointerleave"]) actionBtn.addEventListener(ev, () => (this.actHeld = false));
     actionBtn.addEventListener("pointerdown", (e) => {
       e.preventDefault();
       e.stopPropagation();
+      this.actHeld = true;
       if (this.enabled) this.onAction?.();
     });
     actionBtn.addEventListener("click", (e) => {

@@ -9,7 +9,7 @@ export interface SaveData {
   visited: number[]; // stations visited, 1–7
   rideDone?: boolean; // the Chariot has carried the wanderer to the shore
   ended?: boolean; // home again: the journey is complete
-  settings: { volume: number; reduced: boolean | null; subtitles: boolean };
+  settings: { volume: number; reduced: boolean | null; subtitles: boolean; narration?: boolean };
 }
 
 const KEY = "inward-journey:night:v1";

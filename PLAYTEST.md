@@ -1,4 +1,4 @@
-# Playtest: the whole journey (M1–M5)
+# Playtest: the open world
 
 ## How to run
 - **Online:** https://vy6ycr7tcc-debug.github.io/Animation/ (updates about a minute after each merge into `main`).
@@ -13,49 +13,46 @@
 | Walk a little faster | Push the thumb to the edge | Hold Shift |
 | Look around | Drag on the right half | Drag with the mouse |
 | Zoom | Pinch | Scroll wheel |
-| The offered word (sit, board…), otherwise jump | The round button, bottom right | Space or E |
-| Stand up after sitting | Tap, move, or the round button | Move, or Space |
-| Settings, journal, Leave, Begin again | ⋮ top right | Esc |
+| Jump | Tap the round button, bottom right | Space |
+| Glide | Hold the round button in the air | Hold Space in the air |
+| Settings, Leave, Begin again | ⋮ top right | Esc |
 
-## The path
-1. **The shore.** Touch the water to begin. J01 plays.
-2. **The crossing.** Walk into the water and swim; J02 plays. The island's seven lights appear halfway across.
-3. **Arrival.** Step onto the sand: J03.
-4. **The seven stations,** in any order. Walking into one plays its narration. Walking away fades it. Hearing it through marks the station visited: its broken ring becomes whole and its beacon settles. Its closing question then appears quietly, with a "write" link to the private journal.
+## What it is
+There is no island and no path. You wake on a meadow at night beside the water. From there you can go anywhere.
+- **Narration runs in the background.** The first track starts after a few seconds. The rest follow in order (J01 → J11), with a quiet gap of 20–40 s between them. You never have to stop and wait anywhere for it. Turn it off under ⋮ → Narration.
+- **The world answers as you pass:**
+  - grass leans away from you and keeps a faint trail of light;
+  - flowers open when you brush past, each with a note from one soft scale;
+  - butterflies drift after you for a while;
+  - light creatures glide overhead.
+- **Lanterns:** clusters of dark orbs stand in the hills. Walk close and they kindle one by one with chimes, and they stay lit between visits. Lighting them is the only "collecting" there is, and nothing depends on it.
+- **Landmarks:** six of the geometric forms from the Mind stations stand out in the world. You find them by wandering. Each still reacts:
 
-   | Station | Where | What to do |
-   |---|---|---|
-   | I. The Magician | Beam and gold ring | Step into the ring: the beam brightens, sparks rise, you reach upward. |
-   | II. The High Priestess | Two pillars, mist | Sit on the bench: time slows, the mist parts, more stars appear. |
-   | III. The Empress | Spiral garden | Walk the spiral inward: rising tones, then a bloom opens at the centre. |
-   | IV. The Emperor | Throne on a square of light | Sit: constellations gather overhead. |
-   | V. The Hierophant | Arch of three stones | Walk through: a ripple spreads and a low tone sounds. |
-   | VI. The Lovers | Two rings, crossing paths, a star | Walk either path to the crossing: the rings pulse once. |
-   | VII. The Chariot | A vessel at the far edge, and a road to the horizon | After the other six: board. |
+  | Landmark | What happens |
+  |---|---|
+  | Beam and gold ring | Step into the ring: the beam brightens and you reach upward. |
+  | Two pillars and mist | Stand still a moment: time slows, the mist parts, more stars appear. |
+  | Spiral garden | Walk the spiral inward: rising tones, then a bloom at the centre. |
+  | Throne on a square of light | Stand still: constellations gather overhead. |
+  | Arch of three stones | Walk through: a ripple and a low tone. |
+  | Two crossing rings | Walk to the crossing: the rings pulse. |
 
-5. **The ride.** The vessel carries you slowly past echoes of the six stations to the near shore while J10 plays.
-6. **The return.** A path of light leads home across the water. J11 plays as you swim. On the home shore:
-   - the sky brightens a little;
-   - a small star goes with you;
-   - a card reads "The water will always be here."
-
-   After that you can keep wandering.
+- Water is safe: walk in and you swim. Far out, mountains mark the edge of the world.
 
 ## Voices
-- Only the female voice plays. The five tracks recorded in the male voice (J02, J04, J06, J08, J10) show as subtitles until they're re-voiced.
+- Only the female voice plays. The five tracks recorded in the male voice (J02, J04, J06, J08, J10) are skipped by the background narration until they're re-voiced.
 - To re-voice them, run `sh narration/revoice-female.sh` where the `tts` CLI is installed, then commit `public/audio/female/`. The game picks the new files up automatically.
 
 ## Known issues
 - Subtitle timings were aligned automatically to pauses in each recording, so a line may change a moment early or late.
-- Jumping has no animation of its own beyond the recorded jump and landing.
-- To replay from the shore, use ⋮ → Begin again (tap twice). Your journal is kept.
+- The Chariot is not placed in the open world yet.
+- ⋮ → Begin again (tap twice) forgets the lit lanterns and starts over.
 
 ## Performance
 - Measured only in a headless software renderer here, which says nothing about a phone. Please send the `#stats` readings from the iPhone.
-- About 50–60 draw calls and ~100k triangles on the island.
+- About 120–140 draw calls. Distant landmarks are hidden beyond 300 m, and the ground streams in 80 m squares around you.
 - **The costliest effects, and when they turn off:**
   - the ray-marched fluid body: 48 steps on the top quality level, down to 24 on the lowest;
   - the water reflection: top two quality levels only;
   - the god rays: top two quality levels only.
 - The quality level drops automatically if frames run slow.
-- Audio is about 5 MB and the figure is 1.8 MB, both loaded as needed.
