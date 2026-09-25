@@ -9,7 +9,7 @@ import { starDirection } from "./sky";
 
 export class Clouds {
   mesh: THREE.InstancedMesh;
-  private uniforms = { uT: { value: 0 }, uMoon: { value: starDirection() } };
+  private uniforms = { uT: { value: 0 }, uMoon: { value: starDirection() }, uCam: { value: new THREE.Vector3() } };
 
   constructor(count = 42) {
     const geo = new THREE.PlaneGeometry(1, 1);
@@ -22,12 +22,12 @@ export class Clouds {
       vertexShader: /* glsl */ `
         attribute float aSeed;attribute vec2 aSize;
         varying vec2 vUv;varying float vSeed;varying vec3 vW;varying vec3 vRight;varying vec3 vUp;
-        uniform float uT;
+        uniform float uT;uniform vec3 uCam;
         void main(){
           vec3 c=vec3(instanceMatrix[3]);
-          // a slow drift around the world
-          float a=uT*0.0025*(0.6+aSeed*0.8);
-          c.xz=mat2(cos(a),-sin(a),sin(a),cos(a))*c.xz;
+          // drifting on the wind, and always around you wherever you travel
+          c.x+=uT*(0.6+aSeed*0.8);
+          c.xz=uCam.xz+mod(c.xz-uCam.xz+2500.0,5000.0)-2500.0;
           vec3 right=vec3(viewMatrix[0][0],viewMatrix[1][0],viewMatrix[2][0]);
           vec3 up=vec3(0.0,1.0,0.0);
           vec3 w=c+right*position.x*aSize.x+up*position.y*aSize.y;
@@ -70,11 +70,9 @@ export class Clouds {
     const R = () => ((s = (s * 16807) % 2147483647) / 2147483647);
     const m = new THREE.Matrix4();
     for (let i = 0; i < count; i++) {
-      const a = R() * Math.PI * 2;
-      const low = i < count * 0.65; // most rest among the mountains; a few float higher
-      const r = low ? 380 + R() * 480 : 150 + R() * 600;
-      const y = low ? 25 + R() * 45 : 90 + R() * 70;
-      m.makeTranslation(Math.cos(a) * r, y, Math.sin(a) * r);
+      const low = i < count * 0.6; // most drift low over the land; the rest float high
+      const y = low ? 45 + R() * 50 : 130 + R() * 110;
+      m.makeTranslation((R() - 0.5) * 5000, y, (R() - 0.5) * 5000);
       this.mesh.setMatrixAt(i, m);
       seed[i] = R();
       const w = low ? 120 + R() * 180 : 90 + R() * 120;
@@ -84,7 +82,8 @@ export class Clouds {
     geo.setAttribute("aSize", new THREE.InstancedBufferAttribute(size, 2));
   }
 
-  update(t: number): void {
+  update(t: number, cam: THREE.Vector3): void {
     this.uniforms.uT.value = t;
+    this.uniforms.uCam.value.copy(cam);
   }
 }

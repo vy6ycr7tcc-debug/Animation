@@ -43,7 +43,7 @@ export class Landmarks {
       const near = d < s.radius + 1;
       // Pausing near a landmark counts as sitting with it.
       // Far beyond the fog a landmark is simply not drawn (it would be invisible anyway).
-      const seen = Math.min(1, Math.max(0, (300 - d) / 60));
+      const seen = Math.min(1, Math.max(0, (1100 - d) / 150));
       const f: Frame = { t, dt, player, reduced, seen, gesture: near && this.still > 1.2 ? "sit" : this.wanderer.gesture };
       if (near && !s.visited) s.markVisited(); // its ring closes once you've been
       s.update(f, this.hooks, near);

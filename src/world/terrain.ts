@@ -7,6 +7,8 @@
 import * as THREE from "three";
 
 export const WATER_Y = 0;
+/** The world's radius: mountains rise at its edge, about 4 km out. */
+export const WORLD_R = 4000;
 /** Where the wanderer wakes, and faces. */
 export const SPAWN = { x: 0, z: 0, heading: 0 };
 
@@ -43,20 +45,23 @@ function rawHeight(x: number, z: number): number {
   // the waking meadow: a gentle rise beside the water
   const ds = Math.hypot(x - SPAWN.x, z - SPAWN.z);
   h = mix(h, 2.4 + (n2 - 0.5) * 1.6, smooth(70, 18, ds));
+  // broad highlands and lowlands, a kilometre or two across, with great lakes between
+  h += (fbm(x * 0.0005 + 3, z * 0.0005 - 7) - 0.5) * 36 * smooth(60, 250, ds);
   // mountains far out: the edge of the world
-  h += smooth(430, 700, Math.hypot(x, z)) * (40 + n2 * 50);
+  h += smooth(WORLD_R - 700, WORLD_R + 300, Math.hypot(x, z)) * (60 + n2 * 70);
   return h;
 }
 
 /** Landmarks: roughly where each should stand; each settles on the nearest calm, dry ground. */
 const WISHED_SITES: [number, number][] = [
-  [58, -130], // the beam and ring
-  [-150, -70], // pillars and veil
-  [-50, 118], // the spiral garden
-  [170, 55], // the throne on its square of light
-  [-120, -235], // the arch of three stones
-  [120, 205], // the crossing rings
-  [215, -175], // the chariot, with its road to the horizon
+  // spread wide: a journey on foot, a short flight through the air
+  [232, -520], // the beam and ring
+  [-600, -280], // pillars and veil
+  [-200, 472], // the spiral garden
+  [680, 220], // the throne on its square of light
+  [-480, -940], // the arch of three stones
+  [480, 820], // the crossing rings
+  [900, -380], // the chariot, with its road to the horizon
 ];
 function settle([x, z]: [number, number]): [number, number] {
   for (let r = 0; r <= 140; r += 7) {
@@ -105,19 +110,22 @@ export interface Collider {
 }
 export const colliders: Collider[] = [];
 
-/* ---------- streamed ground, in two levels of detail ----------
+/* ---------- streamed ground, in three levels of detail ----------
    Near the wanderer: fine 64 m tiles (a vertex every 2 m). Around them, out to ~640 m: coarse
-   256 m tiles (every 8 m) that reach the mountains at the world's edge, so the horizon is real
-   land fading into haze. Where the near tiles cover the ground, the coarse tiles' vertices are
-   sunk out of sight. Normals come from the height function itself, so tiles meet without seams,
+   256 m tiles (every 8 m). Beyond, out to ~2.5 km: broad 1 km tiles (every 32 m), which you see
+   when you fly high above the haze. Where a finer level covers the ground, the coarser level's
+   vertices are sunk out of sight. Normals come from the height function itself, so tiles meet without seams,
    and hollows are shaded by how much sky they see. */
 interface Level {
   chunk: number;
   seg: number;
   ring: number;
 }
-const NEAR: Level = { chunk: 64, seg: 32, ring: 2 }; // 5 × 5 tiles: ±160 m
-const FAR: Level = { chunk: 256, seg: 32, ring: 2 }; // 5 × 5 tiles: ±640 m
+const LEVELS: Level[] = [
+  { chunk: 64, seg: 32, ring: 2 }, // near: a vertex every 2 m, ±160 m
+  { chunk: 256, seg: 32, ring: 2 }, // far: every 8 m, ±640 m
+  { chunk: 1024, seg: 32, ring: 2 }, // horizon: every 32 m, ±2.5 km (seen from the air)
+];
 
 const C = {
   wet: new THREE.Color("#35334f"),
@@ -193,60 +201,59 @@ function groundMaterial(): THREE.MeshStandardMaterial {
 
 export class Terrain {
   group = new THREE.Group();
-  private near = new Map<string, THREE.Mesh>();
-  private far = new Map<string, THREE.Mesh>();
-  private pool: { near: THREE.Mesh[]; far: THREE.Mesh[] } = { near: [], far: [] };
+  private tiles = LEVELS.map(() => new Map<string, THREE.Mesh>());
+  private pools = LEVELS.map(() => [] as THREE.Mesh[]);
+  private centre = LEVELS.map(() => [Infinity, Infinity]);
   private material = groundMaterial();
-  private nc = [Infinity, Infinity];
-  private fc = [Infinity, Infinity];
   private queue: (() => void)[] = [];
   private col = new THREE.Color();
   private tmp = new THREE.Color();
 
-  /** The square the near tiles cover: coarse vertices inside it are sunk out of sight. */
-  private nearBox(): [number, number, number, number] {
-    const [cx, cz] = this.nc;
-    return [(cx - NEAR.ring) * NEAR.chunk, (cz - NEAR.ring) * NEAR.chunk, (cx + NEAR.ring + 1) * NEAR.chunk, (cz + NEAR.ring + 1) * NEAR.chunk];
+  /** The square a level's tiles cover: the next level's vertices inside it are sunk. */
+  private box(li: number): [number, number, number, number] {
+    const L = LEVELS[li], [cx, cz] = this.centre[li];
+    return [(cx - L.ring) * L.chunk, (cz - L.ring) * L.chunk, (cx + L.ring + 1) * L.chunk, (cz + L.ring + 1) * L.chunk];
   }
 
-  /** Keep the wanderer in the middle of both levels. `force` builds everything now. */
+  /** Keep the wanderer in the middle of every level. `force` builds everything now. */
   update(x: number, z: number, force = false): void {
-    const ncx = Math.floor(x / NEAR.chunk), ncz = Math.floor(z / NEAR.chunk);
-    const fcx = Math.floor(x / FAR.chunk), fcz = Math.floor(z / FAR.chunk);
-    const nearMoved = ncx !== this.nc[0] || ncz !== this.nc[1];
-    if (force || nearMoved) {
-      this.nc = [ncx, ncz];
-      this.queue = [];
-      this.stream(this.near, this.pool.near, NEAR, ncx, ncz, true);
-    }
-    if (force || nearMoved || fcx !== this.fc[0] || fcz !== this.fc[1]) {
-      this.fc = [fcx, fcz];
-      // far tiles are refilled after the near ones, since the square they give way to has moved
-      this.stream(this.far, this.pool.far, FAR, fcx, fcz, false);
-    }
+    let innerMoved = false;
+    LEVELS.forEach((L, li) => {
+      const cx = Math.floor(x / L.chunk), cz = Math.floor(z / L.chunk);
+      const moved = cx !== this.centre[li][0] || cz !== this.centre[li][1];
+      if (force || moved || innerMoved) {
+        if (li === 0) this.queue = [];
+        this.centre[li] = [cx, cz];
+        // coarser levels are refilled after finer ones, since the square they give way to moved
+        this.stream(li, cx, cz, force || moved);
+      }
+      innerMoved = innerMoved || moved;
+    });
     // a few tiles per frame, so walking never stutters
     const n = force ? this.queue.length : 2;
     for (let i = 0; i < n && this.queue.length; i++) this.queue.shift()!();
   }
 
-  private stream(tiles: Map<string, THREE.Mesh>, pool: THREE.Mesh[], L: Level, cx: number, cz: number, isNear: boolean): void {
+  private stream(li: number, cx: number, cz: number, recentred: boolean): void {
+    const L = LEVELS[li], tiles = this.tiles[li], pool = this.pools[li];
     const want = new Set<string>();
     for (let i = -L.ring; i <= L.ring; i++) for (let j = -L.ring; j <= L.ring; j++) want.add(`${cx + i},${cz + j}`);
-    for (const [k, m] of tiles) {
-      if (!want.has(k)) {
-        this.group.remove(m);
-        pool.push(m);
-        tiles.delete(k);
+    if (recentred)
+      for (const [k, m] of tiles) {
+        if (!want.has(k)) {
+          this.group.remove(m);
+          pool.push(m);
+          tiles.delete(k);
+        }
       }
-    }
     for (const k of want) {
       const [i, j] = k.split(",").map(Number);
       const have = tiles.get(k);
-      if (have && isNear) continue; // near tiles never change
-      if (have && !this.touchesNear(L, i, j)) continue; // far tiles change only where the near square moved
+      if (have && li === 0) continue; // the finest tiles never change
+      if (have && !this.touchesInner(li, i, j)) continue; // coarser tiles change only where the finer square moved
       this.queue.push(() => {
-        const m = tiles.get(k) ?? pool.pop() ?? this.newMesh(L, isNear);
-        this.fill(m, L, i, j, isNear);
+        const m = tiles.get(k) ?? pool.pop() ?? this.newMesh(L, li === 0);
+        this.fill(m, li, i, j);
         if (!tiles.has(k)) {
           tiles.set(k, m);
           this.group.add(m);
@@ -255,9 +262,10 @@ export class Terrain {
     }
   }
 
-  private touchesNear(L: Level, i: number, j: number): boolean {
-    const [x0, z0, x1, z1] = this.nearBox();
-    const m = NEAR.chunk; // the old square was at most one near tile away
+  private touchesInner(li: number, i: number, j: number): boolean {
+    const L = LEVELS[li];
+    const [x0, z0, x1, z1] = this.box(li - 1);
+    const m = LEVELS[li - 1].chunk; // the old square was at most one finer tile away
     return i * L.chunk < x1 + m && (i + 1) * L.chunk > x0 - m && j * L.chunk < z1 + m && (j + 1) * L.chunk > z0 - m;
   }
 
@@ -273,7 +281,8 @@ export class Terrain {
     return m;
   }
 
-  private fill(m: THREE.Mesh, L: Level, i: number, j: number, isNear: boolean): void {
+  private fill(m: THREE.Mesh, li: number, i: number, j: number): void {
+    const L = LEVELS[li];
     const ox = (i + 0.5) * L.chunk, oz = (j + 0.5) * L.chunk;
     m.position.set(ox, 0, oz);
     const g = m.geometry as THREE.BufferGeometry;
@@ -287,7 +296,7 @@ export class Terrain {
     const H = new Float32Array(W * W);
     for (let b = 0; b < W; b++)
       for (let a = 0; a < W; a++) H[b * W + a] = heightAt(ox + ((a - B) - L.seg / 2) * step, oz + ((b - B) - L.seg / 2) * step);
-    const box = isNear ? null : this.nearBox();
+    const box = li > 0 ? this.box(li - 1) : null;
     for (let v = 0; v < pos.count; v++) {
       const a = (v % n) + B, b = Math.floor(v / n) + B;
       const lx = (a - B - L.seg / 2) * step, lz = (b - B - L.seg / 2) * step;

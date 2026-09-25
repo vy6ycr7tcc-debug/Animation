@@ -100,6 +100,11 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - in water, the wanderer becomes an orb of light;
   - new moves: run (hold; running off a slope glides) and free flight (F or Fly: rise, sink, hover, as high as you like).
   - The fluid-body entry below is superseded.
+- 2026-09-25: Samuel wants the world "bigger, bigger, bigger". Size costs no storage: the land is computed from a formula and streamed.
+  - The world is about 8 km across (`WORLD_R`), with mountains at its edge and kilometre-scale highlands, lowlands and great lakes.
+  - The archetypes' homes are spread up to about 1 km from the shore.
+  - A third ground level reaches about 2.5 km, for views while flying.
+  - Clouds wrap around the camera.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.

@@ -81,7 +81,7 @@ export class Water {
           gl_FragColor=vec4(c,1.0);
         }`,
     });
-    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000, 1, 1).rotateX(-Math.PI / 2), mat);
+    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(14000, 14000, 1, 1).rotateX(-Math.PI / 2), mat);
     this.mesh.frustumCulled = false;
   }
 

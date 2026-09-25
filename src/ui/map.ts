@@ -62,8 +62,9 @@ export class StartMap {
     this.closeBtn.hidden = !closable;
     // frame all the places, with room around them
     const xs = places.map((p) => p.x).concat(you ? [you.x] : []), zs = places.map((p) => p.z).concat(you ? [you.z] : []);
-    const x0 = Math.min(...xs) - 70, x1 = Math.max(...xs) + 70, z0 = Math.min(...zs) - 70, z1 = Math.max(...zs) + 70;
-    const size = Math.max(x1 - x0, z1 - z0);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), z0 = Math.min(...zs), z1 = Math.max(...zs);
+    // room around the places, so none sits at the round map's edge
+    const size = Math.max(x1 - x0, z1 - z0) * 1.55 + 140;
     this.box = { x0: (x0 + x1) / 2 - size / 2, z0: (z0 + z1) / 2 - size / 2, size };
     this.base = this.renderGround();
     this.list.replaceChildren(
@@ -164,8 +165,9 @@ export class StartMap {
           col = mix([44, 37, 72], [86, 72, 104], v / 40);
           const shade = Math.max(-1, Math.min(1, (v - vr + (v - vd)) * 0.35)); // light from the north-west
           col = col.map((x) => x * (0.85 + shade * 0.25));
-          // contour lines every three metres, in gold
-          if (Math.floor(v / 3) !== Math.floor(vr / 3) || Math.floor(v / 3) !== Math.floor(vd / 3)) col = mix(col, [226, 184, 110], 0.45);
+          // contour lines in gold, spaced to suit the map's scale
+          const ci = Math.max(3, Math.round(this.box.size / 180));
+          if (Math.floor(v / ci) !== Math.floor(vr / ci) || Math.floor(v / ci) !== Math.floor(vd / ci)) col = mix(col, [226, 184, 110], 0.4);
         }
         // the shoreline, in pearl
         if ((v < WATER_Y) !== (vr < WATER_Y) || (v < WATER_Y) !== (vd < WATER_Y)) col = [236, 226, 206];
