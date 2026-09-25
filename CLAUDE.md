@@ -143,6 +143,11 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - the aura is a wispy luminous gas (point puffs torn by noise);
   - the streams are winding paint-strokes with bristle texture and travelling loads of paint, flowing in and out;
   - rocks and crystals you stop before vibrate light (waves over their surface, motes streaming off; `vibeUniforms`).
+- 2026-09-25: Samuel: the character's glow was "too much"; it should be relaxing, "like a timid light… embodying the thing".
+  - The body's own light is quiet: low inner emission and a soft edge.
+  - The halo, point light, motes and ribbons are toned down.
+  - Bloom follows the community's standard advice: a high threshold (0.88) and gentle strength (0.7), so only truly bright things glow.
+  - Keep new effects in this register.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.

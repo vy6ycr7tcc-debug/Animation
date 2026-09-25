@@ -28,8 +28,9 @@ export function lightBodyMaterial(tint: THREE.Color = new THREE.Color(1.0, 0.86,
           float fr=pow(1.0-abs(dot(normal,vdir)),2.2);
           // a slow current of light rising through the body
           float cur=0.5+0.5*sin(-vViewPosition.y*6.0+uTime*1.4+sin(vViewPosition.x*9.0)*0.8);
-          totalEmissiveRadiance=emissive*(0.32+fr*1.35+cur*0.1);
-          diffuseColor.a=opacity*mix(0.38,0.97,fr);
+          // a timid light, held within: faint through the body, a soft line at its edge
+          totalEmissiveRadiance=emissive*(0.17+fr*0.6+cur*0.04);
+          diffuseColor.a=opacity*mix(0.32,0.85,fr);
         }`,
       );
   };
