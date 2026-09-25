@@ -6,6 +6,7 @@ import {
   BloomEffect,
   EffectComposer,
   EffectPass,
+  GodRaysEffect,
   RenderPass,
   SMAAEffect,
   SMAAPreset,
@@ -64,6 +65,17 @@ const bloom = new BloomEffect({ mipmapBlur: true, luminanceThreshold: 0.6, lumin
 const bloomPass = new EffectPass(camera, bloom, new ToneMappingEffect({ mode: ToneMappingMode.AGX }));
 const plainPass = new EffectPass(camera, new ToneMappingEffect({ mode: ToneMappingMode.AGX }));
 const finalPass = new EffectPass(camera, new SMAAEffect({ preset: SMAAPreset.MEDIUM }), new VignetteEffect({ offset: 0.35, darkness: 0.5 }));
+// The bright star, as a light source for god rays that fan around the island's silhouette.
+const starSource = new THREE.Mesh(
+  new THREE.SphereGeometry(9, 16, 12),
+  new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.8, 0.5), transparent: true, fog: false, depthWrite: false }),
+);
+starSource.frustumCulled = false;
+const godRays = new GodRaysEffect(camera, starSource, {
+  resolutionScale: 0.5, density: 0.9, decay: 0.95, weight: 0.35, exposure: 0.45, samples: 48, clampMax: 1.0, blur: true,
+});
+const raysPass = new EffectPass(camera, godRays);
+composer.addPass(raysPass);
 composer.addPass(bloomPass);
 composer.addPass(plainPass);
 composer.addPass(finalPass);
@@ -96,7 +108,7 @@ star.shadow.camera.near = 1;
 star.shadow.camera.far = 140;
 star.shadow.bias = -0.0005;
 star.shadow.normalBias = 0.04;
-scene.add(star, star.target);
+scene.add(star, star.target, starSource);
 
 const water = new Water();
 water.uniforms.uFogColor.value.copy(FOG_COLOR);
@@ -135,7 +147,7 @@ const follow = new FollowCamera(camera);
 
 /* ============ QUALITY ============ */
 let dpr = 1;
-const quality = new AdaptiveQuality(applyTier);
+const quality: AdaptiveQuality = new AdaptiveQuality(applyTier);
 function resize(): void {
   const w = innerWidth, h = innerHeight;
   dpr = Math.min(devicePixelRatio || 1, quality.current.dpr);
@@ -145,7 +157,8 @@ function resize(): void {
   camera.fov = h > w ? 66 : 55;
   camera.updateProjectionMatrix();
 }
-function applyTier(t: Tier): void {
+function applyTier(t: Tier, i: number = quality.tier): void {
+  raysPass.enabled = i <= 1; // god rays on the two higher tiers only
   bloomPass.enabled = t.bloom;
   plainPass.enabled = !t.bloom;
   const sh = star.shadow;
@@ -226,6 +239,7 @@ input.onTap = (x, y) => {
   else footprints.place(p.x, p.y, p.z, player.heading, S.t);
 };
 player.onLand = () => {
+  if (!player.swimming) wanderer.land();
   const y = Math.max(heightAt(player.pos.x, player.pos.z), WATER_Y);
   footprints.place(player.pos.x - 0.1, y, player.pos.z, player.heading, S.t);
   footprints.place(player.pos.x + 0.1, y, player.pos.z, player.heading, S.t);
@@ -437,6 +451,7 @@ function update(dt: number): void {
 
   follow.update(dt, player.pos, player.heading, player.speed > 0.5, t, S.reduced);
   sky.position.copy(camera.position);
+  starSource.position.copy(camera.position).addScaledVector(starDir, 900);
   glow.set(player.pos.x, S.mode === "intro" ? 0 : 1, player.pos.z);
   water.update(camera.position.x, camera.position.z, glow);
   skyUniforms.uT.value = t;

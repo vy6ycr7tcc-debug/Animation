@@ -1,10 +1,11 @@
 /* The wanderer: a body of flowing light.
-   - A smoothly deforming, motion-captured figure (Mixamo "X Bot", featureless and androgynous)
-     animated with blended idle / walk / run cycles, paced to the actual speed.
+   - A smoothly deforming, featureless mannequin with recorded motion from Quaternius's
+     Universal Animation Library (CC0): idle, walk, jog, swim, tread water, jump, land —
+     blended by speed and paced to the ground speed.
    - The body is drawn as light: a translucent core crossed by fine, flowing currents (like the
      linework of the drawings), a bright silhouette, and a soft outer aura that breathes.
    - Motes ride the moving skin and stream behind; ribbons of light trail from the hands and crown.
-   - Swimming is a slow breaststroke laid over the rig, blended in and out. */
+   - Sitting and reaching gestures are in the file too, for the stations. */
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
@@ -13,8 +14,9 @@ import { loadBytes } from "../core/assets";
 export type Pose = "idle" | "walk" | "glide" | "swim" | "air";
 
 const HEIGHT = 1.65;
-const WALK_NATURAL = 1.3; // metres per second the walk cycle covers at timeScale 1 (after scaling)
-const RUN_NATURAL = 3.5;
+const WALK_NATURAL = 1.35; // metres per second each cycle covers at timeScale 1 (after scaling)
+const JOG_NATURAL = 3.2;
+const SWIM_NATURAL = 2.4;
 
 const U = {
   uT: { value: 0 },
@@ -44,7 +46,7 @@ const SKIN_VERT_BODY = /* glsl */ `
   #include <begin_vertex>
   #include <skinning_vertex>
   vec3 n=normalize(objectNormal);
-  vL=position*0.01; // rest-pose coordinates (the rig is in centimetres): patterns stay on the body
+  vL=position; // rest-pose coordinates in metres: patterns stay on the body
 `;
 
 function bodyMaterial(): THREE.ShaderMaterial {
@@ -57,7 +59,7 @@ function bodyMaterial(): THREE.ShaderMaterial {
       void main(){
         ${SKIN_VERT_BODY}
         float w=vnoise(vL*9.0+vec3(0.0,-uT*0.8,uT*0.3))-0.5;
-        transformed+=n*w*uWobble*100.0;
+        transformed+=n*w*uWobble;
         vec4 wp=modelMatrix*vec4(transformed,1.0);
         vW=wp.xyz;vN=normalize(mat3(modelMatrix)*n);
         gl_Position=projectionMatrix*viewMatrix*wp;
@@ -99,7 +101,7 @@ function auraMaterial(): THREE.ShaderMaterial {
       void main(){
         ${SKIN_VERT_BODY}
         float w=vnoise(vL*4.0+vec3(0.0,-uT*0.9,0.0));
-        transformed+=n*(2.2+w*2.4); // an outer shell, a few centimetres out, breathing
+        transformed+=n*(0.022+w*0.024); // an outer shell, a few centimetres out, breathing
         vec4 wp=modelMatrix*vec4(transformed,1.0);
         vW=wp.xyz;vN=normalize(mat3(modelMatrix)*n);
         gl_Position=projectionMatrix*viewMatrix*wp;
@@ -182,15 +184,42 @@ class SkinMotes {
     this.points.frustumCulled = false;
   }
 
+  private cdf: Float32Array = new Float32Array(0);
+  private tri: Uint32Array = new Uint32Array(0);
+
   attach(mesh: THREE.SkinnedMesh): void {
     this.mesh = mesh;
-    const count = (mesh.geometry.attributes.position as THREE.BufferAttribute).count;
-    for (let i = 0; i < this.n; i++) this.respawn(i, count);
+    // Sample by surface area, not by vertex, so dense fingers don't hoard the light.
+    const g = mesh.geometry;
+    const pos = g.attributes.position as THREE.BufferAttribute;
+    const index = g.index ? (g.index.array as ArrayLike<number>) : Array.from({ length: pos.count }, (_, i) => i);
+    const nt = Math.floor(index.length / 3);
+    this.cdf = new Float32Array(nt);
+    this.tri = new Uint32Array(nt);
+    const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+    let acc = 0;
+    for (let t = 0; t < nt; t++) {
+      a.fromBufferAttribute(pos, index[t * 3]);
+      b.fromBufferAttribute(pos, index[t * 3 + 1]);
+      c.fromBufferAttribute(pos, index[t * 3 + 2]);
+      acc += b.sub(a).cross(c.sub(a)).length() * 0.5;
+      this.cdf[t] = acc;
+      this.tri[t] = index[t * 3 + ((t * 7) % 3)];
+    }
+    for (let i = 0; i < this.n; i++) this.respawn(i, 0);
     this.started = false;
   }
 
-  private respawn(i: number, count: number): void {
-    this.idx[i] = Math.floor(Math.random() * count);
+  private respawn(i: number, _count: number): void {
+    const cdf = this.cdf;
+    const r = Math.random() * (cdf[cdf.length - 1] || 1);
+    let lo = 0, hi = cdf.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (cdf[mid] < r) lo = mid + 1;
+      else hi = mid;
+    }
+    this.idx[i] = this.tri[lo] ?? 0;
     this.lift[i] = 0;
   }
 
@@ -326,24 +355,31 @@ class Ribbon {
 }
 
 /* ---------- the figure ---------- */
+type ActName = "idle" | "walk" | "jog" | "swim" | "tread" | "air" | "land" | "sit" | "sitIdle" | "reach" | "reachIdle";
+const CLIPS: Record<ActName, string> = {
+  idle: "Idle_Loop", walk: "Walk_Loop", jog: "Jog_Fwd_Loop", swim: "Swim_Fwd_Loop", tread: "Swim_Idle_Loop",
+  air: "Jump_Loop", land: "Jump_Land", sit: "Sitting_Enter", sitIdle: "Sitting_Idle_Loop",
+  reach: "Spell_Simple_Enter", reachIdle: "Spell_Simple_Idle_Loop",
+};
+
 export class Wanderer {
   root = new THREE.Group(); // at the feet; rotation.y is the heading
   /** Everything drawn in world space (motes, ribbons): add to the scene. */
   fx = new THREE.Group();
   ready = false;
-  private body = new THREE.Group(); // pitches forward to swim
+  private body = new THREE.Group();
   private bones: Record<string, THREE.Bone> = {};
   private mixer: THREE.AnimationMixer | null = null;
-  private act: Partial<Record<"idle" | "walk" | "run", THREE.AnimationAction>> = {};
+  private act: Partial<Record<ActName, THREE.AnimationAction>> = {};
   private motes = new SkinMotes(420);
   private ribbons = [new Ribbon(30, 0.035), new Ribbon(30, 0.035), new Ribbon(22, 0.05)];
   private halo: THREE.Sprite;
   private light: THREE.PointLight;
-  private k = { swim: 0, glide: 0, move: 0 };
+  private k = { swim: 0, glide: 0, move: 0, air: 0 };
   private form = 0;
   private flow = 0;
-  private swimPhase = 0;
-  private tmp = { a: new THREE.Vector3(), b: new THREE.Vector3(), q: new THREE.Quaternion(), q2: new THREE.Quaternion(), cam: new THREE.Vector3() };
+  private landT = 9;
+  private tmp = { a: new THREE.Vector3(), cam: new THREE.Vector3(), crown: new THREE.Vector3(0, 0.24, 0) };
 
   constructor(private camera: THREE.Camera) {
     this.root.add(this.body);
@@ -366,19 +402,24 @@ export class Wanderer {
     loader.setMeshoptDecoder(MeshoptDecoder);
     const gltf = await loader.parseAsync(bytes, "");
     const model = gltf.scene;
-    let skinned: THREE.SkinnedMesh | null = null;
+    const body = bodyMaterial();
+    const skinned: THREE.SkinnedMesh[] = [];
     model.traverse((o) => {
-      if ((o as THREE.SkinnedMesh).isSkinnedMesh) skinned = o as THREE.SkinnedMesh;
-      if ((o as THREE.Bone).isBone) this.bones[o.name.replace(/^mixamorig:?/, "")] = o as THREE.Bone;
+      if ((o as THREE.SkinnedMesh).isSkinnedMesh) skinned.push(o as THREE.SkinnedMesh);
+      if ((o as THREE.Bone).isBone) this.bones[o.name] = o as THREE.Bone;
     });
-    if (!skinned) return;
-    const sk: THREE.SkinnedMesh = skinned;
-    sk.material = bodyMaterial();
-    sk.frustumCulled = false;
-    const aura = new THREE.SkinnedMesh(sk.geometry, auraMaterial());
-    aura.bind(sk.skeleton, sk.bindMatrix);
-    aura.frustumCulled = false;
-    sk.parent!.add(aura);
+    if (!skinned.length) return;
+    let main = skinned[0];
+    for (const sk of skinned) {
+      sk.material = body;
+      sk.frustumCulled = false;
+      const aura = new THREE.SkinnedMesh(sk.geometry, auraMaterial());
+      aura.bind(sk.skeleton, sk.bindMatrix);
+      aura.frustumCulled = false;
+      sk.parent!.add(aura);
+      const n = (sk.geometry.attributes.position as THREE.BufferAttribute).count;
+      if (n > (main.geometry.attributes.position as THREE.BufferAttribute).count) main = sk;
+    }
 
     // Scale to height, face -z like the rest of the game.
     model.rotation.y = Math.PI;
@@ -389,32 +430,30 @@ export class Wanderer {
     this.body.add(model);
 
     this.mixer = new THREE.AnimationMixer(model);
-    for (const name of ["idle", "walk", "run"] as const) {
-      const clip = gltf.animations.find((a) => a.name === name);
+    for (const [key, clipName] of Object.entries(CLIPS) as [ActName, string][]) {
+      const clip = gltf.animations.find((a) => a.name === clipName);
       if (!clip) continue;
       const a = this.mixer.clipAction(clip);
-      a.setEffectiveWeight(name === "idle" ? 1 : 0);
+      a.setEffectiveWeight(key === "idle" ? 1 : 0);
+      if (key === "land") {
+        a.setLoop(THREE.LoopOnce, 1);
+        a.clampWhenFinished = true;
+      } else if (key === "sit" || key === "reach") {
+        continue; // one-shot gestures for the stations (milestone 2)
+      }
       a.play();
-      this.act[name] = a;
+      this.act[key] = a;
     }
-    this.motes.attach(sk);
+    this.motes.attach(main);
     this.ready = true;
   }
 
-  /** Aim a bone so that its child points along a direction given in the body's frame. */
-  private aim(bone: THREE.Bone | undefined, dirBody: THREE.Vector3, w: number): void {
-    if (!bone || !bone.parent || w < 0.001) return;
-    const child = bone.children.find((c) => (c as THREE.Bone).isBone);
-    if (!child) return;
-    const { a, b, q, q2 } = this.tmp;
-    this.body.getWorldQuaternion(q);
-    a.copy(dirBody).normalize().applyQuaternion(q);
-    bone.parent.getWorldQuaternion(q2);
-    a.applyQuaternion(q2.invert());
-    b.copy(child.position).normalize();
-    q.setFromUnitVectors(b, a);
-    bone.quaternion.slerp(q, w);
-    bone.updateMatrixWorld(true);
+  /** Touch down after a jump: play the landing once. */
+  land(): void {
+    const a = this.act.land;
+    if (!a) return;
+    a.reset().play();
+    this.landT = 0;
   }
 
   animate(dt: number, pose: Pose, speed: number, t: number, reduced: boolean, dpr = 1): void {
@@ -430,42 +469,38 @@ export class Wanderer {
       (this.k[key] += (target - this.k[key]) * Math.min(1, dt * rate));
     const swim = ease("swim", pose === "swim" ? 1 : 0, 2.5);
     const glide = ease("glide", pose === "glide" ? 1 : 0, 3);
+    const air = ease("air", pose === "air" ? 1 : 0, 8);
     const moving = pose === "walk" || pose === "glide" || (pose === "swim" && speed > 0.2);
     const sp = ease("move", moving ? speed : 0, 6);
 
     if (this.mixer) {
-      // Blend idle → walk → run by speed; pace the cycles to the ground speed.
-      const land = 1 - swim;
-      const wRun = THREE.MathUtils.smoothstep(sp, 2.2, 3.3);
-      const wWalk = THREE.MathUtils.smoothstep(sp, 0.08, 0.9) * (1 - wRun);
-      const wIdle = Math.max(0, 1 - wWalk - wRun);
-      this.act.idle?.setEffectiveWeight(wIdle * land + swim);
-      this.act.walk?.setEffectiveWeight(wWalk * land);
-      this.act.run?.setEffectiveWeight(wRun * land);
-      if (this.act.walk) this.act.walk.timeScale = THREE.MathUtils.clamp(sp / WALK_NATURAL, 0.55, 1.6);
-      if (this.act.run) this.act.run.timeScale = THREE.MathUtils.clamp(sp / RUN_NATURAL, 0.6, 1.3);
-      if (this.act.idle) this.act.idle.timeScale = reduced ? 0.5 : 0.8;
+      // Blend by speed, and pace every cycle to the ground speed so feet don't slide.
+      this.landT += dt;
+      const landing = Math.max(0, 1 - this.landT / 0.55) * (1 - swim);
+      const ground = (1 - swim) * (1 - air) * (1 - landing);
+      const wJog = THREE.MathUtils.smoothstep(sp, 2.0, 3.0);
+      const wWalk = THREE.MathUtils.smoothstep(sp, 0.08, 0.8) * (1 - wJog);
+      const wIdle = Math.max(0, 1 - wWalk - wJog);
+      const swimMove = THREE.MathUtils.smoothstep(sp, 0.3, 1.2);
+      const W: Partial<Record<ActName, number>> = {
+        idle: wIdle * ground,
+        walk: wWalk * ground,
+        jog: wJog * ground,
+        air: air * (1 - swim),
+        land: landing,
+        swim: swim * swimMove,
+        tread: swim * (1 - swimMove),
+      };
+      for (const [key, a] of Object.entries(this.act) as [ActName, THREE.AnimationAction][]) a.setEffectiveWeight(W[key] ?? 0);
+      const clamp = THREE.MathUtils.clamp;
+      if (this.act.walk) this.act.walk.timeScale = clamp(sp / WALK_NATURAL, 0.55, 1.6);
+      if (this.act.jog) this.act.jog.timeScale = clamp(sp / JOG_NATURAL, 0.6, 1.3);
+      if (this.act.swim) this.act.swim.timeScale = clamp(sp / SWIM_NATURAL, 0.6, 1.2);
+      if (this.act.idle) this.act.idle.timeScale = reduced ? 0.5 : 0.85;
+      if (this.act.tread) this.act.tread.timeScale = reduced ? 0.5 : 0.8;
       this.mixer.update(dt);
-
-      // Swimming: lie forward in the water and stroke slowly, laid over the rig.
-      this.body.rotation.x = -swim * 1.25 - glide * 0.08;
-      this.body.position.set(0, swim * 0.85, swim * 0.35);
-      if (swim > 0.01) {
-        this.root.updateMatrixWorld(true);
-        this.swimPhase += dt * (0.7 + Math.min(speed, 3) * 0.35);
-        const sweep = 0.5 - 0.5 * Math.sin(this.swimPhase * Math.PI); // 0: reaching ahead, 1: swept out and back
-        const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
-        for (const side of [-1, 1]) {
-          const L = side < 0 ? "Left" : "Right";
-          // Body frame: +y runs from feet to head (ahead while swimming), -z is the chest.
-          this.aim(this.bones[`${L}Arm`], V(side * (0.25 + sweep * 0.9), 1 - sweep * 1.1, -0.15 - sweep * 0.4), swim);
-          this.aim(this.bones[`${L}ForeArm`], V(side * (0.2 + sweep * 0.15), 1 - sweep * 0.8, -0.2 - sweep * 0.9), swim);
-          const kick = Math.sin(this.swimPhase * Math.PI * 2 + (side < 0 ? 0 : Math.PI));
-          this.aim(this.bones[`${L}UpLeg`], V(side * 0.12, -1, kick * 0.18), swim);
-          this.aim(this.bones[`${L}Leg`], V(side * 0.1, -1, 0.15 + Math.max(0, kick) * 0.35), swim);
-        }
-        this.aim(this.bones.Neck, V(0, 0.8, 0.6), swim); // head up, looking ahead
-      }
+      // Treading water sits a little higher than the forward stroke, so the head stays up.
+      this.body.position.y = swim * (swimMove * 0.28 + (1 - swimMove) * 0.35);
     }
 
     const breathe = reduced ? 0 : Math.sin(t * 0.63);
@@ -482,9 +517,11 @@ export class Wanderer {
     // Ribbons trail from the hands and the crown, stronger in motion.
     const cam = this.tmp.cam.copy(this.camera.position);
     const strength = Math.min(1, 0.25 + this.flow * 0.4) * f;
-    [this.bones.LeftHand, this.bones.RightHand, this.bones.HeadTop_End].forEach((b, i) => {
+    const handL = this.bones["DEF-hand.L"], handR = this.bones["DEF-hand.R"], headB = this.bones["DEF-head"];
+    [handL, handR, headB].forEach((b, i) => {
       if (!b) return;
-      b.getWorldPosition(this.tmp.a);
+      if (i === 2) this.tmp.a.copy(this.tmp.crown).applyMatrix4(b.matrixWorld);
+      else b.getWorldPosition(this.tmp.a);
       this.ribbons[i].update(dt, this.tmp.a, cam, i === 2 ? strength * 0.7 : strength);
     });
   }
