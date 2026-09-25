@@ -22,8 +22,12 @@ The build uses a relative base, so `dist/` also works as-is on Netlify, Vercel o
 
 ## Layout
 
-- `src/main.ts`: game loop, states (intro, play, rest), renderer and post-processing, UI wiring
-- `src/core/`: audio (generative beds), input (keyboard, mouse, touch joystick), save, adaptive quality, narration/subtitles
-- `src/world/`: sky, water, terrain (one height function for collision and meshes), islands, etched linework, motes
-- `src/player/`: the wanderer (mesh and animation), controller, follow camera, footprints
-- `prompts/`, `reference/`, `narration/`, `prototype/`: brief and source material
+- `src/main.ts`: renderer and post-processing, world setup, input, UI wiring, the frame loop
+- `src/journey.ts`: the stations' narration, prompts and questions, the Chariot's ride, the return and the ending
+- `src/core/`: audio (water bed, tones, one-shots), narration and subtitles, input, save, adaptive quality, asset loading
+- `src/world/`: sky, water, reflection, terrain, stations, etched linework, atmosphere (mist, far hills, fireflies), motes
+- `src/player/`: the wanderer (recorded animation, fluid body, motes, ribbons), controller, camera, footprints
+- `src/ui/journal.ts`: the private journal
+- `content/`: narration catalogue with subtitle cues, station data, scripts
+- `public/`: audio and the wanderer's skeleton and animations
+- `prompts/`, `reference/`, `narration/`, `prototype/`: briefs and source material
