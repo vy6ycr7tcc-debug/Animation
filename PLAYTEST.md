@@ -95,5 +95,7 @@ There is no island and no path. After "Touch the water to begin", a map unfolds:
 - **The costliest effects, and when they turn off:**
   - the ray-marched fluid body: 48 steps on the top quality level, down to 24 on the lowest;
   - the water reflection: top two quality levels only;
-  - the god rays: top two quality levels only.
+  - the god rays: top two quality levels only;
+  - the ambient occlusion (soft contact shadows): top two quality levels only.
+- Real textures and scanned rocks add about 2.2 MB to the first load.
 - The quality level drops automatically if frames run slow.

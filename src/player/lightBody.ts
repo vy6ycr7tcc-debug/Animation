@@ -13,7 +13,7 @@ export function lightBodyMaterial(tint: THREE.Color = new THREE.Color(1.0, 0.86,
     metalness: 0.1,
     transparent: true,
     opacity: 1, // the whole body's presence: fades to 0 as it becomes an orb in water
-    depthWrite: true,
+    depthWrite: false, // light, not a solid: it never shadows itself in the ambient occlusion
   });
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uTime = { value: 0 };

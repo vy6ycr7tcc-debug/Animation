@@ -105,6 +105,11 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - The archetypes' homes are spread up to about 1 km from the shore.
   - A third ground level reaches about 2.5 km, for views while flying.
   - Clouds wrap around the camera.
+- 2026-09-25: better graphics with real assets, keeping the art direction (all CC0/MIT, credited in `CREDITS.md`, shipped with the game):
+  - Poly Haven scans for ground (sand, meadow, rock), stone and bark (`src/world/textures.ts`), tinted to the moonlit palette;
+  - three scanned boulders (`public/models/rocks.glb`, built by `tools/build-rocks.mjs`);
+  - N8AO ambient occlusion on the two higher quality levels.
+  - Code-generated shapes stay where Samuel's direction asks for them: round, curling trees, crystals, spirits.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.

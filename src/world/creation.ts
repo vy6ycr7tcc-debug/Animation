@@ -17,6 +17,10 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { LifeFrame, Sparks } from "./life";
 import { etchedStone } from "./etching";
+import { surface } from "./textures";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
+import { loadBytes } from "../core/assets";
 import { colliders, fbm, groundKind, heightAt, LANDMARK_SITES, SPAWN, smooth, WATER_Y, type Collider } from "./terrain";
 
 /** Shared by every shader here; main.ts copies the scene's fog in. */
@@ -393,16 +397,30 @@ export class Creation {
 
   /* ---------------------------------------------------------------- materials and meshes */
   private buildTrees(): void {
+    const barkTex = surface("bark");
     const bark = new THREE.ShaderMaterial({
-      uniforms: U,
+      uniforms: { ...U, tBarkD: { value: barkTex.diff }, tBarkN: { value: barkTex.nor } },
       vertexShader: TREE_VERT,
       fragmentShader: /* glsl */ `
         varying vec3 vW;varying vec3 vN;varying float vU;varying float vAng;varying float vSeed;
+        uniform sampler2D tBarkD,tBarkN;
         ${GLSL_COMMON}
+        // the bark's relief, from its normal map, oriented by the surface's own derivatives
+        vec3 barkNormal(vec3 n,vec2 uv,vec3 m){
+          vec3 q0=dFdx(vW),q1=dFdy(vW);vec2 s0=dFdx(uv),s1=dFdy(uv);
+          vec3 q1p=cross(q1,n),q0p=cross(n,q0);
+          vec3 T=q1p*s0.x+q0p*s1.x,B=q1p*s0.y+q0p*s1.y;
+          float d=max(dot(T,T),dot(B,B));float k=d==0.0?0.0:inversesqrt(d);
+          return normalize(T*(m.x*k)+B*(m.y*k)+n*m.z);
+        }
         void main(){
+          vec2 buv=vec2(vAng*2.0,vU*7.0+vSeed);
           vec3 n=normalize(vN);vec3 v=normalize(cameraPosition-vW);
+          float dist0=length(vW-cameraPosition);
+          if(dist0<60.0)n=barkNormal(n,buv,mix(vec3(0,0,1),texture2D(tBarkN,buv).xyz*2.0-1.0,1.0-smoothstep(25.0,60.0,dist0)));
+          vec3 bk=texture2D(tBarkD,buv).rgb;
           float hemi=0.5+0.5*n.y;
-          vec3 c=mix(vec3(0.006,0.005,0.014),vec3(0.03,0.028,0.06),hemi);
+          vec3 c=mix(vec3(0.006,0.005,0.014),vec3(0.03,0.028,0.06),hemi)*(0.4+bk*2.4);
           c+=vec3(0.09,0.07,0.05)*max(0.0,dot(n,uStar));
           c+=vec3(0.3,0.38,0.8)*pow(1.0-max(0.0,dot(n,v)),5.0)*0.18; // a thin rim of starlight
           // the grain spirals up the trunk as fine lines of light
@@ -547,6 +565,41 @@ export class Creation {
       this.rockMeshes.push(m);
       this.group.add(m);
     }
+    void this.loadScannedRocks();
+  }
+
+  /** Swap the stand-in rocks for real scanned boulders (CC0, Poly Haven) once they arrive. */
+  private async loadScannedRocks(): Promise<void> {
+    const bytes = await loadBytes("models/rocks.glb");
+    if (!bytes) return;
+    const loader = new GLTFLoader();
+    loader.setMeshoptDecoder(MeshoptDecoder);
+    const gltf = await loader.parseAsync(bytes, "");
+    const meshes: THREE.Mesh[] = [];
+    gltf.scene.traverse((o) => (o as THREE.Mesh).isMesh && meshes.push(o as THREE.Mesh));
+    meshes.slice(0, this.rockMeshes.length).forEach((src, k) => {
+      // centred, about a metre across, like the stand-ins they replace
+      const g = src.geometry.clone();
+      g.applyMatrix4(src.matrixWorld);
+      g.computeBoundingBox();
+      const c = g.boundingBox!.getCenter(new THREE.Vector3()), size = g.boundingBox!.getSize(new THREE.Vector3());
+      g.translate(-c.x, -c.y, -c.z);
+      g.scale(2 / Math.max(size.x, size.z), 2 / Math.max(size.x, size.z), 2 / Math.max(size.x, size.z));
+      // stand on the ground: the placement sinks rocks by 0.28 of their size; leave only a little buried
+      g.computeBoundingBox();
+      g.translate(0, 0.18 - g.boundingBox!.min.y, 0);
+      g.computeBoundingSphere();
+      const old = src.material as THREE.MeshStandardMaterial;
+      const mat = etchedStone("#a3a6c4", "#2a2438", 1.7, { triplanar: false }); // the lattice only a whisper on real rock
+      mat.map = old.map;
+      mat.normalMap = old.normalMap;
+      mat.normalScale.set(1.2, 1.2);
+      const target = this.rockMeshes[k];
+      target.geometry.dispose();
+      target.geometry = g;
+      target.material = mat;
+      target.computeBoundingSphere();
+    });
   }
 
   private buildPrisms(): [THREE.InstancedMesh, THREE.InstancedBufferAttribute] {

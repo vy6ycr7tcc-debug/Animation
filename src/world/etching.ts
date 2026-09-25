@@ -2,6 +2,7 @@
    - contourMaterial: terrain whose height contours glow as fine, slightly wandering lines.
    - buildMandala: hand-drawn line geometry on the central platform (seven-fold, one ring per island). */
 import * as THREE from "three";
+import { surface } from "./textures";
 
 export const etchUniforms = {
   uEtchT: { value: 0 },
@@ -123,14 +124,20 @@ export function buildMandala(): THREE.Group {
 
 /** Dark stone etched with fine gold sacred-geometry linework: a triangular lattice with
     circles around its nodes, hand-wobbled, projected onto whichever faces it covers. */
-export function etchedStone(color = "#1c1a2c", line = "#e9c37d", scale = 2.2): THREE.MeshStandardMaterial {
+export function etchedStone(color = "#1c1a2c", line = "#e9c37d", scale = 2.2, opts: { triplanar?: boolean } = {}): THREE.MeshStandardMaterial {
   const m = new THREE.MeshStandardMaterial({ color, roughness: 0.78, metalness: 0.05 });
+  // real scanned rock, projected from three sides (so it never stretches), unless the mesh
+  // brings its own maps
+  const triplanar = opts.triplanar ?? true;
+  const rock = surface("rock");
   const lineColor = new THREE.Color(line);
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uEtchT = etchUniforms.uEtchT;
     sh.uniforms.uEtchGain = etchUniforms.uEtchGain;
     sh.uniforms.uLine = { value: lineColor };
     sh.uniforms.uScale = { value: scale };
+    sh.uniforms.tRockD = { value: rock.diff };
+    sh.uniforms.tRockN = { value: rock.nor };
     sh.vertexShader = sh.vertexShader
       .replace("#include <common>", "#include <common>\nvarying vec3 vEW;varying vec3 vEN;")
       .replace(
@@ -145,6 +152,10 @@ export function etchedStone(color = "#1c1a2c", line = "#e9c37d", scale = 2.2): T
     sh.fragmentShader = sh.fragmentShader
       .replace("#include <common>", `#include <common>
         varying vec3 vEW;varying vec3 vEN;uniform vec3 uLine;uniform float uScale,uEtchT,uEtchGain;
+        uniform sampler2D tRockD,tRockN;
+        vec3 triW(){vec3 w=pow(abs(vEN),vec3(4.0));return w/(w.x+w.y+w.z);}
+        vec3 triTex(sampler2D t,float s){vec3 w=triW();
+          return texture2D(t,vEW.zy/s).rgb*w.x+texture2D(t,vEW.xz/s).rgb*w.y+texture2D(t,vEW.xy/s).rgb*w.z;}
         float stoneH(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}
         float stoneN(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.0-2.0*f);
           return mix(mix(mix(stoneH(i),stoneH(i+vec3(1,0,0)),f.x),mix(stoneH(i+vec3(0,1,0)),stoneH(i+vec3(1,1,0)),f.x),f.y),
@@ -165,9 +176,20 @@ export function etchedStone(color = "#1c1a2c", line = "#e9c37d", scale = 2.2): T
           return l;
         }`)
       .replace(
+        "#include <color_fragment>",
+        triplanar ? `#include <color_fragment>
+        {
+          vec3 det=triTex(tRockD,2.5)*2.2;
+          diffuseColor.rgb*=mix(vec3(dot(det,vec3(0.3,0.5,0.2))),det,0.35);
+        }` : "#include <color_fragment>",
+      )
+      .replace(
         "#include <normal_fragment_maps>",
         `#include <normal_fragment_maps>
         {
+          ${triplanar ? `{vec3 w=triW();vec3 nx=texture2D(tRockN,vEW.zy/2.5).xyz*2.0-1.0,ny=texture2D(tRockN,vEW.xz/2.5).xyz*2.0-1.0,nz=texture2D(tRockN,vEW.xy/2.5).xyz*2.0-1.0;
+            vec3 dn=vec3(0.0,nx.y,nx.x)*w.x+vec3(ny.x,0.0,ny.y)*w.y+vec3(nz.x,nz.y,0.0)*w.z;
+            normal=normalize(normal+mat3(viewMatrix)*dn*1.1);}` : ""}
           // weathered stone: soft pits and swells, strongest up close
           vec3 sp=vEW*2.3;
           float s0=stoneN(sp);
