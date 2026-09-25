@@ -6,22 +6,24 @@
 - Add `#stats` to the URL to see frame-rate readings.
 
 ## Controls
+One round button, as in Sky. One small word appears beside it only when it helps.
+
 | | Phone | Keyboard + mouse |
 |---|---|---|
 | Walk to a spot | Tap it | Click it |
 | Walk freely | Touch and drag on the left half | W A S D or arrow keys |
-| Walk a little faster | Push the thumb to the edge | Hold Shift |
+| Run | Push your thumb to the edge of the joystick | Hold Shift |
+| Glide | Run off a slope | Run off a slope |
+| Jump | Tap the round button | Tap Space |
+| Fly | Hold the round button: you take off and keep rising, faster the longer you hold. Let go and you drift gently down. | Hold Space; let go to drift down |
+| Land | Tap **Land** (shows only while you're flying) | C or L |
+| Dive / come up in the water | Hold **Dive** (shows only in the water) / hold the round button | Hold C / hold Space |
 | Look around | Drag on the right half | Drag with the mouse |
 | Zoom | Pinch | Scroll wheel |
-| Jump | Tap the round button, bottom right | Space |
-| Glide | Hold the round button in the air, or run off a slope | Hold Space in the air, or run off a slope |
-| Run | Hold **Run** (or push the thumb to the edge) | Hold Shift |
-| Fly, or stop flying | Tap **Fly** | F |
-| Rise / sink while flying | Hold the round button / hold **Down** (the longer you hold, the faster) | Hold Space / hold C |
-| Dive / come up while swimming | Hold **Down** / hold the round button | Hold C / hold Space |
+| Sit with an archetype, stand up | Tap "Sit with…" | E |
+| Hear an orb or a fruit | Tap it | Click it, or Enter when near |
 | Turn inward | Stand still for a moment | Stand still |
-| Sit with an archetype, stand up | Tap “Sit with…” | E |
-| Settings, Leave, Begin again | ⋮ top right | Esc |
+| Settings, Map, About | ⋮ top right | Esc |
 
 ## What it is
 There is no island and no path. After "Touch the water to begin", a map unfolds: the land drawn in gold contour lines, with the shore and the seven archetypes' places marked. Tap a place, or anywhere on the land, and you wake there. From there you can go anywhere. ⋮ → Map lets you travel again.

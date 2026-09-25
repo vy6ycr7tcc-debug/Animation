@@ -1,5 +1,8 @@
 /* Input: keyboard + mouse on desktop; a thumb joystick (left half) and look-drag
-   (right half) on touch, plus one context button. */
+   (right half) on touch, plus one round button, as in Sky:
+   - tap it to jump; hold it to take off and rise (the longer, the faster); let go to drift down;
+   - push the thumb to the edge of the joystick to run;
+   - one small word appears only when it helps: "Land" in the air, "Dive" in the water. */
 
 export class Input {
   move = { x: 0, y: 0 };
@@ -14,18 +17,17 @@ export class Input {
     return this.enabled && (this.keys.has(" ") || this.actHeld);
   }
   private actHeld = false;
-  private runHeld = false;
-  private downHeld = false;
-  /** Hold to run (Shift, the Run button, or the thumb pushed to the edge). */
+  private ctxHeld = false;
+  /** Run: Shift, or the thumb pushed to the edge of the joystick. */
   get boost(): boolean {
-    return this.enabled && (this.glide || this.runHeld);
+    return this.enabled && this.glide;
   }
-  /** While flying: hold to descend (C, Ctrl or the Down button). */
+  /** Dive (in the water, while held): C, Ctrl, or the "Dive" word. */
   get descend(): boolean {
-    return this.enabled && (this.keys.has("c") || this.keys.has("control") || this.downHeld);
+    return this.enabled && (this.keys.has("c") || this.keys.has("control") || this.ctxHeld);
   }
-  /** F or the Fly button: take to the air, or come down. */
-  onFly: (() => void) | null = null;
+  /** "Land" (in the air): tapping the word, or pressing C / L. */
+  onLand: (() => void) | null = null;
   /** A short tap or click without dragging: walk there. */
   onTap: ((x: number, y: number) => void) | null = null;
   private downAt = new Map<number, { x: number; y: number; t: number }>();
@@ -47,33 +49,25 @@ export class Input {
     private joyEl: HTMLElement,
     private knobEl: HTMLElement,
     actionBtn: HTMLElement,
-    runBtn?: HTMLElement,
-    flyBtn?: HTMLElement,
-    downBtn?: HTMLElement,
+    ctxBtn?: HTMLElement,
   ) {
-    const hold = (el: HTMLElement | undefined, set: (on: boolean) => void) => {
-      if (!el) return;
-      el.addEventListener("pointerdown", (e) => {
+    // the context word: held for "Dive", tapped for "Land"
+    if (ctxBtn) {
+      ctxBtn.addEventListener("pointerdown", (e) => {
         e.preventDefault();
         e.stopPropagation();
-        set(true);
+        this.ctxHeld = true;
+        if (this.enabled) this.onLand?.();
       });
-      for (const ev of ["pointerup", "pointercancel", "pointerleave"]) el.addEventListener(ev, () => set(false));
-    };
-    hold(runBtn, (on) => (this.runHeld = on));
-    hold(downBtn, (on) => (this.downHeld = on));
-    flyBtn?.addEventListener("pointerdown", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (this.enabled) this.onFly?.();
-    });
-    flyBtn?.addEventListener("click", (e) => e.detail === 0 && this.enabled && this.onFly?.());
+      for (const ev of ["pointerup", "pointercancel", "pointerleave"]) ctxBtn.addEventListener(ev, () => (this.ctxHeld = false));
+      ctxBtn.addEventListener("click", (e) => e.detail === 0 && this.enabled && this.onLand?.());
+    }
     addEventListener("keydown", (e) => {
       if (!this.enabled || (e.target as HTMLElement)?.closest?.("#menu")) return;
       const k = e.key.toLowerCase();
       if ([" ", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) e.preventDefault();
       if (k === " " && !e.repeat) this.onAction?.();
-      if (k === "f" && !e.repeat) this.onFly?.();
+      if ((k === "c" || k === "l") && !e.repeat) this.onLand?.();
       this.keys.add(k);
     });
     addEventListener("keyup", (e) => this.keys.delete(e.key.toLowerCase()));

@@ -148,6 +148,11 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - The halo, point light, motes and ribbons are toned down.
   - Bloom follows the community's standard advice: a high threshold (0.88) and gentle strength (0.7), so only truly bright things glow.
   - Keep new effects in this register.
+- 2026-09-25: controls simplified after Samuel found up/down unintuitive and disliked the Down button. Modelled on Sky: Children of the Light.
+  - One round button: tap to jump; hold to take off and rise (it accelerates); let go to drift down.
+  - Run by pushing the thumb to the joystick's edge.
+  - One contextual word beside the button: "Land" while flying (tap), "Dive" in water (hold).
+  - The Run, Fly and Down buttons are gone. Keyboard: Space, Shift, C/L.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.
