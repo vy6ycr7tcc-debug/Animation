@@ -9,7 +9,7 @@ import * as THREE from "three";
 import catalogue from "../../content/stations.json";
 import type { AudioEngine } from "../core/audio";
 import { etchedStone } from "./etching";
-import { heightAt, LANDMARK_SITES } from "./terrain";
+import { heightAt, LANDMARK_KINDS, LANDMARK_SITES, type SiteKind, WATER_Y } from "./terrain";
 
 export interface StationData {
   n: number;
@@ -612,9 +612,58 @@ export class Chariot extends Station {
   riding = false;
 }
 
-/** The open world's landmarks: the seven forms, placed across the land. They respond to
-    the wanderer's presence (and stillness) rather than waiting to be used. */
+/* ---------------------------------------------------------------- the homes of the Body, the Spirit and the Choice */
+/** A quiet home: the etched floor, its ring and beacon; the archetype's own forms are carried by
+    its being (beings.ts). A home on the floor of deep water sends a soft column of light up to
+    the surface, and a ring of light rests on the water above it, so it can be found from the
+    shore or the air. */
+class Home extends Station {
+  private column: THREE.ShaderMaterial | null = null;
+  private surfaceRing: THREE.MeshBasicMaterial | null = null;
+  constructor(d: StationData, kind: SiteKind) {
+    super(d);
+    if (kind !== "deep") return;
+    const depth = WATER_Y - this.center.y;
+    this.column = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      uniforms: { uT: { value: 0 }, uI: { value: 0.5 } },
+      vertexShader: `varying vec2 vU;void main(){vU=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+      fragmentShader: `varying vec2 vU;uniform float uT,uI;void main(){
+        float edge=pow(sin(vU.x*3.14159),2.0);
+        float rise=0.65+0.35*sin(vU.y*18.0-uT*1.2);
+        float ends=smoothstep(0.0,0.08,vU.y)*(1.0-smoothstep(0.9,1.0,vU.y));
+        gl_FragColor=vec4(vec3(0.62,0.8,1.0)*edge*rise*ends*uI*0.35,1.0);}`,
+    });
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.6, depth, 24, 1, true), this.column);
+    col.position.y = depth / 2;
+    this.surfaceRing = glowMat(new THREE.Color(0.7, 0.85, 1.0), 0.3);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(2.2, 2.5, 64).rotateX(-Math.PI / 2), this.surfaceRing);
+    ring.position.y = depth + 0.06;
+    this.group.add(col, ring);
+  }
+  protected animate(f: Frame): void {
+    if (this.column) {
+      this.column.uniforms.uT.value = f.t;
+      this.column.uniforms.uI.value = f.seen * (0.6 + this.active * 0.6);
+    }
+    if (this.surfaceRing) this.surfaceRing.opacity = f.seen * (0.25 + (f.reduced ? 0 : Math.sin(f.t * 0.7) * 0.08) + this.active * 0.2);
+  }
+}
+
+/** The names of all twenty-two, for the homes that carry no station data of their own. */
+const NAMES = ["The Magician", "The High Priestess", "The Empress", "The Emperor", "The Hierophant", "The Lovers", "The Chariot", "Strength", "The Hermit", "The Wheel of Fortune", "Justice", "The Hanged Man", "Death", "Temperance", "The Devil", "The Tower", "The Star", "The Moon", "The Sun", "Judgement", "The World", "The Choice"];
+
+/** The open world's landmarks: the Mind's seven forms around the shore, and the homes of the
+    Body (east), the Spirit (west) and the Choice (on its island). They respond to the
+    wanderer's presence (and stillness) rather than waiting to be used. */
 export function buildLandmarks(): Station[] {
   const make = [Magician, Priestess, Empress, Emperor, Hierophant, Lovers, Chariot];
-  return make.map((M, i) => new M({ ...STATION_DATA[i], position: LANDMARK_SITES[i] }));
+  return LANDMARK_SITES.map((position, i) => {
+    if (i < make.length) return new make[i]({ ...STATION_DATA[i], position });
+    const d: StationData = { n: i + 1, title: NAMES[i], archetype: NAMES[i], narration: "", position, prompt: "", question: "" };
+    return new Home(d, LANDMARK_KINDS[i]);
+  });
 }

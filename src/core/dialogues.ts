@@ -5,6 +5,8 @@
    or a placeholder line, as subtitles. */
 import data from "../../content/dialogues.json";
 import { TRACKS, type Cue, type Track } from "./narration";
+import qa from "../../content/archetype_qa.json";
+import passages from "../../content/passages.json";
 
 export interface Prompt {
   id: string;
@@ -81,4 +83,35 @@ export function registerAnswers(): void {
       TRACKS[track.id] = track;
     }
   }
+}
+
+/* The tunnel (Samuel's archetype Q&A package, content/archetype_qa.json): at each archetype,
+   "Who are you?" on arrival (the Threshold), its teaching when you step closer (the Walk), and
+   its practice when you sit with it (the Heart). Passages (content/passages.json) are spoken on
+   the road from one archetype to the next. */
+
+interface Spoken {
+  question: string;
+  file: string;
+  transcript: string;
+}
+const QA = (qa as unknown as { archetypes: Record<string, Record<"threshold" | "walk" | "heart", Spoken>> }).archetypes;
+const PASSAGES = (passages as unknown as { passages: { id: string; route: string; file: string; transcript: string }[] }).passages;
+
+export const walkId = (numeral: string) => `W-${numeral}`;
+export const heartId = (numeral: string) => `H-${numeral}`;
+/** The passage spoken on the road onward from archetype n (1–21), or null. */
+export const passageId = (n: number) => (n >= 1 && n <= PASSAGES.length ? PASSAGES[n - 1].id : null);
+
+export function registerTunnel(): void {
+  const add = (id: string, title: string, file: string, text: string, trigger: string) => {
+    const timed = cuesFor(text);
+    TRACKS[id] = { id, title, voice: "female", file, duration: timed.duration, trigger, cues: timed.cues };
+  };
+  for (const [numeral, e] of Object.entries(QA)) {
+    const name = D.names[numeral] ?? numeral;
+    if (e.walk) add(walkId(numeral), `${name}: ${e.walk.question}`, e.walk.file, e.walk.transcript, "walk");
+    if (e.heart) add(heartId(numeral), `${name}: ${e.heart.question}`, e.heart.file, e.heart.transcript, "heart");
+  }
+  for (const p of PASSAGES) add(p.id, `Passage: ${p.route}`, p.file, p.transcript, "passage");
 }

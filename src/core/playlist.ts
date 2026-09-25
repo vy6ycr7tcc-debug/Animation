@@ -14,11 +14,15 @@ export class Playlist {
   on = true;
   /** While an archive narration (orb or fruit) is with the player, the journey's voices wait. */
   held = false;
+  /** While the wanderer sits with an archetype, only the archetype speaks. */
+  quiet = false;
   private i = 0;
   private wait = 6; // seconds until the first voice
   private starting = false;
   private heard = new Set<string>();
   private first: string | null = null;
+  /** A voice asked for next, ahead of the order (a passage on the road onward). */
+  private next_: string | null = null;
 
   constructor(private narration: Narration) {}
 
@@ -31,10 +35,18 @@ export class Playlist {
   /** A new beginning: this voice first, then onward in order. */
   startWith(id: string, delay = 3): void {
     this.heard.clear();
+    this.next_ = null;
     this.first = id;
     this.i = Math.max(0, ORDER.indexOf(id));
     this.wait = delay;
     this.narration.stop(1.5);
+  }
+
+  /** Speak this next, as soon as the voices are quiet (after a short breath). */
+  queueNext(id: string): void {
+    if (this.heard.has(id)) return;
+    this.next_ = id;
+    this.wait = Math.min(this.wait, 4);
   }
 
   /** The wanderer has met the archetype whose narration this is. */
@@ -47,7 +59,7 @@ export class Playlist {
   }
 
   update(dt: number): void {
-    if (!this.on || this.held || this.starting || this.narration.current) return;
+    if (!this.on || this.held || this.quiet || this.starting || this.narration.current) return;
     this.wait -= dt;
     if (this.wait > 0) return;
     this.starting = true;
@@ -55,16 +67,27 @@ export class Playlist {
   }
 
   private async next(): Promise<void> {
-    if (this.heard.size >= ORDER.length) this.heard.clear();
+    const asked = this.next_;
+    if (asked) {
+      this.next_ = null;
+      this.heard.add(asked);
+      if (this.on && !this.held && !this.quiet && !this.narration.current) this.narration.play(asked);
+      this.wait = 22 + Math.random() * 20;
+      this.starting = false;
+      return;
+    }
+    if (ORDER.every((id) => this.heard.has(id))) for (const id of ORDER) this.heard.delete(id);
     for (let tries = 0; tries < ORDER.length; tries++) {
       const id = ORDER[this.i];
       this.i = (this.i + 1) % ORDER.length;
       if (this.heard.has(id)) continue;
       const asked = id === this.first;
       if (asked || (await this.narration.available(id))) {
+        // things may have changed while the recording loaded: never talk over another voice
+        if (!this.on || this.held || this.quiet || this.narration.current) break;
         this.first = null;
         this.heard.add(id);
-        if (this.on) this.narration.play(id);
+        this.narration.play(id);
         break;
       }
     }

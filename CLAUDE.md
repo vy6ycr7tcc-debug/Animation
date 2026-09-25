@@ -73,7 +73,7 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
 - 2026-09-25: Samuel added the Ra tarot deck (22 cards, `reference/IMG_00xx.jpeg`) and an archetype overview chart (`reference/BE9C2465-….png`).
   - "Don't stamp the card on the game": each archetype is a recreated character you interact with.
   - Players choose on a map where to start, "otherwise it's the same narration every time".
-  - Built for the seven Mind archetypes, which have narrations. Body (8–14), Spirit (15–21) and The Choice (22) wait on Samuel's go-ahead and narration.
+  - Built first for the seven Mind archetypes; all 22 since Samuel's "implement the 22" (below).
   - The zip he uploaded (`reference/inward-journey-game-package.zip`) holds the same recordings already in `public/audio/`.
 - 2026-09-25: Samuel: the look was "a bit too 2D… like a croquis instead of an actual working game". He wants "Children of Light level" smooth graphics and depth; it runs on good phones.
   - Depth comes from form, light and air, not drawn lines:
@@ -112,7 +112,7 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - Code-generated shapes stay where Samuel's direction asks for them: round, curling trees, crystals, spirits.
 - 2026-09-25: Samuel's Q&A package (`reference/archetype-qa-audio.zip`):
   - 66 answers (22 archetypes × who, teaching, practice) are in `public/audio/answers/<numeral>/{who,teach,life}.mp3`, with transcripts in `content/dialogues.json`.
-  - 21 passage narrations are in `public/audio/passages/`, with transcripts in `content/passages.json`. They're not placed in the world yet.
+  - 21 passage narrations are in `public/audio/passages/`, with transcripts in `content/passages.json`. They play on the road between archetypes (below).
   - The scripts and audit report are in the zip.
 - 2026-09-25: the feelings became one draggable heart spectrum: "How is your heart right now?", from shadow to light.
   - Five anchors per archetype: lost, afraid, still, bright, radiant.
@@ -122,7 +122,7 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - flight has no practical ceiling, and the climb speeds up the longer you hold it;
   - diving (hold Down or C while swimming) leads to a glowing sea floor (`src/world/underwater.ts`);
   - stillness turns the wanderer inward: head bowed, hands at the heart, aura, streams of light, and the whole network lights up (`src/world/communion.ts`);
-  - creatures (`src/world/creatures.ts`): deer herds that come close in stillness, hoppers, and bird flocks.
+  - creatures (`src/world/creatures.ts`): horse herds that come close in stillness, and bird flocks.
 - 2026-09-25: **transcript orbs and groves**, a free-exploration layer separate from the archetype stations:
   - Everything binds to `content/transcript_orbs.json` (`orbs[]`, `trees[].episodes[]`).
   - The real audio is live: 86 narrations in `public/audio/orbs/` (8 orbs, 18 groves). Wired with no code change: the bindings read the JSON.
@@ -159,6 +159,15 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - The spirits' veils are continuous ribbons along a smoothed path; as dots they pulled apart into bead chains when a spirit moved fast.
   - The wanderer's halo is no longer depth-tested, so the ground doesn't slice it along the feet.
   - Movement is a classic, always-visible 360° stick fixed bottom-left. Touching on or near it takes it, and the knob goes to the thumb; walking is analog, running is at the edge (the ring turns gold). Look-drag works anywhere else.
+- 2026-09-25: Samuel: "implement the 22", "make the map easier to navigate", "you can do some underwater, make waters deeper", "diving is quite poor and the underwater world is awful", and "sometimes the audios overlap when sitting with an archetype".
+  - All 22 archetypes are beings (`src/world/beings.ts`), recreated from the cards (`reference/IMG_0035–0056`; the photos are not in deck order). Where a card and the recorded voice differ, the being follows the voice (VIII Strength with the lion, XI Justice with scales and sword). XII and XXI (archive gaps) are drawn dashed and unfinished.
+  - Homes (`src/world/terrain.ts` `WISHED_SITES`, by kind: land, high, shore, deep, island): the Mind's seven unchanged around the shore; the Body east; the Spirit west; the Choice on an island in the northern lake. XVIII and XX live on the floor of deep lakes (a column of light and a ring on the water mark them). The Body and Spirit homes are quiet (`Home` in `stations.ts`); the being carries the card's forms.
+  - The Q&A package is wired as its own design says (the tunnel): arrival speaks the Threshold (the Mind keeps its J narration; the others "Who are you?"), stepping within ~3.4 m the Walk (Q2), sitting (or resting still before an underwater being) the Heart (Q3), and after leaving an archetype the passage P(n) is the next voice (`updateTunnel` in `main.ts`, `content/archetype_qa.json`).
+  - Audio overlap fixed: a play token so a track still loading never starts after another was asked for (a double tap used to start two copies), a quick handoff between voices, and no background narration while seated. Decoded audio is cached for only the few most recent tracks (a long orb decodes to ~100 MB; Safari reloads the page when memory runs out).
+  - The map (`src/ui/map.ts`): pan, pinch/scroll/−/+/All, tap to choose then "Wake here", places listed by group, marks by group shape (circle, diamond, triangle, star) and a wave for homes in the deep.
+  - Water is deeper (below the shallows, depth × up to 2.6). Diving is Abzû-like (`controller.ts` `swimUnder`): tap to dive, swim where you look, tap to stroke, hold to rise, "Surface" word, hold at the surface to fly out.
+  - Underwater (`src/world/underwater.ts`): absorption by colour with depth, world-fixed moonlight shafts, Snell's window, the orb as a lantern; kelp (dark blades, rising specks) that parts around you and the camera; caustics on the floor (`terrain.ts`); marine snow; bubbles; muffled sound. The procedural jellyfish and point-fish are gone (house rule); Quaternius's CC0 Animated Fish Pack (fish schools, mantas, dolphins, a whale) swims in glass light, brighter than the wanderer's (`lightBodyMaterial` glow option). AO and god rays rest underwater.
+- 2026-09-25: research (two agents): graphics — stay on WebGL for now; first fix iPhone foundations (audio memory, the quality controller under Low Power Mode's 30 fps, context loss, shader precompile), then a light map so lanterns, beings and spirits light the ground, dense GPU grass, a richer night sky, impostor forests, KTX2 textures, spatial audio, Home Screen install; WebGPU/TSL as a measured phase 2. Underwater — the plan above.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.

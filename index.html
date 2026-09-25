@@ -22,9 +22,17 @@
 
 <div id="map" role="dialog" aria-labelledby="map-title" hidden>
   <p id="map-title">Where will you begin?</p>
-  <canvas id="map-canvas"></canvas>
+  <div id="map-frame">
+    <canvas id="map-canvas" aria-label="Map of the world. Drag to move, pinch to zoom, tap a place to choose it."></canvas>
+    <div id="map-zoom">
+      <button id="map-out" type="button" aria-label="See more of the map">−</button>
+      <button id="map-all" type="button" aria-label="See the whole world">All</button>
+      <button id="map-in" type="button" aria-label="Come closer">+</button>
+    </div>
+  </div>
+  <div id="map-pick" hidden aria-live="polite"><p id="map-pick-name"></p><button id="map-go" type="button">Wake here</button></div>
   <div id="map-places"></div>
-  <p class="note">Tap a place, or anywhere on the land.</p>
+  <p class="note">Drag to move, pinch to come closer. Tap a place, or anywhere on the land.</p>
   <button id="map-close" type="button" hidden>Stay where I am</button>
 </div>
 

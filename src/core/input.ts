@@ -3,7 +3,10 @@
    - the stick walks in any direction, as gently or as fully as the thumb pushes;
    - push the thumb to the edge of the stick to run;
    - tap the round button to jump; hold it to take off and rise; let go to drift down;
-   - one small word appears only when it helps: "Land" in the air, "Dive" in the water. */
+   - one small word appears only when it helps: "Land" in the air, "Dive" on the water,
+     "Surface" under it;
+   - in the water, the round button's tap dives (at the surface) or strokes (under it), and
+     holding it rises. */
 
 export class Input {
   move = { x: 0, y: 0 };
@@ -18,22 +21,24 @@ export class Input {
     return this.enabled && (this.keys.has(" ") || this.actHeld);
   }
   private actHeld = false;
-  private ctxHeld = false;
   /** Run: Shift, or the thumb pushed to the edge of the joystick. */
   get boost(): boolean {
     return this.enabled && this.glide;
   }
-  /** Dive (in the water, while held): C, Ctrl, or the "Dive" word. */
+  /** Sink (in the water, while held): C or Ctrl. */
   get descend(): boolean {
-    return this.enabled && (this.keys.has("c") || this.keys.has("control") || this.ctxHeld);
+    return this.enabled && (this.keys.has("c") || this.keys.has("control"));
   }
-  /** "Land" (in the air): tapping the word, or pressing C / L. */
+  /** The context word ("Land" in the air, "Dive" on the water, "Surface" under it): tapping it,
+      or pressing L (or C in the air). */
   onLand: (() => void) | null = null;
   /** A short tap or click without dragging: walk there. */
   onTap: ((x: number, y: number) => void) | null = null;
   private downAt = new Map<number, { x: number; y: number; t: number }>();
   touchUsed = false;
   enabled = false;
+  /** In the water, C sinks rather than calling the context word. */
+  inWater = false;
 
   private keys = new Set<string>();
   private joyId: number | null = null;
@@ -53,15 +58,13 @@ export class Input {
     actionBtn: HTMLElement,
     ctxBtn?: HTMLElement,
   ) {
-    // the context word: held for "Dive", tapped for "Land"
+    // the context word: tapped
     if (ctxBtn) {
       ctxBtn.addEventListener("pointerdown", (e) => {
         e.preventDefault();
         e.stopPropagation();
-        this.ctxHeld = true;
         if (this.enabled) this.onLand?.();
       });
-      for (const ev of ["pointerup", "pointercancel", "pointerleave"]) ctxBtn.addEventListener(ev, () => (this.ctxHeld = false));
       ctxBtn.addEventListener("click", (e) => e.detail === 0 && this.enabled && this.onLand?.());
     }
     addEventListener("keydown", (e) => {
@@ -69,7 +72,7 @@ export class Input {
       const k = e.key.toLowerCase();
       if ([" ", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) e.preventDefault();
       if (k === " " && !e.repeat) this.onAction?.();
-      if ((k === "c" || k === "l") && !e.repeat) this.onLand?.();
+      if ((k === "l" || (k === "c" && !this.inWater)) && !e.repeat) this.onLand?.();
       this.keys.add(k);
     });
     addEventListener("keyup", (e) => this.keys.delete(e.key.toLowerCase()));

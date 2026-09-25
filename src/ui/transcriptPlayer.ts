@@ -58,6 +58,8 @@ export class TranscriptPlayer {
   private load(n: Narration): Promise<AudioBuffer | null> {
     let p = this.buffers.get(n.audio);
     const ctx = this.audio.ctx;
+    // a long narration decodes to a hundred megabytes: keep only the one playing and the last
+    for (const k of [...this.buffers.keys()]) if (k !== n.audio && this.buffers.size > 1) this.buffers.delete(k);
     if (!p && ctx) {
       p = loadBytes(n.audio).then(async (b) => {
         if (!b) return null;

@@ -16,7 +16,7 @@ export class FollowCamera {
   /** While sitting with an archetype: frame the two of you, the archetype high in the view
       and clear of the choices along the bottom. */
   seatedWith: THREE.Vector3 | null = null;
-  /** Diving: the camera follows below the surface. */
+  /** Diving: the camera follows below the surface, and may look up. */
   underwater = false;
   private seatK = 0;
 
@@ -24,7 +24,8 @@ export class FollowCamera {
 
   look(dYaw: number, dPitch: number): void {
     this.yaw += dYaw;
-    this.pitch = THREE.MathUtils.clamp(this.pitch + dPitch, -0.15, 1.15);
+    // under the water you may look up at the surface and the moon beyond it
+    this.pitch = THREE.MathUtils.clamp(this.pitch + dPitch, this.underwater ? -1.05 : -0.15, 1.15);
     this.sinceLook = 0;
   }
   zoom(f: number): void {
@@ -41,6 +42,8 @@ export class FollowCamera {
   update(dt: number, player: THREE.Vector3, heading: number, moving: boolean, t: number, reduced: boolean): void {
     this.sinceLook += dt;
     this.follow += (this.followGoal - this.follow) * Math.min(1, dt * 0.7);
+    // back above the water, the view settles to its usual range
+    if (!this.underwater && this.pitch < -0.15) this.pitch += (-0.15 - this.pitch) * Math.min(1, dt * 2);
     // Ease behind the wanderer while they walk, unless the viewer is looking around.
     if (moving && this.sinceLook > 1.5) {
       let d = heading - this.yaw;
