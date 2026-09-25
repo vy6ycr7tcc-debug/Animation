@@ -313,16 +313,17 @@ function whisper(text: string, ms = 5000): void {
   whisperTimer = window.setTimeout(() => w.classList.remove("on"), ms);
 }
 
-const input = new Input($("#surface"), $("#joy"), $("#knob"), $("#act"), $("#run"), $("#fly"), $("#down"));
+const input = new Input($("#surface"), $("#joy"), $("#knob"), $("#act"), $("#ctx"));
 // no long-press menus or text selection anywhere in the game
 addEventListener("contextmenu", (e) => e.preventDefault());
 document.addEventListener("selectstart", (e) => {
   if (!(e.target as HTMLElement)?.closest?.("input, textarea")) e.preventDefault();
 });
-input.onFly = () => {
-  standUp();
-  player.toggleFly();
-  whisper(player.flying ? (MOBILE ? "Hold the round button to rise, Down to sink" : "Hold Space to rise, C to sink") : "Gliding down", 3500);
+input.onLand = () => {
+  if (player.flying) {
+    player.land();
+    whisper("Coming down to land", 2500);
+  }
 };
 input.onAction = () => {
   if (wanderer.gesture !== "none") wanderer.setGesture("none");
@@ -403,11 +404,11 @@ function arrive(c: Choice, first: boolean): void {
   persist();
   if (!first) return;
   $("#menu-btn").hidden = false;
-  if (MOBILE) for (const id of ["#act", "#run", "#fly"]) $(id).hidden = false;
+  if (MOBILE) $("#act").hidden = false;
   say(`You wake near ${c.place.label.replace(/^The /, "the ")}. Wander anywhere; the land answers as you pass.`);
   window.setTimeout(() => whisper(MOBILE ? "Tap where you want to go, or drag on the left" : "Click where you want to go, or use W A S D", 6500), 4000);
-  window.setTimeout(() => whisper(MOBILE ? "Hold Run to run; run off a slope to glide" : "Hold Shift to run; run off a slope to glide", 6000), 26000);
-  window.setTimeout(() => whisper(MOBILE ? "Tap Fly to take to the air" : "Press F to fly", 6000), 50000);
+  window.setTimeout(() => whisper(MOBILE ? "Hold the round button to fly; let go to drift down" : "Hold Space to fly; let go to drift down", 6000), 26000);
+  window.setTimeout(() => whisper(MOBILE ? "Push your thumb to the edge to run" : "Hold Shift to run", 6000), 50000);
 }
 $("#begin").addEventListener("click", begin);
 const startMap = new StartMap();
@@ -762,7 +763,7 @@ $("#leave").addEventListener("click", () => {
   narration.stop(2);
   audio.fade(false);
   $("#rest").hidden = false;
-  for (const id of ["#act", "#run", "#fly", "#down"]) $(id).hidden = true;
+  for (const id of ["#act", "#ctx"]) $(id).hidden = true;
   $("#menu-btn").hidden = true;
   $<HTMLButtonElement>("#return").focus();
   say("Your place is kept.");
@@ -795,7 +796,7 @@ $("#return").addEventListener("click", () => {
   input.enabled = true;
   $("#rest").hidden = true;
   $("#menu-btn").hidden = false;
-  if (MOBILE || input.touchUsed) for (const id of ["#act", "#run", "#fly"]) $(id).hidden = false;
+  if (MOBILE || input.touchUsed) $("#act").hidden = false;
 });
 
 /* ============ READINGS (#stats) ============ */
@@ -845,11 +846,16 @@ function update(dt: number): void {
   if (S.mode === "play") {
     if (wanderer.gesture !== "none" && Math.hypot(input.move.x, input.move.y) > 0.2 && wanderer.gesture === "sit") wanderer.setGesture("none");
     player.update(dt, { ...input.move, glide: input.boost, hold: input.hold, down: input.descend }, follow.yaw);
-    $("#fly").setAttribute("aria-pressed", String(player.flying));
-    $("#down").hidden = !(MOBILE && (player.flying || player.swimming));
+    // the one context word: "Land" high in the air, "Dive" in the water
+    const ctx = $("#ctx");
+    const high = player.flying && !player.landing && player.pos.y - Math.max(heightAt(player.pos.x, player.pos.z), WATER_Y) > 2.5;
+    const word = sitting.phase === "seated" ? "" : high ? "Land" : player.swimming ? (player.diving ? "Dive deeper" : "Dive") : "";
+    ctx.hidden = !(MOBILE || input.touchUsed) || !word;
+    if (ctx.textContent !== word) ctx.textContent = word;
+    document.body.classList.toggle("flying", player.flying);
     if (player.swimming && !S.toldDive) {
       S.toldDive = true;
-      whisper(MOBILE ? "Hold Down to dive; hold the round button to rise" : "Hold C to dive; hold Space to rise", 5000);
+      whisper(MOBILE ? "Hold Dive to go down; hold the round button to come up" : "Hold C to dive; hold Space to come up", 5000);
     }
   }
   S.wt += dt * landmarks.timeScale;

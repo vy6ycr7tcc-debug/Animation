@@ -25,7 +25,7 @@ export interface MoveInput {
   glide: boolean;
   /** Jump held: in the air, the wanderer glides down slowly; while flying, rises. */
   hold?: boolean;
-  /** While flying: sink. */
+  /** In the water: dive, while held. */
   down?: boolean;
 }
 
@@ -40,6 +40,9 @@ export class Controller {
   gliding = false;
   /** Free flight: no gravity; rise and sink at will, as high as you like. */
   flying = false;
+  /** Coming in to land: a smooth, steady descent until the feet touch the ground. */
+  landing = false;
+  private heldAir = 0;
   /** How far below the surface the swimmer has dived (0 at the surface). */
   depth = 0;
   get diving(): boolean {
@@ -54,16 +57,9 @@ export class Controller {
   /** Tap-to-move destination; cleared on arrival or when the player steers. */
   target: THREE.Vector2 | null = null;
 
-  /** Take to the air, or stop flying (then you glide down). */
-  toggleFly(): void {
-    if (this.flying) {
-      this.flying = false;
-      return;
-    }
-    this.flying = true;
-    this.grounded = false;
-    this.swimming = false;
-    this.vy = Math.max(this.vy, 3.5); // a lift to begin
+  /** Come down to land (from the "Land" word). */
+  land(): void {
+    if (this.flying) this.landing = true;
   }
 
   jump(): void {
@@ -128,15 +124,18 @@ export class Controller {
     const ground = heightAt(this.pos.x, this.pos.z);
     if (this.flying) {
       // Hover unless asked to rise or sink; ease into each.
-      const want = (input.hold ? 1 : 0) - (input.down ? 1 : 0);
-      this.climbHeld = want !== 0 ? this.climbHeld + dt : 0;
+      // Hold to rise (gathering speed); let go to drift gently down; "Land" brings you down.
+      if (input.hold) this.landing = false;
+      this.climbHeld = input.hold ? this.climbHeld + dt : 0;
       const surge = 1 + Math.min(8, this.climbHeld * this.climbHeld * 0.35); // up to ~40 m/s after a few seconds
-      this.vy += (want * CLIMB * surge * (input.glide ? 1.8 : 1) - this.vy) * Math.min(1, dt * 2.5);
+      const wantVy = input.hold ? CLIMB * surge * (input.glide ? 1.8 : 1) : this.landing ? -Math.min(14, 3 + (this.pos.y - ground) * 0.25) : -1.1;
+      this.vy += (wantVy - this.vy) * Math.min(1, dt * (input.hold ? 2.5 : 1.8));
       this.pos.y = Math.min(CEILING, this.pos.y + this.vy * dt);
       const floor = Math.max(ground, WATER_Y - SWIM_DEPTH);
       if (this.pos.y <= floor + 0.02 && this.vy <= 0) {
         // touching down ends the flight: on land you stand, in water you swim
         this.flying = false;
+        this.landing = false;
         this.pos.y = Math.max(ground, this.pos.y);
       }
       this.speed = Math.hypot(this.vel.x, this.vel.z, this.vy);
@@ -172,8 +171,15 @@ export class Controller {
         // Follow the ground up and down gentle slopes and steps.
         this.pos.y += (ground - this.pos.y) * Math.min(1, dt * 14);
       } else {
-        // Holding jump on the way down, or running off an edge, opens into a slow glide.
-        this.gliding = (!!input.hold || input.glide) && this.vy < 0.5;
+        // Holding the button in the air takes off into flight (as the jump crests);
+        // running off an edge opens into a slow glide.
+        this.heldAir = input.hold ? this.heldAir + dt : 0;
+        if (input.hold && this.heldAir > 0.18 && this.vy < 2.2 && !this.swimming) {
+          this.flying = true;
+          this.landing = false;
+          this.vy = Math.max(this.vy, 1.5);
+        }
+        this.gliding = input.glide && !input.hold && this.vy < 0.5;
         this.vy -= GRAVITY * (this.gliding ? 0.22 : 1) * dt;
         if (this.gliding) this.vy = Math.max(this.vy, -1.25);
         this.pos.y += this.vy * dt;
@@ -186,7 +192,10 @@ export class Controller {
         }
       }
       if (ground > this.pos.y) this.pos.y = ground; // never sink into a rising shore
-      if (this.grounded) this.gliding = false;
+      if (this.grounded) {
+        this.gliding = false;
+        this.heldAir = 0;
+      }
     }
 
     if (mag > 0.05) {
