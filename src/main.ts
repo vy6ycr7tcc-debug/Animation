@@ -29,7 +29,7 @@ import { Controller } from "./player/controller";
 import { Footprints } from "./player/footprints";
 import { Wanderer } from "./player/wanderer";
 import { Clouds } from "./world/atmosphere";
-import { buildMandala, etchedStone, etchUniforms } from "./world/etching";
+import { buildMandala, etchedStone, etchUniforms, vibeUniforms } from "./world/etching";
 import { Landmarks } from "./world/landmarks";
 import { Butterflies, Flowers, Gliders, Lanterns, LightGrass, Sparks, type LifeFrame } from "./world/life";
 import { Motes } from "./world/motes";
@@ -38,6 +38,8 @@ import { Beings } from "./world/beings";
 import { SeaLife, UnderwaterEffect } from "./world/underwater";
 import { Communion } from "./world/communion";
 import { Creatures } from "./world/creatures";
+import { Vessels } from "./world/vessels";
+import { TranscriptPlayer } from "./ui/transcriptPlayer";
 import { StartMap, type Choice, type Place } from "./ui/map";
 import { Reflection } from "./world/reflection";
 import { buildSky, skyUniforms, starDirection } from "./world/sky";
@@ -209,7 +211,10 @@ const seaLife = new SeaLife();
 scene.add(seaLife.group);
 const communion = new Communion();
 scene.add(communion.group);
-const creatures = new Creatures(MOBILE ? 10 : 14, MOBILE ? 12 : 18, MOBILE ? 36 : 48);
+// The archive's vessels: orbs and groves, and the quiet player for their narrations.
+const vessels = new Vessels();
+scene.add(vessels.group);
+const creatures = new Creatures(MOBILE ? 7 : 9, MOBILE ? 15 : 21);
 scene.add(creatures.group);
 
 /** Glow materials add light but leave alpha alone, so they don't punch dark squares into
@@ -323,7 +328,14 @@ input.onAction = () => {
   player.jump();
 };
 input.onTap = (x, y) => {
-  if (S.mode !== "play" || sitting.phase === "seated") return;
+  if (S.mode !== "play") return;
+  // an orb or a fruit under the tap: its narration begins (never by itself)
+  const v = vessels.pick(x, y, camera);
+  if (v) {
+    playArchive(v.narration);
+    return;
+  }
+  if (sitting.phase === "seated") return;
   const p = groundPoint(x, y);
   if (!p) return;
   player.target = new THREE.Vector2(p.x, p.z);
@@ -456,6 +468,8 @@ function sitDown(): void {
       btn.classList.add("heard");
       stillness(false);
       b.greet();
+      if (tp.active) tp.close(); // at a station, only the archetype speaks
+      playlist.held = false;
       void narration.play(trackId(b.spec.numeral, p.id));
     });
     box.append(btn);
@@ -522,6 +536,8 @@ const heart = (() => {
     if (!b || !anchors[i]) return;
     stillness(false);
     b.greet();
+    if (tp.active) tp.close();
+    playlist.held = false;
     void narration.play(trackId(b.spec.numeral, anchors[i]));
   };
   track.addEventListener("pointerdown", (e) => {
@@ -561,6 +577,8 @@ const heart = (() => {
 
 /* ---- Stillness: stop, and the wanderer turns inward; everything connects through light ---- */
 let stillFor = 0;
+let vibeK = 0, vibeTimer = 0;
+let vibeStone: { p: THREE.Vector3; r: number; crystal: boolean } | null = null;
 let medK = 0;
 const heartPos = new THREE.Vector3();
 function updateStillness(dt: number, wt: number): void {
@@ -580,7 +598,22 @@ function updateStillness(dt: number, wt: number): void {
     ...creation.anchors(),
     ...beings.list.map((b) => b.root.position.clone().setY(b.root.position.y + 1.1)),
     ...landmarks.list.map((l) => l.center.clone().setY(l.center.y + 2.5)),
-  ]);
+  ], (innerHeight * dpr) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
+  // a rock or crystal you have stopped before answers: it vibrates light outward
+  const stone = stillFor > 0.7 ? creation.stoneBefore(player.pos, player.heading) : null;
+  if (stone && (!vibeStone || stone.p.distanceTo(vibeStone.p) > 0.1)) vibeStone = stone;
+  vibeK += ((stone ? 1 : 0) - vibeK) * Math.min(1, dt * (stone ? 1.2 : 2.5));
+  if (vibeStone && vibeK > 0.01) {
+    vibeUniforms.uVibePos.value.copy(vibeStone.p);
+    vibeUniforms.uVibeR.value = vibeStone.r;
+    vibeTimer -= dt;
+    if (vibeTimer <= 0 && stone) {
+      vibeTimer = 0.28;
+      const col = vibeStone.crystal ? new THREE.Color().setHSL(Math.random(), 0.6, 0.78) : new THREE.Color(1, 0.86, 0.62);
+      sparks.emit(vibeStone.p.clone().add(new THREE.Vector3((Math.random() - 0.5) * vibeStone.r, Math.random() * vibeStone.r * 0.6, (Math.random() - 0.5) * vibeStone.r)), 6, col, 1.3);
+    }
+  }
+  vibeUniforms.uVibeK.value = vibeK;
 }
 
 /** Each frame: offer a seat near a being, walk to it, and keep the sitting in step. */
@@ -603,6 +636,31 @@ function updateSitting(dt: number): void {
   landmarks.stillness += ((stillBtn.getAttribute("aria-pressed") === "true" ? 1 : 0) - landmarks.stillness) * Math.min(1, dt * 0.5);
   beings.list.forEach((b) => (b.speaking = narration.current?.startsWith(`A-${b.spec.numeral}-`) ? 1 : 0));
 }
+
+/* ---- The archive's narrations: started only by the player, one quiet bar, never a modal ---- */
+const tp = new TranscriptPlayer(audio);
+function playArchive(n: Parameters<TranscriptPlayer["play"]>[0]): void {
+  narration.stop(1.5); // the journey's voice or an archetype's answer makes way
+  playlist.held = true;
+  void tp.play(n);
+  say(`Playing: ${n.title}. ${TranscriptPlayer.caption(n).join(". ")}.`);
+}
+tp.onChange = (id) => vessels.setPlaying(id);
+tp.onChoose = (background) => {
+  playlist.setOn(background);
+  voiceBox.checked = background;
+  persist();
+};
+const releaseHold = () => {
+  if (!tp.active) playlist.held = false;
+};
+for (const id of ["#tp-close", "#tp-more", "#tp-music"]) $(id).addEventListener("click", () => window.setTimeout(releaseHold, 0));
+$("#about-open").addEventListener("click", () => {
+  setMenu(false);
+  $("#about").hidden = false;
+  $<HTMLButtonElement>("#about-close").focus();
+});
+$("#about-close").addEventListener("click", () => ($("#about").hidden = true));
 
 $("#map-open").addEventListener("click", () => {
   setMenu(false);
@@ -650,6 +708,10 @@ menuBtn.addEventListener("click", () => setMenu(menu.hidden));
 addEventListener("keydown", (e) => {
   if (e.key === "Escape" && S.mode === "play") setMenu(menu.hidden);
   if ((e.key === "e" || e.key === "E") && S.mode === "play") (sitting.phase === "none" ? offerSit() : standUp());
+  if (e.key === "Enter" && S.mode === "play" && !(e.target as HTMLElement)?.closest?.("button, input, [role=slider]")) {
+    const v = vessels.nearest(player.pos);
+    if (v) playArchive(v.narration);
+  }
   if (S.mode === "intro" && (e.key === "Enter" || e.key === " ")) {
     e.preventDefault();
     begin();
@@ -838,6 +900,9 @@ function update(dt: number): void {
   landmarks.update(wt, dt, player.pos, S.mode === "play" ? player.speed : 1, S.reduced);
   if (S.mode === "play") beings.update(wt, dt, player.pos, S.reduced);
   updateSitting(dt);
+  vessels.update(wt, player.pos, camera, S.reduced, S.mode === "play" && !startMap.isOpen);
+  tp.subtitlesOn = narration.subtitlesOn;
+  tp.update();
   updateStillness(dt, wt);
   if (S.mode !== "intro") creatures.update(wt, dt, player.pos, medK, player.speed > 3 || player.gliding, S.reduced);
   const camUnder = camera.position.y < WATER_Y - 0.05;
@@ -899,4 +964,4 @@ function frame(now: number): void {
 }
 requestAnimationFrame(frame);
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, aoPass, composer, underwaterPass, reflection, terrain, water, grass, seaLife, raysPass } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, aoPass, composer, underwaterPass, reflection, terrain, water, grass, seaLife, raysPass } });

@@ -12,6 +12,8 @@ export const ORDER = ["J01", "J02", "J03", "J04", "J05", "J06", "J07", "J08", "J
 
 export class Playlist {
   on = true;
+  /** While an archive narration (orb or fruit) is with the player, the journey's voices wait. */
+  held = false;
   private i = 0;
   private wait = 6; // seconds until the first voice
   private starting = false;
@@ -37,7 +39,7 @@ export class Playlist {
 
   /** The wanderer has met the archetype whose narration this is. */
   meet(id: string): void {
-    if (!this.on || this.narration.current === id || this.heard.has(id)) return;
+    if (!this.on || this.held || this.narration.current === id || this.heard.has(id)) return;
     this.heard.add(id);
     this.narration.play(id);
     this.i = (ORDER.indexOf(id) + 1) % ORDER.length;
@@ -45,7 +47,7 @@ export class Playlist {
   }
 
   update(dt: number): void {
-    if (!this.on || this.starting || this.narration.current) return;
+    if (!this.on || this.held || this.starting || this.narration.current) return;
     this.wait -= dt;
     if (this.wait > 0) return;
     this.starting = true;

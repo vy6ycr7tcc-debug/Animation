@@ -123,6 +123,26 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - diving (hold Down or C while swimming) leads to a glowing sea floor (`src/world/underwater.ts`);
   - stillness turns the wanderer inward: head bowed, hands at the heart, aura, streams of light, and the whole network lights up (`src/world/communion.ts`);
   - creatures (`src/world/creatures.ts`): deer herds that come close in stillness, hoppers, and bird flocks.
+- 2026-09-25: **transcript orbs and groves** (Phase 1, placeholders), a free-exploration layer separate from the archetype stations:
+  - Everything binds to `content/transcript_orbs.json` (`orbs[]`, `trees[].episodes[]`).
+  - Placeholder tones are in `public/audio/orbs/`.
+  - Placement from the data alone (`src/world/sites.ts`): about a quarter of the orbs in the sky, a quarter underwater, the rest on land; groves by `suggested_biome`.
+  - Visuals (`src/world/vessels.ts`): planet-like orbs; one great tree per grove, with a fruit per episode.
+  - The quiet player (`src/ui/transcriptPlayer.ts`):
+    - it starts only on a tap and never autoplays;
+    - it has pause/resume, source and close;
+    - captions read "An interpretive narration after …" or "Quoting …", one line per source;
+    - at the end it offers "Continue with background narration" or "Just the music".
+  - ⋮ → About carries the L/L Research disclaimer.
+  - The real delivery (8 orbs, 18 groves) needs no code change.
+- 2026-09-25: Samuel: the crude deer were "horrible" ("if you're gonna do the most basic shape… just don't"). Rules:
+  - Creatures come from real animated models or are left out.
+  - Now: horses, storks, flamingos and parrots by mirada (ROME, via the three.js examples), drawn in the glass-light material.
+  - The deer and hoppers are removed.
+- 2026-09-25: stillness must not look like "a lamp":
+  - the aura is a wispy luminous gas (point puffs torn by noise);
+  - the streams are winding paint-strokes with bristle texture and travelling loads of paint, flowing in and out;
+  - rocks and crystals you stop before vibrate light (waves over their surface, motes streaming off; `vibeUniforms`).
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.

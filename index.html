@@ -46,6 +46,37 @@
   </div>
 </div>
 
+<div id="labels" aria-hidden="true"></div>
+
+<div id="tp" role="region" aria-label="Narration player" hidden>
+  <div id="tp-head">
+    <p id="tp-title"></p>
+    <button id="tp-close" type="button" aria-label="Close the narration">×</button>
+  </div>
+  <div id="tp-caption"></div>
+  <div id="tp-row">
+    <button id="tp-pause" type="button">Pause</button>
+    <button id="tp-src" type="button">Source</button>
+  </div>
+  <div id="tp-end" hidden>
+    <button id="tp-more" type="button">Continue with background narration</button>
+    <button id="tp-music" type="button">Just the music</button>
+  </div>
+</div>
+<div id="tp-source" role="dialog" aria-labelledby="tp-source-title" hidden>
+  <p id="tp-source-title"></p>
+  <p id="tp-source-kind" class="note"></p>
+  <ul id="tp-source-list"></ul>
+  <div id="tp-source-text"></div>
+  <button id="tp-source-close" type="button">Close</button>
+</div>
+<div id="about" role="dialog" aria-labelledby="about-title" hidden>
+  <p id="about-title">About</p>
+  <p>Some narrations in this world are interpretive adaptations of channeled material from the L/L Research archive, voiced by AI. They are artistic interpretations, not the channeling itself. This is an independent work, not affiliated with or endorsed by L/L Research. The complete archive is freely available at llresearch.org.</p>
+  <p class="note">Made for Samuel. Animation: Universal Animation Library by Quaternius (CC0). Animals: models by mirada from ROME, via three.js. Textures and scanned rocks: Poly Haven (CC0). Ambient occlusion: N8AO (MIT). Built with three.js and postprocessing.</p>
+  <button id="about-close" type="button">Close</button>
+</div>
+
 <p id="whisper" class="whisper" aria-hidden="true"></p>
 <p id="sub" class="whisper" aria-live="polite"></p>
 
@@ -63,6 +94,7 @@
   <label class="check"><input id="subs" type="checkbox" checked> Subtitles</label>
   <label class="check"><input id="reduced" type="checkbox"> Reduce motion</label>
   <button id="map-open" type="button">Map</button>
+  <button id="about-open" type="button">About</button>
   <button id="leave" type="button">Leave</button>
   <button id="restart" type="button">Begin again</button>
   <p class="note">Leave keeps your place on this device.</p>
