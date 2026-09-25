@@ -16,6 +16,8 @@ export class FollowCamera {
   /** While sitting with an archetype: frame the two of you, the archetype high in the view
       and clear of the choices along the bottom. */
   seatedWith: THREE.Vector3 | null = null;
+  /** Diving: the camera follows below the surface. */
+  underwater = false;
   private seatK = 0;
 
   constructor(public cam: THREE.PerspectiveCamera) {}
@@ -54,7 +56,7 @@ export class FollowCamera {
     for (let k = 1; k <= 10; k++) {
       const d = (this.dist * k) / 10;
       const px = this.target.x - fx * cp * d, pz = this.target.z - fz * cp * d, py = this.target.y + sp * d;
-      if (py < Math.max(heightAt(px, pz), WATER_Y) + 0.4) {
+      if (py < Math.max(heightAt(px, pz), this.underwater ? -1e9 : WATER_Y) + 0.4) {
         clear = Math.max(1.6, (this.dist * (k - 1)) / 10);
         break;
       }
@@ -62,7 +64,9 @@ export class FollowCamera {
     this.effDist += (clear - this.effDist) * Math.min(1, dt * (clear < this.effDist ? 10 : 2));
     const ed = this.effDist;
     const followPos = new THREE.Vector3(this.target.x - fx * cp * ed, this.target.y + sp * ed, this.target.z - fz * cp * ed);
-    const floor = Math.max(heightAt(followPos.x, followPos.z), WATER_Y) + 0.35;
+    const floor = Math.max(heightAt(followPos.x, followPos.z), this.underwater ? -1e9 : WATER_Y) + 0.35;
+    // under the water, stay under it (no bobbing through the surface)
+    if (this.underwater) followPos.y = Math.min(followPos.y, WATER_Y - 0.3);
     if (followPos.y < floor) followPos.y = floor;
 
     // The intro: low over the shallows, drifting slowly, looking out toward the far island.

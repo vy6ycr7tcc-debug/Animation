@@ -31,11 +31,12 @@ export const creationUniforms = {
   uFogC: { value: new THREE.Color() },
   uFogD: { value: 0.006 },
   uPx: { value: 600 }, // pixels per unit at distance 1 (for point sizes)
+  uCommune: { value: 0 }, // 0–1: the wanderer's stillness; the whole network of light shows itself
 };
 const U = creationUniforms;
 
 const GLSL_COMMON = /* glsl */ `
-uniform float uT,uFogD,uPx;uniform vec3 uPlayer,uStar,uFogC;
+uniform float uT,uFogD,uPx,uCommune;uniform vec3 uPlayer,uStar,uFogC;
 float fogF(float d){return 1.0-exp(-uFogD*uFogD*d*d);}
 float hash1(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 vec3 spectrum(float h){return 0.5+0.5*cos(6.28318*(h+vec3(0.0,0.33,0.67)));}
@@ -457,9 +458,9 @@ export class Creation {
             float flow=pow(fract(vR.x*3.0+uT*0.11+vR.y),10.0);
             float near=smoothstep(14.0,1.5,distance(vW.xz,uPlayer.xz));
             float d=length(vW-cameraPosition);
-            float fade=(1.0-smoothstep(5.0,16.0,d))*(1.0-0.5*smoothstep(0.4,1.0,-vR.x));
+            float fade=(1.0-smoothstep(mix(5.0,30.0,uCommune),mix(16.0,60.0,uCommune),d))*(1.0-0.5*smoothstep(0.4,1.0,-vR.x));
             vec3 c=mix(vec3(1.0,0.78,0.5),vec3(0.72,0.82,1.0),step(0.5,vR.y));
-            gl_FragColor=vec4(c*(0.03+near*0.06+flow*(0.35+near*0.5))*fade,1.0);
+            gl_FragColor=vec4(c*(0.03+near*0.06+flow*(0.35+near*0.5))*fade*(1.0+uCommune*2.5),1.0);
           }`,
       }),
     );
@@ -751,9 +752,9 @@ export class Creation {
           float pulse=pow(fract(vS.x*1.5-uT*0.09+vS.y),16.0);
           float near=smoothstep(16.0,2.0,distance(vW.xz,uPlayer.xz));
           float d=length(vW-cameraPosition);
-          float fade=1.0-smoothstep(6.0,20.0,d);
+          float fade=1.0-smoothstep(mix(6.0,30.0,uCommune),mix(20.0,70.0,uCommune),d);
           vec3 c=mix(vec3(1.0,0.8,0.55),vec3(0.8,0.75,1.0),vS.y);
-          gl_FragColor=vec4(c*(0.02+near*0.05+pulse*(0.3+near*0.5))*fade,1.0);
+          gl_FragColor=vec4(c*(0.02+near*0.05+pulse*(0.3+near*0.5))*fade*(1.0+uCommune*3.0),1.0);
         }`,
     });
     const l = new THREE.LineSegments(g, mat);
@@ -1181,6 +1182,11 @@ export class Spirits {
     );
     this.heads.frustumCulled = false;
     this.group.add(this.veil, this.heads);
+  }
+
+  /** Stillness calls the spirits: those nearby come to circle the wanderer. */
+  gather(p: THREE.Vector3): void {
+    for (const s of this.list) if (s.p.distanceTo(p) < 70) s.curious = Math.max(s.curious, 6);
   }
 
   private placeNear(s: Spirit, player: THREE.Vector3): void {

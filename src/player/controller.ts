@@ -12,7 +12,7 @@ const SWIM = 2.6;
 const FLY = 6.0;
 const FLY_FAST = 13.0; // flying while holding Run
 const CLIMB = 4.5; // rising or sinking while flying
-const CEILING = 700;
+const CEILING = 12000; // effectively none: up among the clouds and beyond
 const GRAVITY = 16;
 const JUMP_V = 5.6;
 const SWIM_DEPTH = 1.0; // ground this far under water means swimming
@@ -40,6 +40,13 @@ export class Controller {
   gliding = false;
   /** Free flight: no gravity; rise and sink at will, as high as you like. */
   flying = false;
+  /** How far below the surface the swimmer has dived (0 at the surface). */
+  depth = 0;
+  get diving(): boolean {
+    return this.swimming && this.depth > 0.4;
+  }
+  /** How long rise has been held: the climb gathers speed the longer you hold it. */
+  private climbHeld = 0;
   speed = 0;
   /** Distance travelled, for footprints and footstep sounds. */
   odometer = 0;
@@ -122,7 +129,9 @@ export class Controller {
     if (this.flying) {
       // Hover unless asked to rise or sink; ease into each.
       const want = (input.hold ? 1 : 0) - (input.down ? 1 : 0);
-      this.vy += (want * CLIMB * (input.glide ? 1.8 : 1) - this.vy) * Math.min(1, dt * 2.5);
+      this.climbHeld = want !== 0 ? this.climbHeld + dt : 0;
+      const surge = 1 + Math.min(8, this.climbHeld * this.climbHeld * 0.35); // up to ~40 m/s after a few seconds
+      this.vy += (want * CLIMB * surge * (input.glide ? 1.8 : 1) - this.vy) * Math.min(1, dt * 2.5);
       this.pos.y = Math.min(CEILING, this.pos.y + this.vy * dt);
       const floor = Math.max(ground, WATER_Y - SWIM_DEPTH);
       if (this.pos.y <= floor + 0.02 && this.vy <= 0) {
@@ -147,11 +156,15 @@ export class Controller {
     }
     const wasSwimming = this.swimming;
     this.swimming = ground < WATER_Y - SWIM_DEPTH && this.pos.y < WATER_Y + 0.3;
+    if (!this.swimming) this.depth = 0;
 
     if (this.swimming) {
-      // Float at the surface; ease in from a jump or a walk off the edge.
+      // Float at the surface, or dive: hold Down to sink, rise to come up; let go to hang still.
+      const want = (input.down ? 1 : 0) - (input.hold ? 1 : 0);
+      const deepest = Math.max(0, SWIM_FEET - (ground + 0.4));
+      this.depth = Math.min(deepest, Math.max(0, this.depth + want * (want > 0 ? 2.4 : 3.2) * dt));
       this.vy = 0;
-      this.pos.y += (SWIM_FEET - this.pos.y) * Math.min(1, dt * (wasSwimming ? 4 : 2.5));
+      this.pos.y += (SWIM_FEET - this.depth - this.pos.y) * Math.min(1, dt * (wasSwimming ? 4 : 2.5));
       this.grounded = false;
     } else {
       const floor = Math.max(ground, wasSwimming ? SWIM_FEET : -Infinity);

@@ -1,10 +1,10 @@
 {
  "note": [
   "What you can say when you sit with an archetype, and what it answers.",
-  "prompts: the choices offered to everyone. kind is 'question' or 'feeling' (feelings are listed after questions). An archetype can have its own list: add \"prompts\": [...] inside its entry under answers.",
-  "answers: for each archetype (by numeral) and each prompt id: the recording's file and its transcript.",
-  "To add an answer: put the MP3 at the file path (under public/), and paste its words into transcript. Subtitles are timed to the recording automatically (by sentence). For exact timing, add \"cues\": [{\"t\": seconds, \"text\": \"...\"}] instead.",
-  "An answer with no recording shows its transcript as subtitles; with no transcript either, a placeholder line."
+  "prompts: the three questions offered at every archetype. An archetype can have its own list: add \"prompts\": [...] inside its entry under answers.",
+  "spectrum: 'How is your heart right now?' — one draggable gradient from shadow to light with five anchors. Releasing the drag plays the nearest anchor's answer.",
+  "answers: for each archetype (by numeral) and each prompt or anchor id: the recording's file (under public/) and its transcript. Subtitles are timed to the recording by sentence; add \"cues\": [{\"t\": seconds, \"text\": \"...\"}] for exact timing.",
+  "The question recordings come from Samuel's archetype-qa-audio package (Q1 who, Q2 teaching, Q3 practice). The five heart-spectrum anchors are still to be recorded: until then they show a placeholder line."
  ],
  "prompts": [
   {
@@ -21,18 +21,23 @@
    "id": "life",
    "kind": "question",
    "label": "Where do I meet you in my life?"
-  },
-  {
-   "id": "lost",
-   "kind": "feeling",
-   "label": "I feel lost."
-  },
-  {
-   "id": "afraid",
-   "kind": "feeling",
-   "label": "I feel afraid."
   }
  ],
+ "spectrum": {
+  "id": "heart",
+  "label": "How is your heart right now?",
+  "ends": [
+   "shadow",
+   "light"
+  ],
+  "anchors": [
+   "lost",
+   "afraid",
+   "still",
+   "bright",
+   "radiant"
+  ]
+ },
  "names": {
   "I": "The Magician",
   "II": "The High Priestess",
@@ -40,21 +45,36 @@
   "IV": "The Emperor",
   "V": "The Hierophant",
   "VI": "The Lovers",
-  "VII": "The Chariot"
+  "VII": "The Chariot",
+  "VIII": "Strength",
+  "IX": "The Hermit",
+  "X": "The Wheel of Fortune",
+  "XI": "Justice, the Enchantress",
+  "XII": "The Hanged Man",
+  "XIII": "Death",
+  "XIV": "Temperance, the Alchemist",
+  "XV": "The Devil",
+  "XVI": "The Lightning-Struck Tower",
+  "XVII": "The Star, called Faith",
+  "XVIII": "The Moon",
+  "XIX": "The Sun",
+  "XX": "Judgement, the Sarcophagus",
+  "XXI": "The World",
+  "XXII": "The Fool"
  },
  "answers": {
   "I": {
    "who": {
     "file": "audio/answers/I/who.mp3",
-    "transcript": ""
+    "transcript": "I am the Magician. I am consciousness itself, before anything has happened to it — the aware self, the watcher at the beginning of the journey. I am, as Ra says, 'full of the magic of that which is to come.' Nothing has been made yet. Everything is possible. It begins with attention."
    },
    "teach": {
     "file": "audio/answers/I/teach.mp3",
-    "transcript": ""
+    "transcript": "The matrix is the conscious mind — the 'I am' that observes. It is the starting point from which all experience unfolds: unmoving, aware, full of potential. Every thought you will ever think, every choice you will ever make, begins here, in the simple fact that you are awake to yourself."
    },
    "life": {
     "file": "audio/answers/I/life.mp3",
-    "transcript": ""
+    "transcript": "Choose one thing, and rest your attention upon it. A stone. A flame. Your breath. Will is attention, held steady. Before anything is made, something watches — practice being the watcher, and the magic will follow."
    },
    "lost": {
     "file": "audio/answers/I/lost.mp3",
@@ -63,20 +83,32 @@
    "afraid": {
     "file": "audio/answers/I/afraid.mp3",
     "transcript": ""
+   },
+   "still": {
+    "file": "audio/answers/I/still.mp3",
+    "transcript": ""
+   },
+   "bright": {
+    "file": "audio/answers/I/bright.mp3",
+    "transcript": ""
+   },
+   "radiant": {
+    "file": "audio/answers/I/radiant.mp3",
+    "transcript": ""
    }
   },
   "II": {
    "who": {
     "file": "audio/answers/II/who.mp3",
-    "transcript": ""
+    "transcript": "I am the High Priestess. I am the unconscious — what Ra calls 'a vast realm of potential in the mind.' I am veiled, and the veil is part of the teaching. What you seek is seeking you. Be still enough to be found."
    },
    "teach": {
     "file": "audio/answers/II/teach.mp3",
-    "transcript": ""
+    "transcript": "The potentiator is that which empowers the conscious mind — the deep waters beneath the surface of thought. Between the Magician and me, the veil is drawn, and that veiling is what makes your inner life mysterious, fertile, and worth seeking. I do not give answers. I give depth."
    },
    "life": {
     "file": "audio/answers/II/life.mp3",
-    "transcript": ""
+    "transcript": "Sit. Wait. Do not chase me — I come to stillness, never to effort. The longer you rest in silence, the more the scroll steadies into legibility. Leave when you must; I keep. Return when you can; I am patient."
    },
    "lost": {
     "file": "audio/answers/II/lost.mp3",
@@ -85,20 +117,32 @@
    "afraid": {
     "file": "audio/answers/II/afraid.mp3",
     "transcript": ""
+   },
+   "still": {
+    "file": "audio/answers/II/still.mp3",
+    "transcript": ""
+   },
+   "bright": {
+    "file": "audio/answers/II/bright.mp3",
+    "transcript": ""
+   },
+   "radiant": {
+    "file": "audio/answers/II/radiant.mp3",
+    "transcript": ""
    }
   },
   "III": {
    "who": {
     "file": "audio/answers/III/who.mp3",
-    "transcript": ""
+    "transcript": "I am the Empress — that which acts upon the conscious mind to change it, as the questioner put it, and as Ra confirmed. The storm, the tide, the unexpected word — everything that happens to you passes through my garden. I do not choose for you. I only tend the ground in which you choose."
    },
    "teach": {
     "file": "audio/answers/III/teach.mp3",
-    "transcript": ""
+    "transcript": "All catalyst is designed to offer experience. This experience may be loved and accepted, or it may be controlled — these are the two paths. When neither path is chosen, the catalyst simply returns, deeper, until you form a bias toward acceptance and love, or toward separation and control. I am the storm. Your response is the harvest."
    },
    "life": {
     "file": "audio/answers/III/life.mp3",
-    "transcript": ""
+    "transcript": "Do not repress what you feel. It is far better to allow the experience to express itself, so that you may make fuller use of it. Stay with what comes until it has taught you — then let it go, the way the garden lets go of every season."
    },
    "lost": {
     "file": "audio/answers/III/lost.mp3",
@@ -107,20 +151,32 @@
    "afraid": {
     "file": "audio/answers/III/afraid.mp3",
     "transcript": ""
+   },
+   "still": {
+    "file": "audio/answers/III/still.mp3",
+    "transcript": ""
+   },
+   "bright": {
+    "file": "audio/answers/III/bright.mp3",
+    "transcript": ""
+   },
+   "radiant": {
+    "file": "audio/answers/III/radiant.mp3",
+    "transcript": ""
    }
   },
   "IV": {
    "who": {
     "file": "audio/answers/IV/who.mp3",
-    "transcript": ""
+    "transcript": "I am the Emperor. I am experience itself — what the mind becomes through everything that has happened to it. Order, structure, authority: these are not prisons. Rightly used, they are how the mind loves the world."
    },
    "teach": {
     "file": "audio/answers/IV/teach.mp3",
-    "transcript": ""
+    "transcript": "Experience is catalyst digested — what the storm made of the watcher. Every event you met with acceptance or with control has built these halls, stone by stone. Look at them honestly: they are the shape of your journey so far. Nothing here is wasted. Everything was material."
    },
    "life": {
     "file": "audio/answers/IV/life.mp3",
-    "transcript": ""
+    "transcript": "Build one small order. Arrange the stones with care. Contemplate what you have made — and then release it. Scatter the stones. Structure serves; it does not own. The master of order is the one who can lay it down."
    },
    "lost": {
     "file": "audio/answers/IV/lost.mp3",
@@ -129,20 +185,32 @@
    "afraid": {
     "file": "audio/answers/IV/afraid.mp3",
     "transcript": ""
+   },
+   "still": {
+    "file": "audio/answers/IV/still.mp3",
+    "transcript": ""
+   },
+   "bright": {
+    "file": "audio/answers/IV/bright.mp3",
+    "transcript": ""
+   },
+   "radiant": {
+    "file": "audio/answers/IV/radiant.mp3",
+    "transcript": ""
    }
   },
   "V": {
    "who": {
     "file": "audio/answers/V/who.mp3",
-    "transcript": ""
+    "transcript": "I am the Hierophant. I am the significator of the mind — its meaning, its central teaching, the temple where learning becomes sacred. Pilgrims come to me asking for the truth. I give them something better: the way to find it in themselves."
    },
    "teach": {
     "file": "audio/answers/V/teach.mp3",
-    "transcript": ""
+    "transcript": "The significator is what the mind signifies — its heart-teaching. And the heart of the discipline of the personality is threefold. One: know your self. Two: accept your self. Three: become the Creator. Everything I teach is a finger pointing at this moon."
    },
    "life": {
     "file": "audio/answers/V/life.mp3",
-    "transcript": ""
+    "transcript": "Speak one true sentence aloud. Not a doctrine — a truth, yours, spoken in your own voice. Or offer silence; silence is also an answer. The teaching is a finger pointing. Do not worship the finger. Look where it points: inward."
    },
    "lost": {
     "file": "audio/answers/V/lost.mp3",
@@ -151,20 +219,32 @@
    "afraid": {
     "file": "audio/answers/V/afraid.mp3",
     "transcript": ""
+   },
+   "still": {
+    "file": "audio/answers/V/still.mp3",
+    "transcript": ""
+   },
+   "bright": {
+    "file": "audio/answers/V/bright.mp3",
+    "transcript": ""
+   },
+   "radiant": {
+    "file": "audio/answers/V/radiant.mp3",
+    "transcript": ""
    }
   },
   "VI": {
    "who": {
     "file": "audio/answers/VI/who.mp3",
-    "transcript": ""
+    "transcript": "I am the Lovers. I am transformation — the moment a choice changes the chooser. Two paths lie before you, and both are beautiful. I am not the choice itself. I am what the choice makes of you."
    },
    "teach": {
     "file": "audio/answers/VI/teach.mp3",
-    "transcript": ""
+    "transcript": "Transformation is the alchemy of choosing. The mind that has been potentized, catalyzed, and experienced now faces itself — and in choosing, becomes something new. Every great change in you has come through a moment like this: standing between two beloved paths, and becoming, in the choosing, someone who could walk either."
    },
    "life": {
     "file": "audio/answers/VI/life.mp3",
-    "transcript": ""
+    "transcript": "Choose — and then practice the harder half: release the choice. Do not clutch the path you took, and do not mourn the one you didn't. Love is not the finding. It is the becoming. Walk on, lighter than you arrived."
    },
    "lost": {
     "file": "audio/answers/VI/lost.mp3",
@@ -173,20 +253,32 @@
    "afraid": {
     "file": "audio/answers/VI/afraid.mp3",
     "transcript": ""
+   },
+   "still": {
+    "file": "audio/answers/VI/still.mp3",
+    "transcript": ""
+   },
+   "bright": {
+    "file": "audio/answers/VI/bright.mp3",
+    "transcript": ""
+   },
+   "radiant": {
+    "file": "audio/answers/VI/radiant.mp3",
+    "transcript": ""
    }
   },
   "VII": {
    "who": {
     "file": "audio/answers/VII/who.mp3",
-    "transcript": ""
+    "transcript": "I am the Chariot. I am the Great Way of the mind — will mastered, the road made ready. The sphinxes in my traces are light and shadow, and neither pulls against the other now. I do not hurry. The way is the destination, traveled well."
    },
    "teach": {
     "file": "audio/answers/VII/teach.mp3",
-    "transcript": ""
+    "transcript": "The Great Way is the mind traveling as one — every station behind you, gathered into a single forward motion. The Magician's attention, the Priestess's depth, the Empress's storms, the Emperor's order, the Hierophant's teaching, the Lovers' choice: all of it, harnessed, moving. This is what the journey was for."
    },
    "life": {
     "file": "audio/answers/VII/life.mp3",
-    "transcript": ""
+    "transcript": "Take the reins — then be still. Pulling does nothing; settling everything. The chariot moves only when the driver is inwardly quiet. The way does not need your effort. It needs your presence. Cross the water. The next shore is waiting."
    },
    "lost": {
     "file": "audio/answers/VII/lost.mp3",
@@ -194,6 +286,528 @@
    },
    "afraid": {
     "file": "audio/answers/VII/afraid.mp3",
+    "transcript": ""
+   },
+   "still": {
+    "file": "audio/answers/VII/still.mp3",
+    "transcript": ""
+   },
+   "bright": {
+    "file": "audio/answers/VII/bright.mp3",
+    "transcript": ""
+   },
+   "radiant": {
+    "file": "audio/answers/VII/radiant.mp3",
+    "transcript": ""
+   }
+  },
+  "VIII": {
+   "who": {
+    "file": "audio/answers/VIII/who.mp3",
+    "transcript": "I am Strength. I am the matrix of the body — the physical vessel, aware of itself, at the beginning of its journey. Look: no force anywhere. One gentle hand, and the lion rests. True strength never needs to prove itself. It is busy being gentle."
+   },
+   "teach": {
+    "file": "audio/answers/VIII/teach.mp3",
+    "transcript": "The matrix of the body is the body as foundation — the 'red ray,' as Ra calls it, the understanding and acceptance of which is fundamental to everything that follows. Your body is not an obstacle to the journey. It is the journey's ground, its first instrument, its home."
+   },
+   "life": {
+    "file": "audio/answers/VIII/life.mp3",
+    "transcript": "Approach slowly. Kneel. Offer an open hand. Breathe — and let your breathing slow until it matches the lion's. Gentleness is not weakness. It is strength so complete it has forgotten how to threaten."
+   },
+   "lost": {
+    "file": "audio/answers/VIII/lost.mp3",
+    "transcript": ""
+   },
+   "afraid": {
+    "file": "audio/answers/VIII/afraid.mp3",
+    "transcript": ""
+   },
+   "still": {
+    "file": "audio/answers/VIII/still.mp3",
+    "transcript": ""
+   },
+   "bright": {
+    "file": "audio/answers/VIII/bright.mp3",
+    "transcript": ""
+   },
+   "radiant": {
+    "file": "audio/answers/VIII/radiant.mp3",
+    "transcript": ""
+   }
+  },
+  "IX": {
+   "who": {
+    "file": "audio/answers/IX/who.mp3",
+    "transcript": "I am the Hermit. I am the potentiator of the body — solitude that empowers. I carry a lamp into the high snows, and the light inside it is not mine. Go apart to go together: that is my whole teaching, and it fits in one lantern."
+   },
+   "teach": {
+    "file": "audio/answers/IX/teach.mp3",
+    "transcript": "The potentiator is withdrawal that strengthens. The body, taken apart from the noise of the world, remembers what it is for. In the silence of the snows there is no audience, no performance — only the lamp, the path, and the one who walks. What is found here is carried back down the mountain."
+   },
+   "life": {
+    "file": "audio/answers/IX/life.mp3",
+    "transcript": "Carry the lamp a little way along the path — then set it down for the next traveler. Potentiation is completed by passing it on. The light you carry was never yours. That is why you can give it away."
+   },
+   "lost": {
+    "file": "audio/answers/IX/lost.mp3",
+    "transcript": ""
+   },
+   "afraid": {
+    "file": "audio/answers/IX/afraid.mp3",
+    "transcript": ""
+   },
+   "still": {
+    "file": "audio/answers/IX/still.mp3",
+    "transcript": ""
+   },
+   "bright": {
+    "file": "audio/answers/IX/bright.mp3",
+    "transcript": ""
+   },
+   "radiant": {
+    "file": "audio/answers/IX/radiant.mp3",
+    "transcript": ""
+   }
+  },
+  "X": {
+   "who": {
+    "file": "audio/answers/X/who.mp3",
+    "transcript": "I am the Wheel. I am the catalyst of the body — fortune, seasons, the turning. I rise and I fall and I rise again, and I do not ask your permission. Everything that lifts you and everything that lays you low passes through me."
+   },
+   "teach": {
+    "file": "audio/answers/X/teach.mp3",
+    "transcript": "That which acts upon the body to change it — the outer turning that the inner self must meet. All catalyst is designed to offer experience. Yours is to meet the turning without clinging to the top of the wheel, and without fearing its bottom. The hub, remember, does not move."
+   },
+   "life": {
+    "file": "audio/answers/X/life.mp3",
+    "transcript": "Step onto the rim. Feel the turning — the rise, the fall, the strange weightlessness between. Then step off, at will. Nothing clung to, nothing pushed away. Fortune turns. You are the still point it turns around."
+   },
+   "lost": {
+    "file": "audio/answers/X/lost.mp3",
+    "transcript": ""
+   },
+   "afraid": {
+    "file": "audio/answers/X/afraid.mp3",
+    "transcript": ""
+   },
+   "still": {
+    "file": "audio/answers/X/still.mp3",
+    "transcript": ""
+   },
+   "bright": {
+    "file": "audio/answers/X/bright.mp3",
+    "transcript": ""
+   },
+   "radiant": {
+    "file": "audio/answers/X/radiant.mp3",
+    "transcript": ""
+   }
+  },
+  "XI": {
+   "who": {
+    "file": "audio/answers/XI/who.mp3",
+    "transcript": "I am Justice — the Enchantress, in the deck you carry. I am the experience of the body, weighed and balanced. My scales do not punish. My sword does not wound. I am discernment itself, and I have been waiting for you."
+   },
+   "teach": {
+    "file": "audio/answers/XI/teach.mp3",
+    "transcript": "The experience of the body is what the body's journey amounts to — every rise and fall of the Wheel, gathered and weighed. And the weighing is gentle: with your higher self beside you, and with what can only be called grace, you yourself judge the journey. You are the judge you feared. Judge as love would."
+   },
+   "life": {
+    "file": "audio/answers/XI/life.mp3",
+    "transcript": "Lay one memory on the scales — any one. Watch it balance. There is no condemnation here, only the quiet arithmetic of the heart. Bow to the higher self who weighed with you. The higher self bows back."
+   },
+   "lost": {
+    "file": "audio/answers/XI/lost.mp3",
+    "transcript": ""
+   },
+   "afraid": {
+    "file": "audio/answers/XI/afraid.mp3",
+    "transcript": ""
+   },
+   "still": {
+    "file": "audio/answers/XI/still.mp3",
+    "transcript": ""
+   },
+   "bright": {
+    "file": "audio/answers/XI/bright.mp3",
+    "transcript": ""
+   },
+   "radiant": {
+    "file": "audio/answers/XI/radiant.mp3",
+    "transcript": ""
+   }
+  },
+  "XII": {
+   "who": {
+    "file": "audio/answers/XII/who.mp3",
+    "transcript": "I am the Hanged Man. I am the significator of the body — its deepest meaning, which is surrender. I hang by one foot above still water, and I am at peace. The world looks different from here. That is the point."
+   },
+   "teach": {
+    "file": "audio/answers/XII/teach.mp3",
+    "transcript": "The significator is what the body signifies when it stops striving — the wisdom of voluntary suspension. Not defeat: release. The swimmer who stops thrashing discovers the water was holding them all along. Everything you tried to force was waiting for you to stop forcing it."
+   },
+   "life": {
+    "file": "audio/answers/XII/life.mp3",
+    "transcript": "Hang. Remain. Do nothing, beautifully, on purpose. Insights will arrive unforced — they always do, when the grasping stops. Stop struggling, and the water holds you. This, too, is a way forward."
+   },
+   "lost": {
+    "file": "audio/answers/XII/lost.mp3",
+    "transcript": ""
+   },
+   "afraid": {
+    "file": "audio/answers/XII/afraid.mp3",
+    "transcript": ""
+   },
+   "still": {
+    "file": "audio/answers/XII/still.mp3",
+    "transcript": ""
+   },
+   "bright": {
+    "file": "audio/answers/XII/bright.mp3",
+    "transcript": ""
+   },
+   "radiant": {
+    "file": "audio/answers/XII/radiant.mp3",
+    "transcript": ""
+   }
+  },
+  "XIII": {
+   "who": {
+    "file": "audio/answers/XIII/who.mp3",
+    "transcript": "I am Death. I am the transformation of the body — the end of a form, honored. Do not fear me: the pale rider passes without menace, the crown lies down in the grass, and the sunrise was already here before I arrived."
+   },
+   "teach": {
+    "file": "audio/answers/XIII/teach.mp3",
+    "transcript": "Transformation is release — what falls away so that the new can rise. Every ending you have ever grieved was a transformation wearing a dark cloak. The form passes. Nothing real is ever lost. Only the shape changes — and the shape was never you."
+   },
+   "life": {
+    "file": "audio/answers/XIII/life.mp3",
+    "transcript": "Lay one thing to rest — a habit, a fear, a finished chapter. Give your grief its full weight; I can carry it. And when you are ready, look east. The sunrise does the rest. It always does."
+   },
+   "lost": {
+    "file": "audio/answers/XIII/lost.mp3",
+    "transcript": ""
+   },
+   "afraid": {
+    "file": "audio/answers/XIII/afraid.mp3",
+    "transcript": ""
+   },
+   "still": {
+    "file": "audio/answers/XIII/still.mp3",
+    "transcript": ""
+   },
+   "bright": {
+    "file": "audio/answers/XIII/bright.mp3",
+    "transcript": ""
+   },
+   "radiant": {
+    "file": "audio/answers/XIII/radiant.mp3",
+    "transcript": ""
+   }
+  },
+  "XIV": {
+   "who": {
+    "file": "audio/answers/XIV/who.mp3",
+    "transcript": "I am Temperance — the Alchemist, in the deck you carry. I am the Great Way of the body: the mixing of opposites, fire into water, water into fire, until they shine. One foot on land, one in the stream. I am the middle path, and I am radiant."
+   },
+   "teach": {
+    "file": "audio/answers/XIV/teach.mp3",
+    "transcript": "The Great Way is balance made luminous — the body's opposites poured together until a third thing appears, which contains them both. Strength and surrender. Effort and rest. The lion and the lamb, drinking from the same vessel. This is what the body's whole journey was converging upon."
+   },
+   "life": {
+    "file": "audio/answers/XIV/life.mp3",
+    "transcript": "Pour slowly between the vessels. Do not rush the mixing — the shining takes the time it takes. Patience is the whole mechanic. Not this, not that: the third thing. When the liquid shines, drink, and cross the water. The Island of Spirit is waiting."
+   },
+   "lost": {
+    "file": "audio/answers/XIV/lost.mp3",
+    "transcript": ""
+   },
+   "afraid": {
+    "file": "audio/answers/XIV/afraid.mp3",
+    "transcript": ""
+   },
+   "still": {
+    "file": "audio/answers/XIV/still.mp3",
+    "transcript": ""
+   },
+   "bright": {
+    "file": "audio/answers/XIV/bright.mp3",
+    "transcript": ""
+   },
+   "radiant": {
+    "file": "audio/answers/XIV/radiant.mp3",
+    "transcript": ""
+   }
+  },
+  "XV": {
+   "who": {
+    "file": "audio/answers/XV/who.mp3",
+    "transcript": "I am the Devil. I am the matrix of the spirit — its raw material, including everything you have refused to look at. I am not evil. I am unexamined. Every horror in this cavern is a disowned fragment of yourself, waiting to be recognized. Look closer."
+   },
+   "teach": {
+    "file": "audio/answers/XV/teach.mp3",
+    "transcript": "The matrix of the spirit is the spirit's starting point — the full raw substance, shadow included. The chains you see hang loose. They always have. The prison was unlocked from the inside, all along. What you fear in the dark is only yourself, unmet — and the meeting is the liberation."
+   },
+   "life": {
+    "file": "audio/answers/XV/life.mp3",
+    "transcript": "Look at the chains until you see that they hang loose. Stand up. Walk out. No battle — recognition is the whole event. What you have faced without flinching can never frighten you again."
+   },
+   "lost": {
+    "file": "audio/answers/XV/lost.mp3",
+    "transcript": ""
+   },
+   "afraid": {
+    "file": "audio/answers/XV/afraid.mp3",
+    "transcript": ""
+   },
+   "still": {
+    "file": "audio/answers/XV/still.mp3",
+    "transcript": ""
+   },
+   "bright": {
+    "file": "audio/answers/XV/bright.mp3",
+    "transcript": ""
+   },
+   "radiant": {
+    "file": "audio/answers/XV/radiant.mp3",
+    "transcript": ""
+   }
+  },
+  "XVI": {
+   "who": {
+    "file": "audio/answers/XVI/who.mp3",
+    "transcript": "I am the Tower. I am the potentiator of the spirit — sudden revelation, the lightning that shatters false structure. What I destroy was never true. What I leave standing was never built by hands. Do not be afraid of the thunder. It is the sound of lies falling."
+   },
+   "teach": {
+    "file": "audio/answers/XVI/teach.mp3",
+    "transcript": "The potentiator is that which empowers — and for the spirit, empowerment comes as demolition. A belief you leaned on, a structure you trusted: struck, shattered, gone. The shock is real. The harm is none. What falls was never you. What remains was never built — it simply is."
+   },
+   "life": {
+    "file": "audio/answers/XVI/life.mp3",
+    "transcript": "Let it fall. Do not rebuild it the same way — that is the only instruction, and the only temptation. Stand in the rain that follows the lightning. Feel the clean air. Something truer is already growing in the ruins."
+   },
+   "lost": {
+    "file": "audio/answers/XVI/lost.mp3",
+    "transcript": ""
+   },
+   "afraid": {
+    "file": "audio/answers/XVI/afraid.mp3",
+    "transcript": ""
+   },
+   "still": {
+    "file": "audio/answers/XVI/still.mp3",
+    "transcript": ""
+   },
+   "bright": {
+    "file": "audio/answers/XVI/bright.mp3",
+    "transcript": ""
+   },
+   "radiant": {
+    "file": "audio/answers/XVI/radiant.mp3",
+    "transcript": ""
+   }
+  },
+  "XVII": {
+   "who": {
+    "file": "audio/answers/XVII/who.mp3",
+    "transcript": "I am the Star — called Faith by those who know me best. I am the catalyst of the spirit. After the Tower's lightning, after the fall, I am what remains: eight stars wheeling over still water, and one blazing above all. I am hope that asks for nothing."
+   },
+   "teach": {
+    "file": "audio/answers/XVII/teach.mp3",
+    "transcript": "That which acts upon the spirit to change it — and for the spirit, the catalyst is faith itself. Not belief in a thing, but the call to move forward without evidence. The mind has its storms, the body its turnings; the spirit has only this: the quiet certainty that pours itself out, regardless."
+   },
+   "life": {
+    "file": "audio/answers/XVII/life.mp3",
+    "transcript": "Pour out, and pour back. Kneel beside the still pool. Drink. Each pouring steadies the starlight's reflection a little more. Hope is not the expectation that things will turn out. It is the pouring, regardless."
+   },
+   "lost": {
+    "file": "audio/answers/XVII/lost.mp3",
+    "transcript": ""
+   },
+   "afraid": {
+    "file": "audio/answers/XVII/afraid.mp3",
+    "transcript": ""
+   },
+   "still": {
+    "file": "audio/answers/XVII/still.mp3",
+    "transcript": ""
+   },
+   "bright": {
+    "file": "audio/answers/XVII/bright.mp3",
+    "transcript": ""
+   },
+   "radiant": {
+    "file": "audio/answers/XVII/radiant.mp3",
+    "transcript": ""
+   }
+  },
+  "XVIII": {
+   "who": {
+    "file": "audio/answers/XVIII/who.mp3",
+    "transcript": "I am the Moon. I am the experience of the spirit — the dim path, the reflections, the dreams. What you meet on my road are your own unexamined fears, wearing shapes. They dissolve when approached with kindness. Everything here is a mirror. Smile at it."
+   },
+   "teach": {
+    "file": "audio/answers/XVIII/teach.mp3",
+    "transcript": "The experience of the spirit is walking by reflected light — through illusion, through dreams, through the beautiful deceptions of the half-seen. The dogs bay, the towers loom, the water lies. None of it is false; all of it is partial. Wisdom, here, is learning to walk without chasing reflections."
+   },
+   "life": {
+    "file": "audio/answers/XVIII/life.mp3",
+    "transcript": "Walk the dim path. When a fear-figure rises before you, do not run and do not fight — greet it. It is yourself, unmet. It will bow, and fade. The moon shows you your own face in the water. Smile at it, and walk on toward the dawn."
+   },
+   "lost": {
+    "file": "audio/answers/XVIII/lost.mp3",
+    "transcript": ""
+   },
+   "afraid": {
+    "file": "audio/answers/XVIII/afraid.mp3",
+    "transcript": ""
+   },
+   "still": {
+    "file": "audio/answers/XVIII/still.mp3",
+    "transcript": ""
+   },
+   "bright": {
+    "file": "audio/answers/XVIII/bright.mp3",
+    "transcript": ""
+   },
+   "radiant": {
+    "file": "audio/answers/XVIII/radiant.mp3",
+    "transcript": ""
+   }
+  },
+  "XIX": {
+   "who": {
+    "file": "audio/answers/XIX/who.mp3",
+    "transcript": "I am the Sun. I am the significator of the spirit — its meaning made visible, radiant, undeniable. The walled garden, the child, the horse, the sunflowers: all of it is saying one thing. You are the sun's idea of itself, walking around in a garden."
+   },
+   "teach": {
+    "file": "audio/answers/XIX/teach.mp3",
+    "transcript": "The significator is what the spirit signifies — and the spirit signifies joy. Not joy earned, not joy explained: joy without reason, without achievement, without permission. After the Moon's illusions, this is the correction: the truth was never hidden. It was shining the whole time."
+   },
+   "life": {
+    "file": "audio/answers/XIX/life.mp3",
+    "transcript": "Simply be in the light. Laugh if it comes. There is nothing to do here, and doing nothing is the practice. Let the warmth convince you of what the darkness could not: you were never separate from it."
+   },
+   "lost": {
+    "file": "audio/answers/XIX/lost.mp3",
+    "transcript": ""
+   },
+   "afraid": {
+    "file": "audio/answers/XIX/afraid.mp3",
+    "transcript": ""
+   },
+   "still": {
+    "file": "audio/answers/XIX/still.mp3",
+    "transcript": ""
+   },
+   "bright": {
+    "file": "audio/answers/XIX/bright.mp3",
+    "transcript": ""
+   },
+   "radiant": {
+    "file": "audio/answers/XIX/radiant.mp3",
+    "transcript": ""
+   }
+  },
+  "XX": {
+   "who": {
+    "file": "audio/answers/XX/who.mp3",
+    "transcript": "I am Judgement — the Sarcophagus, in the deck you carry: the material world as the spirit transforms it, into that which is infinite and eternal. The trumpet sounds, the graves open, and the figures rise — not in fear, but in recognition. I am the call you have been waiting your whole journey to hear."
+   },
+   "teach": {
+    "file": "audio/answers/XX/teach.mp3",
+    "transcript": "The material world itself: into that which is infinite and eternal. For the spirit, transformation is rising — answering the trumpet of the higher self, stepping out of the grave of the old self into the dawn air. You were never dead. You were only dreaming you were. And now the dream is over, and the morning is exactly as beautiful as you were promised."
+   },
+   "life": {
+    "file": "audio/answers/XX/life.mp3",
+    "transcript": "Rise. Answer. When you hear your name — the true one, the one this journey has earned you — do not hesitate. Step out of the grave and stand in the dawn air. The past is a sarcophagus. You were only ever visiting."
+   },
+   "lost": {
+    "file": "audio/answers/XX/lost.mp3",
+    "transcript": ""
+   },
+   "afraid": {
+    "file": "audio/answers/XX/afraid.mp3",
+    "transcript": ""
+   },
+   "still": {
+    "file": "audio/answers/XX/still.mp3",
+    "transcript": ""
+   },
+   "bright": {
+    "file": "audio/answers/XX/bright.mp3",
+    "transcript": ""
+   },
+   "radiant": {
+    "file": "audio/answers/XX/radiant.mp3",
+    "transcript": ""
+   }
+  },
+  "XXI": {
+   "who": {
+    "file": "audio/answers/XXI/who.mp3",
+    "transcript": "I am the World. I am the Great Way of the spirit — completion. The dancer in the laurel wreath, the four guardians at the corners of the sky, and every station of your journey present at once, arranged as a dance. We have been waiting for you. Take your place."
+   },
+   "teach": {
+    "file": "audio/answers/XXI/teach.mp3",
+    "transcript": "The Great Way is the end of the journey discovering it was the journey — every island, every storm, every stillness, gathered into a single dance. The Magician's attention and the Sun's joy are the same light. The Tower's ruins and the Star's pouring are the same water. It was all one road. It was all you."
+   },
+   "life": {
+    "file": "audio/answers/XXI/life.mp3",
+    "transcript": "Dance. Move, sway, be moved. The world dances back — it cannot help it. The wreath is a mirror: the dancer is you, and you are the dance. When the music slows, look beyond the meadow. A cliff waits at sunrise, and someone young is about to step off it, laughing."
+   },
+   "lost": {
+    "file": "audio/answers/XXI/lost.mp3",
+    "transcript": ""
+   },
+   "afraid": {
+    "file": "audio/answers/XXI/afraid.mp3",
+    "transcript": ""
+   },
+   "still": {
+    "file": "audio/answers/XXI/still.mp3",
+    "transcript": ""
+   },
+   "bright": {
+    "file": "audio/answers/XXI/bright.mp3",
+    "transcript": ""
+   },
+   "radiant": {
+    "file": "audio/answers/XXI/radiant.mp3",
+    "transcript": ""
+   }
+  },
+  "XXII": {
+   "who": {
+    "file": "audio/answers/XXII/who.mp3",
+    "transcript": "I am the Fool. I am the Choice — the only one of us, Ra says, that is relatively fixed and single. I carry nothing but a bindle and absolute trust, and I am about to step off a cliff at sunrise. Everyone thinks I am mad. Everyone is wrong."
+   },
+   "teach": {
+    "file": "audio/answers/XXII/teach.mp3",
+    "transcript": "The Choice is the leap — trust without evidence, taken after everything is known. Twenty-one stations taught you attention, surrender, faith, and joy. Now put them all down. The Choice is not a decision between paths. It is the willingness to step where there is no path, knowing the air will hold."
+   },
+   "life": {
+    "file": "audio/answers/XXII/life.mp3",
+    "transcript": "Step off. Do not look down — look out, at the sunrise. The fall never comes; the light catches you. And hear the words for the road: 'Go forth, therefore, rejoicing in the power and the peace of the One Infinite Creator.' Rest now. Or begin again, knowing."
+   },
+   "lost": {
+    "file": "audio/answers/XXII/lost.mp3",
+    "transcript": ""
+   },
+   "afraid": {
+    "file": "audio/answers/XXII/afraid.mp3",
+    "transcript": ""
+   },
+   "still": {
+    "file": "audio/answers/XXII/still.mp3",
+    "transcript": ""
+   },
+   "bright": {
+    "file": "audio/answers/XXII/bright.mp3",
+    "transcript": ""
+   },
+   "radiant": {
+    "file": "audio/answers/XXII/radiant.mp3",
     "transcript": ""
    }
   }

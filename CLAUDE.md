@@ -110,6 +110,19 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - three scanned boulders (`public/models/rocks.glb`, built by `tools/build-rocks.mjs`);
   - N8AO ambient occlusion on the two higher quality levels.
   - Code-generated shapes stay where Samuel's direction asks for them: round, curling trees, crystals, spirits.
+- 2026-09-25: Samuel's Q&A package (`reference/archetype-qa-audio.zip`):
+  - 66 answers (22 archetypes × who, teaching, practice) are in `public/audio/answers/<numeral>/{who,teach,life}.mp3`, with transcripts in `content/dialogues.json`.
+  - 21 passage narrations are in `public/audio/passages/`, with transcripts in `content/passages.json`. They're not placed in the world yet.
+  - The scripts and audit report are in the zip.
+- 2026-09-25: the feelings became one draggable heart spectrum: "How is your heart right now?", from shadow to light.
+  - Five anchors per archetype: lost, afraid, still, bright, radiant.
+  - Releasing the drag plays the nearest anchor (`A-<numeral>-<anchor>`).
+  - The anchor recordings are still to come; placeholders until then.
+- 2026-09-25 (later):
+  - flight has no practical ceiling, and the climb speeds up the longer you hold it;
+  - diving (hold Down or C while swimming) leads to a glowing sea floor (`src/world/underwater.ts`);
+  - stillness turns the wanderer inward: head bowed, hands at the heart, aura, streams of light, and the whole network lights up (`src/world/communion.ts`);
+  - creatures (`src/world/creatures.ts`): deer herds that come close in stillness, hoppers, and bird flocks.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.

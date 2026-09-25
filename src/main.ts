@@ -21,7 +21,7 @@ import { AudioEngine } from "./core/audio";
 import { Input } from "./core/input";
 import { Narration } from "./core/narration";
 import { Playlist } from "./core/playlist";
-import { promptsFor, registerAnswers, trackId } from "./core/dialogues";
+import { promptsFor, registerAnswers, SPECTRUM, trackId } from "./core/dialogues";
 import { AdaptiveQuality, FrameStats, MOBILE, type Tier } from "./core/quality";
 import { clear, load, save, type SaveData } from "./core/save";
 import { FollowCamera } from "./player/camera";
@@ -35,6 +35,9 @@ import { Butterflies, Flowers, Gliders, Lanterns, LightGrass, Sparks, type LifeF
 import { Motes } from "./world/motes";
 import { Creation, creationUniforms, Spirits } from "./world/creation";
 import { Beings } from "./world/beings";
+import { SeaLife, UnderwaterEffect } from "./world/underwater";
+import { Communion } from "./world/communion";
+import { Creatures } from "./world/creatures";
 import { StartMap, type Choice, type Place } from "./ui/map";
 import { Reflection } from "./world/reflection";
 import { buildSky, skyUniforms, starDirection } from "./world/sky";
@@ -58,6 +61,7 @@ const S = {
     return this.reducedPref ?? this.osReduced;
   },
   wt: 0, // world time: slows a little when the wanderer is still beside the veil
+  toldDive: false,
 };
 
 /* ============ RENDERER ============ */
@@ -87,6 +91,11 @@ aoPass.configuration.gammaCorrection = false;
 aoPass.configuration.transparencyAware = false; // glows and glass stay out of it (and it stays cheap)
 aoPass.setQualityMode(MOBILE ? "Performance" : "Low");
 composer.addPass(aoPass);
+// Under the surface: deep teal haze and wavering shafts of moonlight (only while the camera is under).
+const underwater = new UnderwaterEffect();
+const underwaterPass = new EffectPass(camera, underwater);
+underwaterPass.enabled = false;
+composer.addPass(underwaterPass);
 const bloom = new BloomEffect({ mipmapBlur: true, luminanceThreshold: 0.6, luminanceSmoothing: 0.25, intensity: 1.15, radius: 0.75 });
 const bloomPass = new EffectPass(camera, bloom, new ToneMappingEffect({ mode: ToneMappingMode.AGX }));
 const plainPass = new EffectPass(camera, new ToneMappingEffect({ mode: ToneMappingMode.AGX }));
@@ -196,6 +205,12 @@ creationUniforms.uStar.value.copy(starDir);
 const creation = new Creation(sparks);
 const spirits = new Spirits(creation, MOBILE ? 10 : 14);
 scene.add(creation.group, spirits.group);
+const seaLife = new SeaLife();
+scene.add(seaLife.group);
+const communion = new Communion();
+scene.add(communion.group);
+const creatures = new Creatures(MOBILE ? 10 : 14, MOBILE ? 12 : 18, MOBILE ? 36 : 48);
+scene.add(creatures.group);
 
 /** Glow materials add light but leave alpha alone, so they don't punch dark squares into
     the water's reflection texture (which uses alpha to know where the world is). */
@@ -445,6 +460,7 @@ function sitDown(): void {
     });
     box.append(btn);
   }
+  heart.reset();
   sitPanel.hidden = false;
   (box.querySelector("button") as HTMLButtonElement | null)?.focus({ preventScroll: true });
   say(`You sit with ${b.spec.name}.`);
@@ -478,8 +494,98 @@ $("#sit-offer-light").addEventListener("click", () => {
   window.setTimeout(() => b.greet(), 1100);
 });
 
+/* "How is your heart right now?": drag slowly along one gradient from shadow to light. Letting
+   go settles on the nearest of five places, and the archetype answers from there. */
+const heart = (() => {
+  const box = $("#heart"), track = $("#heart-track"), thumb = $("#heart-thumb");
+  const anchors = SPECTRUM?.anchors ?? [];
+  const n = Math.max(1, anchors.length - 1);
+  const said = ["far toward shadow", "toward shadow", "between shadow and light", "toward light", "far toward light"];
+  let pos = 0.5, target = 0.5, dragging = false;
+  box.hidden = !SPECTRUM;
+  if (SPECTRUM) {
+    $("#heart-label").textContent = SPECTRUM.label;
+    const [a, b] = [...$("#heart-ends").children] as HTMLElement[];
+    a.textContent = SPECTRUM.ends[0];
+    b.textContent = SPECTRUM.ends[1];
+  }
+  const at = (e: PointerEvent) => {
+    const r = track.getBoundingClientRect();
+    return Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+  };
+  const answer = () => {
+    const i = Math.round(target * n);
+    target = i / n;
+    track.setAttribute("aria-valuenow", String(i));
+    track.setAttribute("aria-valuetext", said[i] ?? "");
+    const b = beings.list[sitting.being];
+    if (!b || !anchors[i]) return;
+    stillness(false);
+    b.greet();
+    void narration.play(trackId(b.spec.numeral, anchors[i]));
+  };
+  track.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    track.setPointerCapture(e.pointerId);
+    dragging = true;
+    target = at(e);
+  });
+  track.addEventListener("pointermove", (e) => dragging && (target = at(e)));
+  const release = () => {
+    if (!dragging) return;
+    dragging = false;
+    answer();
+  };
+  track.addEventListener("pointerup", release);
+  track.addEventListener("pointercancel", release);
+  track.addEventListener("keydown", (e) => {
+    const step = e.key === "ArrowLeft" || e.key === "ArrowDown" ? -1 : e.key === "ArrowRight" || e.key === "ArrowUp" ? 1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    target = Math.min(1, Math.max(0, Math.round(target * n + step) / n));
+    answer();
+  });
+  return {
+    reset() {
+      pos = target = 0.5;
+      thumb.style.left = "50%";
+    },
+    /** Each frame: the light follows the finger slowly, and settles softly. */
+    update(dt: number) {
+      pos += (target - pos) * Math.min(1, dt * (dragging ? 2.6 : 3.5));
+      thumb.style.left = `${pos * 100}%`;
+    },
+  };
+})();
+
+/* ---- Stillness: stop, and the wanderer turns inward; everything connects through light ---- */
+let stillFor = 0;
+let medK = 0;
+const heartPos = new THREE.Vector3();
+function updateStillness(dt: number, wt: number): void {
+  const calm =
+    S.mode === "play" && player.grounded && !player.swimming && !player.flying && player.speed < 0.15 &&
+    wanderer.gesture === "none" && sitting.phase === "none" && Math.hypot(input.move.x, input.move.y) < 0.05 && !startMap.isOpen;
+  stillFor = calm ? stillFor + dt : 0;
+  const want = stillFor > 1.6 ? 1 : 0;
+  const was = medK;
+  medK += (want - medK) * Math.min(1, dt * (want ? 0.55 : 3.5));
+  if (medK < 0.002) medK = 0;
+  if (was < 0.3 && medK >= 0.3) spirits.gather(player.pos);
+  wanderer.meditation = medK;
+  creationUniforms.uCommune.value = medK;
+  heartPos.copy(player.pos).setY(player.pos.y + 1.15);
+  communion.update(wt, dt, medK, heartPos, player.pos, () => [
+    ...creation.anchors(),
+    ...beings.list.map((b) => b.root.position.clone().setY(b.root.position.y + 1.1)),
+    ...landmarks.list.map((l) => l.center.clone().setY(l.center.y + 2.5)),
+  ]);
+}
+
 /** Each frame: offer a seat near a being, walk to it, and keep the sitting in step. */
 function updateSitting(dt: number): void {
+  if (sitting.phase === "seated") heart.update(dt);
   const n = beings.nearest(player.pos);
   sitOffer.hidden = !(S.mode === "play" && sitting.phase === "none" && n.i >= 0 && n.d < 6.5 && !startMap.isOpen);
   if (!sitOffer.hidden) sitOffer.textContent = `Sit with ${beings.list[n.i].spec.name.replace(/^The /, "the ")}`;
@@ -677,7 +783,11 @@ function update(dt: number): void {
     if (wanderer.gesture !== "none" && Math.hypot(input.move.x, input.move.y) > 0.2 && wanderer.gesture === "sit") wanderer.setGesture("none");
     player.update(dt, { ...input.move, glide: input.boost, hold: input.hold, down: input.descend }, follow.yaw);
     $("#fly").setAttribute("aria-pressed", String(player.flying));
-    $("#down").hidden = !(MOBILE && player.flying);
+    $("#down").hidden = !(MOBILE && (player.flying || player.swimming));
+    if (player.swimming && !S.toldDive) {
+      S.toldDive = true;
+      whisper(MOBILE ? "Hold Down to dive; hold the round button to rise" : "Hold C to dive; hold Space to rise", 5000);
+    }
   }
   S.wt += dt * landmarks.timeScale;
   const wt = S.wt;
@@ -728,8 +838,25 @@ function update(dt: number): void {
   landmarks.update(wt, dt, player.pos, S.mode === "play" ? player.speed : 1, S.reduced);
   if (S.mode === "play") beings.update(wt, dt, player.pos, S.reduced);
   updateSitting(dt);
+  updateStillness(dt, wt);
+  if (S.mode !== "intro") creatures.update(wt, dt, player.pos, medK, player.speed > 3 || player.gliding, S.reduced);
+  const camUnder = camera.position.y < WATER_Y - 0.05;
+  underwaterPass.enabled = camUnder;
+  underwater.time = wt;
+  follow.underwater = player.diving;
+  seaLife.update(wt, dt, player.pos, player.swimming || camUnder);
 
   follow.update(dt, player.pos, player.heading, player.speed > 0.5, t, S.reduced);
+  // high in the air, the camera reaches farther (and keeps its depth precise)
+  {
+    const alt = Math.max(0, camera.position.y);
+    const near = Math.max(0.15, alt * 0.0015), far = 6000 + alt * 3;
+    if (Math.abs(camera.near - near) > near * 0.2 || Math.abs(camera.far - far) > far * 0.2) {
+      camera.near = near;
+      camera.far = far;
+      camera.updateProjectionMatrix();
+    }
+  }
   sky.position.copy(camera.position);
   starSource.position.copy(camera.position).addScaledVector(starDir, 900);
   glow.set(player.pos.x, S.mode === "intro" ? 0 : 1, player.pos.z);
@@ -767,9 +894,9 @@ function frame(now: number): void {
   update(dt);
   renderer.info.reset();
   // (The shadow map must exist first: it is created by the main render.)
-  if (star.shadow.map) reflection.render(renderer, scene, camera, [water.mesh, sky, starSource, grass.mesh, ...creation.noReflect]);
+  if (star.shadow.map && camera.position.y > WATER_Y) reflection.render(renderer, scene, camera, [water.mesh, sky, starSource, grass.mesh, ...creation.noReflect]);
   composer.render(dt);
 }
 requestAnimationFrame(frame);
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, aoPass, composer, underwaterPass, reflection, terrain, water, grass, seaLife, raysPass } });

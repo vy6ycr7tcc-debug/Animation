@@ -1,0 +1,131 @@
+{
+ "note": "Samuel's passage narrations (Aria), for the road between stations.",
+ "passages": [
+  {
+   "id": "P01",
+   "route": "Magician → High Priestess",
+   "file": "audio/passages/P01.mp3",
+   "transcript": "Attention has chosen its object. Now the object deepens. Behind the clear table, a veil stirs — and behind the veil, something vast is waiting to be noticed."
+  },
+  {
+   "id": "P02",
+   "route": "High Priestess → Empress",
+   "file": "audio/passages/P02.mp3",
+   "transcript": "You sat with the mystery, and the mystery kept you. Now it releases you into sunlight — into a garden where everything grows, and everything that grows will ask something of you."
+  },
+  {
+   "id": "P03",
+   "route": "Empress → Emperor",
+   "file": "audio/passages/P03.mp3",
+   "transcript": "The storm has passed through you. Now comes the quieter work: gathering what the storm left, stone by stone, into something that can hold."
+  },
+  {
+   "id": "P04",
+   "route": "Emperor → Hierophant",
+   "file": "audio/passages/P04.mp3",
+   "transcript": "You have built your order. Now the builder is summoned to the temple — for the structure was never the point. The meaning was."
+  },
+  {
+   "id": "P05",
+   "route": "Hierophant → Lovers",
+   "file": "audio/passages/P05.mp3",
+   "transcript": "The teaching is received. Now it must be lived. The temple opens onto a garden of forking paths — and the lesson, it turns out, was a choice all along."
+  },
+  {
+   "id": "P06",
+   "route": "Lovers → Chariot",
+   "file": "audio/passages/P06.mp3",
+   "transcript": "You chose, and the choosing changed you. Now the change is harnessed. Take the reins. The water is waiting, and the far shore is already visible."
+  },
+  {
+   "id": "P07",
+   "route": "Chariot → Strength (crossing to the Island of Body)",
+   "file": "audio/passages/P07.mp3",
+   "transcript": "The chariot grounds on a new shore. The work of the mind is complete; the work of the body begins. Ahead, a lion rests in a sunlit glade — and gentleness is about to show you what strength is."
+  },
+  {
+   "id": "P08",
+   "route": "Strength → Hermit",
+   "file": "audio/passages/P08.mp3",
+   "transcript": "The lion has taught you gentleness. Now the path narrows and climbs, into snow, into silence. Someone is waiting up there with a lamp — and the lamp is for you."
+  },
+  {
+   "id": "P09",
+   "route": "Hermit → Wheel",
+   "file": "audio/passages/P09.mp3",
+   "transcript": "You carried the lamp, and you set it down for the next traveler. Now the seasons turn without warning. Hold nothing. The wheel is about to show you everything it can do."
+  },
+  {
+   "id": "P10",
+   "route": "Wheel → Justice",
+   "file": "audio/passages/P10.mp3",
+   "transcript": "You rode the turning and stepped off unharmed. Now the wheel slows before a white courtroom. Something you carried is about to be weighed — gently, and in your favor."
+  },
+  {
+   "id": "P11",
+   "route": "Justice → Hanged Man",
+   "file": "audio/passages/P11.mp3",
+   "transcript": "The scales balanced. The judge bowed to you, and you bowed back. Now the courtroom dissolves, the world turns over — and you discover that hanging upside down, you can finally see clearly."
+  },
+  {
+   "id": "P12",
+   "route": "Hanged Man → Death",
+   "file": "audio/passages/P12.mp3",
+   "transcript": "You hung in suspension, and the insights came unforced. Now leaves are falling — gold, then red, then none. Something is ending. Let it. It is right."
+  },
+  {
+   "id": "P13",
+   "route": "Death → Temperance",
+   "file": "audio/passages/P13.mp3",
+   "transcript": "You laid it to rest, and the sunrise kept its promise. Now a river appears, and on its bank an alchemist is pouring light between two cups. Watch. Learn the slowness."
+  },
+  {
+   "id": "P14",
+   "route": "Temperance → Devil (crossing to the Island of Spirit)",
+   "file": "audio/passages/P14.mp3",
+   "transcript": "The vessels shine. You cross the dark strait — and the air changes. Ahead, a cavern glows with ember-light. Do not fear what waits inside. It is only yourself, unmet."
+  },
+  {
+   "id": "P15",
+   "route": "Devil → Tower",
+   "file": "audio/passages/P15.mp3",
+   "transcript": "You saw the chains were loose, and you walked out. But as you leave the cavern, the sky splits. A tower stands on the cliff above — and the lightning has already chosen it."
+  },
+  {
+   "id": "P16",
+   "route": "Tower → Star",
+   "file": "audio/passages/P16.mp3",
+   "transcript": "You let it fall, and you did not rebuild it. Now the storm passes. Above the quiet water, the stars come out — impossibly bright, impossibly kind. Kneel. The water is still."
+  },
+  {
+   "id": "P17",
+   "route": "Star → Moon",
+   "file": "audio/passages/P17.mp3",
+   "transcript": "You poured, and the pouring steadied you. But the stars wheel westward, and the moon is rising. The path ahead is dim, and it doubles, and it deceives. Walk carefully — and kindly."
+  },
+  {
+   "id": "P18",
+   "route": "Moon → Sun",
+   "file": "audio/passages/P18.mp3",
+   "transcript": "You walked the dim path without chasing reflections, and every fear-figure bowed and faded. Now the path climbs. The sky pales. The sun rises — all at once, everywhere. This is what was shining the whole time."
+  },
+  {
+   "id": "P19",
+   "route": "Sun → Judgement",
+   "file": "audio/passages/P19.mp3",
+   "transcript": "You stood in the light and laughed. But listen — a trumpet sounds beyond the garden wall. Not a martial call. A dawn call. The graves are opening, and one of them has your name on it."
+  },
+  {
+   "id": "P20",
+   "route": "Judgement → World",
+   "file": "audio/passages/P20.mp3",
+   "transcript": "You rose. You answered. Now the grey field becomes a meadow, and at its center a dancer turns inside a laurel wreath. Every step you ever took was leading here. Take your place in the dance."
+  },
+  {
+   "id": "P21",
+   "route": "World → Fool",
+   "file": "audio/passages/P21.mp3",
+   "transcript": "The dance slows. The wreath lowers. Beyond the meadow, a cliff edge waits at sunrise — and a young figure stands at its edge, bindle in hand, laughing. It is you. It was always you. Step off."
+  }
+ ]
+}

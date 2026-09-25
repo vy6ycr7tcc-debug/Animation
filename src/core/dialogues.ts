@@ -20,8 +20,15 @@ interface Entry {
   prompts?: Prompt[];
   [promptId: string]: Answer | Prompt[] | undefined;
 }
+export interface Spectrum {
+  id: string;
+  label: string;
+  ends: [string, string];
+  anchors: string[];
+}
 const D = data as unknown as {
   prompts: Prompt[];
+  spectrum?: Spectrum;
   names: Record<string, string>;
   answers: Record<string, Entry>;
 };
@@ -41,6 +48,9 @@ function cuesFor(text: string): { cues: Cue[]; duration: number } {
   return { cues, duration: t };
 }
 
+/** "How is your heart right now?": one gradient from shadow to light, with anchor answers. */
+export const SPECTRUM: Spectrum | null = D.spectrum ?? null;
+
 /** The prompts offered at one archetype: questions first, then feelings. */
 export function promptsFor(numeral: string): Prompt[] {
   const own = D.answers[numeral]?.prompts;
@@ -51,10 +61,13 @@ export function promptsFor(numeral: string): Prompt[] {
 /** Register every answer as a narration track. */
 export function registerAnswers(): void {
   for (const [numeral, entry] of Object.entries(D.answers)) {
-    for (const p of promptsFor(numeral)) {
+    const anchors: Prompt[] = (SPECTRUM?.anchors ?? []).map((a) => ({ id: a, kind: "feeling", label: `${SPECTRUM!.label} (${a})` }));
+    for (const p of [...promptsFor(numeral), ...anchors]) {
       const a = entry[p.id] as Answer | undefined;
       const name = D.names[numeral] ?? numeral;
-      const text = a?.transcript?.trim() || `(${name}'s answer to “${p.label}” is still to be recorded.)`;
+      const text =
+        a?.transcript?.trim() ||
+        (p.kind === "feeling" ? `(${name}'s answer for a heart toward ${p.id} is still to be recorded.)` : `(${name}'s answer to “${p.label}” is still to be recorded.)`);
       const timed = a?.cues?.length ? { cues: a.cues, duration: a.cues[a.cues.length - 1].t + 4 } : cuesFor(text);
       const track: Track = {
         id: trackId(numeral, p.id),
