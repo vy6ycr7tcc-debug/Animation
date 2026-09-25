@@ -160,7 +160,7 @@ applyTier(quality.current);
 addEventListener("resize", resize);
 
 /* ============ AUDIO + SAVE ============ */
-const audio = new AudioEngine("./audio/water-bed.mp3");
+const audio = new AudioEngine("audio/water-bed.mp3");
 const narration = new Narration(audio, $("#sub"));
 narration.preload(["J01", "J02", "J03"]);
 

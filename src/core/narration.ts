@@ -2,6 +2,7 @@
    bus with subtitles. Starting a track fades out any track already playing; leaving
    fades gently, never cuts. The bed ducks while a voice speaks. */
 import catalogue from "../../content/narration.json";
+import { loadBytes } from "./assets";
 import type { AudioEngine } from "./audio";
 
 export interface Cue {
@@ -40,12 +41,7 @@ export class Narration {
   preload(ids: string[]): void {
     for (const id of ids) {
       if (this.raw.has(id) || !TRACKS[id]) continue;
-      this.raw.set(
-        id,
-        fetch(`./${TRACKS[id].file}`)
-          .then((r) => (r.ok ? r.arrayBuffer() : null))
-          .catch(() => null),
-      );
+      this.raw.set(id, loadBytes(TRACKS[id].file));
     }
   }
 

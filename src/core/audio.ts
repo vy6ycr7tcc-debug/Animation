@@ -6,6 +6,8 @@
      generative lapping water stands in.
    - Narration plays on its own bus; while it speaks, the bed ducks (never mutes). */
 
+import { loadBytes } from "./assets";
+
 type AudioSessionNav = Navigator & { audioSession?: { type: string } };
 type WebkitWindow = Window & { webkitAudioContext?: typeof AudioContext };
 
@@ -23,11 +25,9 @@ export class AudioEngine {
   private lapFilter: BiquadFilterNode | null = null;
   private bedFile: Promise<ArrayBuffer | null>;
 
-  constructor(bedUrl: string) {
-    // Fetch early; decoding waits for the context, which only exists after the first tap.
-    this.bedFile = fetch(bedUrl)
-      .then((r) => (r.ok ? r.arrayBuffer() : null))
-      .catch(() => null);
+  constructor(bedPath: string) {
+    // Load early; decoding waits for the context, which only exists after the first tap.
+    this.bedFile = loadBytes(bedPath);
   }
 
   /** Call synchronously inside a click/touch handler. */
