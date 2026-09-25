@@ -13,6 +13,10 @@ export class FollowCamera {
   /** 0 = intro drift over the lake, 1 = following the wanderer. */
   follow = 0;
   private followGoal = 0;
+  /** While sitting with an archetype: frame the two of you, the archetype high in the view
+      and clear of the choices along the bottom. */
+  seatedWith: THREE.Vector3 | null = null;
+  private seatK = 0;
 
   constructor(public cam: THREE.PerspectiveCamera) {}
 
@@ -69,6 +73,19 @@ export class FollowCamera {
     const k = THREE.MathUtils.smoothstep(this.follow, 0, 1);
     this.cam.position.copy(introPos).lerp(followPos, k);
     const look = introLook.clone().lerp(this.target, k);
+    this.seatK += ((this.seatedWith ? 1 : 0) - this.seatK) * Math.min(1, dt * 1.2);
+    if (this.seatK > 0.001) {
+      const other = this.seatedWith ?? look;
+      // over the shoulder, a little to one side, looking low so both figures sit high in the frame
+      const a = this.yaw + 0.5;
+      const side = new THREE.Vector3(this.target.x + Math.sin(a) * 3.6, this.target.y + 0.35, this.target.z + Math.cos(a) * 3.6);
+      side.y = Math.max(side.y, Math.max(heightAt(side.x, side.z), WATER_Y) + 0.5);
+      const low = this.target.clone().lerp(new THREE.Vector3(other.x, other.y + 1.1, other.z), 0.55);
+      low.y -= 1.1;
+      const s = THREE.MathUtils.smoothstep(this.seatK, 0, 1);
+      this.cam.position.lerp(side, s);
+      look.lerp(low, s);
+    }
     this.cam.lookAt(look);
   }
 }

@@ -21,6 +21,7 @@ import { AudioEngine } from "./core/audio";
 import { Input } from "./core/input";
 import { Narration } from "./core/narration";
 import { Playlist } from "./core/playlist";
+import { promptsFor, registerAnswers, trackId } from "./core/dialogues";
 import { AdaptiveQuality, FrameStats, MOBILE, type Tier } from "./core/quality";
 import { clear, load, save, type SaveData } from "./core/save";
 import { FollowCamera } from "./player/camera";
@@ -28,7 +29,7 @@ import { Controller } from "./player/controller";
 import { Footprints } from "./player/footprints";
 import { Wanderer } from "./player/wanderer";
 import { Clouds } from "./world/atmosphere";
-import { buildMandala, etchUniforms } from "./world/etching";
+import { buildMandala, etchedStone, etchUniforms } from "./world/etching";
 import { Landmarks } from "./world/landmarks";
 import { Butterflies, Flowers, Gliders, Lanterns, LightGrass, Sparks, type LifeFrame } from "./world/life";
 import { Motes } from "./world/motes";
@@ -160,6 +161,7 @@ const follow = new FollowCamera(camera);
 const audio = new AudioEngine("audio/water-bed.mp3");
 const narration = new Narration(audio, $("#sub"));
 const playlist = new Playlist(narration);
+registerAnswers();
 
 /* ============ THE LIVING WORLD ============ */
 const sparks = new Sparks();
@@ -282,7 +284,7 @@ input.onAction = () => {
   player.jump();
 };
 input.onTap = (x, y) => {
-  if (S.mode !== "play") return;
+  if (S.mode !== "play" || sitting.phase === "seated") return;
   const p = groundPoint(x, y);
   if (!p) return;
   player.target = new THREE.Vector2(p.x, p.z);
@@ -329,6 +331,7 @@ function places(): Place[] {
 
 /** Wake at the chosen place. */
 function arrive(c: Choice, first: boolean): void {
+  standUp();
   player.pos.set(c.x, Math.max(heightAt(c.x, c.z), WATER_Y - 1), c.z);
   player.vel.set(0, 0, 0);
   player.vy = 0;
@@ -361,6 +364,115 @@ beings.onMeet = (a) => {
   whisper(`${a.numeral} · ${a.name}`, 5000);
   say(`${a.name} turns toward you.`);
 };
+/* ---- Sitting with an archetype: ask it something, rest in silence, offer light ---- */
+const sitting = { being: -1, phase: "none" as "none" | "walking" | "seated", x: 0, z: 0, heading: 0, rise: 0 };
+const seatStone = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 18), etchedStone("#3a3552"));
+seatStone.scale.set(0.46, 0.42, 0.36);
+seatStone.castShadow = seatStone.receiveShadow = true;
+seatStone.visible = false;
+scene.add(seatStone);
+const sitOffer = $<HTMLButtonElement>("#sit-offer"), sitPanel = $("#sit-panel");
+const stillBtn = $<HTMLButtonElement>("#sit-still");
+
+function offerSit(): void {
+  if (S.mode !== "play" || sitting.phase !== "none") return;
+  const n = beings.nearest(player.pos);
+  if (n.i < 0 || n.d > 6.5) return;
+  const seat = beings.seatFor(n.i);
+  Object.assign(sitting, { being: n.i, phase: "walking", x: seat.x, z: seat.z, heading: seat.heading });
+  seatStone.visible = seat.stone;
+  seatStone.position.set(seat.x, heightAt(seat.x, seat.z) - 0.5, seat.z + 0.4);
+  sitting.rise = 0;
+  player.target = new THREE.Vector2(seat.x, seat.z);
+  sitOffer.hidden = true;
+}
+function sitDown(): void {
+  const b = beings.list[sitting.being];
+  sitting.phase = "seated";
+  player.pos.x = sitting.x;
+  player.pos.z = sitting.z;
+  player.target = null;
+  player.heading = sitting.heading;
+  follow.yaw = sitting.heading;
+  wanderer.setGesture("sit");
+  follow.seatedWith = b.root.position;
+  document.body.classList.add("seated");
+  $("#sit-title").textContent = `${b.spec.numeral} · ${b.spec.name}`;
+  const box = $("#sit-prompts");
+  box.replaceChildren();
+  let group = "";
+  for (const p of promptsFor(b.spec.numeral)) {
+    if (p.kind !== group) {
+      group = p.kind;
+      const g = document.createElement("p");
+      g.className = "group";
+      g.textContent = p.kind === "feeling" ? "Share a feeling" : "Ask";
+      box.append(g);
+    }
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = p.label;
+    btn.addEventListener("click", () => {
+      btn.classList.add("heard");
+      stillness(false);
+      b.greet();
+      void narration.play(trackId(b.spec.numeral, p.id));
+    });
+    box.append(btn);
+  }
+  sitPanel.hidden = false;
+  (box.querySelector("button") as HTMLButtonElement | null)?.focus({ preventScroll: true });
+  say(`You sit with ${b.spec.name}.`);
+}
+function standUp(): void {
+  if (sitting.phase === "none") return;
+  if (sitting.phase === "seated" && narration.current?.startsWith("A-")) narration.stop(2);
+  sitting.phase = "none";
+  stillness(false);
+  wanderer.setGesture("none");
+  sitPanel.hidden = true;
+  follow.seatedWith = null;
+  document.body.classList.remove("seated");
+}
+function stillness(on: boolean): void {
+  stillBtn.setAttribute("aria-pressed", String(on));
+  stillBtn.textContent = on ? "Return from silence" : "Rest in silence";
+  if (on) narration.stop(3);
+}
+sitOffer.addEventListener("click", offerSit);
+stillBtn.addEventListener("click", () => stillness(stillBtn.getAttribute("aria-pressed") !== "true"));
+$("#sit-stand").addEventListener("click", standUp);
+$("#sit-offer-light").addEventListener("click", () => {
+  // light flows from the wanderer's heart to the archetype, and it answers with its own
+  const b = beings.list[sitting.being];
+  if (!b) return;
+  const from = player.pos.clone().setY(player.pos.y + 1.0);
+  const to = b.root.position.clone().setY(b.root.position.y + 1.1);
+  for (let k = 0; k <= 12; k++)
+    window.setTimeout(() => sparks.emit(from.clone().lerp(to, k / 12), 5, new THREE.Color(1, 0.85, 0.6), 0.25), k * 90);
+  window.setTimeout(() => b.greet(), 1100);
+});
+
+/** Each frame: offer a seat near a being, walk to it, and keep the sitting in step. */
+function updateSitting(dt: number): void {
+  const n = beings.nearest(player.pos);
+  sitOffer.hidden = !(S.mode === "play" && sitting.phase === "none" && n.i >= 0 && n.d < 6.5 && !startMap.isOpen);
+  if (!sitOffer.hidden) sitOffer.textContent = `Sit with ${beings.list[n.i].spec.name}`;
+  if (sitting.phase === "walking") {
+    const moved = Math.hypot(input.move.x, input.move.y) > 0.2;
+    if (moved) sitting.phase = "none";
+    else if (Math.hypot(player.pos.x - sitting.x, player.pos.z - sitting.z) < 0.45) sitDown();
+    else if (!player.target) player.target = new THREE.Vector2(sitting.x, sitting.z);
+  }
+  if (sitting.phase === "seated" && wanderer.gesture !== "sit") standUp(); // moving stands you up
+  // the seat stone rises as you arrive, and sinks back when you leave
+  sitting.rise += ((sitting.phase === "none" ? 0 : 1) - sitting.rise) * Math.min(1, dt * 1.6);
+  seatStone.position.y = heightAt(seatStone.position.x, seatStone.position.z) - 0.5 + sitting.rise * 0.5;
+  if (sitting.rise < 0.01 && sitting.phase === "none") seatStone.visible = false;
+  landmarks.stillness += ((stillBtn.getAttribute("aria-pressed") === "true" ? 1 : 0) - landmarks.stillness) * Math.min(1, dt * 0.5);
+  beings.list.forEach((b) => (b.speaking = narration.current?.startsWith(`A-${b.spec.numeral}-`) ? 1 : 0));
+}
+
 $("#map-open").addEventListener("click", () => {
   setMenu(false);
   input.enabled = false;
@@ -406,6 +518,7 @@ function setMenu(open: boolean): void {
 menuBtn.addEventListener("click", () => setMenu(menu.hidden));
 addEventListener("keydown", (e) => {
   if (e.key === "Escape" && S.mode === "play") setMenu(menu.hidden);
+  if ((e.key === "e" || e.key === "E") && S.mode === "play") (sitting.phase === "none" ? offerSit() : standUp());
   if (S.mode === "intro" && (e.key === "Enter" || e.key === " ")) {
     e.preventDefault();
     begin();
@@ -587,6 +700,7 @@ function update(dt: number): void {
   sparks.update(dt, dpr);
   landmarks.update(wt, dt, player.pos, S.mode === "play" ? player.speed : 1, S.reduced);
   if (S.mode === "play") beings.update(wt, dt, player.pos, S.reduced);
+  updateSitting(dt);
 
   follow.update(dt, player.pos, player.heading, player.speed > 0.5, t, S.reduced);
   sky.position.copy(camera.position);

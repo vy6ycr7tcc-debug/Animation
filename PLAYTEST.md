@@ -15,6 +15,7 @@
 | Zoom | Pinch | Scroll wheel |
 | Jump | Tap the round button, bottom right | Space |
 | Glide | Hold the round button in the air | Hold Space in the air |
+| Sit with an archetype, stand up | Tap “Sit with…” | E |
 | Settings, Leave, Begin again | ⋮ top right | Esc |
 
 ## What it is
@@ -28,6 +29,11 @@ There is no island and no path. After "Touch the water to begin", a map unfolds:
   - VI, the Lovers: a figure between two veiled companions, a bow of light above;
   - VII, the Chariot: standing in the vessel under a canopy, with a light and a dark sphinx form before it.
 - **When you come near a being,** it turns toward you, brightens and greets you, and its narration begins. The narration keeps going as you walk on.
+- **Sit with a being:** near one, tap **Sit with…** (or press E). Your wanderer walks up, a stone rises, and you sit facing it. Then choose:
+  - **Ask** a question, or **Share a feeling.** The archetype answers, its light shimmering as it speaks.
+  - **Rest in silence:** the stars come out and time slows.
+  - **Offer light:** a stream of light flows from you to it, and it answers.
+  - **Stand up,** or just move.
 - **Narration runs in the background.** It begins with the voice of the place you chose (the shore starts with J01). The rest follow in order, with a quiet gap of 20–40 s between them. You never have to stop and wait anywhere for it. Turn it off under ⋮ → Narration.
 - **The world answers as you pass:**
   - grass leans away from you and keeps a faint trail of light;
@@ -58,6 +64,15 @@ There is no island and no path. After "Touch the water to begin", a map unfolds:
 ## Voices
 - Only the female voice plays. The five tracks recorded in the male voice (J02, J04, J06, J08, J10) are skipped by the background narration until they're re-voiced. Meeting the Magician, Empress, Hierophant or Chariot (or starting at their place) shows their narration as subtitles only for now.
 - To re-voice them, run `sh narration/revoice-female.sh` where the `tts` CLI is installed, then commit `public/audio/female/`. The game picks the new files up automatically.
+
+## Adding the archetypes' answers
+- Each answer is one recording: `public/audio/answers/<numeral>/<prompt>.mp3`, for example `public/audio/answers/IV/who.mp3` for the Emperor's answer to "Who are you?".
+- Paste its words into `transcript` for that answer in `content/dialogues.json`. The subtitles follow the recording by sentence.
+- **Changing the choices:**
+  - edit `prompts` in the same file;
+  - `kind` is `question` or `feeling`;
+  - an archetype can have its own list.
+- Until a recording exists, the answer shows its transcript, or a placeholder line, as subtitles.
 
 ## Known issues
 - Subtitle timings were aligned automatically to pauses in each recording, so a line may change a moment early or late.

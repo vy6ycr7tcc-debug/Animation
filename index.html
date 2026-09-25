@@ -28,6 +28,17 @@
   <button id="map-close" type="button" hidden>Stay where I am</button>
 </div>
 
+<button id="sit-offer" type="button" hidden></button>
+<div id="sit-panel" role="dialog" aria-labelledby="sit-title" hidden>
+  <p id="sit-title"></p>
+  <div id="sit-prompts"></div>
+  <div id="sit-actions">
+    <button id="sit-still" type="button">Rest in silence</button>
+    <button id="sit-offer-light" type="button">Offer light</button>
+    <button id="sit-stand" type="button">Stand up</button>
+  </div>
+</div>
+
 <p id="whisper" class="whisper" aria-hidden="true"></p>
 <p id="sub" class="whisper" aria-live="polite"></p>
 

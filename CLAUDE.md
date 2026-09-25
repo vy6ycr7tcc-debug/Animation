@@ -85,6 +85,12 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
     - clouds;
     - a luminous night sky.
   - Linework stays only as faint traces: etched stone, root lines up close, the spawn mandala.
+- 2026-09-25: no live AI conversation (too sophisticated). Instead, preset recorded answers:
+  - You sit with an archetype and choose a question or a feeling; it answers with Samuel's recording.
+  - Choices and answers live in `content/dialogues.json`, and recordings in `public/audio/answers/<numeral>/<prompt>.mp3` (`src/core/dialogues.ts`).
+  - Until Samuel sends them, answers show a placeholder subtitle. The prompts are placeholders too.
+  - He's considering emotions: prompts have a `kind` ("question" or "feeling").
+  - Seated actions: ask, rest in silence (stars come out, time slows), offer light, stand up.
 - 2026-09-25: Samuel: "Whenever done push to mainline." Merge finished, verified work into `main` without asking.
 - 2026-09-25: Samuel likes the female voice and not the male one.
   - Only the female voice plays.
@@ -112,6 +118,12 @@ Defaults Claude proposed on 2026-09-24 (Samuel said "go"):
 - `reference/theory/Mind__Body__Spirit___Foundational_Theory.md` is canon for meaning. It holds verbatim Ra/Q'uo quotes per archetype. Never invent quotes, doctrine or session numbers.
 - Archive gaps: the Significator of the Body (12) and the Great Way of the Spirit (21) have no Ra definition. Mark them as open or unfinished (dashed or incomplete forms).
 - Ra's teaching order (88.24): 1, 8, 15, 2, 9, 16, 3, 10, 17, 4, 11, 18, 5, 12, 19, 6, 13, 20, 7, 14, 21. The seven synthesis moments follow this grouping.
+- `reference/RA_EVOLUTION_HANDBOOK.md` (added 2026-09-25) is Samuel's game bible:
+  - cosmology, densities, the 22 archetypes card by card (Part XII);
+  - dialogue seeds (XIII), a bestiary of beings (XIV), design notes (XV).
+  - It is paraphrase with archive citations; verify against the theory file before quoting anything.
+  - Use it to enrich content and creatures. Samuel's current focus is visuals.
+- The Ra tarot deck: `reference/IMG_0033–0056.jpeg`. The overview chart: `reference/BE9C2465-….png`.
 - `reference/drawings/samuel-art/` and `reference/drawings/egyptian-tarot-cards/` hold references. The brief's 19 ink drawings (2014–2016) and finished narration audio live in Samuel's `inward-journey` repo, which is not yet attached.
 - `prototype/` holds earlier single-file prototypes. Behaviour ideas only; do not port their renderer.
 
