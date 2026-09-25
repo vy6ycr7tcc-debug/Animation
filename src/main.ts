@@ -41,6 +41,7 @@ import { buildSky, skyUniforms, starDirection } from "./world/sky";
 import { heightAt, SPAWN, Terrain, WATER_Y } from "./world/terrain";
 import { Water } from "./world/water";
 import { FOG, installFog } from "./world/fog";
+import { N8AOPostPass } from "n8ao";
 
 installFog(); // before any material is compiled
 
@@ -74,6 +75,18 @@ scene.fog = new THREE.FogExp2(FOG_COLOR, FOG.density);
 
 const composer = new EffectComposer(renderer, { frameBufferType: THREE.HalfFloatType });
 composer.addPass(new RenderPass(scene, camera));
+// Ambient occlusion: soft shadow where things meet (feet on the ground, rocks, trunks, steps),
+// the cue that makes forms sit in the world. On the two higher quality levels.
+const aoPass = new N8AOPostPass(scene, camera, innerWidth, innerHeight);
+aoPass.configuration.halfRes = true;
+aoPass.configuration.aoRadius = 1.6;
+aoPass.configuration.distanceFalloff = 1.0;
+aoPass.configuration.intensity = 2.4;
+aoPass.configuration.color = new THREE.Color("#0b0a1c");
+aoPass.configuration.gammaCorrection = false;
+aoPass.configuration.transparencyAware = false; // glows and glass stay out of it (and it stays cheap)
+aoPass.setQualityMode(MOBILE ? "Performance" : "Low");
+composer.addPass(aoPass);
 const bloom = new BloomEffect({ mipmapBlur: true, luminanceThreshold: 0.6, luminanceSmoothing: 0.25, intensity: 1.15, radius: 0.75 });
 const bloomPass = new EffectPass(camera, bloom, new ToneMappingEffect({ mode: ToneMappingMode.AGX }));
 const plainPass = new EffectPass(camera, new ToneMappingEffect({ mode: ToneMappingMode.AGX }));
@@ -217,6 +230,7 @@ function resize(): void {
 }
 function applyTier(t: Tier, i: number = quality.tier): void {
   raysPass.enabled = i <= 1; // god rays on the two higher tiers only
+  aoPass.enabled = i <= 1;
   reflection.enabled = i <= 1; // mirrored world in the lakes
   water.uniforms.uReflOn.value = reflection.enabled ? 1 : 0;
   wanderer.setQuality([48, 40, 32, 24][i] ?? 32); // ray-march steps for the fluid body
