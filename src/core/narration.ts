@@ -23,13 +23,23 @@ export const TRACKS: Record<string, Track> = Object.fromEntries(
   (catalogue.tracks as Track[]).map((t) => [t.id, t]),
 );
 
+/**
+ * Samuel prefers the female voice. Tracks recorded in the male voice play from their re-voiced
+ * copy in audio/female/ (made with narration/revoice-female.sh); until that copy exists, they
+ * are shown as subtitles only.
+ */
+export const FEMALE_ONLY = true;
+function fileFor(t: Track): string {
+  return FEMALE_ONLY && t.voice === "male" ? t.file.replace("audio/", "audio/female/") : t.file;
+}
+
 export class Narration {
   subtitlesOn = true;
   current: string | null = null;
   onEnd: ((id: string) => void) | null = null;
   private raw = new Map<string, Promise<ArrayBuffer | null>>();
   private decoded = new Map<string, Promise<AudioBuffer | null>>();
-  private playing: { id: string; src: AudioBufferSourceNode; gain: GainNode; start: number } | null = null;
+  private playing: { id: string; src: AudioBufferSourceNode; gain: GainNode; start: number; scale: number } | null = null;
   private cueIndex = -1;
 
   constructor(
@@ -41,7 +51,7 @@ export class Narration {
   preload(ids: string[]): void {
     for (const id of ids) {
       if (this.raw.has(id) || !TRACKS[id]) continue;
-      this.raw.set(id, loadBytes(TRACKS[id].file));
+      this.raw.set(id, loadBytes(fileFor(TRACKS[id])));
     }
   }
 
@@ -79,12 +89,14 @@ export class Narration {
     }
     const src = ctx.createBufferSource();
     src.buffer = buf;
+    // A re-voiced recording has its own pace: stretch the cue times to fit it.
+    const scale = buf.duration / (track.duration || buf.duration);
     const gain = ctx.createGain();
     gain.gain.value = 0;
     gain.gain.linearRampToValueAtTime(1, ctx.currentTime + 0.4);
     src.connect(gain).connect(this.audio.voice);
     src.start();
-    this.playing = { id, src, gain, start: ctx.currentTime };
+    this.playing = { id, src, gain, start: ctx.currentTime, scale };
     this.cueIndex = -1;
     this.audio.duck(true);
     src.onended = () => {
@@ -142,7 +154,7 @@ export class Narration {
     const p = this.playing;
     const ctx = this.audio.ctx;
     if (!p || !ctx) return;
-    const t = ctx.currentTime - p.start;
+    const t = (ctx.currentTime - p.start) / p.scale;
     const cues = TRACKS[p.id].cues;
     let k = -1;
     for (let i = 0; i < cues.length; i++) if (cues[i].t <= t + 0.05) k = i;
