@@ -88,7 +88,7 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
 - 2026-09-25: no live AI conversation (too sophisticated). Instead, preset recorded answers:
   - You sit with an archetype and choose a question or a feeling; it answers with Samuel's recording.
   - Choices and answers live in `content/dialogues.json`, and recordings in `public/audio/answers/<numeral>/<prompt>.mp3` (`src/core/dialogues.ts`).
-  - Until Samuel sends them, answers show a placeholder subtitle. The prompts are placeholders too.
+  - All 176 sit-down answers (22 archetypes × 8) are recorded, with transcripts and a `source` object in `content/dialogues.json`.
   - He's considering emotions: prompts have a `kind` ("question" or "feeling").
   - Seated actions: ask, rest in silence (stars come out, time slows), offer light, stand up.
 - 2026-09-25: Samuel: "Whenever done push to mainline." Merge finished, verified work into `main` without asking.
@@ -117,15 +117,15 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
 - 2026-09-25: the feelings became one draggable heart spectrum: "How is your heart right now?", from shadow to light.
   - Five anchors per archetype: lost, afraid, still, bright, radiant.
   - Releasing the drag plays the nearest anchor (`A-<numeral>-<anchor>`).
-  - The anchor recordings are still to come; placeholders until then.
+  - The anchor recordings are in (2026-09-25).
 - 2026-09-25 (later):
   - flight has no practical ceiling, and the climb speeds up the longer you hold it;
   - diving (hold Down or C while swimming) leads to a glowing sea floor (`src/world/underwater.ts`);
   - stillness turns the wanderer inward: head bowed, hands at the heart, aura, streams of light, and the whole network lights up (`src/world/communion.ts`);
   - creatures (`src/world/creatures.ts`): deer herds that come close in stillness, hoppers, and bird flocks.
-- 2026-09-25: **transcript orbs and groves** (Phase 1, placeholders), a free-exploration layer separate from the archetype stations:
+- 2026-09-25: **transcript orbs and groves**, a free-exploration layer separate from the archetype stations:
   - Everything binds to `content/transcript_orbs.json` (`orbs[]`, `trees[].episodes[]`).
-  - Placeholder tones are in `public/audio/orbs/`.
+  - The real audio is live: 86 narrations in `public/audio/orbs/` (8 orbs, 18 groves). Wired with no code change: the bindings read the JSON.
   - Placement from the data alone (`src/world/sites.ts`): about a quarter of the orbs in the sky, a quarter underwater, the rest on land; groves by `suggested_biome`.
   - Visuals (`src/world/vessels.ts`): planet-like orbs; one great tree per grove, with a fruit per episode.
   - The quiet player (`src/ui/transcriptPlayer.ts`):
