@@ -1,7 +1,7 @@
-# Three Islands — Inward Journey
+# Inward Journey
 
-A contemplative 3D browser piece: Mind, Body and Spirit as three floating islands.
-See `CLAUDE.md` for the brief, art direction and milestones.
+A contemplative third-person exploration game about Mind, Body and Spirit.
+The brief is `prompts/master-build-prompt.md`; `CLAUDE.md` records how it's being applied; `PLAYTEST.md` says how to play the current build.
 
 ## Develop
 
@@ -22,9 +22,8 @@ The build uses a relative base, so `dist/` also works as-is on Netlify, Vercel o
 
 ## Layout
 
-- `src/main.ts` — renderer, post-processing (bloom, tone mapping, SMAA, vignette), input, UI, readings panel
-- `src/scene.ts` — milestone 1 test scene (placeholder island, winged disk, beam, motes, sky)
-- `src/audio.ts` — Web Audio engine (iOS audio session, pad, bells; nothing below 200 Hz)
-- `src/voice.ts` — narration with always-on subtitles (device voice until the mp3s exist)
-- `src/quality.ts` — frame stats and adaptive quality tiers
-- `prototype/`, `reference/`, `narration/` — source material (see `CLAUDE.md`)
+- `src/main.ts`: game loop, states (intro, play, rest), renderer and post-processing, UI wiring
+- `src/core/`: audio (generative beds), input (keyboard, mouse, touch joystick), save, adaptive quality, narration/subtitles
+- `src/world/`: sky, water, terrain (one height function for collision and meshes), islands, etched linework, motes
+- `src/player/`: the wanderer (mesh and animation), controller, follow camera, footprints
+- `prompts/`, `reference/`, `narration/`, `prototype/`: brief and source material
