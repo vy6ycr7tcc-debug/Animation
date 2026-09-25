@@ -74,6 +74,11 @@ export class Narration {
     return p;
   }
 
+  /** Whether a track has playable audio (female-voice copies may not exist yet). */
+  async available(id: string): Promise<boolean> {
+    return (await this.buffer(id)) !== null;
+  }
+
   async play(id: string): Promise<void> {
     const track = TRACKS[id];
     if (!track) return;

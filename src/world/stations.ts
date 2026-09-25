@@ -9,7 +9,7 @@ import * as THREE from "three";
 import catalogue from "../../content/stations.json";
 import type { AudioEngine } from "../core/audio";
 import { etchedStone } from "./etching";
-import { heightAt } from "./terrain";
+import { heightAt, LANDMARK_SITES } from "./terrain";
 
 export interface StationData {
   n: number;
@@ -559,7 +559,7 @@ class Lovers extends Station {
 }
 
 /* ---------------------------------------------------------------- VII. The Chariot */
-class Chariot extends Station {
+export class Chariot extends Station {
   vessel = new THREE.Group();
   private hullMat: THREE.MeshBasicMaterial;
   private road: THREE.ShaderMaterial;
@@ -612,8 +612,9 @@ class Chariot extends Station {
   riding = false;
 }
 
-export function buildStations(): Station[] {
-  const make = [Magician, Priestess, Empress, Emperor, Hierophant, Lovers, Chariot];
-  return STATION_DATA.map((d, i) => new make[i](d));
+/** The open world's landmarks: the first six forms, placed across the land. They respond to
+    the wanderer's presence (and stillness) rather than waiting to be used. */
+export function buildLandmarks(): Station[] {
+  const make = [Magician, Priestess, Empress, Emperor, Hierophant, Lovers];
+  return make.map((M, i) => new M({ ...STATION_DATA[i], position: LANDMARK_SITES[i] }));
 }
-export type { Chariot };

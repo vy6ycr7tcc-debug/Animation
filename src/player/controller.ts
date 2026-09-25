@@ -18,6 +18,8 @@ export interface MoveInput {
   x: number; // right
   y: number; // forward
   glide: boolean;
+  /** Jump held: in the air, the wanderer glides down slowly. */
+  hold?: boolean;
 }
 
 export class Controller {
@@ -28,6 +30,7 @@ export class Controller {
   grounded = true;
   swimming = false;
   pose: Pose = "idle";
+  gliding = false;
   speed = 0;
   /** Distance travelled, for footprints and footstep sounds. */
   odometer = 0;
@@ -66,9 +69,9 @@ export class Controller {
       dx /= len;
       dz /= len;
     }
-    const top = this.swimming ? SWIM : input.glide ? GLIDE : WALK;
+    const top = this.swimming ? SWIM : this.gliding && !this.grounded ? GLIDE * 1.25 : input.glide ? GLIDE : WALK;
     const target = mag * top;
-    const accel = this.grounded || this.swimming ? 7 : 2;
+    const accel = this.grounded || this.swimming ? 7 : this.gliding ? 3 : 2;
     this.vel.x += (dx * target - this.vel.x) * Math.min(1, dt * accel);
     this.vel.z += (dz * target - this.vel.z) * Math.min(1, dt * accel);
 
@@ -107,7 +110,10 @@ export class Controller {
         // Follow the ground up and down gentle slopes and steps.
         this.pos.y += (ground - this.pos.y) * Math.min(1, dt * 14);
       } else {
-        this.vy -= GRAVITY * dt;
+        // Holding jump on the way down opens into a slow glide.
+        this.gliding = !!input.hold && this.vy < 0.5;
+        this.vy -= GRAVITY * (this.gliding ? 0.22 : 1) * dt;
+        if (this.gliding) this.vy = Math.max(this.vy, -1.25);
         this.pos.y += this.vy * dt;
         this.grounded = false;
         if (this.pos.y <= floor) {
@@ -118,6 +124,7 @@ export class Controller {
         }
       }
       if (ground > this.pos.y) this.pos.y = ground; // never sink into a rising shore
+      if (this.grounded) this.gliding = false;
     }
 
     if (mag > 0.05) {

@@ -3,9 +3,8 @@
      distance so the far water softens into haze.
    - Horizon: two rings of far hills in silhouette, one nearer and darker, one farther and paler,
      so the eye reads distance in layers.
-   - Fireflies: small lights drifting and blinking over the island. */
+   (Fireflies gave way to the butterflies and lanterns in life.ts.) */
 import * as THREE from "three";
-import { heightAt, ISLAND } from "./terrain";
 
 const NOISE = /* glsl */ `
 float h2(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
@@ -99,45 +98,4 @@ export function buildHorizon(): THREE.Group {
     g.add(m);
   }
   return g;
-}
-
-export class Fireflies {
-  points: THREE.Points;
-  private mat: THREE.ShaderMaterial;
-  constructor(count = 220) {
-    const pos = new Float32Array(count * 3);
-    const k = new Float32Array(count);
-    let s = 31;
-    const R = () => ((s = (s * 16807) % 2147483647) / 2147483647);
-    for (let i = 0; i < count; i++) {
-      const a = R() * Math.PI * 2, r = Math.sqrt(R()) * ISLAND.radius * 0.7;
-      const x = ISLAND.x + Math.cos(a) * r, z = ISLAND.z + Math.sin(a) * r;
-      pos.set([x, Math.max(0.2, heightAt(x, z)) + 0.4 + R() * 2.6, z], i * 3);
-      k[i] = R();
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    g.setAttribute("aK", new THREE.BufferAttribute(k, 1));
-    this.mat = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      uniforms: { uT: { value: 0 }, uDpr: { value: 1 } },
-      vertexShader: `attribute float aK;uniform float uT,uDpr;varying float vA;varying float vK;
-        void main(){
-          vec3 p=position+vec3(sin(uT*0.23+aK*40.0),sin(uT*0.31+aK*17.0)*0.5,cos(uT*0.19+aK*23.0))*1.2;
-          vec4 mv=modelViewMatrix*vec4(p,1.0);float d=-mv.z;gl_Position=projectionMatrix*mv;
-          gl_PointSize=clamp(uDpr*22.0/d,1.0,5.0*uDpr);
-          float blink=pow(max(0.0,sin(uT*(0.6+aK*0.9)+aK*50.0)),5.0);
-          vA=blink*(1.0-smoothstep(40.0,90.0,d));vK=aK;}`,
-      fragmentShader: `varying float vA;varying float vK;void main(){float r=length(gl_PointCoord-0.5);float a=smoothstep(0.5,0.0,r)*vA;
-        vec3 c=mix(vec3(1.0,0.86,0.5),vec3(0.75,1.0,0.6),step(0.6,vK));gl_FragColor=vec4(c*a*2.2,1.0);}`,
-    });
-    this.points = new THREE.Points(g, this.mat);
-    this.points.frustumCulled = false;
-  }
-  update(t: number, dpr: number, reduced: boolean): void {
-    this.mat.uniforms.uT.value = reduced ? t * 0.35 : t;
-    this.mat.uniforms.uDpr.value = dpr;
-  }
 }

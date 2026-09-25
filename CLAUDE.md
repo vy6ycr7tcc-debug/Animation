@@ -13,7 +13,18 @@ A contemplative third-person exploration game for Samuel about the archetypes of
   - **M3** full audio;
   - **M4** reflection questions and a private journal;
   - **M5** the Chariot ride, J11 and the return, polish.
-- All five are built (2026-09-25). `PLAYTEST.md` describes the path; the island's logic is in `src/journey.ts` and `src/world/stations.ts`.
+- All five were built (2026-09-25, PR #2). They were then replaced by the open world (see Decisions). The package's pillars, audio and station forms still apply.
+
+**Current shape (since 2026-09-25): an open night world, "kind of like Children of Light".**
+- The world has no island, no stations to stand at and no required path. `PLAYTEST.md` describes it.
+- Narration plays in the background in order (`src/core/playlist.ts`).
+- The world reacts as you pass through it (`src/world/life.ts`):
+  - grass trails;
+  - flowers that bloom with notes;
+  - lanterns to kindle;
+  - butterflies;
+  - gliders.
+- Six station forms stand as landmarks to discover (`src/world/landmarks.ts`, `src/world/stations.ts`). The terrain streams in chunks (`src/world/terrain.ts`).
 
 **Longer-term vision: `prompts/master-build-prompt.md`** (a dawn lake hub, three islands, 21 stations).
 - This package is effectively its Mind island. Build the package first.
@@ -34,9 +45,14 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
 
 ## Decisions
 - 2026-09-25: the game package's night world replaces the dawn lake for the current build. The recorded narrations are Samuel's own and are used as they are.
+- 2026-09-25: Samuel doesn't want the island or narration triggered by standing at an artifact ("I don't want them to be waiting").
+  - The world is open and delightful to walk through, "kind of like Children of Light".
+  - Narration is always going on in the background.
+  - Areas "pop" as you walk through them.
+  - He likes the walking feel; keep it.
 - 2026-09-25: Samuel likes the female voice and not the male one.
   - Only the female voice plays.
-  - Male-voice tracks (J02, J04, J06, J08, J10) show as subtitles until `narration/revoice-female.sh` has made female copies in `public/audio/female/`.
+  - Male-voice tracks (J02, J04, J06, J08, J10) are skipped by the background playlist until `narration/revoice-female.sh` has made female copies in `public/audio/female/`.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.
