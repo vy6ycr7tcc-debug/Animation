@@ -2,8 +2,23 @@
 
 ## What this is
 A contemplative third-person exploration game for Samuel about the archetypes of Mind, Body and Spirit.
-**The governing brief is `prompts/master-build-prompt.md`.** Read it before any design decision.
-This file records how the brief is being applied and the decisions made along the way.
+
+**Current build target (since 2026-09-25): `prompts/GAME_PROMPT.md`, Samuel's game package.**
+- A night shore, a swim across dark water, one island with seven geometric stations (the archetypes of the Mind, Ra 78–79), and the swim home.
+- It comes with 11 recorded narrations (J01–J11) and a water bed, all in `public/audio/`. Their scripts are in `content/scripts/`, and the catalogue with subtitle cues is `content/narration.json`.
+- Follow its pillars exactly: easy, no fail states, art as a door not a lecture, geometry-forward, night is safe.
+- Its milestones:
+  - **M1** shore and swim (done);
+  - **M2** seven stations;
+  - **M3** full audio;
+  - **M4** reflection questions and a private journal;
+  - **M5** the Chariot ride, J11 and the return, polish.
+
+**Longer-term vision: `prompts/master-build-prompt.md`** (a dawn lake hub, three islands, 21 stations).
+- This package is effectively its Mind island. Build the package first.
+- Ask Samuel before extending to Body and Spirit.
+
+The rest of this file records decisions made along the way.
 
 In short: a luminous wanderer on an endless lake at sunrise (the hub). Three islands rise from it:
 Mind, Body and Spirit. Each island holds seven stations, one per archetype: Matrix, Potentiator,
@@ -16,7 +31,10 @@ No enemies, timers, scores or fail states. Art as a door, not a lecture.
 
 Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are first-class requirements.
 
-## Decisions (defaults Claude proposed on 2026-09-24; Samuel said "go")
+## Decisions
+- 2026-09-25: the game package's night world replaces the dawn lake for the current build. The recorded narrations are Samuel's own and are used as they are.
+
+Defaults Claude proposed on 2026-09-24 (Samuel said "go"):
 - **Art direction:**
   - the brief's world wins: the lake hub; Mind as forests, libraries, mirrors in silver-blue; Body as mountains, waterfalls, terraces in amber, green and earth red; Spirit as crystal and starlight in violet, gold and indigo.
   - Egyptian and pre-Columbian influence only as abstract linework, never temples, deities or religious symbols.
@@ -39,11 +57,9 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
 - `prototype/` holds earlier single-file prototypes. Behaviour ideas only; do not port their renderer.
 
 ## Audio
-- Web Audio, generative beds per zone:
-  - water lapping (hub);
-  - wind and pages (Mind);
-  - waterfall and stone (Body);
-  - high resonant tones (Spirit).
+- The bed is `water-bed.mp3` (from the package's `water-bed.wav`), looped with a crossfade, plus soft generated tones.
+- Narration ducks the bed (never mutes it). Leaving a narration fades it, never cuts it.
+- Subtitles are on by default and can be turned off.
 - iOS 17+: set `navigator.audioSession.type = "playback"`, so sound plays with the silent switch on.
 - Start audio inside the first tap ("Touch the water to begin").
 - Keep music above about 200 Hz; phone speakers lose the low end.
@@ -59,10 +75,7 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - never rely on colour alone;
   - no tracking and no personal data.
 
-## Build phases (from the brief; stop and show Samuel after each)
-1. Walking prototype: lake hub, character controller, camera, dawn atmosphere.
-2. Mind island, stations 1–3, with interactions and narration hooks.
-3. All three islands, all 21 stations, progression, synthesis moments.
-4. The Choice, hub transformation, audio mix, mobile, accessibility, performance.
+## Build order
+Follow the package milestones (M1–M5 above). Stop and show Samuel after each.
 
 Ask Samuel before large aesthetic decisions. The transcripts stay the authority on meaning.

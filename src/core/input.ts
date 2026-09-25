@@ -9,6 +9,9 @@ export class Input {
   lookY = 0;
   zoom = 1;
   onAction: (() => void) | null = null;
+  /** A short tap or click without dragging: walk there. */
+  onTap: ((x: number, y: number) => void) | null = null;
+  private downAt = new Map<number, { x: number; y: number; t: number }>();
   touchUsed = false;
   enabled = false;
 
@@ -61,6 +64,7 @@ export class Input {
   private down(e: PointerEvent): void {
     if (!this.enabled) return;
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    this.downAt.set(e.pointerId, { x: e.clientX, y: e.clientY, t: performance.now() });
     this.surface.setPointerCapture?.(e.pointerId);
     if (e.pointerType === "touch") {
       this.touchUsed = true;
@@ -124,6 +128,12 @@ export class Input {
   }
 
   private up(e: PointerEvent): void {
+    const d = this.downAt.get(e.pointerId);
+    this.downAt.delete(e.pointerId);
+    if (d && this.enabled && !this.pinch && e.type === "pointerup" && this.pointers.size <= 1 &&
+        Math.hypot(e.clientX - d.x, e.clientY - d.y) < 10 && performance.now() - d.t < 350) {
+      this.onTap?.(e.clientX, e.clientY);
+    }
     this.pointers.delete(e.pointerId);
     if (this.pinch && (e.pointerId === this.pinch.a || e.pointerId === this.pinch.b)) this.pinch = null;
     if (e.pointerId === this.joyId) {

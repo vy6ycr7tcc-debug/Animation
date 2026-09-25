@@ -1,6 +1,6 @@
-/* The lake: glassy water to every horizon that reflects the dawn sky.
-   Small travelling waves near the viewer calm to a mirror far away. Ripples (footsteps,
-   strokes, the first touch) are rings added to the surface normal. */
+/* Night water: dark, calm, and safe. It mirrors the sky (stars and the bright star) with
+   pale cyan light on the ripples. Small waves near the viewer calm to a mirror far away.
+   Ripples (footsteps, strokes, the first touch) are rings added to the surface normal. */
 import * as THREE from "three";
 import { SKY_GLSL, skyUniforms } from "./sky";
 
@@ -11,12 +11,11 @@ export class Water {
   private ripples: THREE.Vector4[] = [];
   private next = 0;
   readonly uniforms = {
-    uT: { value: 0 },
-    uCalm: { value: 1 }, // wave speed multiplier (reduced motion lowers it)
-    uRadiance: { value: 0 }, // journey progress: the water grows more luminous
+    uCalm: { value: 1 },
     uFogColor: { value: new THREE.Color() },
     uFogDensity: { value: 0 },
     uRip: { value: [] as THREE.Vector4[] },
+    uGlow: { value: new THREE.Vector3() }, // the wanderer's light, reflected
   };
 
   constructor() {
@@ -27,8 +26,8 @@ export class Water {
       vertexShader: /* glsl */ `varying vec3 vW;void main(){vec4 w=modelMatrix*vec4(position,1.0);vW=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`,
       fragmentShader: /* glsl */ `precision highp float;
         varying vec3 vW;
-        uniform float uT,uCalm,uRadiance,uFogDensity;
-        uniform vec3 uFogColor;
+        uniform float uCalm,uFogDensity;
+        uniform vec3 uFogColor,uGlow;
         uniform vec4 uRip[${MAX_RIPPLES}];
         ${SKY_GLSL}
         void main(){
@@ -37,13 +36,11 @@ export class Water {
           vec3 v=toEye/dist;
           vec2 p=vW.xz;
           float t=uT*uCalm;
-          // gentle wave field: sum of travelling sines (gradient only)
           vec2 g=vec2(0.0);
           vec2 dirs[5];dirs[0]=vec2(0.8,0.6);dirs[1]=vec2(-0.6,0.8);dirs[2]=vec2(0.2,-1.0);dirs[3]=vec2(-0.9,-0.3);dirs[4]=vec2(0.5,0.85);
-          float fr[5];fr[0]=0.9;fr[1]=1.7;fr[2]=2.9;fr[3]=4.3;fr[4]=6.1;
-          for(int i=0;i<5;i++){float ph=dot(dirs[i],p)*fr[i]+t*(0.6+fr[i]*0.35);g+=dirs[i]*fr[i]*cos(ph)*(0.018/fr[i]);}
-          g*=exp(-dist*0.012);   // far water is a mirror
-          // ripples
+          float fr[5];fr[0]=0.7;fr[1]=1.3;fr[2]=2.3;fr[3]=3.7;fr[4]=5.9;
+          for(int i=0;i<5;i++){float ph=dot(dirs[i],p)*fr[i]+t*(0.5+fr[i]*0.3);g+=dirs[i]*fr[i]*cos(ph)*(0.016/fr[i]);}
+          g*=exp(-dist*0.015);
           for(int i=0;i<${MAX_RIPPLES};i++){
             vec4 r=uRip[i];float age=uT-r.z;if(age<0.0||age>7.0)continue;
             vec2 dp=p-r.xy;float rr=length(dp)+1e-4;float front=age*1.3;
@@ -52,18 +49,22 @@ export class Water {
           }
           vec3 n=normalize(vec3(-g.x,1.0,-g.y));
           float cosT=max(dot(n,v),0.0);
-          float fres=0.03+0.97*pow(1.0-cosT,5.0);
+          float fres=0.04+0.96*pow(1.0-cosT,5.0);
           vec3 R=reflect(-v,n);R.y=abs(R.y);
           vec3 refl=skyColor(R);
-          vec3 deep=mix(vec3(0.04,0.06,0.12),vec3(0.10,0.14,0.22),uDawn)+vec3(0.10,0.07,0.04)*uRadiance;
-          vec3 c=mix(deep,refl,clamp(fres*1.1,0.0,1.0));
-          // sun glitter path
-          float sp=pow(max(dot(R,uSun),0.0),300.0);
-          c+=vec3(1.0,0.82,0.6)*sp*(3.0+2.0*uRadiance);
-          // fog blends into the horizon colour, as the sky does
+          // pale cyan catches on the ripple slopes
+          float slope=length(g);
+          refl+=vec3(0.30,0.60,0.70)*smoothstep(0.02,0.25,slope)*0.10;
+          vec3 deep=vec3(0.006,0.010,0.028);
+          vec3 c=mix(deep,refl,clamp(fres*1.25,0.0,1.0));
+          // the bright star's path of light across the water
+          float sp=pow(max(dot(R,uStar),0.0),220.0);
+          c+=vec3(1.0,0.78,0.48)*sp*2.2;
+          // the wanderer's own light, reflected nearby
+          float gd=length(vW.xz-uGlow.xz);
+          c+=vec3(1.0,0.85,0.65)*exp(-gd*gd*0.25)*0.18*uGlow.y;
           float fog=1.0-exp(-pow(dist*uFogDensity,2.0));
-          vec3 horizon=skyColor(normalize(vec3(-v.x,0.02,-v.z)));
-          c=mix(c,mix(uFogColor,horizon,0.6),fog);
+          c=mix(c,uFogColor,fog);
           gl_FragColor=vec4(c,1.0);
         }`,
     });
@@ -76,9 +77,8 @@ export class Water {
     this.next = (this.next + 1) % MAX_RIPPLES;
   }
 
-  update(t: number, camX: number, camZ: number): void {
-    this.uniforms.uT.value = t;
-    // Keep the plane centred under the viewer so the horizon never ends.
+  update(camX: number, camZ: number, glow: THREE.Vector3): void {
     this.mesh.position.set(Math.round(camX / 50) * 50, 0, Math.round(camZ / 50) * 50);
+    this.uniforms.uGlow.value.copy(glow);
   }
 }

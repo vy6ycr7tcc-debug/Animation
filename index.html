@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#1a1630">
+<meta name="theme-color" content="#0b0a1c">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Inward Journey</title>
+<title>The Inward Journey</title>
 <link rel="stylesheet" href="./src/style.css">
 </head>
 <body>
@@ -15,7 +15,7 @@
 <div id="surface" aria-hidden="true"></div>
 
 <div id="title" aria-hidden="true">
-  <h1>Inward Journey</h1>
+  <h1><small>The</small> Inward Journey</h1>
   <p id="touch">Touch the water to begin</p>
 </div>
 <button id="begin" type="button" aria-label="Touch the water to begin"></button>
@@ -30,6 +30,7 @@
 <div id="menu" role="dialog" aria-label="Settings" hidden>
   <label for="vol">Volume</label>
   <input id="vol" type="range" min="0" max="1" step="0.05" value="0.8">
+  <label class="check"><input id="subs" type="checkbox" checked> Subtitles</label>
   <label class="check"><input id="reduced" type="checkbox"> Reduce motion</label>
   <button id="leave" type="button">Leave</button>
   <p class="note">Leave keeps your place on this device.</p>

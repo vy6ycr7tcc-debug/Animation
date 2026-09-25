@@ -5,11 +5,12 @@ export interface SaveData {
   v: 1;
   pos: [number, number, number];
   heading: number;
-  attuned: number[]; // station numbers 1–21 (from phase 2)
-  settings: { volume: number; reduced: boolean | null };
+  heard: string[]; // story narrations already played (J01, J02, …)
+  visited: number[]; // stations visited, 1–7 (milestone 2)
+  settings: { volume: number; reduced: boolean | null; subtitles: boolean };
 }
 
-const KEY = "inward-journey:v1";
+const KEY = "inward-journey:night:v1";
 
 export function load(): SaveData | null {
   try {

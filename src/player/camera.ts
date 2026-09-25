@@ -5,11 +5,11 @@ import { heightAt, WATER_Y } from "../world/terrain";
 
 export class FollowCamera {
   yaw = 0;
-  pitch = 0.28;
-  dist = 6.5;
+  pitch = 0.36; // slightly high
+  dist = 7;
   private target = new THREE.Vector3();
   private sinceLook = 99;
-  private effDist = 6.5; // shortened when a hillside would block the view
+  private effDist = 7; // shortened when a hillside would block the view
   /** 0 = intro drift over the lake, 1 = following the wanderer. */
   follow = 0;
   private followGoal = 0;
@@ -60,10 +60,10 @@ export class FollowCamera {
     const floor = Math.max(heightAt(followPos.x, followPos.z), WATER_Y) + 0.35;
     if (followPos.y < floor) followPos.y = floor;
 
-    // The intro: low over the water, drifting slowly toward the sunrise.
+    // The intro: low over the shallows, drifting slowly, looking out toward the far island.
     const drift = reduced ? 0 : t;
-    const introPos = new THREE.Vector3(Math.sin(drift * 0.03) * 3, 1.6, 22 - Math.sin(drift * 0.02) * 4);
-    const introLook = new THREE.Vector3(0, 3, -60);
+    const introPos = new THREE.Vector3(Math.sin(drift * 0.03) * 3, 2.2, 16 - Math.sin(drift * 0.02) * 3);
+    const introLook = new THREE.Vector3(0, 6, -150);
 
     const k = THREE.MathUtils.smoothstep(this.follow, 0, 1);
     this.cam.position.copy(introPos).lerp(followPos, k);

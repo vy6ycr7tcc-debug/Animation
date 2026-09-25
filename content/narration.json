@@ -1,0 +1,439 @@
+{
+ "note": "Narration catalogue from the game package (section 5). Cue times are aligned to pauses in each recording.",
+ "tracks": [
+  {
+   "id": "J01",
+   "title": "The Shore",
+   "voice": "female",
+   "file": "audio/J01_the_shore.mp3",
+   "duration": 46.46,
+   "trigger": "spawn",
+   "cues": [
+    {
+     "t": 0.0,
+     "text": "Before you lies the water, dark and wide, and far off, almost imagined, an island."
+    },
+    {
+     "t": 6.25,
+     "text": "You have stood on this shore before. Every life has a moment like this."
+    },
+    {
+     "t": 12.86,
+     "text": "The noise behind you, the unknown ahead, and the quiet question underneath it all."
+    },
+    {
+     "t": 19.65,
+     "text": "The old transcripts describe the beginning of the mind as the untaught seeker. The beginner's mind."
+    },
+    {
+     "t": 26.63,
+     "text": "Reaching, reaching, and again reaching. You do not need to know what the island holds. You do not need to be ready."
+    },
+    {
+     "t": 36.21,
+     "text": "You only need to begin. Take one slow breath. Feel the ground under your feet, and then let it go."
+    },
+    {
+     "t": 44.81,
+     "text": "The water is waiting."
+    }
+   ]
+  },
+  {
+   "id": "J02",
+   "title": "The Crossing",
+   "voice": "male",
+   "file": "audio/J02_the_crossing.mp3",
+   "duration": 40.99,
+   "trigger": "first-swim",
+   "cues": [
+    {
+     "t": 0.84,
+     "text": "You are in the water now, and it is holding you. Do not fight it. The deep mind is not crossed by force."
+    },
+    {
+     "t": 7.75,
+     "text": "It is crossed the way you cross any water in the dark, one gentle movement at a time, trusting what you cannot see."
+    },
+    {
+     "t": 14.77,
+     "text": "As you swim, things may float up toward you. A memory. A feeling you thought you had finished with."
+    },
+    {
+     "t": 21.42,
+     "text": "Do not chase them, and do not push them away. Let them drift past like leaves on a current."
+    },
+    {
+     "t": 24.73,
+     "text": "The transcripts say that beneath the surface of every mind there is a sea, and that everything you have ever been is still down there, shining quietly."
+    },
+    {
+     "t": 35.49,
+     "text": "Each stroke is a small act of trust. The island is closer than it looks. Keep going."
+    }
+   ]
+  },
+  {
+   "id": "J03",
+   "title": "Arrival",
+   "voice": "female",
+   "file": "audio/J03_arrival.mp3",
+   "duration": 44.78,
+   "trigger": "island-landfall",
+   "cues": [
+    {
+     "t": 0.0,
+     "text": "The island rises out of the water to meet you. Step onto the sand. Stand still for a moment."
+    },
+    {
+     "t": 6.59,
+     "text": "Notice how the noise of the outer world grows thinner here, the way mist thins in morning light."
+    },
+    {
+     "t": 13.36,
+     "text": "Inland, seven shapes are waiting. Seven doors, each one a mirror for a different part of your own mind."
+    },
+    {
+     "t": 21.32,
+     "text": "You do not need to understand them yet. You do not need to open them in any order. Walk slowly."
+    },
+    {
+     "t": 28.08,
+     "text": "The island will show you whatever you are ready to see. There is no test here. There is nothing to win."
+    },
+    {
+     "t": 35.2,
+     "text": "There is only the quiet work of looking inward, and the strange, gentle joy of being looked back at."
+    },
+    {
+     "t": 42.76,
+     "text": "Begin whenever you are ready."
+    }
+   ]
+  },
+  {
+   "id": "J04",
+   "title": "The Magician",
+   "voice": "male",
+   "file": "audio/J04_the_magician.mp3",
+   "duration": 40.22,
+   "trigger": "station-1",
+   "cues": [
+    {
+     "t": 0.68,
+     "text": "Before you stands the first figure, one arm raised toward the sky, one hand pointing down toward the earth."
+    },
+    {
+     "t": 6.59,
+     "text": "Between the two, a current of light. This is the Magician."
+    },
+    {
+     "t": 10.55,
+     "text": "In the old Ra contact he is called the Matrix of the Mind, and he is described as the untaught seeker."
+    },
+    {
+     "t": 16.19,
+     "text": "The beginner's mind. Reaching, reaching, and again reaching. All magic begins as desire."
+    },
+    {
+     "t": 22.29,
+     "text": "Before anything is built, before anything is understood, something in you reaches."
+    },
+    {
+     "t": 27.29,
+     "text": "Stand here a while, and ask yourself the oldest question in the world. What am I truly reaching for?"
+    },
+    {
+     "t": 33.34,
+     "text": "Do not answer quickly. Hold the question lightly, the way you would hold a bird."
+    },
+    {
+     "t": 38.37,
+     "text": "It will tell you when it trusts you."
+    }
+   ]
+  },
+  {
+   "id": "J05",
+   "title": "The High Priestess",
+   "voice": "female",
+   "file": "audio/J05_the_high_priestess.mp3",
+   "duration": 48.43,
+   "trigger": "station-2",
+   "cues": [
+    {
+     "t": 0.0,
+     "text": "Between two pillars sits a still figure, half hidden behind a veil, with a book of quiet wisdom resting in her lap."
+    },
+    {
+     "t": 8.17,
+     "text": "This is the High Priestess."
+    },
+    {
+     "t": 10.52,
+     "text": "The Ra contact calls her the Potentiator of the Mind, that which receives your desire and enables it, by reflection and by blessing."
+    },
+    {
+     "t": 19.98,
+     "text": "She does not strive. She does not hurry."
+    },
+    {
+     "t": 23.24,
+     "text": "She waits, the way deep water waits, and everything you bring to her comes back clearer."
+    },
+    {
+     "t": 29.78,
+     "text": "The deepest answers do not arrive when you chase them."
+    },
+    {
+     "t": 33.25,
+     "text": "They rise on their own, in silence, the way stars appear when you stop looking directly at them."
+    },
+    {
+     "t": 40.31,
+     "text": "Sit with her a while. Rest your question in the quiet. And notice, without forcing it, what begins to surface."
+    }
+   ]
+  },
+  {
+   "id": "J06",
+   "title": "The Empress",
+   "voice": "male",
+   "file": "audio/J06_the_empress.mp3",
+   "duration": 44.69,
+   "trigger": "station-3",
+   "cues": [
+    {
+     "t": 0.68,
+     "text": "A garden grows here where nothing was planted."
+    },
+    {
+     "t": 3.67,
+     "text": "Vines of light climb through the air, and everything is soft, fertile, and unafraid. This is the Empress."
+    },
+    {
+     "t": 11.3,
+     "text": "She is what the Ra contact calls the Catalyst of the Mind, that which acts upon the conscious mind to change it."
+    },
+    {
+     "t": 18.43,
+     "text": "Life itself is the teacher at this station. Not books, not doctrines. The things that happen to you."
+    },
+    {
+     "t": 25.28,
+     "text": "The people who arrive uninvited. The losses that rearranged the furniture of your soul."
+    },
+    {
+     "t": 31.22,
+     "text": "Think of what has been changing you lately, without asking your permission. Catalyst is not punishment."
+    },
+    {
+     "t": 38.16,
+     "text": "It is the universe knocking on the door, patiently, until you open it. What is it trying to give you?"
+    }
+   ]
+  },
+  {
+   "id": "J07",
+   "title": "The Emperor",
+   "voice": "female",
+   "file": "audio/J07_the_emperor.mp3",
+   "duration": 48.0,
+   "trigger": "station-4",
+   "cues": [
+    {
+     "t": 0.0,
+     "text": "A throne of dark stone stands on a square of pale light. It is empty, and it is waiting for you."
+    },
+    {
+     "t": 6.96,
+     "text": "This is the Emperor."
+    },
+    {
+     "t": 8.78,
+     "text": "The Ra contact calls him the Experience of the Mind, and says that the conscious mind is ennobled by the use of the vast resources of the unconscious."
+    },
+    {
+     "t": 19.09,
+     "text": "Everything you have lived through is stored here. Not as a burden. As a treasury."
+    },
+    {
+     "t": 24.72,
+     "text": "Every hard winter you survived, every small courage nobody saw, every time you began again."
+    },
+    {
+     "t": 32.18,
+     "text": "Sit, if only in your imagination, on the throne of your own experience."
+    },
+    {
+     "t": 37.84,
+     "text": "Let your life sit beside you like an honored elder. Ask it: what have you made of me?"
+    },
+    {
+     "t": 42.6,
+     "text": "And listen, the way you would listen to someone you respect."
+    }
+   ]
+  },
+  {
+   "id": "J08",
+   "title": "The Hierophant",
+   "voice": "male",
+   "file": "audio/J08_the_hierophant.mp3",
+   "duration": 47.95,
+   "trigger": "station-5",
+   "cues": [
+    {
+     "t": 0.0,
+     "text": "An archway of three stones, and beneath it a teacher with no face. Only a listening stillness."
+    },
+    {
+     "t": 7.77,
+     "text": "This is the Hierophant."
+    },
+    {
+     "t": 8.57,
+     "text": "In the Ra contact he is the Significator of the Mind, the meaning your mind has made of everything it has touched."
+    },
+    {
+     "t": 16.99,
+     "text": "Ra says the heart of the mind is a dynamic entity which absorbs, and seeks, and attempts to learn. That is you."
+    },
+    {
+     "t": 23.75,
+     "text": "Not the thoughts that pass through, but the one who watches them gather."
+    },
+    {
+     "t": 29.68,
+     "text": "Stand under the arch and notice the shape of your own inner teacher. It does not lecture. It does not scold."
+    },
+    {
+     "t": 37.29,
+     "text": "It simply keeps asking, with infinite patience: what did you learn? Let the question hang in the air like incense."
+    },
+    {
+     "t": 45.81,
+     "text": "You do not have to answer it today."
+    }
+   ]
+  },
+  {
+   "id": "J09",
+   "title": "The Lovers",
+   "voice": "female",
+   "file": "audio/J09_the_lovers.mp3",
+   "duration": 52.3,
+   "trigger": "station-6",
+   "cues": [
+    {
+     "t": 0.0,
+     "text": "Two paths cross here beneath a bright star, and where they meet, a garden of two trees grows from a single root."
+    },
+    {
+     "t": 9.82,
+     "text": "These are the Lovers. The Ra contact calls this the Transformation of the Mind."
+    },
+    {
+     "t": 14.22,
+     "text": "The old transcripts speak of two equal choices, neither greater than the other, and the sacred weight of choosing."
+    },
+    {
+     "t": 22.76,
+     "text": "Every transformation begins this way. Not with an answer, but with a crossroads."
+    },
+    {
+     "t": 31.09,
+     "text": "To become something new, something old must be released, and the choice is always yours."
+    },
+    {
+     "t": 36.38,
+     "text": "You do not have to choose now. Only stand at the crossing. Feel the two paths pulling gently, like two hands."
+    },
+    {
+     "t": 45.42,
+     "text": "And ask yourself: if I were free, truly free, which way would my heart lean?"
+    }
+   ]
+  },
+  {
+   "id": "J10",
+   "title": "The Chariot",
+   "voice": "male",
+   "file": "audio/J10_the_chariot.mp3",
+   "duration": 48.7,
+   "trigger": "station-7",
+   "cues": [
+    {
+     "t": 0.9,
+     "text": "A vessel of pure light waits at the edge of a long, straight road that runs to the horizon and beyond it."
+    },
+    {
+     "t": 8.12,
+     "text": "This is the Chariot."
+    },
+    {
+     "t": 10.16,
+     "text": "Ra calls it the Great Way of the Mind, a reflection and a summary of all six stations you have walked."
+    },
+    {
+     "t": 18.37,
+     "text": "Look back for a moment. The reaching of the Magician. The stillness of the Priestess."
+    },
+    {
+     "t": 24.75,
+     "text": "The wild garden of the Empress. The throne of the Emperor. The archway of the Hierophant."
+    },
+    {
+     "t": 31.65,
+     "text": "The crossroads of the Lovers. They were never separate places."
+    },
+    {
+     "t": 36.28,
+     "text": "They were always one road, and you were always walking it. Step into the vessel when you are ready."
+    },
+    {
+     "t": 43.49,
+     "text": "The way forward is the way inward, and it has been waiting for you all along."
+    }
+   ]
+  },
+  {
+   "id": "J11",
+   "title": "The Return",
+   "voice": "female",
+   "file": "audio/J11_the_return.mp3",
+   "duration": 39.05,
+   "trigger": "return-swim",
+   "cues": [
+    {
+     "t": 0.0,
+     "text": "Turn back toward the water. The island grows smaller behind you, but nothing you found here stays behind."
+    },
+    {
+     "t": 6.01,
+     "text": "You came across this water seeking something. You are crossing back as someone."
+    },
+    {
+     "t": 11.02,
+     "text": "That is the whole of it, and it is enough. The star you followed here goes with you now."
+    },
+    {
+     "t": 16.55,
+     "text": "It was never on the island. It was never in the sky."
+    },
+    {
+     "t": 20.17,
+     "text": "It was the light you were carrying the entire time, and the journey only taught you how to see it. Swim gently."
+    },
+    {
+     "t": 27.06,
+     "text": "The shore you left is still there, and the noise is still there, but you will not stand on it the same way again."
+    },
+    {
+     "t": 33.95,
+     "text": "Go in peace, and remember the way back. The water will always be here."
+    }
+   ]
+  }
+ ]
+}

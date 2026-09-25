@@ -118,6 +118,5 @@ export function buildMandala(): THREE.Group {
   const lines = new THREE.LineSegments(g, mat);
   const group = new THREE.Group();
   group.add(lines);
-  group.position.y = 0.37;
   return group;
 }

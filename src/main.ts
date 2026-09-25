@@ -1,6 +1,6 @@
-/* Inward Journey — phase 1: the walking prototype.
-   The lake at first light, the wanderer, the camera, the three islands on the horizon.
-   States: intro (title over the lake) → play → rest (after Leave) → play … */
+/* The Inward Journey — milestone 1: the shore, the swim, arrival on the island.
+   States: intro (title over the night water) → play → rest (after Leave) → play …
+   Story beats: J01 on waking, J02 on the first swim, J03 on stepping onto the island. */
 import * as THREE from "three";
 import {
   BloomEffect,
@@ -15,6 +15,7 @@ import {
 } from "postprocessing";
 import { AudioEngine } from "./core/audio";
 import { Input } from "./core/input";
+import { Narration } from "./core/narration";
 import { AdaptiveQuality, FrameStats, MOBILE, type Tier } from "./core/quality";
 import { load, save, type SaveData } from "./core/save";
 import { FollowCamera } from "./player/camera";
@@ -22,10 +23,10 @@ import { Controller } from "./player/controller";
 import { Footprints } from "./player/footprints";
 import { Wanderer } from "./player/wanderer";
 import { buildMandala, etchUniforms } from "./world/etching";
-import { buildIslands } from "./world/islands";
+import { IslandLights } from "./world/island";
 import { Motes } from "./world/motes";
-import { buildSky, skyUniforms, sunDirection } from "./world/sky";
-import { buildTerrain, heightAt, ISLANDS, islandWeights, WATER_Y } from "./world/terrain";
+import { buildSky, skyUniforms, starDirection } from "./world/sky";
+import { buildTerrain, heightAt, ISLAND, onIsland, smooth, SPAWN, WATER_Y } from "./world/terrain";
 import { Water } from "./world/water";
 
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
@@ -40,8 +41,8 @@ const S = {
   get reduced() {
     return this.reducedPref ?? this.osReduced;
   },
-  dawn: 0,
-  attuned: [] as number[],
+  heard: new Set<string>(),
+  visited: [] as number[],
 };
 
 /* ============ RENDERER ============ */
@@ -54,63 +55,79 @@ renderer.info.autoReset = false;
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(58, 1, 0.1, 1500);
-const FOG_COLOR = new THREE.Color(0.84, 0.56, 0.52);
-scene.fog = new THREE.FogExp2(FOG_COLOR, 0.0065);
+const FOG_COLOR = new THREE.Color(0.035, 0.03, 0.085);
+scene.fog = new THREE.FogExp2(FOG_COLOR, 0.0058);
 
 const composer = new EffectComposer(renderer, { frameBufferType: THREE.HalfFloatType });
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new BloomEffect({ mipmapBlur: true, luminanceThreshold: 0.85, luminanceSmoothing: 0.2, intensity: 0.9, radius: 0.7 });
+const bloom = new BloomEffect({ mipmapBlur: true, luminanceThreshold: 0.6, luminanceSmoothing: 0.25, intensity: 1.1, radius: 0.75 });
 const bloomPass = new EffectPass(camera, bloom, new ToneMappingEffect({ mode: ToneMappingMode.AGX }));
 const plainPass = new EffectPass(camera, new ToneMappingEffect({ mode: ToneMappingMode.AGX }));
-const finalPass = new EffectPass(camera, new SMAAEffect({ preset: SMAAPreset.MEDIUM }), new VignetteEffect({ offset: 0.35, darkness: 0.45 }));
+const finalPass = new EffectPass(camera, new SMAAEffect({ preset: SMAAPreset.MEDIUM }), new VignetteEffect({ offset: 0.35, darkness: 0.5 }));
 composer.addPass(bloomPass);
 composer.addPass(plainPass);
 composer.addPass(finalPass);
 
 /* ============ WORLD ============ */
-const sunDir = sunDirection(S.dawn);
-skyUniforms.uSun.value.copy(sunDir);
-skyUniforms.uDawn.value = S.dawn;
+const starDir = starDirection();
+skyUniforms.uStar.value.copy(starDir);
 const sky = buildSky();
 scene.add(sky);
 
-// Environment light for metal and mirrors comes from the sky itself.
+// Environment light for anything metallic comes from the night sky itself.
 {
   const pmrem = new THREE.PMREMGenerator(renderer);
   const envScene = new THREE.Scene();
   envScene.add(buildSky());
   scene.environment = pmrem.fromScene(envScene, 0, 0.1, 1100).texture;
-  scene.environmentIntensity = 0.6;
+  scene.environmentIntensity = 1.5;
   pmrem.dispose();
 }
 
-scene.add(new THREE.HemisphereLight(0xc9b4dc, 0x5a4a48, 1.15));
-const sun = new THREE.DirectionalLight(0xffc896, 2.2);
-sun.castShadow = true;
-sun.shadow.camera.left = -16;
-sun.shadow.camera.right = 16;
-sun.shadow.camera.top = 16;
-sun.shadow.camera.bottom = -16;
-sun.shadow.camera.near = 1;
-sun.shadow.camera.far = 120;
-sun.shadow.bias = -0.0005;
-sun.shadow.normalBias = 0.04;
-scene.add(sun, sun.target);
+scene.add(new THREE.HemisphereLight(0x5a5aa8, 0x141024, 0.9));
+// Starlight: faint and warm, from the bright star over the island. It casts the wanderer's shadow.
+const star = new THREE.DirectionalLight(0xffd9a8, 0.55);
+star.castShadow = true;
+star.shadow.camera.left = -14;
+star.shadow.camera.right = 14;
+star.shadow.camera.top = 14;
+star.shadow.camera.bottom = -14;
+star.shadow.camera.near = 1;
+star.shadow.camera.far = 140;
+star.shadow.bias = -0.0005;
+star.shadow.normalBias = 0.04;
+scene.add(star, star.target);
 
 const water = new Water();
 water.uniforms.uFogColor.value.copy(FOG_COLOR);
 water.uniforms.uFogDensity.value = (scene.fog as THREE.FogExp2).density;
 scene.add(water.mesh);
 buildTerrain(scene);
-const animated = buildIslands(scene);
+const islandLights = new IslandLights();
+scene.add(islandLights.group);
+
+// A flat stone where the wanderer wakes, etched with the seven-fold figure.
+const spawnY = heightAt(SPAWN.x, SPAWN.z);
+const slab = new THREE.Mesh(
+  new THREE.CylinderGeometry(3.3, 3.5, 0.5, 48),
+  new THREE.MeshStandardMaterial({ color: "#2a2740", roughness: 0.9 }),
+);
+slab.position.set(SPAWN.x, spawnY - 0.12, SPAWN.z);
+slab.receiveShadow = true;
+scene.add(slab);
 const mandala = buildMandala();
+mandala.scale.setScalar(0.4);
+mandala.position.set(SPAWN.x, spawnY + 0.14, SPAWN.z);
 scene.add(mandala);
-const motes = new Motes(600);
+
+const motes = new Motes(500);
 scene.add(motes.points);
 
 const wanderer = new Wanderer();
 scene.add(wanderer.root);
 const player = new Controller();
+player.pos.set(SPAWN.x, spawnY + 0.13, SPAWN.z);
+player.heading = SPAWN.heading;
 const footprints = new Footprints();
 scene.add(footprints.mesh);
 const follow = new FollowCamera(camera);
@@ -130,7 +147,7 @@ function resize(): void {
 function applyTier(t: Tier): void {
   bloomPass.enabled = t.bloom;
   plainPass.enabled = !t.bloom;
-  const sh = sun.shadow;
+  const sh = star.shadow;
   if (sh.mapSize.x !== t.shadow) {
     sh.mapSize.set(t.shadow, t.shadow);
     sh.map?.dispose();
@@ -142,30 +159,44 @@ function applyTier(t: Tier): void {
 applyTier(quality.current);
 addEventListener("resize", resize);
 
-/* ============ SAVE ============ */
+/* ============ AUDIO + SAVE ============ */
+const audio = new AudioEngine("./audio/water-bed.mp3");
+const narration = new Narration(audio, $("#sub"));
+narration.preload(["J01", "J02", "J03"]);
+
 const saved = load();
 if (saved) {
   const [x, y, z] = saved.pos;
   player.pos.set(x, Math.max(y, heightAt(x, z)), z);
   player.heading = saved.heading;
-  S.attuned = saved.attuned ?? [];
+  saved.heard?.forEach((id) => S.heard.add(id));
+  S.visited = saved.visited ?? [];
   S.reducedPref = saved.settings?.reduced ?? null;
+  audio.volume = saved.settings?.volume ?? 0.8;
+  narration.subtitlesOn = saved.settings?.subtitles ?? true;
 }
-const audio = new AudioEngine();
-if (saved) audio.volume = saved.settings?.volume ?? 0.8;
 function persist(): void {
   if (S.mode === "intro") return;
   const d: SaveData = {
     v: 1,
     pos: [player.pos.x, player.pos.y, player.pos.z],
     heading: player.heading,
-    attuned: S.attuned,
-    settings: { volume: audio.volume, reduced: S.reducedPref },
+    heard: [...S.heard],
+    visited: S.visited,
+    settings: { volume: audio.volume, reduced: S.reducedPref, subtitles: narration.subtitlesOn },
   };
   save(d);
 }
 follow.yaw = player.heading;
 follow.snapTo(player.pos);
+
+/** Play a story narration once. */
+function beat(id: string): void {
+  if (S.heard.has(id)) return;
+  S.heard.add(id);
+  narration.play(id);
+  persist();
+}
 
 /* ============ UI ============ */
 function say(m: string): void {
@@ -184,8 +215,16 @@ function whisper(text: string, ms = 5000): void {
 
 const input = new Input($("#surface"), $("#joy"), $("#knob"), $("#act"));
 input.onAction = () => player.jump();
+input.onTap = (x, y) => {
+  if (S.mode !== "play") return;
+  const p = groundPoint(x, y);
+  if (!p) return;
+  player.target = new THREE.Vector2(p.x, p.z);
+  // A small mark where you tapped: a ring on water, a print on sand.
+  if (p.y <= WATER_Y + 0.05) water.ripple(p.x, p.z, 0.6, S.t);
+  else footprints.place(p.x, p.y, p.z, player.heading, S.t);
+};
 player.onLand = () => {
-  // Both feet touch down together.
   const y = Math.max(heightAt(player.pos.x, player.pos.z), WATER_Y);
   footprints.place(player.pos.x - 0.1, y, player.pos.z, player.heading, S.t);
   footprints.place(player.pos.x + 0.1, y, player.pos.z, player.heading, S.t);
@@ -196,10 +235,8 @@ function begin(e?: Event): void {
   if (S.mode !== "intro") return;
   // Sound starts inside this touch (iOS requirement).
   audio.start();
-  audio.bell(659.25, 0.07, 6);
-  window.setTimeout(() => audio.bell(987.77, 0.045, 7), 350);
-  // The touch lands on the water as a ripple.
-  const pt = e instanceof PointerEvent || e instanceof MouseEvent ? groundPoint(e.clientX, e.clientY) : null;
+  audio.bell(587.33, 0.05, 6);
+  const pt = e instanceof MouseEvent ? groundPoint(e.clientX, e.clientY) : null;
   const rp = pt ?? new THREE.Vector3(0, 0, 10);
   water.ripple(rp.x, rp.z, 1.4, S.t);
   S.mode = "play";
@@ -210,18 +247,40 @@ function begin(e?: Event): void {
   input.enabled = true;
   follow.startFollowing();
   wanderer.setForm(0);
-  say("The lake at first light. You stand on a stone platform. Three islands rise from the water: Mind ahead to the left, Body ahead to the right, Spirit behind you.");
-  window.setTimeout(() => {
-    whisper(MOBILE ? "Touch and drag on the left to walk" : "W A S D to walk · drag to look · Shift to glide", 6500);
-  }, 5500);
+  say("A night shore. Dark water ahead, and far off, an island under a bright star.");
+  // The first narration begins as the wanderer gathers out of light.
+  window.setTimeout(() => beat("J01"), 2200);
+  if (!S.heard.has("J01")) {
+    window.setTimeout(() => whisper(MOBILE ? "Tap where you want to go, or drag on the left" : "Click where you want to go, or use W A S D", 6500), 9000);
+  }
 }
 $("#begin").addEventListener("click", begin);
 
+/** Where a screen point meets the ground or the water. */
 function groundPoint(cx: number, cy: number): THREE.Vector3 | null {
   const ray = new THREE.Raycaster();
   ray.setFromCamera(new THREE.Vector2((cx / innerWidth) * 2 - 1, -(cy / innerHeight) * 2 + 1), camera);
-  const hit = new THREE.Vector3();
-  return ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit) ? hit : null;
+  const o = ray.ray.origin, d = ray.ray.direction;
+  if (d.y > -0.01) return null;
+  let prev = 0;
+  for (let s = 0.5; s < 400; s *= 1.06) {
+    const x = o.x + d.x * s, y = o.y + d.y * s, z = o.z + d.z * s;
+    const g = Math.max(heightAt(x, z), WATER_Y);
+    if (y <= g) {
+      // refine between the last two samples
+      let a = prev, b = s;
+      for (let i = 0; i < 8; i++) {
+        const m = (a + b) / 2;
+        const mx = o.x + d.x * m, mz = o.z + d.z * m;
+        if (o.y + d.y * m <= Math.max(heightAt(mx, mz), WATER_Y)) b = m;
+        else a = m;
+      }
+      const hx = o.x + d.x * b, hz = o.z + d.z * b;
+      return new THREE.Vector3(hx, Math.max(heightAt(hx, hz), WATER_Y), hz);
+    }
+    prev = s;
+  }
+  return null;
 }
 
 // Settings.
@@ -243,6 +302,13 @@ const vol = $<HTMLInputElement>("#vol");
 vol.value = String(audio.volume);
 vol.addEventListener("input", () => {
   audio.setVolume(Number(vol.value));
+  persist();
+});
+const subsBox = $<HTMLInputElement>("#subs");
+subsBox.checked = narration.subtitlesOn;
+subsBox.addEventListener("change", () => {
+  narration.subtitlesOn = subsBox.checked;
+  if (!subsBox.checked) narration.hideSub();
   persist();
 });
 const reducedBox = $<HTMLInputElement>("#reduced");
@@ -267,6 +333,7 @@ $("#leave").addEventListener("click", () => {
   setMenu(false);
   S.mode = "rest";
   input.enabled = false;
+  narration.stop(2);
   audio.fade(false);
   $("#rest").hidden = false;
   $("#act").hidden = true;
@@ -293,18 +360,18 @@ function readings(): string {
   return [
     `fps ${stats.fps.toFixed(1)} · avg ${stats.avgMs.toFixed(1)} ms · worst ${stats.worstMs.toFixed(0)} ms`,
     `${quality.current.name} · dpr ${dpr}/${devicePixelRatio} · ${ri.calls} draws · ${(ri.triangles / 1000).toFixed(0)}k tris`,
-    `audio ${audio.ctx?.state ?? "off"} · session ${audio.sessionType}`,
+    `audio ${audio.ctx?.state ?? "off"} · session ${audio.sessionType} · voice ${narration.current ?? "-"}`,
     `pos ${player.pos.x.toFixed(1)}, ${player.pos.y.toFixed(1)}, ${player.pos.z.toFixed(1)} · ${player.pose}`,
   ].join("\n");
 }
 
 /* ============ LOOP ============ */
-const seen = new Set<string>();
 let lastPrint = 0;
 let printSide = 1;
 let lastStroke = 0;
 let saveTimer = 0;
 const center = new THREE.Vector3();
+const glow = new THREE.Vector3();
 
 document.addEventListener("visibilitychange", () => {
   S.hidden = document.hidden;
@@ -333,8 +400,8 @@ function update(dt: number): void {
   wanderer.root.visible = S.mode !== "intro";
   wanderer.animate(dt, player.pose, player.speed, t, S.reduced);
 
-  // Footprints on land, rings on water.
   if (S.mode === "play") {
+    // Footprints on sand, rings on water.
     if (player.grounded && player.odometer - lastPrint > 0.7) {
       lastPrint = player.odometer;
       printSide = -printSide;
@@ -349,35 +416,37 @@ function update(dt: number): void {
       water.ripple(player.pos.x, player.pos.z, 0.8, t);
       audio.step(true);
     }
-  }
-
-  // Island closeness drives the sound, and names the island once when you arrive.
-  const w = islandWeights(player.pos.x, player.pos.z);
-  const near = Math.max(w.mind, w.body, w.spirit);
-  audio.setZones({ hub: 1 - near * 0.8, mind: w.mind, body: w.body, spirit: w.spirit });
-  for (const isl of ISLANDS) {
-    if (S.mode === "play" && w[isl.kind] > 0.75 && !seen.has(isl.kind)) {
-      seen.add(isl.kind);
-      whisper(isl.name, 4500);
-      say(isl.name);
+    // Story beats.
+    if (player.swimming) beat("J02");
+    if (!player.swimming && player.grounded && onIsland(player.pos.x, player.pos.z)) {
+      if (!S.heard.has("J03")) {
+        whisper("", 10);
+        say("You step onto the island.");
+      }
+      beat("J03");
     }
   }
+  narration.update();
+
+  // The island's lights appear once you are about halfway across.
+  const dIsland = Math.hypot(player.pos.x - ISLAND.x, player.pos.z - ISLAND.z);
+  const seen = smooth(135, 95, dIsland);
+  islandLights.update(t, seen, S.reduced);
 
   follow.update(dt, player.pos, player.heading, player.speed > 0.5, t, S.reduced);
   sky.position.copy(camera.position);
-  water.update(t, camera.position.x, camera.position.z);
+  glow.set(player.pos.x, S.mode === "intro" ? 0 : 1, player.pos.z);
+  water.update(camera.position.x, camera.position.z, glow);
   skyUniforms.uT.value = t;
   etchUniforms.uEtchT.value = t;
-  for (const a of animated) a.update(t, S.reduced);
   mandala.rotation.y = S.reduced ? 0 : t * 0.01;
-  mandala.scale.setScalar(1 + (S.reduced ? 0 : Math.sin(t * 0.63) * 0.004));
   center.set(camera.position.x, 0, camera.position.z);
   motes.update(t, center, dpr, S.reduced);
   footprints.update(t);
 
-  // The sun's shadow follows the wanderer.
-  sun.target.position.copy(player.pos);
-  sun.position.copy(player.pos).addScaledVector(sunDir, 60);
+  // The starlight's shadow follows the wanderer.
+  star.target.position.copy(player.pos);
+  star.position.copy(player.pos).addScaledVector(starDir, 60);
 
   saveTimer += dt;
   if (saveTimer > 4) {
@@ -403,4 +472,4 @@ function frame(now: number): void {
 }
 requestAnimationFrame(frame);
 
-Object.assign(window, { __ij: { player, follow, quality, audio, scene } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, scene, S } });

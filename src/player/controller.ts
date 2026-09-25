@@ -4,9 +4,10 @@ import * as THREE from "three";
 import { colliders, heightAt, WATER_Y } from "../world/terrain";
 import type { Pose } from "./wanderer";
 
-const WALK = 3.0;
-const GLIDE = 6.5;
-const SWIM = 3.4;
+// A stroll, not a run. Swimming is buoyant and unhurried.
+const WALK = 2.3;
+const GLIDE = 4.2;
+const SWIM = 2.6;
 const GRAVITY = 16;
 const JUMP_V = 5.6;
 const SWIM_DEPTH = 1.0; // ground this far under water means swimming
@@ -31,6 +32,8 @@ export class Controller {
   /** Distance travelled, for footprints and footstep sounds. */
   odometer = 0;
   onLand: (() => void) | null = null;
+  /** Tap-to-move destination; cleared on arrival or when the player steers. */
+  target: THREE.Vector2 | null = null;
 
   jump(): void {
     if (this.grounded && !this.swimming) {
@@ -45,7 +48,19 @@ export class Controller {
     const rx = Math.cos(camYaw), rz = -Math.sin(camYaw);
     let dx = fx * input.y + rx * input.x;
     let dz = fz * input.y + rz * input.x;
-    const mag = Math.min(1, Math.hypot(dx, dz));
+    let mag = Math.min(1, Math.hypot(dx, dz));
+    if (mag > 0.1) this.target = null;
+    else if (this.target) {
+      // Walk toward the tapped point, easing in as it arrives.
+      const tx = this.target.x - this.pos.x, tz = this.target.y - this.pos.z;
+      const d = Math.hypot(tx, tz);
+      if (d < 0.35) this.target = null;
+      else {
+        dx = tx;
+        dz = tz;
+        mag = Math.min(1, d / 1.2);
+      }
+    }
     if (mag > 0.001) {
       const len = Math.hypot(dx, dz);
       dx /= len;

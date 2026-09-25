@@ -1,43 +1,48 @@
-/* Dawn sky. One GLSL function, used by the sky dome and by the water's reflection,
-   so the lake reflects the sky truthfully. `uDawn` (0–1) is the journey's progress:
-   first light at 0, full sunrise at 1. */
+/* The night sky: velvet indigo, a field of stars, and one bright gold star low over the
+   island. The same function colours the water's reflection, so the lake mirrors the sky
+   truthfully, the star included. `uLight` (0–1) is how much the sky has brightened by the
+   end of the journey. */
 import * as THREE from "three";
 
 export const skyUniforms = {
-  uSun: { value: new THREE.Vector3() },
-  uDawn: { value: 0 },
+  uStar: { value: new THREE.Vector3() }, // direction to the bright star
+  uLight: { value: 0 },
   uT: { value: 0 },
 };
 
 export const SKY_GLSL = /* glsl */ `
-uniform vec3 uSun;
-uniform float uDawn;
+uniform vec3 uStar;
+uniform float uLight;
+uniform float uT;
+float skyHash(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,37.719)))*43758.5453);}
 vec3 skyColor(vec3 d){
   float y=d.y;
-  vec3 zen=mix(vec3(0.07,0.09,0.24),vec3(0.24,0.38,0.66),uDawn);
-  vec3 mid=mix(vec3(0.34,0.28,0.50),vec3(0.60,0.64,0.84),uDawn);
-  vec3 hor=mix(vec3(0.98,0.56,0.46),vec3(1.00,0.84,0.66),uDawn);
+  vec3 zen=mix(vec3(0.004,0.005,0.022),vec3(0.03,0.04,0.11),uLight);
+  vec3 mid=mix(vec3(0.012,0.012,0.050),vec3(0.07,0.07,0.19),uLight);
+  vec3 hor=mix(vec3(0.045,0.035,0.105),vec3(0.20,0.15,0.30),uLight);
   float hy=max(y,0.0);
-  vec3 c=mix(hor,mid,smoothstep(0.0,0.2,hy));
-  c=mix(c,zen,smoothstep(0.18,0.85,hy));
-  if(y<0.0)c=mix(hor,hor*0.55,smoothstep(0.0,-0.25,y));
-  float sd=max(dot(d,uSun),0.0);
-  vec3 sunC=vec3(1.0,0.74,0.48);
-  c+=sunC*pow(sd,6.0)*0.30;
-  c+=sunC*pow(sd,48.0)*0.55;
-  c+=vec3(1.0,0.93,0.82)*smoothstep(0.99955,0.99975,sd)*7.0;
-  // warm haze along the horizon, strongest under the sun
-  vec2 dh=normalize(d.xz+vec2(1e-4)),sh=normalize(uSun.xz+vec2(1e-4));
-  float az=max(dot(dh,sh),0.0);
-  c+=vec3(1.0,0.52,0.40)*pow(az,3.0)*exp(-abs(y)*10.0)*0.35;
+  vec3 c=mix(hor,mid,smoothstep(0.0,0.22,hy));
+  c=mix(c,zen,smoothstep(0.2,0.9,hy));
+  if(y<0.0)c=hor*mix(1.0,0.5,smoothstep(0.0,-0.25,y));
+  // a faint band of the galaxy
+  float band=exp(-pow(dot(d,normalize(vec3(0.5,0.35,0.8))),2.0)*18.0);
+  c+=vec3(0.035,0.03,0.07)*band*smoothstep(-0.05,0.3,y);
+  // stars
+  vec3 q=d*230.0;vec3 cell=floor(q);float h=skyHash(cell);vec3 f=fract(q)-0.5;
+  float tw=0.7+0.3*sin(uT*(0.7+h*2.0)+h*60.0);
+  float star=step(0.988,h)*smoothstep(0.26,0.0,length(f))*tw;
+  c+=mix(vec3(0.75,0.85,1.0),vec3(1.0,0.9,0.75),step(0.995,h))*star*smoothstep(-0.02,0.2,y)*(0.9+band);
+  // the bright star: a gold point with a soft halo
+  float sd=max(dot(d,uStar),0.0);
+  c+=vec3(1.0,0.80,0.50)*pow(sd,4000.0)*14.0;
+  c+=vec3(1.0,0.72,0.42)*pow(sd,300.0)*0.30;
+  c+=vec3(0.5,0.38,0.55)*pow(sd,8.0)*0.05;
   return c;
 }`;
 
-/** Sun direction for a given dawn value: low in the east at first light, higher at full sunrise. */
-export function sunDirection(dawn: number, out = new THREE.Vector3()): THREE.Vector3 {
-  const elev = THREE.MathUtils.degToRad(THREE.MathUtils.lerp(3.5, 24, dawn));
-  const az = THREE.MathUtils.degToRad(-8); // just right of straight ahead from the start
-  return out.set(Math.sin(az) * Math.cos(elev), Math.sin(elev), -Math.cos(az) * Math.cos(elev)).normalize();
+export function starDirection(out = new THREE.Vector3()): THREE.Vector3 {
+  // Low over the island, straight ahead from the shore.
+  return out.set(0.06, 0.16, -1).normalize();
 }
 
 export function buildSky(): THREE.Mesh {
@@ -47,18 +52,9 @@ export function buildSky(): THREE.Mesh {
     fog: false,
     uniforms: skyUniforms,
     vertexShader: /* glsl */ `varying vec3 vD;void main(){vD=position;vec4 p=projectionMatrix*modelViewMatrix*vec4(position,1.0);gl_Position=p.xyww;}`,
-    fragmentShader: /* glsl */ `precision highp float;varying vec3 vD;uniform float uT;
+    fragmentShader: /* glsl */ `precision highp float;varying vec3 vD;
       ${SKY_GLSL}
-      float h3(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,37.719)))*43758.5453);}
-      void main(){
-        vec3 d=normalize(vD);
-        vec3 c=skyColor(d);
-        // The last stars, fading as the sun rises.
-        vec3 q=d*260.0;vec3 cell=floor(q);float h=h3(cell);vec3 f=fract(q)-0.5;
-        float star=step(0.9935,h)*smoothstep(0.24,0.0,length(f))*(0.65+0.35*sin(uT*(0.8+h*2.0)+h*50.0));
-        c+=vec3(1.0,0.95,0.9)*star*smoothstep(0.25,0.7,d.y)*(1.0-uDawn)*0.9;
-        gl_FragColor=vec4(c,1.0);
-      }`,
+      void main(){gl_FragColor=vec4(skyColor(normalize(vD)),1.0);}`,
   });
   const m = new THREE.Mesh(new THREE.SphereGeometry(1000, 48, 24), mat);
   m.frustumCulled = false;
