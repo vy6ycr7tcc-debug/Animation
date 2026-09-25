@@ -98,7 +98,7 @@ button:focus-visible, input:focus-visible { outline: 1px solid var(--gold); outl
 #menu .check { display: flex; align-items: center; gap: 10px; min-height: 44px; }
 #menu input[type="range"] { width: 100%; accent-color: var(--gold); min-height: 32px; }
 #menu input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--gold); }
-#leave { border: 1px solid var(--line); border-radius: 22px; min-height: 44px; padding: 8px 16px; color: var(--gold); }
+#leave, #map-open { border: 1px solid var(--line); border-radius: 22px; min-height: 44px; padding: 8px 16px; color: var(--gold); }
 #menu .note { margin: 0; font-size: 13px; color: var(--dim); font-style: italic; }
 
 /* ---- rest (after Leave) ---- */
@@ -184,3 +184,26 @@ button:focus-visible, input:focus-visible { outline: 1px solid var(--gold); outl
   #fade, #ending, #question, #prompt { transition-duration: 0.4s; }
 }
 #restart { color: var(--dim); min-height: 44px; padding: 8px 16px; font-size: 14px; font-style: italic; }
+
+/* ---- the map you begin from ---- */
+#map {
+  position: fixed; inset: 0; z-index: 20;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.8rem;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  background: radial-gradient(ellipse at center, rgba(11, 10, 28, 0.55), rgba(11, 10, 28, 0.92));
+  opacity: 0; transition: opacity 0.6s ease;
+}
+#map.on { opacity: 1; }
+#map[hidden] { display: none; }
+#map-title { margin: 0; font-style: italic; font-size: clamp(18px, 3vw, 24px); letter-spacing: 0.06em; }
+#map-canvas {
+  position: static; inset: auto; display: block; border-radius: 50%;
+  touch-action: manipulation; cursor: crosshair;
+  box-shadow: 0 0 60px rgba(226, 191, 126, 0.12);
+}
+#map-places { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.2rem 0.9rem; max-width: 40em; }
+#map-places button { font-size: 14px; color: var(--dim); padding: 4px 2px; }
+#map-places button:hover, #map-places button:focus-visible { color: var(--pearl); }
+#map .note { margin: 0; font-size: 13px; color: var(--dim); font-style: italic; }
+#map-close { font-size: 14px; color: var(--gold); padding: 6px 12px; }
+#map-close[hidden] { display: none; }

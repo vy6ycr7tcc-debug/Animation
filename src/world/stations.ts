@@ -612,9 +612,9 @@ export class Chariot extends Station {
   riding = false;
 }
 
-/** The open world's landmarks: the first six forms, placed across the land. They respond to
+/** The open world's landmarks: the seven forms, placed across the land. They respond to
     the wanderer's presence (and stillness) rather than waiting to be used. */
 export function buildLandmarks(): Station[] {
-  const make = [Magician, Priestess, Empress, Emperor, Hierophant, Lovers];
+  const make = [Magician, Priestess, Empress, Emperor, Hierophant, Lovers, Chariot];
   return make.map((M, i) => new M({ ...STATION_DATA[i], position: LANDMARK_SITES[i] }));
 }

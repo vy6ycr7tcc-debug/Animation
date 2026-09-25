@@ -33,6 +33,8 @@ import { Landmarks } from "./world/landmarks";
 import { Butterflies, Flowers, Gliders, Lanterns, LightGrass, Sparks, type LifeFrame } from "./world/life";
 import { Motes } from "./world/motes";
 import { Creation, creationUniforms, Spirits } from "./world/creation";
+import { Beings } from "./world/beings";
+import { StartMap, type Choice, type Place } from "./ui/map";
 import { Reflection } from "./world/reflection";
 import { buildSky, skyUniforms, starDirection } from "./world/sky";
 import { heightAt, SPAWN, Terrain, WATER_Y } from "./world/terrain";
@@ -165,6 +167,10 @@ const lanterns = new Lanterns(sparks);
 const butterflies = new Butterflies(flowers);
 const gliders = new Gliders();
 const landmarks = new Landmarks(scene, audio, wanderer);
+// The archetypes themselves, each at home in its landmark.
+const beings = new Beings(landmarks.list, sparks);
+scene.add(beings.group);
+void beings.load("models/wanderer.glb");
 scene.add(sparks.points, grass.mesh, flowers.mesh, lanterns.points, butterflies.points, gliders.group);
 // The whole creation: trees and their roots, rocks, crystals, spirits, and the light through them.
 creationUniforms.uFogC.value.copy(FOG_COLOR);
@@ -291,26 +297,76 @@ player.onLand = () => {
 lanterns.onKindle = () => say("Lanterns kindle around you.");
 
 function begin(e?: Event): void {
-  if (S.mode !== "intro") return;
+  if (S.mode !== "intro" || startMap.isOpen) return;
   // Sound starts inside this touch (iOS requirement).
   audio.start();
   audio.bell(587.33, 0.05, 6);
   const pt = e instanceof MouseEvent ? groundPoint(e.clientX, e.clientY) : null;
   const rp = pt ?? new THREE.Vector3(0, 0, 10);
   water.ripple(rp.x, rp.z, 1.4, S.t);
-  S.mode = "play";
   $("#title").classList.add("gone");
   $("#begin").hidden = true;
+  // Then the map: where to begin decides whose voice comes first.
+  void startMap.open(places(), saved ? { x: saved.pos[0], z: saved.pos[2] } : null, false).then((c) => c && arrive(c, true));
+}
+
+/** The places on the map: the shore, and the seven archetypes' homes. */
+function places(): Place[] {
+  return [
+    { numeral: "", label: "The shore", x: SPAWN.x, z: SPAWN.z, narration: "J01", start: { x: SPAWN.x, z: SPAWN.z, heading: SPAWN.heading } },
+    ...beings.list.map((b, i) => ({
+      numeral: b.spec.numeral,
+      label: b.spec.name,
+      x: b.root.position.x,
+      z: b.root.position.z,
+      narration: b.spec.narration,
+      start: beings.approach(i),
+    })),
+  ];
+}
+
+/** Wake at the chosen place. */
+function arrive(c: Choice, first: boolean): void {
+  player.pos.set(c.x, Math.max(heightAt(c.x, c.z), WATER_Y - 1), c.z);
+  player.vel.set(0, 0, 0);
+  player.vy = 0;
+  player.grounded = true;
+  player.target = null;
+  player.heading = c.heading;
+  terrain.update(c.x, c.z, true);
+  follow.yaw = c.heading;
+  follow.snapTo(player.pos);
+  follow.startFollowing(true);
+  wanderer.setForm(0);
+  wanderer.setGesture("none");
+  beings.reset();
+  playlist.startWith(c.place.narration);
+  input.enabled = true;
+  S.mode = "play";
+  persist();
+  if (!first) return;
   $("#menu-btn").hidden = false;
   if (MOBILE) $("#act").hidden = false;
-  input.enabled = true;
-  follow.startFollowing();
-  wanderer.setForm(0);
-  say("A night meadow beside still water. Wander anywhere; the land answers as you pass.");
+  say(`You wake near ${c.place.label.replace(/^The /, "the ")}. Wander anywhere; the land answers as you pass.`);
   window.setTimeout(() => whisper(MOBILE ? "Tap where you want to go, or drag on the left" : "Click where you want to go, or use W A S D", 6500), 4000);
   window.setTimeout(() => whisper(MOBILE ? "Hold the round button in the air to glide" : "Hold Space in the air to glide", 6000), 26000);
 }
 $("#begin").addEventListener("click", begin);
+const startMap = new StartMap();
+// Meeting an archetype: it greets you, and its voice begins.
+beings.onMeet = (a) => {
+  playlist.meet(a.narration);
+  whisper(`${a.numeral} · ${a.name}`, 5000);
+  say(`${a.name} turns toward you.`);
+};
+$("#map-open").addEventListener("click", () => {
+  setMenu(false);
+  input.enabled = false;
+  void startMap.open(places(), { x: player.pos.x, z: player.pos.z }, true).then((c) => {
+    input.enabled = true;
+    if (c) arrive(c, false);
+  });
+});
 
 /** Where a screen point meets the ground or the water. */
 function groundPoint(cx: number, cy: number): THREE.Vector3 | null {
@@ -528,6 +584,7 @@ function update(dt: number): void {
   spirits.update(life, camera);
   sparks.update(dt, dpr);
   landmarks.update(wt, dt, player.pos, S.mode === "play" ? player.speed : 1, S.reduced);
+  if (S.mode === "play") beings.update(wt, dt, player.pos, S.reduced);
 
   follow.update(dt, player.pos, player.heading, player.speed > 0.5, t, S.reduced);
   sky.position.copy(camera.position);
@@ -573,4 +630,4 @@ function frame(now: number): void {
 }
 requestAnimationFrame(frame);
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places } });

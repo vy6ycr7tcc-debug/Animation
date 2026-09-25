@@ -24,8 +24,9 @@ export class FollowCamera {
   zoom(f: number): void {
     this.dist = THREE.MathUtils.clamp(this.dist * f, 3.2, 12);
   }
-  startFollowing(): void {
+  startFollowing(now = false): void {
     this.followGoal = 1;
+    if (now) this.follow = 1; // arriving somewhere new: no long glide from the title view
   }
   snapTo(pos: THREE.Vector3): void {
     this.target.set(pos.x, pos.y + 1.3, pos.z);

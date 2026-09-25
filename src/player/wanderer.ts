@@ -15,7 +15,7 @@ import { FluidBody, SEGMENTS } from "./fluidBody";
 export type Pose = "idle" | "walk" | "glide" | "swim" | "air";
 export type Gesture = "none" | "sit" | "reach";
 
-const HEIGHT = 1.65;
+export const HEIGHT = 1.65;
 const WALK_NATURAL = 1.35; // metres per second each cycle covers at timeScale 1 (after scaling)
 const JOG_NATURAL = 3.2;
 const SWIM_NATURAL = 2.4;
@@ -42,11 +42,11 @@ function glowTexture(): THREE.Texture {
 }
 
 /** The glTF loader strips characters like "." from node names; compare names without them. */
-const key = (name: string) => name.replace(/[\s.:/[\]]/g, "");
+export const key = (name: string) => name.replace(/[\s.:/[\]]/g, "");
 
 /* ---------- the body's segments: [from bone, to bone or offset], radii at each end ---------- */
-type End = string | [string, number];
-type Seg = { from: End; to: End; r: [number, number] };
+export type End = string | [string, number];
+export type Seg = { from: End; to: End; r: [number, number] };
 const side = (s: "L" | "R"): Seg[] => [
   { from: "DEF-spine.003", to: `DEF-upper_arm.${s}`, r: [0.075, 0.056] },
   { from: `DEF-upper_arm.${s}`, to: `DEF-forearm.${s}`, r: [0.056, 0.044] },
@@ -56,7 +56,7 @@ const side = (s: "L" | "R"): Seg[] => [
   { from: `DEF-shin.${s}`, to: `DEF-foot.${s}`, r: [0.06, 0.04] },
   { from: `DEF-foot.${s}`, to: [`DEF-toe.${s}`, 0.06], r: [0.042, 0.028] },
 ];
-const SEGS: Seg[] = [
+export const SEGS: Seg[] = [
   { from: ["DEF-head", 0.075], to: ["DEF-head", 0.15], r: [0.088, 0.086] }, // the head: a soft oval
   { from: "DEF-neck", to: ["DEF-head", 0.04], r: [0.05, 0.046] },
   { from: "DEF-spine.003", to: "DEF-neck", r: [0.125, 0.07] }, // chest

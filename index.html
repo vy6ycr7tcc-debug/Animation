@@ -20,6 +20,14 @@
 </div>
 <button id="begin" type="button" aria-label="Touch the water to begin"></button>
 
+<div id="map" role="dialog" aria-labelledby="map-title" hidden>
+  <p id="map-title">Where will you begin?</p>
+  <canvas id="map-canvas"></canvas>
+  <div id="map-places"></div>
+  <p class="note">Tap a place, or anywhere on the land.</p>
+  <button id="map-close" type="button" hidden>Stay where I am</button>
+</div>
+
 <p id="whisper" class="whisper" aria-hidden="true"></p>
 <p id="sub" class="whisper" aria-live="polite"></p>
 
@@ -33,6 +41,7 @@
   <label class="check"><input id="voice" type="checkbox" checked> Narration</label>
   <label class="check"><input id="subs" type="checkbox" checked> Subtitles</label>
   <label class="check"><input id="reduced" type="checkbox"> Reduce motion</label>
+  <button id="map-open" type="button">Map</button>
   <button id="leave" type="button">Leave</button>
   <button id="restart" type="button">Begin again</button>
   <p class="note">Leave keeps your place on this device.</p>

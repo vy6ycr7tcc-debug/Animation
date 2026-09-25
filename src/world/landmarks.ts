@@ -1,5 +1,6 @@
-/* Landmarks across the open world: the six forms (beam and ring, pillars and veil, spiral
-   garden, throne, arch, crossing rings). Each responds to the wanderer's presence as they pass;
+/* Landmarks across the open world: the seven forms (beam and ring, pillars and veil, spiral
+   garden, throne, arch, crossing rings, the chariot and its road). Each is home to its
+   archetype's being (beings.ts). Each responds to the wanderer's presence as they pass;
    the quiet ones (veil, throne) open further when the wanderer is still nearby. Nothing waits
    to be used, and nothing needs to be finished. */
 import * as THREE from "three";
@@ -27,7 +28,7 @@ export class Landmarks {
       setTimeScale: (k) => (this.wantTime = Math.min(this.wantTime, k)),
       setStarBoost: (k) => (this.wantStars = Math.max(this.wantStars, k)),
       board: () => {},
-      visitedCount: () => 0,
+      visitedCount: () => 6, // the chariot stands ready in the open world
     };
   }
 
