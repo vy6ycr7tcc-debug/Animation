@@ -24,7 +24,7 @@ The build uses a relative base, so `dist/` also works as-is on Netlify, Vercel o
 
 - `src/main.ts`: renderer and post-processing, world setup, input, UI wiring, the frame loop
 - `src/core/`: audio (water bed, tones, one-shots), narration and subtitles, the background playlist, input, save, adaptive quality, asset loading
-- `src/world/`: sky, water, reflection, streamed terrain, landmarks (the station forms), life (grass, flowers, lanterns, butterflies, gliders), etched linework, atmosphere (mist, far hills), motes
+- `src/world/`: sky, water, reflection, streamed terrain, landmarks (the station forms), life (grass, flowers, lanterns, butterflies, gliders), creation (trees and roots, rocks, crystals, spirits, the network of light), etched linework, atmosphere (mist, far hills), motes
 - `src/player/`: the wanderer (recorded animation, fluid body, motes, ribbons), controller, camera, footprints
 - `content/`: narration catalogue with subtitle cues, station data, scripts
 - `public/`: audio and the wanderer's skeleton and animations

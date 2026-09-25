@@ -37,6 +37,13 @@ There is no island and no path. You wake on a meadow at night beside the water. 
   | Arch of three stones | Walk through: a ripple and a low tone. |
   | Two crossing rings | Walk to the crossing: the rings pulse. |
 
+- **The whole creation:**
+  - **Trees of light.** Pulses of light run down from the crown through the trunk. Under the ground you can see the roots as fine lines of light going deep, brightest near you.
+  - **The network.** Threads of light join the roots of neighbouring trees and crystals underground, and the same pulses travel along them.
+  - **Crystals.** The great ones take a shaft of light from the sky. Every cluster splits light into rainbow petals on the ground and shifts colour as you walk around it. Walk close and they wake.
+  - **Rocks,** etched with fine gold lines.
+  - **Spirits.** Wisps of light with trailing veils. They circle the trees and crystals, and now and then one comes to keep you company.
+  - Lanterns kindle silently.
 - Water is safe: walk in and you swim. Far out, mountains mark the edge of the world.
 
 ## Voices
@@ -46,11 +53,13 @@ There is no island and no path. You wake on a meadow at night beside the water. 
 ## Known issues
 - Subtitle timings were aligned automatically to pauses in each recording, so a line may change a moment early or late.
 - The Chariot is not placed in the open world yet.
+- The narration talks about places that don't match where you are. This waits on Samuel's map drawing.
+- When the camera passes through a tree, the tree dissolves into a fine stipple.
 - ⋮ → Begin again (tap twice) forgets the lit lanterns and starts over.
 
 ## Performance
 - Measured only in a headless software renderer here, which says nothing about a phone. Please send the `#stats` readings from the iPhone.
-- About 120–140 draw calls. Distant landmarks are hidden beyond 300 m, and the ground streams in 80 m squares around you.
+- About 150 draw calls and 80–100k triangles. Distant landmarks are hidden beyond 300 m. The ground streams in 80 m squares around you, trees out to about 100 m.
 - **The costliest effects, and when they turn off:**
   - the ray-marched fluid body: 48 steps on the top quality level, down to 24 on the lowest;
   - the water reflection: top two quality levels only;

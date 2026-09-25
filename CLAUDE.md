@@ -25,6 +25,12 @@ A contemplative third-person exploration game for Samuel about the archetypes of
   - butterflies;
   - gliders.
 - Six station forms stand as landmarks to discover (`src/world/landmarks.ts`, `src/world/stations.ts`). The terrain streams in chunks (`src/world/terrain.ts`).
+- The whole creation (`src/world/creation.ts`), with the light of the Creator shown as light that is always moving through it:
+  - trees whose roots go deep into the earth, seen through the ground as fine lines of light;
+  - one network of light joining trees and crystals underground;
+  - crystals that take shafts of light from the sky and split it into rainbows;
+  - rocks etched with gold linework;
+  - spirits with veils of light.
 
 **Longer-term vision: `prompts/master-build-prompt.md`** (a dawn lake hub, three islands, 21 stations).
 - This package is effectively its Mind island. Build the package first.
@@ -50,6 +56,10 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - Narration is always going on in the background.
   - Areas "pop" as you walk through them.
   - He likes the walking feel; keep it.
+- 2026-09-25: after playing the open world:
+  - no bells on the lantern orbs;
+  - the narration describes places that don't match where the wanderer is. Samuel will draw a map. Don't change the map or the narration order until he does;
+  - focus on the environment's items and the love/light flowing through everything.
 - 2026-09-25: Samuel likes the female voice and not the male one.
   - Only the female voice plays.
   - Male-voice tracks (J02, J04, J06, J08, J10) are skipped by the background playlist until `narration/revoice-female.sh` has made female copies in `public/audio/female/`.

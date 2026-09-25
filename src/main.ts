@@ -32,6 +32,7 @@ import { buildMandala, etchUniforms } from "./world/etching";
 import { Landmarks } from "./world/landmarks";
 import { Butterflies, Flowers, Gliders, Lanterns, LightGrass, Sparks, type LifeFrame } from "./world/life";
 import { Motes } from "./world/motes";
+import { Creation, creationUniforms, Spirits } from "./world/creation";
 import { Reflection } from "./world/reflection";
 import { buildSky, skyUniforms, starDirection } from "./world/sky";
 import { heightAt, SPAWN, Terrain, WATER_Y } from "./world/terrain";
@@ -160,11 +161,18 @@ const playlist = new Playlist(narration);
 const sparks = new Sparks();
 const grass = new LightGrass();
 const flowers = new Flowers(sparks, audio);
-const lanterns = new Lanterns(sparks, audio);
+const lanterns = new Lanterns(sparks);
 const butterflies = new Butterflies(flowers);
 const gliders = new Gliders();
 const landmarks = new Landmarks(scene, audio, wanderer);
 scene.add(sparks.points, grass.mesh, flowers.mesh, lanterns.points, butterflies.points, gliders.group);
+// The whole creation: trees and their roots, rocks, crystals, spirits, and the light through them.
+creationUniforms.uFogC.value.copy(FOG_COLOR);
+creationUniforms.uFogD.value = (scene.fog as THREE.FogExp2).density;
+creationUniforms.uStar.value.copy(starDir);
+const creation = new Creation(sparks);
+const spirits = new Spirits(creation, MOBILE ? 10 : 14);
+scene.add(creation.group, spirits.group);
 
 /** Glow materials add light but leave alpha alone, so they don't punch dark squares into
     the water's reflection texture (which uses alpha to know where the world is). */
@@ -211,6 +219,7 @@ function applyTier(t: Tier, i: number = quality.tier): void {
     sh.map = null;
   }
   motes.setCount(Math.round(t.particles / 2));
+  creation.setQuality(i);
   resize();
 }
 applyTier(quality.current);
@@ -515,6 +524,8 @@ function update(dt: number): void {
     butterflies.update(life);
   }
   gliders.update(life);
+  creation.update(life, (innerHeight * dpr) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
+  spirits.update(life, camera);
   sparks.update(dt, dpr);
   landmarks.update(wt, dt, player.pos, S.mode === "play" ? player.speed : 1, S.reduced);
 
@@ -557,9 +568,9 @@ function frame(now: number): void {
   update(dt);
   renderer.info.reset();
   // (The shadow map must exist first: it is created by the main render.)
-  if (star.shadow.map) reflection.render(renderer, scene, camera, [water.mesh, sky, starSource, mist.group, grass.mesh]);
+  if (star.shadow.map) reflection.render(renderer, scene, camera, [water.mesh, sky, starSource, mist.group, grass.mesh, ...creation.noReflect]);
   composer.render(dt);
 }
 requestAnimationFrame(frame);
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits } });

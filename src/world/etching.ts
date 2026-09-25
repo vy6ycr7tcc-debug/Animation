@@ -133,7 +133,15 @@ export function etchedStone(color = "#1c1a2c", line = "#e9c37d", scale = 2.2): T
     sh.uniforms.uScale = { value: scale };
     sh.vertexShader = sh.vertexShader
       .replace("#include <common>", "#include <common>\nvarying vec3 vEW;varying vec3 vEN;")
-      .replace("#include <project_vertex>", "#include <project_vertex>\nvEW=(modelMatrix*vec4(transformed,1.0)).xyz;vEN=normalize(mat3(modelMatrix)*objectNormal);");
+      .replace(
+        "#include <project_vertex>",
+        `#include <project_vertex>
+        mat4 eM=modelMatrix;
+        #ifdef USE_INSTANCING
+        eM=modelMatrix*instanceMatrix;
+        #endif
+        vEW=(eM*vec4(transformed,1.0)).xyz;vEN=normalize(mat3(eM)*objectNormal);`,
+      );
     sh.fragmentShader = sh.fragmentShader
       .replace("#include <common>", `#include <common>
         varying vec3 vEW;varying vec3 vEN;uniform vec3 uLine;uniform float uScale,uEtchT,uEtchGain;

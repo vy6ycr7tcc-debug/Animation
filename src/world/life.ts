@@ -1,7 +1,7 @@
 /* The world answers the wanderer as they pass. Nothing waits to be used; everything reacts.
    - Grass of light bends away and brightens along the path just walked.
    - Flowers of light bloom as you brush past, each with a note; walking makes a melody.
-   - Lanterns kindle as you come near and stay lit (remembered on this device).
+   - Lanterns kindle silently as you come near and stay lit (remembered on this device).
    - Butterflies of light drift near flowers and follow you a while.
    - Great gliders of light pass slowly overhead.
    - Sparks rise whenever something opens. */
@@ -412,7 +412,7 @@ export class Lanterns {
   private glow = new Float32Array(400);
   private mat: THREE.ShaderMaterial;
   onKindle: ((x: number, z: number) => void) | null = null;
-  constructor(private sparks: Sparks, private audio: AudioEngine) {
+  constructor(private sparks: Sparks) {
     let saved: string[] = [];
     try {
       saved = JSON.parse(localStorage.getItem(LANTERN_KEY) || "[]");
@@ -491,12 +491,8 @@ export class Lanterns {
         } catch {
           /* not remembered */
         }
-        c.orbs.forEach((o, k) =>
-          window.setTimeout(() => {
-            this.audio.bell(SCALE[(k * 2 + 2) % SCALE.length], 0.04, 5);
-            this.sparks.emit(o, 10, new THREE.Color(1, 0.8, 0.5), 0.7);
-          }, k * 220),
-        );
+        // silently: Samuel didn't like the bells here
+        c.orbs.forEach((o, k) => window.setTimeout(() => this.sparks.emit(o, 10, new THREE.Color(1, 0.8, 0.5), 0.7), k * 220));
         this.onKindle?.(c.x, c.z);
       }
       c.lit += (c.target - c.lit) * Math.min(1, f.dt * 0.8);
