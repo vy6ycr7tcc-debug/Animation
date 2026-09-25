@@ -1,0 +1,124 @@
+{
+ "note": "The seven stations of the island (GAME_PROMPT.md section 4). Narration ids refer to content/narration.json; the question is spoken at the end of each narration and shown quietly afterwards.",
+ "stations": [
+  {
+   "n": 1,
+   "title": "The Magician",
+   "archetype": "Matrix of the Mind",
+   "narration": "J04",
+   "position": [
+    -6,
+    -124
+   ],
+   "essence": "Intention; the beginner's mind, reaching.",
+   "geometry": "A vertical beam of light joining sky and earth, with a thin gold ring floating at its midpoint.",
+   "interaction": "Step into the ring: the beam brightens and particles rise; the wanderer reaches upward.",
+   "prompt": "step in",
+   "question": "What am I truly reaching for?",
+   "transcriptRoot": "the untaught seeker, the beginner's mind, reaching, reaching and again reaching",
+   "theory": "Theory (b) Mind 1, Matrix of the Mind: Ra 78.33"
+  },
+  {
+   "n": 2,
+   "title": "The High Priestess",
+   "archetype": "Potentiator of the Mind",
+   "narration": "J05",
+   "position": [
+    -22,
+    -138
+   ],
+   "essence": "Stillness and intuition; answers rise in silence.",
+   "geometry": "Two dark pillars with a veil of slow mist between them; a crescent of pale light above.",
+   "interaction": "Sit: time slows, the mist parts slightly, stars emerge.",
+   "prompt": "sit",
+   "question": "What begins to surface?",
+   "transcriptRoot": "that which receives the desire and enables it, by a process of reflection and blessing",
+   "theory": "Theory (b) Mind 2, Potentiator of the Mind: Ra 78.34; Q'uo 23 May 1993"
+  },
+  {
+   "n": 3,
+   "title": "The Empress",
+   "archetype": "Catalyst of the Mind",
+   "narration": "J06",
+   "position": [
+    -20,
+    -160
+   ],
+   "essence": "Catalyst; life as the teacher that changes you.",
+   "geometry": "A spiral path of softly glowing garden beds; vines of light climb through the air.",
+   "interaction": "Walk the spiral inward: soft ascending tones; at the centre a bloom of light opens.",
+   "prompt": "walk the spiral",
+   "question": "What is it trying to give you?",
+   "transcriptRoot": "that which acts upon the conscious mind to change it",
+   "theory": "Theory (b) Mind 3, Catalyst of the Mind: Ra 78.36"
+  },
+  {
+   "n": 4,
+   "title": "The Emperor",
+   "archetype": "Experience of the Mind",
+   "narration": "J07",
+   "position": [
+    -9,
+    -169
+   ],
+   "essence": "Experience as a treasury; honouring what you have lived.",
+   "geometry": "A dark stone cube as a throne, set on a square of pale light.",
+   "interaction": "Sit on the throne: faint constellations appear overhead, memory stars.",
+   "prompt": "sit",
+   "question": "What have you made of me?",
+   "transcriptRoot": "the conscious mind, ennobled by the use of the vast resources of the unconscious mind",
+   "theory": "Theory (b) Mind 4, Experience of the Mind: Ra 78.37"
+  },
+  {
+   "n": 5,
+   "title": "The Hierophant",
+   "archetype": "Significator of the Mind",
+   "narration": "J08",
+   "position": [
+    18,
+    -164
+   ],
+   "essence": "The inner teacher; the watcher behind thoughts.",
+   "geometry": "An archway of three stones; the air beneath it shimmers faintly.",
+   "interaction": "Walk through the arch: a slow ripple goes outward and a low warm tone sounds.",
+   "prompt": "walk through",
+   "question": "What did you learn?",
+   "transcriptRoot": "the heart of the mind is that dynamic entity which absorbs, seeks, and attempts to learn",
+   "theory": "Theory (b) Mind 5, Significator of the Mind: Ra 79.36, 79.42"
+  },
+  {
+   "n": 6,
+   "title": "The Lovers",
+   "archetype": "Transformation of the Mind",
+   "narration": "J09",
+   "position": [
+    20,
+    -140
+   ],
+   "essence": "Choice and freedom; the crossroads of transformation.",
+   "geometry": "Two large intersecting rings lying flat (a vesica), with two paths crossing beneath a bright star.",
+   "interaction": "Choose a path; both curve and rejoin. At the crossing the rings pulse once, gently.",
+   "prompt": "cross",
+   "question": "If I were free, truly free, which way would my heart lean?",
+   "transcriptRoot": "two equal choices, neither greater than the other",
+   "theory": "Theory (b) Mind 6, Transformation of the Mind: Ra 79.40"
+  },
+  {
+   "n": 7,
+   "title": "The Chariot",
+   "archetype": "Great Way of the Mind",
+   "narration": "J10",
+   "position": [
+    2,
+    -187
+   ],
+   "essence": "Integration; the road was one road all along.",
+   "geometry": "A small vessel of light at the head of a long straight road running to the horizon.",
+   "interaction": "Board the vessel (after the other six): a slow, dreamlike ride past echoes of the six stations, ending at the shore for the swim home.",
+   "prompt": "board",
+   "question": "The way forward is the way inward.",
+   "transcriptRoot": "a reflection and substantial summary of Archetypes One through Six",
+   "theory": "Theory (b) Mind 7, Great Way of the Mind: Ra 79.41"
+  }
+ ]
+}

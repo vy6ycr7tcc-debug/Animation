@@ -8,12 +8,14 @@ export const skyUniforms = {
   uStar: { value: new THREE.Vector3() }, // direction to the bright star
   uLight: { value: 0 },
   uT: { value: 0 },
+  uStarBoost: { value: 0 }, // stars emerge while the wanderer sits in stillness
 };
 
 export const SKY_GLSL = /* glsl */ `
 uniform vec3 uStar;
 uniform float uLight;
 uniform float uT;
+uniform float uStarBoost;
 float skyHash(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,37.719)))*43758.5453);}
 vec3 skyColor(vec3 d){
   float y=d.y;
@@ -31,7 +33,9 @@ vec3 skyColor(vec3 d){
   vec3 q=d*230.0;vec3 cell=floor(q);float h=skyHash(cell);vec3 f=fract(q)-0.5;
   float tw=0.7+0.3*sin(uT*(0.7+h*2.0)+h*60.0);
   float star=step(0.988,h)*smoothstep(0.26,0.0,length(f))*tw;
-  c+=mix(vec3(0.75,0.85,1.0),vec3(1.0,0.9,0.75),step(0.995,h))*star*smoothstep(-0.02,0.2,y)*(0.9+band);
+  c+=mix(vec3(0.75,0.85,1.0),vec3(1.0,0.9,0.75),step(0.995,h))*star*smoothstep(-0.02,0.2,y)*(0.9+band)*(1.0+uStarBoost);
+  // fainter stars that only appear in stillness
+  float h2=skyHash(cell+17.0);c+=vec3(0.8,0.85,1.0)*step(0.965,h2)*smoothstep(0.2,0.0,length(f))*uStarBoost*0.5*smoothstep(0.0,0.2,y);
   // the bright star: a gold point with a soft halo
   float sd=max(dot(d,uStar),0.0);
   c+=vec3(1.0,0.80,0.50)*pow(sd,4000.0)*14.0;
