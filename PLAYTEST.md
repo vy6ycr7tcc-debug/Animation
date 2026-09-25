@@ -38,7 +38,7 @@ There is no island and no path. After "Touch the water to begin", a map unfolds:
 - **When you come near a being,** it turns toward you, brightens and greets you, and its narration begins. The narration keeps going as you walk on.
 - **Sit with a being:** near one, tap **Sit with…** (or press E). Your wanderer walks up, a stone rises, and you sit facing it. Then choose:
   - **Ask:** "Who are you?", "What do you teach?", "Where do I meet you in my life?" The archetype answers in Samuel's recordings (all 22 are recorded), its light shimmering as it speaks.
-  - **How is your heart right now?** Drag slowly along the gradient from shadow to light and let go. The archetype answers from the nearest of five places. These answers are placeholders until recorded.
+  - **How is your heart right now?** Drag slowly along the gradient from shadow to light and let go. The archetype answers from the nearest of five places.
   - **Rest in silence:** the stars come out and time slows.
   - **Offer light:** a stream of light flows from you to it, and it answers.
   - **Stand up,** or just move.
@@ -68,7 +68,7 @@ There is no island and no path. After "Touch the water to begin", a map unfolds:
   - Come near and a quiet label shows the title, the entity and the date.
   - Tap an orb or a fruit to hear its narration. A small player appears top-left with pause, source and close, and you keep exploring.
   - When a narration ends, choose "Continue with background narration" or "Just the music".
-  - These are placeholders (soft tones) until the real narrations arrive.
+  - 86 narrations in all: 8 orbs (episodes 1–8) and 18 groves holding episodes 9–86.
 - **The whole creation:**
   - **Trees of light,** grown in smooth curves, with twigs that curl into spirals. Pulses of light run down from the crown through the trunk. Under the ground you can see the roots as fine lines of light going deep, brightest near you.
   - **The network.** Threads of light join the roots of neighbouring trees and crystals underground, and the same pulses travel along them.

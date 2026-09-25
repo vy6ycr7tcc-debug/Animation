@@ -16,4 +16,4 @@
 
 ## Archive narrations
 - Some narrations in this world are interpretive adaptations of channeled material from the L/L Research archive, voiced by AI. They are artistic interpretations, not the channeling itself. This is an independent work, not affiliated with or endorsed by L/L Research. The complete archive is freely available at llresearch.org.
-- `public/audio/orbs/` currently holds generated placeholder tones only.
+- `public/audio/orbs/`: the 86 "Voices from the Archive" narrations (Aria), ep01–ep86, with transcripts and sources in `content/transcript_orbs.json`.
