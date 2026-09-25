@@ -1,7 +1,8 @@
-/* Input: keyboard + mouse on desktop; a thumb joystick (left half) and look-drag
-   (right half) on touch, plus one round button, as in Sky:
-   - tap it to jump; hold it to take off and rise (the longer, the faster); let go to drift down;
-   - push the thumb to the edge of the joystick to run;
+/* Input: keyboard + mouse on desktop. On touch: a classic 360° joystick that always sits in
+   the bottom-left corner, look-drag anywhere else, and one round button, as in Sky:
+   - the stick walks in any direction, as gently or as fully as the thumb pushes;
+   - push the thumb to the edge of the stick to run;
+   - tap the round button to jump; hold it to take off and rise; let go to drift down;
    - one small word appears only when it helps: "Land" in the air, "Dive" in the water. */
 
 export class Input {
@@ -36,7 +37,8 @@ export class Input {
 
   private keys = new Set<string>();
   private joyId: number | null = null;
-  private joyOrigin = { x: 0, y: 0 };
+  private joyCenter = { x: 0, y: 0 };
+  private joyR = 56;
   private joyVec = { x: 0, y: 0 };
   private lookId: number | null = null;
   private lookLast = { x: 0, y: 0 };
@@ -102,21 +104,24 @@ export class Input {
     this.surface.setPointerCapture?.(e.pointerId);
     if (e.pointerType === "touch") {
       this.touchUsed = true;
+      this.joyEl.hidden = false; // a touch screen that didn't say so (a touch laptop): show the stick
       if (this.pointers.size === 2 && this.joyId === null) {
         const [a, b] = [...this.pointers.keys()];
         this.pinch = { a, b, d: this.pinchDist() };
         this.lookId = null;
         return;
       }
-      if (e.clientX < innerWidth * 0.45 && this.joyId === null) {
-        this.joyId = e.pointerId;
-        this.joyOrigin = { x: e.clientX, y: e.clientY };
-        this.joyVec = { x: 0, y: 0 };
-        this.joyEl.style.left = `${e.clientX}px`;
-        this.joyEl.style.top = `${e.clientY}px`;
-        this.knobEl.style.transform = "translate(-50%,-50%)";
-        this.joyEl.hidden = false;
-        return;
+      // the stick: a touch on it (or just around it) takes it, and the knob goes straight to the thumb
+      if (this.joyId === null && !this.joyEl.hidden) {
+        const r = this.joyEl.getBoundingClientRect();
+        this.joyCenter = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        this.joyR = r.width / 2 - 8;
+        if (Math.hypot(e.clientX - this.joyCenter.x, e.clientY - this.joyCenter.y) < r.width * 0.85) {
+          this.joyId = e.pointerId;
+          this.stick(e.clientX, e.clientY);
+          this.joyEl.classList.add("held");
+          return;
+        }
       }
       if (this.lookId === null) {
         this.lookId = e.pointerId;
@@ -143,15 +148,7 @@ export class Input {
       return;
     }
     if (e.pointerId === this.joyId) {
-      const R = 56;
-      let dx = e.clientX - this.joyOrigin.x, dy = e.clientY - this.joyOrigin.y;
-      const d = Math.hypot(dx, dy);
-      if (d > R) {
-        dx *= R / d;
-        dy *= R / d;
-      }
-      this.joyVec = { x: dx / R, y: -dy / R };
-      this.knobEl.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+      this.stick(e.clientX, e.clientY);
       return;
     }
     if (e.pointerId === this.lookId || (e.pointerType !== "touch" && this.mouseDown)) {
@@ -161,10 +158,26 @@ export class Input {
     }
   }
 
+  /** Move the stick's knob toward the thumb: full 360°, analog, with a small rest in the middle. */
+  private stick(x: number, y: number): void {
+    const R = this.joyR;
+    let dx = x - this.joyCenter.x, dy = y - this.joyCenter.y;
+    const d = Math.hypot(dx, dy);
+    if (d > R) {
+      dx *= R / d;
+      dy *= R / d;
+    }
+    const m = Math.min(1, d / R), dead = 0.12;
+    const k = m < dead ? 0 : (m - dead) / (1 - dead) / Math.max(m, 1e-6);
+    this.joyVec = { x: (dx / R) * k, y: (-dy / R) * k };
+    this.knobEl.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    this.joyEl.classList.toggle("run", m > 0.92);
+  }
+
   private up(e: PointerEvent): void {
     const d = this.downAt.get(e.pointerId);
     this.downAt.delete(e.pointerId);
-    if (d && this.enabled && !this.pinch && e.type === "pointerup" && this.pointers.size <= 1 &&
+    if (d && this.enabled && !this.pinch && e.type === "pointerup" && this.pointers.size <= 1 && e.pointerId !== this.joyId &&
         Math.hypot(e.clientX - d.x, e.clientY - d.y) < 10 && performance.now() - d.t < 350) {
       this.onTap?.(e.clientX, e.clientY);
     }
@@ -173,7 +186,8 @@ export class Input {
     if (e.pointerId === this.joyId) {
       this.joyId = null;
       this.joyVec = { x: 0, y: 0 };
-      this.joyEl.hidden = true;
+      this.knobEl.style.transform = "translate(-50%,-50%)";
+      this.joyEl.classList.remove("held", "run");
     }
     if (e.pointerId === this.lookId) this.lookId = null;
     if (e.pointerType !== "touch") this.mouseDown = false;
@@ -194,8 +208,8 @@ export class Input {
       this.glide = k.has("shift");
     } else {
       this.move = { ...this.joyVec };
-      // Pushing the thumb to the edge becomes a glide.
-      this.glide = Math.hypot(this.joyVec.x, this.joyVec.y) > 0.92;
+      // Pushing the thumb to the edge becomes a run.
+      this.glide = Math.hypot(this.joyVec.x, this.joyVec.y) > 0.9;
     }
     if (!this.enabled) {
       this.move = { x: 0, y: 0 };

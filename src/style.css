@@ -58,19 +58,27 @@ button:focus-visible, input:focus-visible { outline: 1px solid var(--gold); outl
 }
 .whisper.on { opacity: 1; }
 #whisper { top: calc(18% + env(safe-area-inset-top, 0px)); }
-#sub { bottom: calc(124px + env(safe-area-inset-bottom, 0px)); font-style: normal; color: var(--pearl); }
+#sub { bottom: calc(152px + env(safe-area-inset-bottom, 0px)); font-style: normal; color: var(--pearl); }
 
 /* ---- touch controls ---- */
+/* the stick: a quiet ring that always rests in the bottom-left corner, and a soft knob of light */
 #joy {
-  position: fixed; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%;
-  border: 1px solid rgba(244, 239, 230, 0.35); pointer-events: none;
+  position: fixed; left: calc(26px + env(safe-area-inset-left, 0px)); bottom: calc(30px + env(safe-area-inset-bottom, 0px));
+  width: 120px; height: 120px; border-radius: 50%; pointer-events: none;
+  border: 1px solid rgba(244, 239, 230, 0.28);
+  background: radial-gradient(circle, rgba(14, 12, 34, 0) 45%, rgba(14, 12, 34, 0.22) 100%);
+  transition: border-color 0.3s, box-shadow 0.3s;
 }
 #joy[hidden] { display: none; }
+#joy.held { border-color: rgba(244, 239, 230, 0.45); }
+#joy.run { border-color: rgba(226, 191, 126, 0.7); box-shadow: 0 0 16px rgba(226, 191, 126, 0.25); }
 #knob {
-  position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 240, 215, 0.55), rgba(255, 220, 180, 0));
+  position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 244, 225, 0.6) 0%, rgba(255, 228, 190, 0.28) 45%, rgba(255, 220, 180, 0) 72%);
+  border: 1px solid rgba(244, 239, 230, 0.35);
   transform: translate(-50%, -50%);
 }
+#joy.held #knob { border-color: rgba(255, 240, 215, 0.6); }
 #act {
   position: fixed; right: calc(22px + env(safe-area-inset-right, 0px)); bottom: calc(34px + env(safe-area-inset-bottom, 0px));
   width: 72px; height: 72px; border-radius: 50%;
@@ -220,6 +228,12 @@ button:focus-visible, input:focus-visible { outline: 1px solid var(--gold); outl
   font-style: italic; color: var(--pearl); animation: rise 1.2s ease;
 }
 #sit-offer[hidden], #sit-panel[hidden] { display: none; }
+/* on a narrow (portrait) phone the stick and the round button fill the bottom corners, so the
+   offer to sit and the subtitles rise above them */
+@media (max-width: 600px) {
+  #sit-offer { bottom: calc(164px + env(safe-area-inset-bottom, 0px)); }
+  #sub { bottom: calc(218px + env(safe-area-inset-bottom, 0px)); }
+}
 #sit-panel {
   position: fixed; left: 50%; transform: translateX(-50%); z-index: 6;
   bottom: calc(18px + env(safe-area-inset-bottom, 0px));

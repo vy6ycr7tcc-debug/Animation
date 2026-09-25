@@ -141,7 +141,7 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - The deer and hoppers are removed.
 - 2026-09-25: stillness must not look like "a lamp":
   - the aura is a wispy luminous gas (point puffs torn by noise);
-  - the streams are winding paint-strokes with bristle texture and travelling loads of paint, flowing in and out;
+  - the streams are winding strokes of light flowing in and out (made smooth and soft later the same day, below);
   - rocks and crystals you stop before vibrate light (waves over their surface, motes streaming off; `vibeUniforms`).
 - 2026-09-25: Samuel: the character's glow was "too much"; it should be relaxing, "like a timid light… embodying the thing".
   - The body's own light is quiet: low inner emission and a soft edge.
@@ -150,9 +150,15 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - Keep new effects in this register.
 - 2026-09-25: controls simplified after Samuel found up/down unintuitive and disliked the Down button. Modelled on Sky: Children of the Light.
   - One round button: tap to jump; hold to take off and rise (it accelerates); let go to drift down.
-  - Run by pushing the thumb to the joystick's edge.
+  - Run by pushing the stick to its edge.
   - One contextual word beside the button: "Land" while flying (tap), "Dive" in water (hold).
   - The Run, Fly and Down buttons are gone. Keyboard: Space, Shift, C/L.
+- 2026-09-25: Samuel, from his iPhone: the stillness effect was "not the most pleasant" (dashed, chain-like lines and a brownish haze), and he asked for a "360… classic joystick".
+  - Streams are now smooth, unbroken strokes of light: a soft core in a glow, no bristle texture, never thinner than a few pixels (thin ribbons broke into dashes on the phone). Fewer of them (about 8 in, 5 out, a few between), drawn slowly, with slow swells of light travelling along. They melt into the aura before they reach the body.
+  - The aura is pale mist (warm pearl to moonlit lavender), never orange; each puff stays clear of the ground, so the ground doesn't cut it in a hard line.
+  - The spirits' veils are continuous ribbons along a smoothed path; as dots they pulled apart into bead chains when a spirit moved fast.
+  - The wanderer's halo is no longer depth-tested, so the ground doesn't slice it along the feet.
+  - Movement is a classic, always-visible 360° stick fixed bottom-left. Touching on or near it takes it, and the knob goes to the thumb; walking is analog, running is at the edge (the ring turns gold). Look-drag works anywhere else.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.

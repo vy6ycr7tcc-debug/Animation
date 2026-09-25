@@ -308,6 +308,7 @@ export class Wanderer {
     );
     this.halo.scale.setScalar(2.4);
     this.halo.position.y = 1.1;
+    this.halo.material.depthTest = false; // the ground would slice it along the feet in a hard line
     this.root.add(this.halo);
     this.light = new THREE.PointLight(0xffdcb0, 6, 9, 1.6);
     this.light.position.y = 1.2;
