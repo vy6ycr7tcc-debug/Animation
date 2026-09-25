@@ -6,7 +6,9 @@ export interface SaveData {
   pos: [number, number, number];
   heading: number;
   heard: string[]; // story narrations already played (J01, J02, …)
-  visited: number[]; // stations visited, 1–7 (milestone 2)
+  visited: number[]; // stations visited, 1–7
+  rideDone?: boolean; // the Chariot has carried the wanderer to the shore
+  ended?: boolean; // home again: the journey is complete
   settings: { volume: number; reduced: boolean | null; subtitles: boolean };
 }
 
@@ -28,5 +30,14 @@ export function save(d: SaveData): void {
     localStorage.setItem(KEY, JSON.stringify(d));
   } catch {
     /* storage unavailable: progress simply isn't kept */
+  }
+}
+
+/** Forget the journey's progress (the journal is kept). */
+export function clear(): void {
+  try {
+    localStorage.removeItem(KEY);
+  } catch {
+    /* nothing to clear */
   }
 }

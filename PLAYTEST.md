@@ -1,9 +1,9 @@
-# Playtest: milestone 1 (the shore and the swim)
+# Playtest: the whole journey (M1–M5)
 
 ## How to run
-- **Online:** open the link Claude sent (or the GitHub Pages URL once Pages is on).
+- **Online:** https://vy6ycr7tcc-debug.github.io/Animation/ (updates about a minute after each merge into `main`).
 - **Locally:** `npm install`, then `npm run dev`. Open the "Network" URL on your phone (same Wi-Fi).
-- Add `#stats` to the end of the URL to see frame-rate readings.
+- Add `#stats` to the URL to see frame-rate readings.
 
 ## Controls
 | | Phone | Keyboard + mouse |
@@ -13,28 +13,49 @@
 | Walk a little faster | Push the thumb to the edge | Hold Shift |
 | Look around | Drag on the right half | Drag with the mouse |
 | Zoom | Pinch | Scroll wheel |
-| Jump | The round button, bottom right | Space |
-| Settings (volume, subtitles, reduce motion, Leave) | ⋮ top right | Esc |
+| The offered word (sit, board…), otherwise jump | The round button, bottom right | Space or E |
+| Stand up after sitting | Tap, move, or the round button | Move, or Space |
+| Settings, journal, Leave, Begin again | ⋮ top right | Esc |
 
 ## The path
-1. Touch the water to begin. You wake as a figure of light on a night shore, and **J01 The Shore** plays.
-2. Walk down the beach into the water. You start swimming and **J02 The Crossing** plays. The swim takes about 45 seconds, about the length of J02.
-3. About halfway across, seven soft lights appear on the island. These are where the stations will stand (milestone 2).
-4. Step onto the island's sand and **J03 Arrival** plays.
+1. **The shore.** Touch the water to begin. J01 plays.
+2. **The crossing.** Walk into the water and swim; J02 plays. The island's seven lights appear halfway across.
+3. **Arrival.** Step onto the sand: J03.
+4. **The seven stations,** in any order. Walking into one plays its narration. Walking away fades it. Hearing it through marks the station visited: its broken ring becomes whole and its beacon settles. Its closing question then appears quietly, with a "write" link to the private journal.
 
-Each narration plays once, and progress is saved on the device. Settings → Leave keeps your place.
-To start the story again, clear the site's data in Safari.
+   | Station | Where | What to do |
+   |---|---|---|
+   | I. The Magician | Beam and gold ring | Step into the ring: the beam brightens, sparks rise, you reach upward. |
+   | II. The High Priestess | Two pillars, mist | Sit on the bench: time slows, the mist parts, more stars appear. |
+   | III. The Empress | Spiral garden | Walk the spiral inward: rising tones, then a bloom opens at the centre. |
+   | IV. The Emperor | Throne on a square of light | Sit: constellations gather overhead. |
+   | V. The Hierophant | Arch of three stones | Walk through: a ripple spreads and a low tone sounds. |
+   | VI. The Lovers | Two rings, crossing paths, a star | Walk either path to the crossing: the rings pulse once. |
+   | VII. The Chariot | A vessel at the far edge, and a road to the horizon | After the other six: board. |
 
-## Placeholder in this milestone
-- The stations are only lights (milestone 2), and J04–J11 aren't wired yet.
-- The island is a simple shape; the look comes from light, water and the gold linework.
-- The wanderer is a motion-captured body of light (flowing currents, aura, motes, ribbons from the hands and crown). The swim stroke and jump are procedural for now.
+5. **The ride.** The vessel carries you slowly past echoes of the six stations to the near shore while J10 plays.
+6. **The return.** A path of light leads home across the water. J11 plays as you swim. On the home shore:
+   - the sky brightens a little;
+   - a small star goes with you;
+   - a card reads "The water will always be here."
+
+   After that you can keep wandering.
+
+## Voices
+- Only the female voice plays. The five tracks recorded in the male voice (J02, J04, J06, J08, J10) show as subtitles until they're re-voiced.
+- To re-voice them, run `sh narration/revoice-female.sh` where the `tts` CLI is installed, then commit `public/audio/female/`. The game picks the new files up automatically.
 
 ## Known issues
-- Subtitle timings were aligned automatically to the pauses in each recording. A line may change a moment early or late.
+- Subtitle timings were aligned automatically to pauses in each recording, so a line may change a moment early or late.
+- Jumping has no animation of its own beyond the recorded jump and landing.
+- To replay from the shore, use ⋮ → Begin again (tap twice). Your journal is kept.
 
-## Frame rate
-- Measured only in a headless software renderer here, which says nothing about a phone.
-- About 30–60 draw calls and 60–75k triangles per frame, including the wanderer (about 8k vertices, skinned twice for the body and aura), well within an iPhone's budget.
-- Quality lowers itself automatically if frames run slow.
-- Audio adds about 5 MB (11 narrations and the water bed), loaded as needed.
+## Performance
+- Measured only in a headless software renderer here, which says nothing about a phone. Please send the `#stats` readings from the iPhone.
+- About 50–60 draw calls and ~100k triangles on the island.
+- **The costliest effects, and when they turn off:**
+  - the ray-marched fluid body: 48 steps on the top quality level, down to 24 on the lowest;
+  - the water reflection: top two quality levels only;
+  - the god rays: top two quality levels only.
+- The quality level drops automatically if frames run slow.
+- Audio is about 5 MB and the figure is 1.8 MB, both loaded as needed.

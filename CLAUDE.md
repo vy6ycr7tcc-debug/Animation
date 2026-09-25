@@ -8,11 +8,12 @@ A contemplative third-person exploration game for Samuel about the archetypes of
 - It comes with 11 recorded narrations (J01–J11) and a water bed, all in `public/audio/`. Their scripts are in `content/scripts/`, and the catalogue with subtitle cues is `content/narration.json`.
 - Follow its pillars exactly: easy, no fail states, art as a door not a lecture, geometry-forward, night is safe.
 - Its milestones:
-  - **M1** shore and swim (done);
+  - **M1** shore and swim;
   - **M2** seven stations;
   - **M3** full audio;
   - **M4** reflection questions and a private journal;
   - **M5** the Chariot ride, J11 and the return, polish.
+- All five are built (2026-09-25). `PLAYTEST.md` describes the path; the island's logic is in `src/journey.ts` and `src/world/stations.ts`.
 
 **Longer-term vision: `prompts/master-build-prompt.md`** (a dawn lake hub, three islands, 21 stations).
 - This package is effectively its Mind island. Build the package first.
@@ -33,6 +34,12 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
 
 ## Decisions
 - 2026-09-25: the game package's night world replaces the dawn lake for the current build. The recorded narrations are Samuel's own and are used as they are.
+- 2026-09-25: Samuel likes the female voice and not the male one.
+  - Only the female voice plays.
+  - Male-voice tracks (J02, J04, J06, J08, J10) show as subtitles until `narration/revoice-female.sh` has made female copies in `public/audio/female/`.
+- 2026-09-25: the wanderer must read as fluid, with no visible joints.
+  - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
+  - The mannequin mesh is never drawn.
 
 Defaults Claude proposed on 2026-09-24 (Samuel said "go"):
 - **Art direction:**

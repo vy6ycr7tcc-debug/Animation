@@ -3,6 +3,7 @@
    - The home shore: a wide, gently curving beach where the wanderer wakes.
    - The island: across the water, with seven stations inland (milestone 2). */
 import * as THREE from "three";
+import stationCatalogue from "../../content/stations.json";
 import { contourMaterial } from "./etching";
 
 export const WATER_Y = 0;
@@ -41,7 +42,7 @@ function shoreHeight(x: number, z: number): number {
   return Math.max(FLOOR_Y, beach + dunes + (n - 0.5) * 0.3);
 }
 
-function islandHeight(x: number, z: number): number {
+function islandHeightRaw(x: number, z: number): number {
   const dx = x - ISLAND.x, dz = z - ISLAND.z;
   const d = Math.hypot(dx, dz) / ISLAND.radius;
   if (d > 1.3) return FLOOR_Y;
@@ -51,6 +52,20 @@ function islandHeight(x: number, z: number): number {
   // A broad, low island: a sand rim, then a gentle rise to a wide plateau for the stations.
   const rise = Math.pow(smooth(1.0, 0.25, dd), 1.3);
   return Math.max(FLOOR_Y, ISLAND.height * rise * 0.55 - 1.4 + (n - 0.5) * 1.6 * rise);
+}
+
+/** The ground is levelled gently under each station, so its floor sits true. */
+const PADS = (stationCatalogue.stations as { position: number[] }[]).map((s) => {
+  const [x, z] = s.position;
+  return { x, z, h: Math.max(0.6, islandHeightRaw(x, z)) };
+});
+function islandHeight(x: number, z: number): number {
+  let h = islandHeightRaw(x, z);
+  for (const p of PADS) {
+    const d = Math.hypot(x - p.x, z - p.z);
+    if (d < 8) h = h + (p.h - h) * smooth(8, 4.9, d);
+  }
+  return h;
 }
 
 /** Ground height at (x, z). Below WATER_Y means water. */
@@ -85,7 +100,7 @@ function heightMesh(cx: number, cz: number, w: number, d: number, sx: number, sz
   }
   g.setAttribute("color", new THREE.BufferAttribute(col, 3));
   g.computeVertexNormals();
-  const m = new THREE.Mesh(g, contourMaterial("#e2b86e", 0.9));
+  const m = new THREE.Mesh(g, contourMaterial("#e2b86e", 1.1));
   m.position.set(cx, 0, cz);
   m.receiveShadow = true;
   return m;

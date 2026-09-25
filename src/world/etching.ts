@@ -33,12 +33,12 @@ export function contourMaterial(lineColor: string, spacing: number): THREE.MeshS
           float f=(vEtchW.y+wob)/uSpacing;
           float w=fwidth(f);
           float dd=abs(fract(f+0.5)-0.5);
-          float ln=1.0-smoothstep(w*0.6,w*1.8,dd);
+          float ln=1.0-smoothstep(w*0.35,w*1.1,dd);
           float above=smoothstep(0.15,0.6,vEtchW.y);
           float dist=length(vEtchW-cameraPosition);
           float fade=1.0-smoothstep(45.0,140.0,dist);
           float breathe=0.8+0.2*sin(uEtchT*0.5+vEtchW.y*0.4);
-          totalEmissiveRadiance+=uLine*ln*above*fade*breathe*0.9*uEtchGain;
+          totalEmissiveRadiance+=uLine*ln*above*fade*breathe*0.42*uEtchGain;
         }`,
       );
   };
@@ -119,4 +119,47 @@ export function buildMandala(): THREE.Group {
   const group = new THREE.Group();
   group.add(lines);
   return group;
+}
+
+/** Dark stone etched with fine gold sacred-geometry linework: a triangular lattice with
+    circles around its nodes, hand-wobbled, projected onto whichever faces it covers. */
+export function etchedStone(color = "#1c1a2c", line = "#e9c37d", scale = 2.2): THREE.MeshStandardMaterial {
+  const m = new THREE.MeshStandardMaterial({ color, roughness: 0.82, metalness: 0.1 });
+  const lineColor = new THREE.Color(line);
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uEtchT = etchUniforms.uEtchT;
+    sh.uniforms.uEtchGain = etchUniforms.uEtchGain;
+    sh.uniforms.uLine = { value: lineColor };
+    sh.uniforms.uScale = { value: scale };
+    sh.vertexShader = sh.vertexShader
+      .replace("#include <common>", "#include <common>\nvarying vec3 vEW;varying vec3 vEN;")
+      .replace("#include <project_vertex>", "#include <project_vertex>\nvEW=(modelMatrix*vec4(transformed,1.0)).xyz;vEN=normalize(mat3(modelMatrix)*objectNormal);");
+    sh.fragmentShader = sh.fragmentShader
+      .replace("#include <common>", `#include <common>
+        varying vec3 vEW;varying vec3 vEN;uniform vec3 uLine;uniform float uScale,uEtchT,uEtchGain;
+        float etchLines(vec2 p){
+          p*=uScale;
+          p+=0.05*vec2(sin(p.y*1.7),sin(p.x*1.3)); // the pen's wobble
+          float l=0.0;
+          for(int k=0;k<3;k++){
+            float a=float(k)*1.0471976;vec2 d=vec2(cos(a),sin(a));
+            float f=dot(p,d);float w=fwidth(f);
+            l=max(l,1.0-smoothstep(w*0.3,w*1.0,abs(fract(f+0.5)-0.5)));
+          }
+          // circles around the lattice nodes
+          vec2 g=vec2(p.x-p.y*0.57735,p.y*1.1547);vec2 c=floor(g+0.5);vec2 cc=vec2(c.x+c.y*0.5,c.y*0.866);
+          float r=length(p-cc);float wr=fwidth(r);
+          l=max(l,1.0-smoothstep(wr*0.3,wr*1.0,abs(r-0.5)));
+          return l;
+        }`)
+      .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
+        {
+          vec3 an=abs(vEN);
+          float l=an.y>0.6?etchLines(vEW.xz):(an.x>an.z?etchLines(vEW.zy):etchLines(vEW.xy));
+          float dist=length(vEW-cameraPosition);
+          float fade=1.0-smoothstep(25.0,70.0,dist);
+          totalEmissiveRadiance+=uLine*l*fade*0.24*uEtchGain*(0.85+0.15*sin(uEtchT*0.6+vEW.y));
+        }`);
+  };
+  return m;
 }
