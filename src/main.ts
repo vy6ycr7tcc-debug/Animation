@@ -27,7 +27,7 @@ import { FollowCamera } from "./player/camera";
 import { Controller } from "./player/controller";
 import { Footprints } from "./player/footprints";
 import { Wanderer } from "./player/wanderer";
-import { buildHorizon, Mist } from "./world/atmosphere";
+import { Clouds } from "./world/atmosphere";
 import { buildMandala, etchUniforms } from "./world/etching";
 import { Landmarks } from "./world/landmarks";
 import { Butterflies, Flowers, Gliders, Lanterns, LightGrass, Sparks, type LifeFrame } from "./world/life";
@@ -39,6 +39,9 @@ import { Reflection } from "./world/reflection";
 import { buildSky, skyUniforms, starDirection } from "./world/sky";
 import { heightAt, SPAWN, Terrain, WATER_Y } from "./world/terrain";
 import { Water } from "./world/water";
+import { FOG, installFog } from "./world/fog";
+
+installFog(); // before any material is compiled
 
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
 
@@ -59,14 +62,14 @@ const S = {
 const canvas = $<HTMLCanvasElement>("#gl");
 const renderer = new THREE.WebGLRenderer({ canvas, powerPreference: "high-performance", antialias: false, stencil: false, depth: false });
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap; // soft in this three.js (radius below)
 renderer.toneMapping = THREE.NoToneMapping;
 renderer.info.autoReset = false;
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(58, 1, 0.1, 1500);
-const FOG_COLOR = new THREE.Color(0.035, 0.03, 0.085);
-scene.fog = new THREE.FogExp2(FOG_COLOR, 0.0062);
+const FOG_COLOR = FOG.color;
+scene.fog = new THREE.FogExp2(FOG_COLOR, FOG.density);
 
 const composer = new EffectComposer(renderer, { frameBufferType: THREE.HalfFloatType });
 composer.addPass(new RenderPass(scene, camera));
@@ -103,17 +106,18 @@ scene.add(sky);
   pmrem.dispose();
 }
 
-scene.add(new THREE.HemisphereLight(0x5a5aa8, 0x141024, 0.95));
-const star = new THREE.DirectionalLight(0xffd9a8, 0.55);
+scene.add(new THREE.HemisphereLight(0x7a86d0, 0x221a36, 0.85));
+const star = new THREE.DirectionalLight(0xffe0bc, 1.8);
 star.castShadow = true;
-star.shadow.camera.left = -14;
-star.shadow.camera.right = 14;
-star.shadow.camera.top = 14;
-star.shadow.camera.bottom = -14;
+star.shadow.camera.left = -26;
+star.shadow.camera.right = 26;
+star.shadow.camera.top = 26;
+star.shadow.camera.bottom = -26;
 star.shadow.camera.near = 1;
-star.shadow.camera.far = 140;
+star.shadow.camera.far = 160;
 star.shadow.bias = -0.0005;
 star.shadow.normalBias = 0.04;
+star.shadow.radius = 3;
 scene.add(star, star.target, starSource);
 
 const water = new Water();
@@ -122,10 +126,8 @@ water.uniforms.uFogDensity.value = (scene.fog as THREE.FogExp2).density;
 scene.add(water.mesh);
 const terrain = new Terrain();
 scene.add(terrain.group);
-const horizon = buildHorizon();
-scene.add(horizon);
-const mist = new Mist(new THREE.Color(0.2, 0.18, 0.34));
-scene.add(mist.group);
+const clouds = new Clouds(MOBILE ? 34 : 44);
+scene.add(clouds.mesh);
 const reflection = new Reflection();
 water.uniforms.uRefl.value = reflection.target.texture;
 water.uniforms.uReflMat.value = reflection.textureMatrix;
@@ -588,7 +590,6 @@ function update(dt: number): void {
 
   follow.update(dt, player.pos, player.heading, player.speed > 0.5, t, S.reduced);
   sky.position.copy(camera.position);
-  horizon.position.set(camera.position.x, 0, camera.position.z + 60);
   starSource.position.copy(camera.position).addScaledVector(starDir, 900);
   glow.set(player.pos.x, S.mode === "intro" ? 0 : 1, player.pos.z);
   water.update(camera.position.x, camera.position.z, glow);
@@ -597,7 +598,7 @@ function update(dt: number): void {
   mandala.rotation.y = S.reduced ? 0 : wt * 0.01;
   center.set(camera.position.x, 0, camera.position.z);
   motes.update(wt, center, dpr, S.reduced);
-  mist.update(wt, camera.position);
+  clouds.update(wt);
   footprints.update(t);
 
   // The starlight's shadow follows the wanderer.
@@ -625,7 +626,7 @@ function frame(now: number): void {
   update(dt);
   renderer.info.reset();
   // (The shadow map must exist first: it is created by the main render.)
-  if (star.shadow.map) reflection.render(renderer, scene, camera, [water.mesh, sky, starSource, mist.group, grass.mesh, ...creation.noReflect]);
+  if (star.shadow.map) reflection.render(renderer, scene, camera, [water.mesh, sky, starSource, grass.mesh, ...creation.noReflect]);
   composer.render(dt);
 }
 requestAnimationFrame(frame);

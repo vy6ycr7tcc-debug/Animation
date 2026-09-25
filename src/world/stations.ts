@@ -87,7 +87,7 @@ export abstract class Station {
   /** 0..1, eased: how strongly this station's narration is playing. */
   active = 0;
   radius = 5.5;
-  protected stone = etchedStone();
+  protected stone = etchedStone("#3a3552");
   private ringOpen: THREE.Group;
   private ringWhole: THREE.Line;
   private beacon: THREE.Sprite;
@@ -157,7 +157,7 @@ export abstract class Station {
     (this.beacon.material as THREE.SpriteMaterial).opacity = f.seen * b * (1 - this.active * 0.6);
     (this.beaconCore.material as THREE.MeshBasicMaterial).opacity = f.seen * (this.visited ? 0.5 : 1);
     this.beaconCore.position.y = this.beacon.position.y = 7 + (f.reduced ? 0 : Math.sin(f.t * 0.6 + this.data.n) * 0.2);
-    this.floorGlow.opacity = f.seen * (0.05 + (this.visited ? 0.12 : 0.0) + this.active * 0.25);
+    this.floorGlow.opacity = f.seen * (0.015 + this.active * 0.1);
     this.animate(f, h);
   }
   protected abstract animate(f: Frame, h: Hooks): void;

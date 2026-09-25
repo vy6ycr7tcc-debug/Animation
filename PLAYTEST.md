@@ -68,7 +68,8 @@ There is no island and no path. After "Touch the water to begin", a map unfolds:
 
 ## Performance
 - Measured only in a headless software renderer here, which says nothing about a phone. Please send the `#stats` readings from the iPhone.
-- About 150 draw calls and 80–100k triangles. Distant landmarks are hidden beyond 300 m. The ground streams in 80 m squares around you, trees out to about 100 m.
+- About 180–240 draw calls and 190–230k triangles in the headless test (medium quality).
+- The ground streams in two levels: fine 64 m tiles within about 160 m, and coarse tiles out to about 640 m, reaching the mountains. Trees stream out to about 100 m.
 - **The costliest effects, and when they turn off:**
   - the ray-marched fluid body: 48 steps on the top quality level, down to 24 on the lowest;
   - the water reflection: top two quality levels only;

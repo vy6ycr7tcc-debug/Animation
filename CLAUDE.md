@@ -75,6 +75,16 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - Players choose on a map where to start, "otherwise it's the same narration every time".
   - Built for the seven Mind archetypes, which have narrations. Body (8–14), Spirit (15–21) and The Choice (22) wait on Samuel's go-ahead and narration.
   - The zip he uploaded (`reference/inward-journey-game-package.zip`) holds the same recordings already in `public/audio/`.
+- 2026-09-25: Samuel: the look was "a bit too 2D… like a croquis instead of an actual working game". He wants "Children of Light level" smooth graphics and depth; it runs on good phones.
+  - Depth comes from form, light and air, not drawn lines:
+    - height fog with moonlit in-scattering in every material (`src/world/fog.ts`);
+    - real terrain out to the mountains, in two levels of detail;
+    - sand ripples and glitter;
+    - sky-seen shading in hollows;
+    - soft moon shadows from trees and rocks;
+    - clouds;
+    - a luminous night sky.
+  - Linework stays only as faint traces: etched stone, root lines up close, the spawn mandala.
 - 2026-09-25: Samuel: "Whenever done push to mainline." Merge finished, verified work into `main` without asking.
 - 2026-09-25: Samuel likes the female voice and not the male one.
   - Only the female voice plays.
