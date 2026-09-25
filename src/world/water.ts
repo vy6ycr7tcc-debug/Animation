@@ -16,6 +16,9 @@ export class Water {
     uFogDensity: { value: 0 },
     uRip: { value: [] as THREE.Vector4[] },
     uGlow: { value: new THREE.Vector3() }, // the wanderer's light, reflected
+    uRefl: { value: null as THREE.Texture | null }, // mirrored world above the water
+    uReflMat: { value: new THREE.Matrix4() },
+    uReflOn: { value: 0 },
   };
 
   constructor() {
@@ -28,6 +31,7 @@ export class Water {
         varying vec3 vW;
         uniform float uCalm,uFogDensity;
         uniform vec3 uFogColor,uGlow;
+        uniform sampler2D uRefl;uniform mat4 uReflMat;uniform float uReflOn;
         uniform vec4 uRip[${MAX_RIPPLES}];
         ${SKY_GLSL}
         void main(){
@@ -52,6 +56,13 @@ export class Water {
           float fres=0.04+0.96*pow(1.0-cosT,5.0);
           vec3 R=reflect(-v,n);R.y=abs(R.y);
           vec3 refl=skyColor(R);
+          if(uReflOn>0.5){
+            // the island, the stations and the wanderer, mirrored and bent by the ripples
+            vec4 rc=uReflMat*vec4(vW,1.0);
+            vec2 ruv=rc.xy/rc.w+g*vec2(0.9,0.6);
+            vec4 rt=texture2D(uRefl,clamp(ruv,0.001,0.999));
+            refl=refl*(1.0-clamp(rt.a,0.0,1.0))+rt.rgb; // solid things cover the sky; glows add their light
+          }
           // pale cyan catches on the ripple slopes
           float slope=length(g);
           refl+=vec3(0.30,0.60,0.70)*smoothstep(0.02,0.25,slope)*0.10;

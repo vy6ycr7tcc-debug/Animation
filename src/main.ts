@@ -30,6 +30,8 @@ import { Motes } from "./world/motes";
 import { buildSky, skyUniforms, starDirection } from "./world/sky";
 import { buildTerrain, heightAt, ISLAND, onIsland, smooth, SPAWN, WATER_Y } from "./world/terrain";
 import { Water } from "./world/water";
+import { buildHorizon, Fireflies, Mist } from "./world/atmosphere";
+import { Reflection } from "./world/reflection";
 import { Journey } from "./journey";
 import { Journal } from "./ui/journal";
 
@@ -121,6 +123,14 @@ water.uniforms.uFogColor.value.copy(FOG_COLOR);
 water.uniforms.uFogDensity.value = (scene.fog as THREE.FogExp2).density;
 scene.add(water.mesh);
 buildTerrain(scene);
+scene.add(buildHorizon());
+const mist = new Mist(new THREE.Color(0.2, 0.18, 0.34));
+scene.add(mist.group);
+const fireflies = new Fireflies(220);
+scene.add(fireflies.points);
+const reflection = new Reflection();
+water.uniforms.uRefl.value = reflection.target.texture;
+water.uniforms.uReflMat.value = reflection.textureMatrix;
 
 // A flat stone where the wanderer wakes, etched with the seven-fold figure.
 const spawnY = heightAt(SPAWN.x, SPAWN.z);
@@ -149,6 +159,23 @@ const footprints = new Footprints();
 scene.add(footprints.mesh);
 const follow = new FollowCamera(camera);
 
+/** Glow materials add light but leave alpha alone, so they don't punch dark squares into
+    the water's reflection texture (which uses alpha to know where the world is). */
+function additiveKeepsAlpha(root: THREE.Object3D): void {
+  root.traverse((o) => {
+    const mats = (o as THREE.Mesh).material;
+    for (const m of Array.isArray(mats) ? mats : mats ? [mats] : []) {
+      if (m.blending !== THREE.AdditiveBlending) continue;
+      m.blending = THREE.CustomBlending;
+      m.blendEquation = THREE.AddEquation;
+      m.blendSrc = THREE.SrcAlphaFactor;
+      m.blendDst = THREE.OneFactor;
+      m.blendSrcAlpha = THREE.ZeroFactor;
+      m.blendDstAlpha = THREE.OneFactor;
+    }
+  });
+}
+
 /* ============ QUALITY ============ */
 let dpr = 1;
 const quality: AdaptiveQuality = new AdaptiveQuality(applyTier);
@@ -157,12 +184,15 @@ function resize(): void {
   dpr = Math.min(devicePixelRatio || 1, quality.current.dpr);
   renderer.setPixelRatio(dpr);
   composer.setSize(w, h);
+  reflection.setSize(w * dpr, h * dpr);
   camera.aspect = w / h;
   camera.fov = h > w ? 66 : 55;
   camera.updateProjectionMatrix();
 }
 function applyTier(t: Tier, i: number = quality.tier): void {
   raysPass.enabled = i <= 1; // god rays on the two higher tiers only
+  reflection.enabled = i <= 1; // mirrored island and figure in the water
+  water.uniforms.uReflOn.value = reflection.enabled ? 1 : 0;
   wanderer.setQuality([48, 40, 32, 24][i] ?? 32); // ray-march steps for the fluid body
   bloomPass.enabled = t.bloom;
   plainPass.enabled = !t.bloom;
@@ -542,6 +572,8 @@ function update(dt: number): void {
   mandala.rotation.y = S.reduced ? 0 : wt * 0.01;
   center.set(camera.position.x, 0, camera.position.z);
   motes.update(wt, center, dpr, S.reduced);
+  mist.update(wt, camera.position);
+  fireflies.update(wt, dpr, S.reduced);
   footprints.update(t);
 
   // The starlight's shadow follows the wanderer.
@@ -568,8 +600,12 @@ function frame(now: number): void {
   }
   update(dt);
   renderer.info.reset();
+  // (The shadow map must exist first: it is created by the main render.)
+  if (star.shadow.map) reflection.render(renderer, scene, camera, [water.mesh, sky, starSource, mist.group]);
   composer.render(dt);
 }
 requestAnimationFrame(frame);
+
+additiveKeepsAlpha(scene);
 
 Object.assign(window, { __ij: { player, follow, quality, audio, narration, scene, S, journey, wanderer } });
