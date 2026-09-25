@@ -278,7 +278,17 @@ function whisper(text: string, ms = 5000): void {
   whisperTimer = window.setTimeout(() => w.classList.remove("on"), ms);
 }
 
-const input = new Input($("#surface"), $("#joy"), $("#knob"), $("#act"));
+const input = new Input($("#surface"), $("#joy"), $("#knob"), $("#act"), $("#run"), $("#fly"), $("#down"));
+// no long-press menus or text selection anywhere in the game
+addEventListener("contextmenu", (e) => e.preventDefault());
+document.addEventListener("selectstart", (e) => {
+  if (!(e.target as HTMLElement)?.closest?.("input, textarea")) e.preventDefault();
+});
+input.onFly = () => {
+  standUp();
+  player.toggleFly();
+  whisper(player.flying ? (MOBILE ? "Hold the round button to rise, Down to sink" : "Hold Space to rise, C to sink") : "Gliding down", 3500);
+};
 input.onAction = () => {
   if (wanderer.gesture !== "none") wanderer.setGesture("none");
   player.jump();
@@ -351,10 +361,11 @@ function arrive(c: Choice, first: boolean): void {
   persist();
   if (!first) return;
   $("#menu-btn").hidden = false;
-  if (MOBILE) $("#act").hidden = false;
+  if (MOBILE) for (const id of ["#act", "#run", "#fly"]) $(id).hidden = false;
   say(`You wake near ${c.place.label.replace(/^The /, "the ")}. Wander anywhere; the land answers as you pass.`);
   window.setTimeout(() => whisper(MOBILE ? "Tap where you want to go, or drag on the left" : "Click where you want to go, or use W A S D", 6500), 4000);
-  window.setTimeout(() => whisper(MOBILE ? "Hold the round button in the air to glide" : "Hold Space in the air to glide", 6000), 26000);
+  window.setTimeout(() => whisper(MOBILE ? "Hold Run to run; run off a slope to glide" : "Hold Shift to run; run off a slope to glide", 6000), 26000);
+  window.setTimeout(() => whisper(MOBILE ? "Tap Fly to take to the air" : "Press F to fly", 6000), 50000);
 }
 $("#begin").addEventListener("click", begin);
 const startMap = new StartMap();
@@ -457,7 +468,7 @@ $("#sit-offer-light").addEventListener("click", () => {
 function updateSitting(dt: number): void {
   const n = beings.nearest(player.pos);
   sitOffer.hidden = !(S.mode === "play" && sitting.phase === "none" && n.i >= 0 && n.d < 6.5 && !startMap.isOpen);
-  if (!sitOffer.hidden) sitOffer.textContent = `Sit with ${beings.list[n.i].spec.name}`;
+  if (!sitOffer.hidden) sitOffer.textContent = `Sit with ${beings.list[n.i].spec.name.replace(/^The /, "the ")}`;
   if (sitting.phase === "walking") {
     const moved = Math.hypot(input.move.x, input.move.y) > 0.2;
     if (moved) sitting.phase = "none";
@@ -568,7 +579,7 @@ $("#leave").addEventListener("click", () => {
   narration.stop(2);
   audio.fade(false);
   $("#rest").hidden = false;
-  $("#act").hidden = true;
+  for (const id of ["#act", "#run", "#fly", "#down"]) $(id).hidden = true;
   $("#menu-btn").hidden = true;
   $<HTMLButtonElement>("#return").focus();
   say("Your place is kept.");
@@ -601,7 +612,7 @@ $("#return").addEventListener("click", () => {
   input.enabled = true;
   $("#rest").hidden = true;
   $("#menu-btn").hidden = false;
-  if (MOBILE || input.touchUsed) $("#act").hidden = false;
+  if (MOBILE || input.touchUsed) for (const id of ["#act", "#run", "#fly"]) $(id).hidden = false;
 });
 
 /* ============ READINGS (#stats) ============ */
@@ -650,7 +661,9 @@ function update(dt: number): void {
 
   if (S.mode === "play") {
     if (wanderer.gesture !== "none" && Math.hypot(input.move.x, input.move.y) > 0.2 && wanderer.gesture === "sit") wanderer.setGesture("none");
-    player.update(dt, { ...input.move, glide: input.glide, hold: input.hold }, follow.yaw);
+    player.update(dt, { ...input.move, glide: input.boost, hold: input.hold, down: input.descend }, follow.yaw);
+    $("#fly").setAttribute("aria-pressed", String(player.flying));
+    $("#down").hidden = !(MOBILE && player.flying);
   }
   S.wt += dt * landmarks.timeScale;
   const wt = S.wt;

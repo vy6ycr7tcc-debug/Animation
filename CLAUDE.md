@@ -95,6 +95,11 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
 - 2026-09-25: Samuel likes the female voice and not the male one.
   - Only the female voice plays.
   - Male-voice tracks (J02, J04, J06, J08, J10) are skipped by the background playlist until `narration/revoice-female.sh` has made female copies in `public/audio/female/`.
+- 2026-09-25 (later): Samuel found the fluid body's shape "really weird". Replaced:
+  - a normal humanoid, transparent: the recorded figure's own mesh as glowing glass (`src/player/lightBody.ts`), for the wanderer and the beings;
+  - in water, the wanderer becomes an orb of light;
+  - new moves: run (hold; running off a slope glides) and free flight (F or Fly: rise, sink, hover, as high as you like).
+  - The fluid-body entry below is superseded.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.
