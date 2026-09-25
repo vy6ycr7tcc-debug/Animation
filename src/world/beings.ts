@@ -110,6 +110,9 @@ class Being {
   held: { obj: THREE.Object3D; bone: string; along: number; lift: number }[] = [];
   met = false;
   wake = 0;
+  /** 1 while its answer is being spoken: its light shimmers with the voice. */
+  speaking = 0;
+  private speakK = 0;
   greetT = 99;
   private body = new THREE.Group();
   private bones: Record<string, THREE.Bone> = {};
@@ -193,7 +196,9 @@ class Being {
     this.U.uForm.value = Math.min(1, this.U.uForm.value + dt / 2);
     const breathe = reduced ? 0 : Math.sin(t * 0.55 + this.spec.at[0]);
     const greet = Math.exp(-this.greetT * 0.8);
-    this.U.uPulse.value = 0.95 + 0.05 * breathe + this.wake * 0.3 + greet * 0.5;
+    this.speakK += (this.speaking - this.speakK) * Math.min(1, dt * 2);
+    const voice = reduced ? 0.5 : 0.5 + 0.5 * Math.sin(t * 7.3) * Math.sin(t * 3.1 + 1);
+    this.U.uPulse.value = 0.95 + 0.05 * breathe + this.wake * 0.3 + greet * 0.5 + this.speakK * (0.15 + voice * 0.25);
     this.halo.material.opacity = 0.18 + this.wake * 0.25 + greet * 0.4;
     this.ringMat.opacity = greet * 0.6;
     this.ring.scale.setScalar(1 + (1 - greet) * 7);
@@ -483,6 +488,25 @@ export class Beings {
     const scale = HEIGHT / (box.max.y - box.min.y || 1.8);
     model.rotation.y = 0;
     for (const b of this.list) b.attach(model, gltf.animations, scale);
+  }
+
+  /** Where to sit with a being: in front of it, facing it. `stone`: a seat rises from the
+      ground (the High Priestess has her own bench already). */
+  seatFor(i: number): { x: number; z: number; heading: number; stone: boolean } {
+    const p = this.list[i].root.position;
+    const n = this.list[i].spec.numeral;
+    const d = n === "II" ? 1.65 : n === "VII" ? 3.0 : 2.3;
+    return { x: p.x, z: p.z + d, heading: 0, stone: n !== "II" };
+  }
+
+  /** The nearest being and how far it is. */
+  nearest(p: THREE.Vector3): { i: number; d: number } {
+    let i = -1, d = Infinity;
+    this.list.forEach((b, k) => {
+      const dk = b.distanceTo(p);
+      if (dk < d) (d = dk), (i = k);
+    });
+    return { i, d };
   }
 
   /** Where to wake in front of a being, facing it. */

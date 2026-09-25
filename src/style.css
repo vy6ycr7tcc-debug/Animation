@@ -207,3 +207,34 @@ button:focus-visible, input:focus-visible { outline: 1px solid var(--gold); outl
 #map .note { margin: 0; font-size: 13px; color: var(--dim); font-style: italic; }
 #map-close { font-size: 14px; color: var(--gold); padding: 6px 12px; }
 #map-close[hidden] { display: none; }
+
+/* ---- sitting with an archetype ---- */
+#sit-offer {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px)); z-index: 6;
+  padding: 10px 20px; min-height: 44px; border-radius: 22px;
+  border: 1px solid var(--line); background: rgba(14, 12, 34, 0.55);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  font-style: italic; color: var(--pearl); animation: rise 1.2s ease;
+}
+#sit-offer[hidden], #sit-panel[hidden] { display: none; }
+#sit-panel {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 6;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  width: min(94vw, 34em); padding: 10px 12px 6px; border-radius: 20px;
+  background: var(--panel); border: 1px solid var(--line);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  animation: rise 0.9s ease;
+}
+#sit-title { margin: 0 0 4px; text-align: center; font-style: italic; color: var(--gold); letter-spacing: 0.05em; }
+#sit-prompts { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-height: 30vh; overflow-y: auto; }
+#sit-prompts .group { flex-basis: 100%; margin: 4px 0 0; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); text-align: center; }
+#sit-prompts button { padding: 7px 13px; min-height: 38px; border-radius: 19px; font-size: 14px; border: 1px solid var(--line); }
+#sit-prompts button:hover, #sit-prompts button:focus-visible { background: rgba(226, 191, 126, 0.1); }
+#sit-prompts button.heard { color: var(--dim); }
+#sit-prompts button.heard::after { content: " · heard"; font-size: 12px; font-style: italic; }
+#sit-actions { display: flex; justify-content: space-between; gap: 6px; margin-top: 8px; padding-top: 4px; border-top: 1px solid var(--line); }
+#sit-actions button { font-size: 13px; color: var(--dim); padding: 8px 6px; min-height: 40px; font-style: italic; }
+#sit-actions button:hover, #sit-actions button:focus-visible, #sit-actions button[aria-pressed="true"] { color: var(--pearl); }
+body.seated #sub { bottom: auto; top: calc(14% + env(safe-area-inset-top, 0px)); }
+body.seated #joy, body.seated #act { opacity: 0.25; }

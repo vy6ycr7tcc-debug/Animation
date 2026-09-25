@@ -85,6 +85,12 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
     - clouds;
     - a luminous night sky.
   - Linework stays only as faint traces: etched stone, root lines up close, the spawn mandala.
+- 2026-09-25: no live AI conversation (too sophisticated). Instead, preset recorded answers:
+  - You sit with an archetype and choose a question or a feeling; it answers with Samuel's recording.
+  - Choices and answers live in `content/dialogues.json`, and recordings in `public/audio/answers/<numeral>/<prompt>.mp3` (`src/core/dialogues.ts`).
+  - Until Samuel sends them, answers show a placeholder subtitle. The prompts are placeholders too.
+  - He's considering emotions: prompts have a `kind` ("question" or "feeling").
+  - Seated actions: ask, rest in silence (stars come out, time slows), offer light, stand up.
 - 2026-09-25: Samuel: "Whenever done push to mainline." Merge finished, verified work into `main` without asking.
 - 2026-09-25: Samuel likes the female voice and not the male one.
   - Only the female voice plays.

@@ -1,0 +1,201 @@
+{
+ "note": [
+  "What you can say when you sit with an archetype, and what it answers.",
+  "prompts: the choices offered to everyone. kind is 'question' or 'feeling' (feelings are listed after questions). An archetype can have its own list: add \"prompts\": [...] inside its entry under answers.",
+  "answers: for each archetype (by numeral) and each prompt id: the recording's file and its transcript.",
+  "To add an answer: put the MP3 at the file path (under public/), and paste its words into transcript. Subtitles are timed to the recording automatically (by sentence). For exact timing, add \"cues\": [{\"t\": seconds, \"text\": \"...\"}] instead.",
+  "An answer with no recording shows its transcript as subtitles; with no transcript either, a placeholder line."
+ ],
+ "prompts": [
+  {
+   "id": "who",
+   "kind": "question",
+   "label": "Who are you?"
+  },
+  {
+   "id": "teach",
+   "kind": "question",
+   "label": "What do you teach?"
+  },
+  {
+   "id": "life",
+   "kind": "question",
+   "label": "Where do I meet you in my life?"
+  },
+  {
+   "id": "lost",
+   "kind": "feeling",
+   "label": "I feel lost."
+  },
+  {
+   "id": "afraid",
+   "kind": "feeling",
+   "label": "I feel afraid."
+  }
+ ],
+ "names": {
+  "I": "The Magician",
+  "II": "The High Priestess",
+  "III": "The Empress",
+  "IV": "The Emperor",
+  "V": "The Hierophant",
+  "VI": "The Lovers",
+  "VII": "The Chariot"
+ },
+ "answers": {
+  "I": {
+   "who": {
+    "file": "audio/answers/I/who.mp3",
+    "transcript": ""
+   },
+   "teach": {
+    "file": "audio/answers/I/teach.mp3",
+    "transcript": ""
+   },
+   "life": {
+    "file": "audio/answers/I/life.mp3",
+    "transcript": ""
+   },
+   "lost": {
+    "file": "audio/answers/I/lost.mp3",
+    "transcript": ""
+   },
+   "afraid": {
+    "file": "audio/answers/I/afraid.mp3",
+    "transcript": ""
+   }
+  },
+  "II": {
+   "who": {
+    "file": "audio/answers/II/who.mp3",
+    "transcript": ""
+   },
+   "teach": {
+    "file": "audio/answers/II/teach.mp3",
+    "transcript": ""
+   },
+   "life": {
+    "file": "audio/answers/II/life.mp3",
+    "transcript": ""
+   },
+   "lost": {
+    "file": "audio/answers/II/lost.mp3",
+    "transcript": ""
+   },
+   "afraid": {
+    "file": "audio/answers/II/afraid.mp3",
+    "transcript": ""
+   }
+  },
+  "III": {
+   "who": {
+    "file": "audio/answers/III/who.mp3",
+    "transcript": ""
+   },
+   "teach": {
+    "file": "audio/answers/III/teach.mp3",
+    "transcript": ""
+   },
+   "life": {
+    "file": "audio/answers/III/life.mp3",
+    "transcript": ""
+   },
+   "lost": {
+    "file": "audio/answers/III/lost.mp3",
+    "transcript": ""
+   },
+   "afraid": {
+    "file": "audio/answers/III/afraid.mp3",
+    "transcript": ""
+   }
+  },
+  "IV": {
+   "who": {
+    "file": "audio/answers/IV/who.mp3",
+    "transcript": ""
+   },
+   "teach": {
+    "file": "audio/answers/IV/teach.mp3",
+    "transcript": ""
+   },
+   "life": {
+    "file": "audio/answers/IV/life.mp3",
+    "transcript": ""
+   },
+   "lost": {
+    "file": "audio/answers/IV/lost.mp3",
+    "transcript": ""
+   },
+   "afraid": {
+    "file": "audio/answers/IV/afraid.mp3",
+    "transcript": ""
+   }
+  },
+  "V": {
+   "who": {
+    "file": "audio/answers/V/who.mp3",
+    "transcript": ""
+   },
+   "teach": {
+    "file": "audio/answers/V/teach.mp3",
+    "transcript": ""
+   },
+   "life": {
+    "file": "audio/answers/V/life.mp3",
+    "transcript": ""
+   },
+   "lost": {
+    "file": "audio/answers/V/lost.mp3",
+    "transcript": ""
+   },
+   "afraid": {
+    "file": "audio/answers/V/afraid.mp3",
+    "transcript": ""
+   }
+  },
+  "VI": {
+   "who": {
+    "file": "audio/answers/VI/who.mp3",
+    "transcript": ""
+   },
+   "teach": {
+    "file": "audio/answers/VI/teach.mp3",
+    "transcript": ""
+   },
+   "life": {
+    "file": "audio/answers/VI/life.mp3",
+    "transcript": ""
+   },
+   "lost": {
+    "file": "audio/answers/VI/lost.mp3",
+    "transcript": ""
+   },
+   "afraid": {
+    "file": "audio/answers/VI/afraid.mp3",
+    "transcript": ""
+   }
+  },
+  "VII": {
+   "who": {
+    "file": "audio/answers/VII/who.mp3",
+    "transcript": ""
+   },
+   "teach": {
+    "file": "audio/answers/VII/teach.mp3",
+    "transcript": ""
+   },
+   "life": {
+    "file": "audio/answers/VII/life.mp3",
+    "transcript": ""
+   },
+   "lost": {
+    "file": "audio/answers/VII/lost.mp3",
+    "transcript": ""
+   },
+   "afraid": {
+    "file": "audio/answers/VII/afraid.mp3",
+    "transcript": ""
+   }
+  }
+ }
+}

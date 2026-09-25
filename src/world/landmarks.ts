@@ -12,6 +12,8 @@ import { buildLandmarks, type Frame, type Hooks, type Station } from "./stations
 export class Landmarks {
   list: Station[];
   timeScale = 1;
+  /** 0–1: resting in silence with an archetype. The stars come out and time slows. */
+  stillness = 0;
   private hooks: Hooks;
   private still = 0;
   private wantTime = 1;
@@ -46,6 +48,8 @@ export class Landmarks {
       if (near && !s.visited) s.markVisited(); // its ring closes once you've been
       s.update(f, this.hooks, near);
     }
+    this.wantStars = Math.max(this.wantStars, this.stillness * 1.6);
+    this.wantTime = Math.min(this.wantTime, 1 - this.stillness * 0.5);
     this.timeScale += (this.wantTime - this.timeScale) * Math.min(1, dt * 0.8);
     this.stars += (this.wantStars - this.stars) * Math.min(1, dt * 0.5);
     skyUniforms.uStarBoost.value = this.stars;
