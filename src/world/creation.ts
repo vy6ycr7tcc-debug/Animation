@@ -38,6 +38,14 @@ const U = creationUniforms;
 
 const GLSL_COMMON = /* glsl */ `
 uniform float uT,uFogD,uPx,uCommune;uniform vec3 uPlayer,uStar,uFogC;
+// 0 where a light would come between the camera and the wanderer, or right up against the
+// lens; 1 anywhere else. Spirits and their veils fade there, so they never cover the view.
+float outOfTheWay(vec3 p){
+  vec3 a=cameraPosition,b=uPlayer+vec3(0.0,1.2,0.0),ab=b-a;
+  float t=clamp(dot(p-a,ab)/max(dot(ab,ab),1e-3),0.0,1.0);
+  float dSeg=distance(p,a+ab*t);
+  return smoothstep(0.5,1.8,dSeg)*smoothstep(2.5,6.0,distance(p,a));
+}
 float fogF(float d){return 1.0-exp(-uFogD*uFogD*d*d);}
 float hash1(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 vec3 spectrum(float h){return 0.5+0.5*cos(6.28318*(h+vec3(0.0,0.33,0.67)));}
@@ -1203,13 +1211,13 @@ export class Spirits {
           void main(){
             float s=aTrail.x;
             float d=distance(position,cameraPosition);
-            // wide and soft at the spirit, tapering away; never thinner than a couple of pixels
-            float w=aTrail.y*mix(0.26,0.03,pow(s,0.8)), wMin=2.5*d/uPx;
+            // soft at the spirit, tapering away; never thinner than a couple of pixels
+            float w=aTrail.y*mix(0.12,0.02,pow(s,0.8)), wMin=2.5*d/uPx;
             vec3 side=normalize(cross(aTan,cameraPosition-position));
             vec3 p=position+side*aTrail.w*max(w,wMin);
             vC=mix(mix(vec3(0.7,0.85,1.0),vec3(1.0,0.8,0.55),step(0.4,aTrail.z)),vec3(0.95,0.7,1.0),step(0.75,aTrail.z));
             vC=mix(vC,vec3(1.0),0.3*(1.0-s));
-            vA=pow(1.0-s,1.5)*0.5*(1.0-fogF(d))*w/max(w,wMin);
+            vA=pow(1.0-s,1.5)*0.35*(1.0-fogF(d))*w/max(w,wMin)*outOfTheWay(position);
             vX=aTrail.w;
             gl_Position=projectionMatrix*viewMatrix*vec4(p,1.0);}`,
         fragmentShader: /* glsl */ `
@@ -1233,7 +1241,7 @@ export class Spirits {
           attribute float aSize;attribute float aHue;varying vec3 vC;varying float vD;
           ${GLSL_COMMON}
           void main(){vec4 mv=viewMatrix*vec4(position,1.0);vD=-mv.z;gl_Position=projectionMatrix*mv;
-            vC=mix(mix(vec3(0.8,0.9,1.0),vec3(1.0,0.86,0.66),step(0.4,aHue)),vec3(1.0,0.8,1.0),step(0.75,aHue));
+            vC=mix(mix(vec3(0.8,0.9,1.0),vec3(1.0,0.86,0.66),step(0.4,aHue)),vec3(1.0,0.8,1.0),step(0.75,aHue))*outOfTheWay(position);
             gl_PointSize=clamp(aSize*0.9*uPx/max(vD,0.5),2.0,120.0);}`,
         fragmentShader: /* glsl */ `
           varying vec3 vC;varying float vD;
@@ -1278,8 +1286,9 @@ export class Spirits {
       s.curious -= f.dt;
       const t = f.t * (0.35 + (i % 5) * 0.06) + s.phase;
       if (s.curious > 0) {
-        const a = f.t * 0.7 + i * 2.1;
-        this.tmp.set(f.player.x + Math.cos(a) * 2.2, f.player.y + 1.8 + Math.sin(f.t * 0.9 + i) * 0.5, f.player.z + Math.sin(a) * 2.2);
+        // keeping company: a slow ring above and around the head, clear of the view
+        const a = f.t * 0.35 + i * 2.1;
+        this.tmp.set(f.player.x + Math.cos(a) * 3.4, f.player.y + 2.8 + Math.sin(f.t * 0.6 + i) * 0.4, f.player.z + Math.sin(a) * 3.4);
       } else {
         // slow loops around a crown or a crystal
         const r = 2.5 + (i % 3) * 1.5 + s.size;
@@ -1287,6 +1296,9 @@ export class Spirits {
         if (Math.random() < f.dt * 0.01) this.placeNear(s, f.player);
       }
       s.v.addScaledVector(this.tmp.sub(s.p), f.dt * 0.9).multiplyScalar(1 - f.dt * 0.9);
+      // they drift, never streak: called from far away, they take their time coming
+      const vmax = s.curious > 0 ? 3 : 2.2, vl = s.v.length();
+      if (vl > vmax) s.v.multiplyScalar(vmax / vl);
       s.p.addScaledVector(s.v, f.dt);
       s.p.y = Math.max(s.p.y, Math.max(heightAt(s.p.x, s.p.z), WATER_Y) + 0.6);
       // the veil remembers where it has been
@@ -1297,24 +1309,29 @@ export class Spirits {
       }
       s.hist[0].copy(s.p);
       ha.set([s.p.x, s.p.y, s.p.z], i * 3);
+      // a smooth curve through the remembered points; the veil ripples sideways as it trails,
+      // like cloth in water. The ribbon's direction is taken from the curve as drawn, so it
+      // never folds over itself (a folded ribbon showed as a ladder of bright rungs)
+      const h = s.hist;
       for (let j = 0; j < VEIL; j++) {
-        // a smooth curve through the remembered points; the veil ripples sideways as it trails,
-        // like cloth in water
         const u = (j / (VEIL - 1)) * (TRAIL - 1), k = Math.min(TRAIL - 2, Math.floor(u));
-        const h = s.hist;
         catmull(h[Math.max(0, k - 1)], h[k], h[k + 1], h[Math.min(TRAIL - 1, k + 2)], u - k, this.tmp);
         this.side.subVectors(h[k + 1], h[k]);
         if (this.side.lengthSq() < 1e-6) this.side.set(0, -1, 0);
         const cross = this.tan.subVectors(cam, this.tmp).cross(this.side).normalize();
-        const wave = Math.sin(t0 * 3.2 - u * 0.55 + i) * s.size * 0.18 * (u / TRAIL);
+        const wave = Math.sin(t0 * 1.6 - u * 0.4 + i) * s.size * 0.08 * (u / TRAIL);
         const v = (i * VEIL + j) * 6;
-        const x = this.tmp.x + cross.x * wave, y = this.tmp.y + cross.y * wave - u * 0.015, z = this.tmp.z + cross.z * wave;
-        va[v] = va[v + 3] = x;
-        va[v + 1] = va[v + 4] = y;
-        va[v + 2] = va[v + 5] = z;
-        ta[v] = ta[v + 3] = this.side.x;
-        ta[v + 1] = ta[v + 4] = this.side.y;
-        ta[v + 2] = ta[v + 5] = this.side.z;
+        va[v] = va[v + 3] = this.tmp.x + cross.x * wave;
+        va[v + 1] = va[v + 4] = this.tmp.y + cross.y * wave - u * 0.015;
+        va[v + 2] = va[v + 5] = this.tmp.z + cross.z * wave;
+      }
+      for (let j = 0; j < VEIL; j++) {
+        const a = (i * VEIL + Math.max(0, j - 1)) * 6, b = (i * VEIL + Math.min(VEIL - 1, j + 1)) * 6, v = (i * VEIL + j) * 6;
+        let tx = va[b] - va[a], ty = va[b + 1] - va[a + 1], tz = va[b + 2] - va[a + 2];
+        if (tx * tx + ty * ty + tz * tz < 1e-8) (tx = 0), (ty = -1), (tz = 0);
+        ta[v] = ta[v + 3] = tx;
+        ta[v + 1] = ta[v + 4] = ty;
+        ta[v + 2] = ta[v + 5] = tz;
       }
     });
     hp.needsUpdate = true;

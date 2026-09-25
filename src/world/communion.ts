@@ -90,7 +90,7 @@ export class Communion {
         vertexShader: /* glsl */ `
           attribute vec3 aTan;attribute vec4 aInfo; // side (-1..1), u along (0..1), delay, kind
           attribute vec2 aStyle; // hue, width
-          uniform float uT,uPx;varying vec2 vUv;varying float vKind;varying float vDelay;varying vec2 vStyle;varying float vCam;varying float vThin;
+          uniform float uT,uPx;uniform vec3 uHeart;varying vec2 vUv;varying float vKind;varying float vDelay;varying vec2 vStyle;varying float vCam;varying float vThin;varying float vClear;
           void main(){
             vec3 side=normalize(cross(aTan,cameraPosition-position));
             // a soft brush: it swells gently in the middle and lifts off at both ends
@@ -102,10 +102,14 @@ export class Communion {
             vThin=w/max(w,wMin);
             vec3 p=position+side*aInfo.x*max(w,wMin);
             vUv=vec2(aInfo.x,aInfo.y);vKind=aInfo.w;vDelay=aInfo.z;vStyle=aStyle;
+            // a stroke that would pass between the camera and the wanderer fades there
+            vec3 ab=uHeart-cameraPosition;
+            float t=clamp(dot(position-cameraPosition,ab)/max(dot(ab,ab),1e-3),0.0,0.85);
+            vClear=smoothstep(0.5,1.8,distance(position,cameraPosition+ab*t));
             gl_Position=projectionMatrix*viewMatrix*vec4(p,1.0);
           }`,
         fragmentShader: /* glsl */ `
-          varying vec2 vUv;varying float vKind;varying float vDelay;varying vec2 vStyle;varying float vCam;varying float vThin;uniform float uT,uAge,uK;
+          varying vec2 vUv;varying float vKind;varying float vDelay;varying vec2 vStyle;varying float vCam;varying float vThin;varying float vClear;uniform float uT,uAge,uK;
           void main(){
             // each stroke is drawn out slowly from where it starts, with a soft front
             float grow=clamp((uAge-vDelay)/2.6,0.0,1.0)*1.15;
@@ -125,7 +129,7 @@ export class Communion {
             vec3 hue=0.5+0.5*cos(6.2832*(vStyle.x+vec3(0.0,0.33,0.67)));
             vec3 c=mix(mix(hue,vec3(0.95,0.93,1.0),0.6),vec3(1.0,0.86,0.62),smoothstep(0.3,0.9,atHeart));
             float a=body*front*melt*flow*vThin*0.5*uK;
-            a*=smoothstep(3.0,11.0,vCam); // never a stroke across the lens
+            a*=smoothstep(3.0,11.0,vCam)*vClear; // never a stroke across the lens, or across the wanderer
             gl_FragColor=vec4(c*a,1.0);
           }`,
       }),
