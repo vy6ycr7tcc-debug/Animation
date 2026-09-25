@@ -1,0 +1,125 @@
+/* Almost no UI. What little there is: pearl text, dim gold lines, dawn behind. */
+:root {
+  --night: #0b0a1c;
+  --pearl: #f4efe6;
+  --gold: #e2bf7e;
+  --dim: rgba(244, 239, 230, 0.72);
+  --panel: rgba(14, 12, 34, 0.84);
+  --line: rgba(226, 191, 126, 0.4);
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body {
+  margin: 0; height: 100%; overflow: hidden;
+  background: var(--night); color: var(--pearl); font-family: var(--serif);
+  -webkit-text-size-adjust: 100%;
+}
+canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+#surface {
+  position: fixed; inset: 0;
+  touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+button { font: inherit; color: var(--pearl); background: transparent; border: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button:focus-visible, input:focus-visible { outline: 1px solid var(--gold); outline-offset: 3px; }
+
+/* ---- opening ---- */
+#title {
+  position: fixed; left: 0; right: 0; top: 30%;
+  display: flex; flex-direction: column; align-items: center; gap: 1.4rem;
+  text-align: center; padding: 0 24px; pointer-events: none;
+  text-shadow: 0 0 24px rgba(60, 30, 50, 0.45);
+  transition: opacity 3s ease;
+}
+#title h1 small { display: block; font-size: 0.42em; letter-spacing: 0.5em; margin-bottom: 0.5em; opacity: 0.8; }
+#title h1 {
+  margin: 0; font-weight: 400; font-size: clamp(30px, 7vw, 56px);
+  letter-spacing: 0.22em; text-transform: uppercase; text-wrap: balance;
+  opacity: 0; animation: rise 4s 0.6s ease forwards;
+}
+#title p {
+  margin: 0; font-style: italic; font-size: clamp(16px, 2.6vw, 20px); color: var(--dim);
+  opacity: 0; animation: rise 3s 3.2s ease forwards, breathe 6s 6s ease-in-out infinite;
+}
+#title.gone { opacity: 0; }
+#begin { position: fixed; inset: 0; width: 100%; height: 100%; }
+#begin[hidden] { display: none; }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+/* ---- whispers and subtitles ---- */
+.whisper {
+  position: fixed; left: 0; right: 0; margin: 0 auto; padding: 0 24px; max-width: 34em;
+  text-align: center; font-style: italic; font-size: clamp(15px, 2.2vw, 18px); line-height: 1.5;
+  color: var(--pearl); text-shadow: 0 0 14px rgba(30, 20, 40, 0.7);
+  opacity: 0; transition: opacity 2s; pointer-events: none;
+}
+.whisper.on { opacity: 1; }
+#whisper { top: calc(18% + env(safe-area-inset-top, 0px)); }
+#sub { bottom: calc(124px + env(safe-area-inset-bottom, 0px)); font-style: normal; color: var(--pearl); }
+
+/* ---- touch controls ---- */
+#joy {
+  position: fixed; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%;
+  border: 1px solid rgba(244, 239, 230, 0.35); pointer-events: none;
+}
+#joy[hidden] { display: none; }
+#knob {
+  position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 240, 215, 0.55), rgba(255, 220, 180, 0));
+  transform: translate(-50%, -50%);
+}
+#act {
+  position: fixed; right: calc(22px + env(safe-area-inset-right, 0px)); bottom: calc(34px + env(safe-area-inset-bottom, 0px));
+  width: 72px; height: 72px; border-radius: 50%;
+  border: 1px solid rgba(244, 239, 230, 0.4);
+  display: grid; place-items: center; touch-action: none;
+}
+#act[hidden] { display: none; }
+#act span { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--pearl); box-shadow: 0 0 10px rgba(255, 230, 190, 0.8); }
+#act:active span { background: rgba(255, 240, 215, 0.6); }
+
+/* ---- settings ---- */
+#menu-btn {
+  position: fixed; top: calc(10px + env(safe-area-inset-top, 0px)); right: calc(10px + env(safe-area-inset-right, 0px));
+  width: 44px; height: 44px; display: grid; place-items: center; opacity: 0.7;
+}
+#menu-btn[hidden] { display: none; }
+#menu-btn span { width: 6px; height: 6px; border-radius: 50%; background: var(--pearl); box-shadow: 0 -10px 0 var(--pearl), 0 10px 0 var(--pearl); }
+#menu {
+  position: fixed; top: calc(60px + env(safe-area-inset-top, 0px)); right: calc(12px + env(safe-area-inset-right, 0px));
+  width: min(280px, calc(100% - 24px));
+  display: flex; flex-direction: column; gap: 12px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+#menu[hidden] { display: none; }
+#menu label { font-size: 15px; }
+#menu .check { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+#menu input[type="range"] { width: 100%; accent-color: var(--gold); min-height: 32px; }
+#menu input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--gold); }
+#leave { border: 1px solid var(--line); border-radius: 22px; min-height: 44px; padding: 8px 16px; color: var(--gold); }
+#menu .note { margin: 0; font-size: 13px; color: var(--dim); font-style: italic; }
+
+/* ---- rest (after Leave) ---- */
+#rest {
+  position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  background: rgba(8, 7, 20, 0.5); text-align: center; padding: 24px;
+}
+#rest[hidden] { display: none; }
+#rest p { margin: 0; font-size: clamp(20px, 4vw, 28px); letter-spacing: 0.04em; }
+#rest button { font-style: italic; color: var(--dim); min-height: 44px; padding: 10px 20px; }
+
+/* ---- frame readings (#stats) ---- */
+#stats {
+  position: fixed; left: calc(8px + env(safe-area-inset-left, 0px)); top: calc(8px + env(safe-area-inset-top, 0px));
+  max-width: calc(100% - 70px); background: rgba(10, 10, 20, 0.75); border-radius: 10px; padding: 6px 9px;
+}
+#stats[hidden] { display: none; }
+#stats pre { margin: 0; font: 10px/1.4 ui-monospace, "SF Mono", Menlo, monospace; white-space: pre-wrap; }
+
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) {
+  #title h1, #title p { animation: rise 0.01s forwards; }
+}

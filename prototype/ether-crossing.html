@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Ether Crossing</title>
+<style>
+/* ============ TOKENS ============
+   Palette drawn from the drawings: white/gold ink on night, cyan and blush from the digital pieces. */
+:root{
+  --night:#060a18; --deep:#0e1733; --pearl:#ece8dc; --gold:#c8a55a; --blush:#d6a2a6; --glass:#7fcfd0;
+  --ink-dim:rgba(236,232,220,.62);
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body{margin:0;background:var(--night);color:var(--pearl);font-family:var(--serif);overflow:hidden}
+body{height:100%}
+/* the ether behind everything: never pure black */
+#sky{position:fixed;inset:0;background:
+  radial-gradient(120% 80% at 50% 58%, #111c3d 0%, #0a1128 45%, var(--night) 100%);}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+#stage{position:fixed;inset:0;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;outline:none;cursor:default}
+#stage[role="button"]:focus-visible::after{content:"";position:absolute;left:50%;top:50%;width:150px;height:150px;margin:-75px 0 0 -75px;border-radius:50%;box-shadow:0 0 0 1px var(--gold)}
+/* one-line invitations */
+.whisper{position:fixed;left:0;right:0;text-align:center;margin:0;padding:0 24px;font-style:italic;font-size:clamp(15px,2.2vw,18px);letter-spacing:.02em;color:var(--ink-dim);opacity:0;transition:opacity 2.4s ease;pointer-events:none}
+.whisper.on{opacity:1}
+#invite{top:calc(50% + 96px)}
+#note{bottom:calc(128px + env(safe-area-inset-bottom,0px))}
+/* realm lights: real buttons, visually only a focus ring */
+.realm{position:fixed;width:88px;height:88px;margin:-44px 0 0 -44px;border-radius:50%;background:transparent;border:0;color:transparent;cursor:pointer;display:none;-webkit-tap-highlight-color:transparent}
+.realm:focus-visible{outline:1px solid var(--gold);outline-offset:-6px}
+.realm span{position:absolute;left:50%;top:78px;transform:translateX(-50%);color:var(--pearl);font-style:italic;font-size:15px;opacity:0;transition:opacity 1.6s;white-space:nowrap}
+.realm.named span{opacity:.8}
+/* quiet controls */
+#controls{position:fixed;left:0;right:0;bottom:calc(14px + env(safe-area-inset-bottom,0px));display:flex;justify-content:center;gap:4px;flex-wrap:wrap;padding:0 12px;opacity:.5;transition:opacity .8s}
+#controls:hover,#controls:focus-within{opacity:1}
+#controls button,#center-btn{font:inherit;font-size:14px;color:var(--pearl);background:transparent;border:0;border-radius:20px;padding:10px 14px;min-height:44px;cursor:pointer}
+#controls button:focus-visible,#center-btn:focus-visible{outline:1px solid var(--gold);outline-offset:1px}
+#controls button[aria-pressed="true"]{color:var(--gold)}
+#center-btn{position:fixed;left:50%;top:calc(50% + 70px);transform:translateX(-50%);display:none;font-style:italic;font-size:16px}
+#help{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(420px,calc(100% - 32px));background:rgba(9,15,34,.92);border:1px solid rgba(200,165,90,.35);border-radius:14px;padding:18px 20px;font-size:15px;line-height:1.55;color:var(--pearl)}
+#help[hidden]{display:none}
+#help p{margin:0 0 .6em}
+#help p:last-child{margin:0;color:var(--ink-dim)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+#fallback-msg{position:fixed;top:calc(18px + env(safe-area-inset-top,0px));left:0;right:0;text-align:center;font-size:13px;color:var(--ink-dim);font-style:italic}
+</style>
+</head>
+<body>
+<div id="sky" aria-hidden="true"></div>
+<canvas id="gl" aria-hidden="true"></canvas>
+<canvas id="ink" aria-hidden="true"></canvas>
+
+<div id="stage" tabindex="0" role="button" aria-describedby="help-text"
+     aria-label="Threshold. Press and hold, or hold the space bar, to open it."></div>
+
+<p id="invite" class="whisper" aria-hidden="true">Press and hold anywhere.</p>
+<p id="note" class="whisper" aria-hidden="true"></p>
+
+<button class="realm" data-realm="0" aria-label="Mind"><span>Mind</span></button>
+<button class="realm" data-realm="1" aria-label="Body"><span>Body</span></button>
+<button class="realm" data-realm="2" aria-label="Spirit"><span>Spirit</span></button>
+<button id="center-btn" type="button">Begin again</button>
+
+<nav id="controls" aria-label="Controls">
+  <button id="btn-sound" type="button" aria-pressed="false">Sound off</button>
+  <button id="btn-motion" type="button" aria-pressed="false">Reduce motion</button>
+  <button id="btn-return" type="button" hidden>Return</button>
+  <button id="btn-reset" type="button">Begin again</button>
+  <button id="btn-help" type="button" aria-expanded="false" aria-controls="help">Help</button>
+</nav>
+
+<div id="help" hidden>
+  <p id="help-text">Press and hold anywhere, or hold the space bar, to open the threshold. Staying still also opens it, slowly.</p>
+  <p>Moving less lets the crossing slow and clear. In the open space, rest near a light to hear it, and tap or press Enter to draw its path. Arrow keys move between lights.</p>
+  <p>Stillness shows things that motion hides. Nothing here is scored or saved.</p>
+</div>
+<div id="live" class="sr" aria-live="polite"></div>
+
+<script>
+"use strict";
+/* =====================================================================
+   ETHER CROSSING — piece 1 of the Inward Journey series
+   Sections: CONFIG · STATE · UTIL · SCENE (WebGL) · GEOMETRY · INK (2D)
+             AUDIO · INTERACTION · ACCESSIBILITY · RESIZE/VISIBILITY · LOOP
+   Engine note: raw WebGL1 (no Three.js) so the file is fully offline.
+   ===================================================================== */
+
+/* ============ CONFIG ============ */
+const MOBILE = matchMedia("(pointer:coarse)").matches || Math.min(screen.width,screen.height) < 700;
+const LOW = MOBILE && (navigator.hardwareConcurrency||4) <= 4;
+const CFG = {
+  rings: LOW ? 44 : MOBILE ? 56 : 72,   // glyph rings along the tunnel
+  spacing: 5,                           // units between rings
+  particles: LOW ? 500 : MOBILE ? 900 : 1600,
+  dprCap: MOBILE ? 1.5 : 2,
+  holdSeconds: 3.2,                     // press-and-hold to open
+  stillOpenAfter: 28,                   // seconds of no input before stillness opens it
+  stillMandalaAfter: 7,                 // seconds of stillness in the ether before the 21 stations gather
+  fogNear: 8, fogFarStill: 120, fogFarMoving: 55  // stillness = clarity: fog recedes as you settle
+};
+const TUNNEL_LEN = CFG.rings * CFG.spacing;
+const END = TUNNEL_LEN + 30;            // camera rests in open ether past the tunnel
+const C = { pearl:[.93,.91,.86], gold:[.78,.65,.36], glass:[.5,.81,.82], blush:[.84,.64,.65] };
+
+/* ============ STATE ============ */
+const S = {
+  stage:"arrival", t:0, chosenT:0, dprScale:1, hold:0, holding:false, idle:0, everInput:false,
+  travel:0, speed:0, agit:0, look:[0,0], lookT:[0,0], ptr:null, lastPtr:null,
+  fade:0, open:0, etherT:0, still:0, dwell:[0,0,0], chosen:-1, focusRealm:-1,
+  retT:0, reduced: matchMedia("(prefers-reduced-motion: reduce)").matches,
+  stepT:0, stepFade:1, hidden:false, noteTimer:0, warnedMove:false, dpr:1, slowFrames:0
+};
+
+/* ============ UTIL ============ */
+const $ = s => document.querySelector(s);
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x)), lerp=(a,b,t)=>a+(b-a)*t;
+const smooth=(a,b,x)=>{x=clamp((x-a)/(b-a),0,1);return x*x*(3-2*x)};
+function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function say(msg){const l=$("#live");l.textContent="";setTimeout(()=>l.textContent=msg,60)}
+function whisper(el,text,on=true){if(text!=null)el.textContent=text;el.classList.toggle("on",on)}
+
+/* ============ SCENE (WebGL) ============ */
+const glCanvas=$("#gl"), inkCanvas=$("#ink"), ink=inkCanvas.getContext("2d");
+let gl=null, lineProg, ptProg, lineBuf, lineCount=0, ptBuf, ptCount=0, proj=new Float32Array(16);
+try{ gl = glCanvas.getContext("webgl",{alpha:true,antialias:true,premultipliedAlpha:true,powerPreference:"low-power"}); }catch(e){ gl=null; }
+
+const VS_LINE=`attribute vec3 aPos;attribute vec4 aCol;uniform mat4 uP;uniform float uCam,uT,uFar,uNear,uFade,uBreath;uniform vec2 uLook;varying vec4 vC;
+void main(){vec3 p=aPos;float s=aCol.a;
+ p.xy*=1.0+0.03*uBreath*sin(uT*0.55+s*6.283);            /* the tunnel breathes */
+ p.xy+=uBreath*0.07*vec2(sin(uT*0.31+s*11.0),cos(uT*0.27+s*7.0));
+ vec3 v=vec3(p.x-uLook.x,p.y-uLook.y,p.z+uCam);float d=-v.z;
+ gl_Position=uP*vec4(v,1.0);
+ float fog=1.0-smoothstep(uNear,uFar,d);float nearF=smoothstep(0.6,7.0,d);
+ vC=vec4(aCol.rgb,fog*nearF*uFade);}`;
+const FS_LINE=`precision mediump float;varying vec4 vC;void main(){gl_FragColor=vec4(vC.rgb*vC.a,vC.a);}`;
+const VS_PT=`attribute vec4 aP;uniform mat4 uP;uniform float uCam,uT,uFade,uDpr,uFar;uniform vec2 uLook;varying float vA;varying float vK;
+void main(){float travel=uCam;float d=mod(aP.z-travel*0.85+uT*0.4,140.0)+0.5;  /* particles recycle around the viewer */
+ vec3 p=vec3(aP.x+sin(uT*0.2+aP.w*9.0)*0.6-uLook.x*0.5,aP.y+cos(uT*0.17+aP.w*5.0)*0.6-uLook.y*0.5,-d);
+ gl_Position=uP*vec4(p,1.0);gl_PointSize=clamp((1.2+aP.w*2.2)*uDpr*18.0/d,1.0,6.0*uDpr);
+ vA=(1.0-smoothstep(20.0,uFar+20.0,d))*smoothstep(0.5,4.0,d)*uFade*(0.35+0.65*aP.w);vK=aP.w;}`;
+const FS_PT=`precision mediump float;varying float vA;varying float vK;void main(){vec2 c=gl_PointCoord-0.5;float r=length(c);float a=smoothstep(0.5,0.0,r)*vA;
+ vec3 col=mix(vec3(0.93,0.91,0.86),vec3(0.78,0.65,0.36),step(0.82,vK));gl_FragColor=vec4(col*a,a);}`;
+
+function compile(vs,fs){const p=gl.createProgram();for(const[t,src]of[[gl.VERTEX_SHADER,vs],[gl.FRAGMENT_SHADER,fs]]){const s=gl.createShader(t);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));gl.attachShader(p,s);}gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(p));
+  p.u={};const n=gl.getProgramParameter(p,gl.ACTIVE_UNIFORMS);for(let i=0;i<n;i++){const u=gl.getActiveUniform(p,i);p.u[u.name]=gl.getUniformLocation(p,u.name);}return p;}
+function perspective(fov,asp,n,f){const t=1/Math.tan(fov/2),nf=1/(n-f);proj.set([t/asp,0,0,0,0,t,0,0,0,0,(f+n)*nf,-1,0,0,2*f*n*nf,0]);}
+
+/* ============ GEOMETRY ============
+   Everything is a hand-drawn polyline: jitter uses slow, seeded wobble so lines
+   look inked rather than noisy. Motifs come from the drawings: circles with a
+   centre dot, spirals, faceted triangles, ECG/mountain zigzags, looping "script"
+   that reads as writing without being words, rays, and long filaments. */
+function buildTunnel(){
+  const R=rng(7), V=[];
+  const col=()=>{const r=R();return r<.72?C.pearl:r<.9?C.gold:r<.96?C.glass:C.blush};
+  function poly(pts,c,bright){const s=R();const a=R()*6.28,f=2+R()*3,amp=bright.j||0;
+    for(let i=0;i<pts.length-1;i++){for(const k of[i,i+1]){const p=pts[k];const w=amp*(Math.sin(k*.35*f+a)+.5*Math.sin(k*1.3+a*2));
+      V.push(p[0]+w,p[1]-w*.6,p[2],c[0]*bright.b,c[1]*bright.b,c[2]*bright.b,s);}}}
+  const onRing=(r,th,z)=>[r*Math.cos(th),r*Math.sin(th),z];
+  for(let i=0;i<CFG.rings;i++){
+    const z=-(i+2)*CFG.spacing, prog=i/CFG.rings;
+    const opening=smooth(.72,1,prog);                  // the tunnel widens and thins into ether
+    const Rr=lerp(6.5,7.5+R()*1.5,R())+opening*14;
+    const dens=1-opening*.75, b=.55*(1-opening*.4);
+    // ring arcs: the tunnel's wall is never complete
+    for(let a=0;a<1+(R()<.5);a++){const th0=R()*6.28,span=.6+R()*2.2,pts=[];for(let k=0;k<=40;k++)pts.push(onRing(Rr,th0+span*k/40,z));poly(pts,col(),{b:b*.8,j:.05});}
+    const n=Math.round((3+R()*4)*dens);
+    for(let e=0;e<n;e++){
+      const th=R()*6.28, c=col(), [cx,cy]=onRing(Rr*(.8+R()*.35),th,z), s=.35+R()*1.1, type=R();
+      if(type<.2){ // circle with centre dot and line (the Sun-card motif)
+        const pts=[];for(let k=0;k<=36;k++){const q=k/36*6.283;pts.push([cx+s*Math.cos(q),cy+s*Math.sin(q),z]);}poly(pts,c,{b,j:.03});
+        const d=[];for(let k=0;k<=8;k++){const q=k/8*6.283;d.push([cx+.07*Math.cos(q),cy+.07*Math.sin(q),z]);}poly(d,c,{b,j:0});
+        poly([[cx,cy,z],[cx,cy+s*1.4,z]],c,{b,j:0});
+      } else if(type<.38){ // spiral
+        const pts=[],turns=2+R()*2;for(let k=0;k<=60;k++){const q=k/60*turns*6.283,r=s*k/60;pts.push([cx+r*Math.cos(q),cy+r*Math.sin(q),z]);}poly(pts,c,{b,j:.02});
+      } else if(type<.54){ // faceted triangle, tilted into depth
+        const rot=R()*6.28,tilt=(R()-.5)*3,p=[0,1,2,0].map(k=>{const q=rot+k*2.094;return[cx+s*1.6*Math.cos(q),cy+s*1.6*Math.sin(q),z+tilt*Math.sin(q)]});
+        poly(p,c,{b,j:.02}); const m=[(p[0][0]+p[1][0])/2,(p[0][1]+p[1][1])/2,(p[0][2]+p[1][2])/2]; poly([p[2],m],c,{b:b*.7,j:0});
+      } else if(type<.7){ // zigzag heartbeat along the wall
+        const pts=[],span=.5+R()*.7;for(let k=0;k<=24;k++){const q=th+span*k/24,h=(k%2?1:-1)*(.2+R()*.5)*(k>8&&k<16?1.6:.6);pts.push(onRing(Rr+h,q,z));}poly(pts,c,{b,j:0});
+      } else if(type<.86){ // looping script: writing that becomes architecture
+        const pts=[],span=.7+R()*1.2,loops=7+R()*8;for(let k=0;k<=110;k++){const u=k/110,q=th+span*u,l=u*loops*6.283;
+          pts.push(onRing(Rr+.22*Math.sin(l)+.05*Math.sin(l*3.1),q+.018*Math.cos(l),z-.12*Math.cos(l)));}poly(pts,C.pearl,{b:b*.75,j:.01});
+      } else { // rays toward the centre
+        for(let k=0;k<5;k++){const q=th+(k-2)*.05;poly([onRing(Rr*.97,q,z),onRing(Rr*(.8-R()*.1),q,z)],c,{b:b*.8,j:0});}
+      }
+    }
+    // longitudinal filaments stitch rings together
+    if(R()<.55*dens){const th=R()*6.28,len=2+Math.floor(R()*4),pts=[];for(let k=0;k<=30;k++){const u=k/30;pts.push(onRing(Rr+Math.sin(u*3)*.6,th+u*.5,z-u*len*CFG.spacing));}poly(pts,col(),{b:b*.6,j:.04});}
+  }
+  // distant sparse field seen from the open ether
+  for(let k=0;k<26;k++){const x=(R()-.5)*160,y=(R()-.5)*110,z=-(END+40+R()*120),s=2+R()*6,pts=[];
+    for(let q=0;q<=40;q++){const a=q/40*6.283;pts.push([x+s*Math.cos(a),y+s*Math.sin(a),z]);}poly(pts,col(),{b:.28,j:.2});}
+  lineCount=V.length/7; lineBuf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,lineBuf); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(V),gl.STATIC_DRAW);
+}
+function buildParticles(){const R=rng(11),P=[];for(let i=0;i<CFG.particles;i++){const a=R()*6.283,r=2+Math.pow(R(),.6)*16;P.push(r*Math.cos(a),r*Math.sin(a),R()*140,R());}
+  ptCount=CFG.particles; ptBuf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,ptBuf); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(P),gl.STATIC_DRAW);}
+
+function initGL(){
+  lineProg=compile(VS_LINE,FS_LINE); ptProg=compile(VS_PT,FS_PT); buildTunnel(); buildParticles();
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE,gl.ONE); gl.disable(gl.DEPTH_TEST);
+  glCanvas.addEventListener("webglcontextlost",e=>{e.preventDefault();gl=null;showFallback();});
+}
+function drawGL(){
+  gl.viewport(0,0,glCanvas.width,glCanvas.height); gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
+  const far=lerp(CFG.fogFarMoving,CFG.fogFarStill,1-S.agit)*(S.stage==="ether"||S.stage==="returning"?2.2:1);
+  const breath=S.reduced?.25:1;
+  gl.useProgram(lineProg); const u=lineProg.u;
+  gl.uniformMatrix4fv(u.uP,false,proj); gl.uniform1f(u.uCam,S.travel); gl.uniform1f(u.uT,S.t); gl.uniform1f(u.uFar,far);
+  gl.uniform1f(u.uNear,CFG.fogNear); gl.uniform1f(u.uFade,S.fade*S.stepFade); gl.uniform1f(u.uBreath,breath); gl.uniform2f(u.uLook,S.look[0],S.look[1]);
+  gl.bindBuffer(gl.ARRAY_BUFFER,lineBuf); const lp=gl.getAttribLocation(lineProg,"aPos"),lc=gl.getAttribLocation(lineProg,"aCol");
+  gl.enableVertexAttribArray(lp);gl.enableVertexAttribArray(lc);gl.vertexAttribPointer(lp,3,gl.FLOAT,false,28,0);gl.vertexAttribPointer(lc,4,gl.FLOAT,false,28,12);
+  gl.drawArrays(gl.LINES,0,lineCount); gl.disableVertexAttribArray(lc);
+  gl.useProgram(ptProg); const v=ptProg.u;
+  gl.uniformMatrix4fv(v.uP,false,proj); gl.uniform1f(v.uCam,S.travel); gl.uniform1f(v.uT,S.reduced?S.t*.3:S.t); gl.uniform1f(v.uFade,Math.max(S.fade,.25)*S.stepFade);
+  gl.uniform1f(v.uDpr,S.dpr); gl.uniform1f(v.uFar,far); gl.uniform2f(v.uLook,S.look[0],S.look[1]);
+  gl.bindBuffer(gl.ARRAY_BUFFER,ptBuf); const pp=gl.getAttribLocation(ptProg,"aP"); gl.enableVertexAttribArray(pp); gl.vertexAttribPointer(pp,4,gl.FLOAT,false,16,0);
+  gl.drawArrays(gl.POINTS,0,ptCount);
+}
+
+/* ============ INK (2D overlay) ============
+   Crisp hand-drawn marks in screen space: the series glyph, the hold ring,
+   the realm lights, and the 21-station mandala that only gathers in stillness. */
+let W=0,H=0;
+function inkLine(pts,seed,amp,alpha,color,width=1){
+  const r=rng(seed+Math.floor(S.reduced?0:S.t*2.5)); // gentle line-boil, frozen in reduced motion
+  ink.beginPath();pts.forEach((p,i)=>{const jx=(r()-.5)*amp,jy=(r()-.5)*amp;i?ink.lineTo(p[0]+jx,p[1]+jy):ink.moveTo(p[0]+jx,p[1]+jy)});
+  ink.strokeStyle=`rgba(${color},${alpha})`;ink.lineWidth=width;ink.stroke();}
+function circlePts(x,y,r,from=0,to=1,n=64){const p=[];for(let k=0;k<=n;k++){const a=-Math.PI/2+6.2832*(from+(to-from)*k/n);p.push([x+r*Math.cos(a),y+r*Math.sin(a)])}return p;}
+const PEARL="236,232,220", GOLD="200,165,90", BLUSH="214,162,166", GLASS="127,207,208";
+
+/* The recurring series glyph: a circle, its centre point, one vertical line
+   rising through it (echo of the Sun card), a spiral tail, three rays. */
+function glyph(x,y,r,a,prog=1){
+  if(a<=0)return;
+  inkLine(circlePts(x,y,r,0,prog),3,1.2,a*.85,PEARL);
+  if(prog>.3){inkLine([[x,y+r*.15],[x,y-r*1.45]],5,.8,a*.8*smooth(.3,.6,prog),PEARL);}
+  if(prog>.55){const sp=[];for(let k=0;k<=40;k++){const q=k/40*9.4,rr=r*.28*(1-k/40);sp.push([x+r*.72+rr*Math.cos(q),y+r*.72+rr*Math.sin(q)])}inkLine(sp,9,.6,a*.6*smooth(.55,.85,prog),GOLD);}
+  if(prog>.8){for(let k=-1;k<=1;k++){const q=-Math.PI/2+k*.32;inkLine([[x+r*1.18*Math.cos(q),y+r*1.18*Math.sin(q)],[x+r*1.38*Math.cos(q),y+r*1.38*Math.sin(q)]],13+k,.5,a*.6*smooth(.8,1,prog),GOLD)}}
+}
+function point(x,y,r,a,rgb=PEARL){const g=ink.createRadialGradient(x,y,0,x,y,r*7);g.addColorStop(0,`rgba(${rgb},${a})`);g.addColorStop(.18,`rgba(${rgb},${a*.35})`);g.addColorStop(1,`rgba(${rgb},0)`);ink.fillStyle=g;ink.beginPath();ink.arc(x,y,r*7,0,6.2832);ink.fill();}
+
+/* Realm lights in the open ether. Positions adapt to portrait/landscape. */
+const REALMS=[{name:"Mind",rgb:GLASS},{name:"Body",rgb:GOLD},{name:"Spirit",rgb:BLUSH}];
+function realmPos(i){const portrait=H>W, t=S.t*(S.reduced?.02:.07);
+  const base=portrait?[[.27,.3],[.62,.66],[.74,.24]]:[[.22,.38],[.52,.72],[.8,.3]];
+  return [W*base[i][0]+Math.sin(t+i*2)*W*.012, H*base[i][1]+Math.cos(t*1.1+i)*H*.012];}
+
+/* 21 stations: three rings (Mind, Body, Spirit) of seven functions (Matrix → Great Way).
+   Unlabelled on purpose — structure felt, not explained. */
+function mandala(x,y,R,a){
+  if(a<=0.005)return;
+  const rings=[[R*.46,GLASS],[R*.73,GOLD],[R,BLUSH]];
+  rings.forEach(([r,rgb],ri)=>{inkLine(circlePts(x,y,r,0,1,90),40+ri,1,a*.22,rgb);
+    for(let k=0;k<7;k++){const idx=ri*7+k, show=smooth(idx/21,idx/21+.12,a*1.15); if(show<=0)continue;
+      const q=-Math.PI/2+k*6.2832/7+ri*.22, nx=x+r*Math.cos(q), ny=y+r*Math.sin(q);
+      inkLine(circlePts(nx,ny,3.5+ri,0,1,18),60+idx,.4,a*show*.8,rgb);
+      if(ri<2){const r2=rings[ri+1][0],q2=-Math.PI/2+k*6.2832/7+(ri+1)*.22;inkLine([[nx,ny],[x+r2*Math.cos(q2),y+r2*Math.sin(q2)]],90+idx,.6,a*show*.18,PEARL);}}});
+}
+
+function drawInk(){
+  ink.setTransform(S.dpr,0,0,S.dpr,0,0); ink.clearRect(0,0,W,H); ink.lineCap="round"; ink.lineJoin="round";
+  const cx=W/2, cy=H/2, br=S.reduced?.5+.5*Math.sin(S.t*.9):.5+.5*Math.sin(S.t*1.05); // ~6 breaths/min
+  if(S.stage==="arrival"){
+    point(cx,cy,2.2+br*1.4,.55+br*.35);
+    glyph(cx,cy,34,.18+.5*S.hold,1);
+    if(S.hold>0){inkLine(circlePts(cx,cy,64,0,S.hold,90),21,1.4,.35+.5*S.hold,GOLD,1.2);}   // the threshold draws itself as you hold
+  }
+  if(S.stage==="crossing"){
+    const k=smooth(0,6,S.travel); // pass through the sigil: it grows past you and dissolves
+    const g=S.reduced?1:1+k*14; glyph(cx,cy,34*g,(1-k)*.7,1); point(cx,cy,3,(1-k)*.8);
+  }
+  if(S.stage==="ether"||S.stage==="returning"){
+    const e=smooth(0,5,S.etherT)*(S.stage==="returning"?1-smooth(0,4,S.retT):1);
+    const R=Math.min(W,H)*.3;
+    mandala(cx,cy,R,S.still*e);
+    point(cx,cy,2.2+br,.4*e+.3);
+    REALMS.forEach((rm,i)=>{let [x,y]=realmPos(i); if(S.stage==="returning"){const k=smooth(0,3.5,S.retT);x=lerp(x,cx,k);y=lerp(y,cy,k);}
+      const d=S.dwell[i], ch=S.chosen===i, dim=S.chosen>=0&&!ch?.75:1;
+      point(x,y,2.6+d*1.6+(ch?1.2:0),(.55+.4*d+(ch?.25:0))*e*dim,rm.rgb);
+      if(d>.2) inkLine(circlePts(x,y,14+d*6,0,d,40),200+i,.8,d*.45*e,rm.rgb);
+      if(ch){const k=smooth(0,2.5,S.chosenT);inkLine([[cx,cy],[lerp(cx,x,k),lerp(cy,y,k)]],300+i,1.4,.45*e,rm.rgb);} // its path begins to draw
+      const b=REALM_BTNS[i]; b.style.left=x+"px"; b.style.top=y+"px";});
+  }
+  if(S.stage==="rest"){ point(cx,cy,2+br*1.2,.35+br*.25); }
+}
+
+/* ============ AUDIO ============
+   Sparse synthesis only. Root A; each realm transforms the interval:
+   Mind = fourth (airy sines), Body = fifth, low and pulsing, Spirit = octave shimmer. */
+const AU={ctx:null,master:null,filter:null,wet:null,muted:false,on:false,holdOsc:null,nextBell:4};
+function audioStart(){
+  if(AU.ctx){ if(AU.ctx.state==="suspended")AU.ctx.resume(); return; }
+  const AC=window.AudioContext||window.webkitAudioContext; if(!AC){$("#btn-sound").disabled=true;$("#btn-sound").textContent="Sound unavailable";return;}
+  const c=AU.ctx=new AC(); AU.master=c.createGain(); AU.master.gain.value=0;
+  AU.filter=c.createBiquadFilter(); AU.filter.type="lowpass"; AU.filter.frequency.value=420; AU.filter.Q.value=.3;
+  const conv=c.createConvolver(), len=c.sampleRate*4.5, ir=c.createBuffer(2,len,c.sampleRate);   // procedural reverb
+  for(let ch=0;ch<2;ch++){const d=ir.getChannelData(ch);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3.2);}
+  conv.buffer=ir; AU.wet=c.createGain(); AU.wet.gain.value=.55;
+  AU.filter.connect(AU.master); AU.filter.connect(conv); conv.connect(AU.wet); AU.wet.connect(AU.master); AU.master.connect(c.destination);
+  [[55,"sine",.2],[110,"triangle",.045],[164.81,"sine",.05],[220.5,"sine",.02]].forEach(([f,type,g],i)=>{   // the drone
+    const o=c.createOscillator(),gn=c.createGain(),l=c.createOscillator(),lg=c.createGain();
+    o.type=type;o.frequency.value=f;gn.gain.value=g;l.frequency.value=.05+i*.023;lg.gain.value=g*.6;l.connect(lg);lg.connect(gn.gain);
+    o.connect(gn);gn.connect(AU.filter);o.start();l.start();});
+  AU.on=true; setMute(false);
+}
+function setMute(m){AU.muted=m; const b=$("#btn-sound"); b.textContent=m||!AU.on?"Sound off":"Sound on"; b.setAttribute("aria-pressed",String(!m&&AU.on));
+  if(AU.ctx){const g=AU.master.gain,t=AU.ctx.currentTime;g.cancelScheduledValues(t);g.setValueAtTime(g.value,t);g.linearRampToValueAtTime(m?0:.5,t+(m?.6:4));}}
+function bell(f,g=.05,dur=6,type="sine",pulse=0){ if(!AU.on||AU.muted||!AU.ctx)return; const c=AU.ctx,t=c.currentTime,o=c.createOscillator(),gn=c.createGain();
+  o.type=type;o.frequency.value=f;gn.gain.setValueAtTime(0,t);gn.gain.linearRampToValueAtTime(g,t+.9);gn.gain.exponentialRampToValueAtTime(.0001,t+dur);
+  if(pulse){const l=c.createOscillator(),lg=c.createGain();l.frequency.value=pulse;lg.gain.value=g*.7;l.connect(lg);lg.connect(gn.gain);l.start(t);l.stop(t+dur);}
+  o.connect(gn);gn.connect(AU.filter);o.start(t);o.stop(t+dur+.1);}
+function holdTone(on){ if(!AU.on||!AU.ctx)return; const c=AU.ctx,t=c.currentTime;
+  if(on&&!AU.holdOsc){const o=c.createOscillator(),g=c.createGain();o.frequency.value=220;g.gain.value=0;g.gain.linearRampToValueAtTime(.04,t+1.2);o.frequency.linearRampToValueAtTime(247,t+CFG.holdSeconds);o.connect(g);g.connect(AU.filter);o.start();AU.holdOsc={o,g};}
+  if(!on&&AU.holdOsc){const{o,g}=AU.holdOsc;g.gain.cancelScheduledValues(t);g.gain.setValueAtTime(g.gain.value,t);g.gain.linearRampToValueAtTime(0,t+1.5);o.stop(t+1.6);AU.holdOsc=null;}}
+function realmTone(i,strong){const k=strong?1.6:1;
+  if(i===0){bell(293.66,.03*k,7);bell(440,.02*k,8);}                // Mind: A–D, a fourth
+  if(i===1){bell(110,.06*k,7,"triangle",1.05);bell(164.81,.035*k,7,"triangle");} // Body: fifth, heartbeat-slow pulse
+  if(i===2){bell(880,.014*k,10);bell(882.2,.012*k,10);bell(659.25,.012*k,9);}     // Spirit: high octave, gently beating
+}
+function audioTick(dt){ if(!AU.on||!AU.ctx)return;
+  const target=S.stage==="crossing"?420+1300*(1-S.agit)*smooth(0,40,S.travel):S.stage==="ether"?900:S.stage==="rest"?300:420;
+  AU.filter.frequency.setTargetAtTime(target,AU.ctx.currentTime,2);
+  if(S.stage==="crossing"||S.stage==="ether"){AU.nextBell-=dt;if(AU.nextBell<=0){const pent=[220,246.94,277.18,329.63,369.99,440];bell(pent[Math.floor(Math.random()*pent.length)],.018,7);AU.nextBell=7+Math.random()*7;}}
+}
+
+/* ============ INTERACTION ============ */
+const stage=$("#stage"), invite=$("#invite"), note=$("#note"), REALM_BTNS=[...document.querySelectorAll(".realm")];
+function touched(){S.idle=0;S.everInput=true;}
+function holdStart(){ touched(); if(S.stage!=="arrival")return; S.holding=true; audioStart(); holdTone(true); whisper(invite,null,false); }
+function holdEnd(){ S.holding=false; holdTone(false); }
+stage.addEventListener("pointerdown",e=>{ if(e.button>0)return; stage.setPointerCapture?.(e.pointerId); holdStart(); });
+["pointerup","pointercancel","lostpointercapture"].forEach(ev=>stage.addEventListener(ev,holdEnd));
+addEventListener("pointermove",e=>{ touched(); const p=[e.clientX,e.clientY];
+  if(S.lastPtr){const dx=p[0]-S.lastPtr[0],dy=p[1]-S.lastPtr[1];S.agit=clamp(S.agit+Math.hypot(dx,dy)/Math.min(W,H)*.9,0,1);} S.lastPtr=p; S.ptr=p;
+  S.lookT=[(p[0]/W-.5)*1.4,-(p[1]/H-.5)*1.4]; });
+stage.addEventListener("keydown",e=>{ if((e.key===" "||e.key==="Enter")&&!e.repeat){e.preventDefault();holdStart();} });
+addEventListener("keyup",e=>{ if(e.key===" "||e.key==="Enter")holdEnd(); });
+addEventListener("keydown",e=>{ touched();
+  if(S.stage==="arrival"&&e.key===" "&&document.activeElement===document.body&&!e.repeat){e.preventDefault();holdStart();}
+  if(S.stage!=="ether")return;
+  if(e.key==="ArrowRight"||e.key==="ArrowLeft"){e.preventDefault();S.focusRealm=S.focusRealm<0?0:(S.focusRealm+(e.key==="ArrowRight"?1:2))%3;REALM_BTNS[S.focusRealm].focus();} });
+REALM_BTNS.forEach((b,i)=>{
+  b.addEventListener("click",()=>choose(i));
+  b.addEventListener("focus",()=>{S.focusRealm=i;});
+});
+function choose(i){ touched(); audioStart(); if(S.stage!=="ether")return; S.dwell[i]=1; REALM_BTNS[i].classList.add("named"); S.chosen=i; S.chosenT=0; realmTone(i,true);
+  whisper(note,"This path is still being drawn.",true); say(`${REALMS[i].name}. Its path is still being drawn. Stay, or choose Return when you are ready.`);
+  clearTimeout(S.noteTimer); S.noteTimer=setTimeout(()=>whisper(note,null,false),7000); }
+
+function toCrossing(){ S.stage="crossing"; S.holding=false; holdTone(false); bell(220,.05,9); bell(329.63,.03,9); bell(440,.02,10);
+  stage.removeAttribute("role"); stage.setAttribute("aria-label","The crossing"); stage.tabIndex=-1;
+  say("The threshold opens. The crossing slows as you settle."); }
+function toEther(){ S.stage="ether"; S.etherT=0; S.speed=0; REALM_BTNS.forEach(b=>b.style.display="block"); $("#btn-return").hidden=false; $("#btn-reset").hidden=true;
+  setTimeout(()=>{ if(S.stage==="ether"&&S.dwell.every(d=>d<.3))whisper(note,MOBILE?"Touch a light.":"Rest near a light.",true); },4000);
+  say("Open ether. Three lights: Mind, Body, Spirit. Rest near one to hear it; arrow keys move between them."); }
+function toReturn(){ if(S.stage!=="ether")return; S.stage="returning"; S.retT=0; whisper(note,null,false); REALM_BTNS.forEach(b=>b.style.display="none"); $("#btn-return").hidden=true; $("#btn-reset").hidden=false;
+  if(AU.on){bell(220,.035,10);} say("Returning to stillness."); }
+function toRest(){ S.stage="rest"; const b=$("#center-btn"); b.style.display="block"; b.focus({preventScroll:true}); say("Stillness. Begin again when you wish."); }
+function reset(){ Object.assign(S,{stage:"arrival",hold:0,holding:false,idle:0,travel:0,speed:0,fade:0,etherT:0,still:0,dwell:[0,0,0],chosen:-1,focusRealm:-1,retT:0,stepT:0,stepFade:1,warnedMove:false});
+  REALM_BTNS.forEach(b=>{b.style.display="none";b.classList.remove("named")}); $("#btn-return").hidden=true; $("#btn-reset").hidden=false; $("#center-btn").style.display="none";
+  whisper(note,null,false); whisper(invite,"Press and hold anywhere.",true);
+  stage.setAttribute("role","button"); stage.tabIndex=0; stage.setAttribute("aria-label","Threshold. Press and hold, or hold the space bar, to open it."); stage.focus({preventScroll:true}); say("The threshold. Press and hold to open it."); }
+
+$("#btn-sound").addEventListener("click",()=>{ if(!AU.on){audioStart();} else setMute(!AU.muted); });
+$("#btn-motion").addEventListener("click",()=>setReduced(!S.reduced));
+$("#btn-return").addEventListener("click",toReturn);
+$("#btn-reset").addEventListener("click",reset);
+$("#center-btn").addEventListener("click",reset);
+$("#btn-help").addEventListener("click",()=>{const h=$("#help"),open=h.hidden;h.hidden=!open;$("#btn-help").setAttribute("aria-expanded",String(open));});
+function setReduced(v){ S.reduced=v; const b=$("#btn-motion"); b.setAttribute("aria-pressed",String(v)); b.textContent=v?"Motion reduced":"Reduce motion"; S.stepFade=1; }
+
+/* ============ ACCESSIBILITY / FALLBACK ============ */
+function showFallback(){ const m=document.createElement("p"); m.id="fallback-msg"; m.textContent="A simpler version is showing because 3D graphics are unavailable on this device."; document.body.appendChild(m); }
+
+/* ============ RESIZE / VISIBILITY ============ */
+function resize(){ W=innerWidth; H=innerHeight; const d=Math.min(devicePixelRatio||1,CFG.dprCap)*(S.dprScale||1); S.dpr=d;
+  for(const c of[glCanvas,inkCanvas]){c.width=Math.round(W*d);c.height=Math.round(H*d);}
+  perspective((H>W?72:60)*Math.PI/180,W/H,.1,500); }
+addEventListener("resize",resize); addEventListener("orientationchange",()=>setTimeout(resize,200));
+document.addEventListener("visibilitychange",()=>{ S.hidden=document.hidden;
+  if(AU.ctx){document.hidden?AU.ctx.suspend():AU.ctx.resume();}
+  if(!document.hidden){last=performance.now();requestAnimationFrame(loop);} });
+matchMedia("(prefers-reduced-motion: reduce)").addEventListener?.("change",e=>setReduced(e.matches));
+
+/* ============ LOOP ============ */
+let last=performance.now();
+function update(dt){
+  S.t+=dt; S.idle+=dt;
+  S.agit=Math.max(0,S.agit-dt*.45);                        // attention settles on its own
+  const lk=S.reduced?0:1; S.look[0]=lerp(S.look[0],S.lookT[0]*lk,dt*.8); S.look[1]=lerp(S.look[1],S.lookT[1]*lk,dt*.8);
+  if(S.stage==="arrival"){
+    S.fade=lerp(S.fade,.07,dt*.5);                          // the tunnel is only a hint in the dark
+    if(S.holding) S.hold=Math.min(1,S.hold+dt/CFG.holdSeconds);
+    else if(S.idle>CFG.stillOpenAfter) S.hold=Math.min(1,S.hold+dt/12);   // patient stillness opens it too
+    else S.hold=Math.max(0,S.hold-dt/2.2);
+    if(S.idle>12&&S.hold<.05&&!S.holding) whisper(invite,"Or stay, and let it open.",true);
+    if(S.hold>=1) toCrossing();
+  } else if(S.stage==="crossing"){
+    S.fade=lerp(S.fade,1,dt*.4);
+    if(S.reduced){ // no continuous travel: the view changes in slow fades
+      S.stepT+=dt; const P=6; const ph=S.stepT%P;
+      S.stepFade=ph<P-1.4?1:ph<P-.7?1-smooth(P-1.4,P-.7,ph):smooth(P-.7,P,ph);
+      if(S.stepT>=P){S.stepT-=P;S.travel=Math.min(END,S.travel+36);}
+      if(S.travel>=END){S.stepFade=1;toEther();}
+    } else {
+      let target=lerp(9.5,3,smooth(0,TUNNEL_LEN*.75,S.travel))*(.8+.55*S.agit);  // slower as you settle
+      target=Math.min(target,.28*(END-S.travel)+.05);
+      S.speed=lerp(S.speed,target,dt*.9); S.travel+=S.speed*dt;
+      if(END-S.travel<.08) toEther();
+    }
+    if(S.agit>.55&&!S.warnedMove&&S.travel>20){S.warnedMove=true;whisper(note,"Slower is clearer.",true);setTimeout(()=>whisper(note,null,false),4500);}
+  } else if(S.stage==="ether"){
+    S.etherT+=dt; S.fade=lerp(S.fade,.8,dt*.3);
+    const settled=S.idle>CFG.stillMandalaAfter&&S.agit<.1;
+    S.still=clamp(S.still+(settled?dt/14:-dt/3),0,1);         // the 21 stations gather only while you rest
+    if(S.chosen>=0)S.chosenT+=dt;
+    REALMS.forEach((_,i)=>{const [x,y]=realmPos(i); let near=false;
+      if(S.ptr&&!MOBILE) near=Math.hypot(S.ptr[0]-x,S.ptr[1]-y)<70;
+      if(document.activeElement===REALM_BTNS[i]) near=true;
+      const before=S.dwell[i]; S.dwell[i]=clamp(S.dwell[i]+(near?dt/1.2:-dt/2.5),0,1);
+      if(before<1&&S.dwell[i]>=1){realmTone(i,false);REALM_BTNS[i].classList.add("named");whisper(note,null,false);}
+      if(S.dwell[i]<.3&&S.chosen!==i)REALM_BTNS[i].classList.remove("named");});
+  } else if(S.stage==="returning"){
+    S.retT+=dt; S.fade=lerp(S.fade,0,dt*.5); S.still=Math.max(0,S.still-dt/4);
+    if(S.retT>5) toRest();
+  } else if(S.stage==="rest"){ S.fade=lerp(S.fade,0,dt); }
+  audioTick(dt);
+}
+function loop(now){
+  if(S.hidden)return;
+  const dt=Math.min(.1,(now-last)/1000); last=now;
+  // performance guard: if frames run long, lower resolution once or twice
+  if(dt>.028){if(++S.slowFrames>90&&(S.dprScale||1)>.6){S.dprScale=(S.dprScale||1)*.8;S.slowFrames=0;resize();}} else S.slowFrames=Math.max(0,S.slowFrames-1);
+  update(dt);
+  if(gl) drawGL();
+  drawInk();
+  if(!gl&&S.stage==="crossing") fallbackRings();
+  requestAnimationFrame(loop);
+}
+/* 2D fallback keeps the arc: point, threshold, widening circles, open space */
+function fallbackRings(){ if(gl)return; const cx=W/2,cy=H/2; for(let k=0;k<9;k++){const z=((k*40-S.travel*6)%360+360)%360,r=40+z*1.4,a=S.fade*.25*(1-z/360);inkLine(circlePts(cx,cy,r,.1*k,.1*k+.6),500+k,2,a,k%3?PEARL:GOLD);} }
+
+/* ============ START ============ */
+try{ if(gl) initGL(); else showFallback(); }catch(err){ console.warn(err); gl=null; showFallback(); }
+setReduced(S.reduced); resize(); whisper(invite,null,true);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
