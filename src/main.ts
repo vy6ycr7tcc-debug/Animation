@@ -404,11 +404,11 @@ function arrive(c: Choice, first: boolean): void {
   persist();
   if (!first) return;
   $("#menu-btn").hidden = false;
-  if (MOBILE) $("#act").hidden = false;
+  if (MOBILE) $("#act").hidden = $("#joy").hidden = false;
   say(`You wake near ${c.place.label.replace(/^The /, "the ")}. Wander anywhere; the land answers as you pass.`);
-  window.setTimeout(() => whisper(MOBILE ? "Tap where you want to go, or drag on the left" : "Click where you want to go, or use W A S D", 6500), 4000);
+  window.setTimeout(() => whisper(MOBILE ? "Tap where you want to go, or use the stick" : "Click where you want to go, or use W A S D", 6500), 4000);
   window.setTimeout(() => whisper(MOBILE ? "Hold the round button to fly; let go to drift down" : "Hold Space to fly; let go to drift down", 6000), 26000);
-  window.setTimeout(() => whisper(MOBILE ? "Push your thumb to the edge to run" : "Hold Shift to run", 6000), 50000);
+  window.setTimeout(() => whisper(MOBILE ? "Push the stick to its edge to run" : "Hold Shift to run", 6000), 50000);
 }
 $("#begin").addEventListener("click", begin);
 const startMap = new StartMap();
@@ -763,7 +763,7 @@ $("#leave").addEventListener("click", () => {
   narration.stop(2);
   audio.fade(false);
   $("#rest").hidden = false;
-  for (const id of ["#act", "#ctx"]) $(id).hidden = true;
+  for (const id of ["#act", "#ctx", "#joy"]) $(id).hidden = true;
   $("#menu-btn").hidden = true;
   $<HTMLButtonElement>("#return").focus();
   say("Your place is kept.");
@@ -796,7 +796,7 @@ $("#return").addEventListener("click", () => {
   input.enabled = true;
   $("#rest").hidden = true;
   $("#menu-btn").hidden = false;
-  if (MOBILE || input.touchUsed) $("#act").hidden = false;
+  if (MOBILE || input.touchUsed) $("#act").hidden = $("#joy").hidden = false;
 });
 
 /* ============ READINGS (#stats) ============ */

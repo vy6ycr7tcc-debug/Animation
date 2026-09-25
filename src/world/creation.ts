@@ -1126,6 +1126,13 @@ export class Creation {
 
 /* ================================================================ spirits */
 const TRAIL = 22;
+const VEIL = 64; // points along each veil, smoothed between the remembered ones
+/** A point on the smooth curve through b and c (a and d steer it), t from 0 at b to 1 at c. */
+function catmull(a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, d: THREE.Vector3, t: number, out: THREE.Vector3): THREE.Vector3 {
+  const t2 = t * t, t3 = t2 * t;
+  const k0 = -0.5 * t3 + t2 - 0.5 * t, k1 = 1.5 * t3 - 2.5 * t2 + 1, k2 = -1.5 * t3 + 2 * t2 + 0.5 * t, k3 = 0.5 * t3 - 0.5 * t2;
+  return out.set(a.x * k0 + b.x * k1 + c.x * k2 + d.x * k3, a.y * k0 + b.y * k1 + c.y * k2 + d.y * k3, a.z * k0 + b.z * k1 + c.z * k2 + d.z * k3);
+}
 interface Spirit {
   p: THREE.Vector3;
   v: THREE.Vector3;
@@ -1143,12 +1150,13 @@ interface Spirit {
 export class Spirits {
   group = new THREE.Group();
   private list: Spirit[] = [];
-  private veil: THREE.Points;
+  private veil: THREE.Mesh;
   private heads: THREE.Points;
   private anchorsAt = -100;
   private anchors: THREE.Vector3[] = [];
   private tmp = new V();
   private side = new V();
+  private tan = new V();
 
   constructor(
     private creation: Creation,
@@ -1162,35 +1170,51 @@ export class Spirits {
         hist: Array.from({ length: TRAIL }, () => new V()), lastHist: 0,
       });
     }
-    // veils: a trail of soft light along each spirit's recent path, rippling as it flows
-    const n = count * TRAIL;
+    // veils: one unbroken ribbon of soft light along each spirit's recent path, rippling as it
+    // flows. The path is smoothed between its remembered points, so a fast spirit never leaves
+    // a string of beads behind it.
+    const n = count * VEIL;
     const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(n * 3), 3).setUsage(THREE.DynamicDrawUsage));
-    const trail = new Float32Array(n * 3); // along 0..1, size, hue
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(n * 2 * 3), 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute("aTan", new THREE.BufferAttribute(new Float32Array(n * 2 * 3), 3).setUsage(THREE.DynamicDrawUsage));
+    const trail = new Float32Array(n * 2 * 4); // along 0..1, size, hue, side
+    const idx: number[] = [];
     for (let s = 0; s < count; s++)
-      for (let k = 0; k < TRAIL; k++) trail.set([k / (TRAIL - 1), this.list[s].size, this.list[s].hue], (s * TRAIL + k) * 3);
-    g.setAttribute("aTrail", new THREE.BufferAttribute(trail, 3));
-    this.veil = new THREE.Points(
+      for (let k = 0; k < VEIL; k++) {
+        for (const sd of [0, 1]) trail.set([k / (VEIL - 1), this.list[s].size, this.list[s].hue, sd * 2 - 1], ((s * VEIL + k) * 2 + sd) * 4);
+        if (k < VEIL - 1) {
+          const v = (s * VEIL + k) * 2;
+          idx.push(v, v + 2, v + 1, v + 1, v + 2, v + 3);
+        }
+      }
+    g.setAttribute("aTrail", new THREE.BufferAttribute(trail, 4));
+    g.setIndex(idx);
+    this.veil = new THREE.Mesh(
       g,
       new THREE.ShaderMaterial({
         uniforms: U,
         transparent: true,
         depthWrite: false,
+        side: THREE.DoubleSide,
         blending: THREE.AdditiveBlending,
         vertexShader: /* glsl */ `
-          attribute vec3 aTrail;varying vec3 vC;varying float vA;
+          attribute vec4 aTrail;attribute vec3 aTan;varying vec3 vC;varying float vA;varying float vX;
           ${GLSL_COMMON}
-          void main(){vec4 mv=viewMatrix*vec4(position,1.0);float d=-mv.z;
+          void main(){
             float s=aTrail.x;
+            float d=distance(position,cameraPosition);
+            // wide and soft at the spirit, tapering away; never thinner than a couple of pixels
+            float w=aTrail.y*mix(0.26,0.03,pow(s,0.8)), wMin=2.5*d/uPx;
+            vec3 side=normalize(cross(aTan,cameraPosition-position));
+            vec3 p=position+side*aTrail.w*max(w,wMin);
             vC=mix(mix(vec3(0.7,0.85,1.0),vec3(1.0,0.8,0.55),step(0.4,aTrail.z)),vec3(0.95,0.7,1.0),step(0.75,aTrail.z));
             vC=mix(vC,vec3(1.0),0.3*(1.0-s));
-            vA=pow(1.0-s,1.5)*0.45*(1.0-fogF(d));
-            gl_Position=projectionMatrix*mv;
-            gl_PointSize=clamp(aTrail.y*mix(0.55,0.15,s)*uPx/max(d,0.5),1.5,80.0);}`,
+            vA=pow(1.0-s,1.5)*0.5*(1.0-fogF(d))*w/max(w,wMin);
+            vX=aTrail.w;
+            gl_Position=projectionMatrix*viewMatrix*vec4(p,1.0);}`,
         fragmentShader: /* glsl */ `
-          varying vec3 vC;varying float vA;
-          void main(){float r=length(gl_PointCoord-0.5)*2.0;
-            gl_FragColor=vec4(vC*exp(-r*r*4.0)*vA,1.0);}`,
+          varying vec3 vC;varying float vA;varying float vX;
+          void main(){gl_FragColor=vec4(vC*exp(-vX*vX*3.5)*vA,1.0);}`,
       }),
     );
     this.veil.frustumCulled = false;
@@ -1243,8 +1267,9 @@ export class Spirits {
     }
     const hp = this.heads.geometry.attributes.position as THREE.BufferAttribute;
     const vp = this.veil.geometry.attributes.position as THREE.BufferAttribute;
-    const ha = hp.array as Float32Array, va = vp.array as Float32Array;
-    const cam = camera.position;
+    const tp = this.veil.geometry.attributes.aTan as THREE.BufferAttribute;
+    const ha = hp.array as Float32Array, va = vp.array as Float32Array, ta = tp.array as Float32Array;
+    const cam = camera.position, t0 = f.t;
     this.list.forEach((s, i) => {
       const far = s.p.distanceTo(f.player);
       if (s.home.lengthSq() === 0 || far > 75) this.placeNear(s, f.player);
@@ -1272,21 +1297,28 @@ export class Spirits {
       }
       s.hist[0].copy(s.p);
       ha.set([s.p.x, s.p.y, s.p.z], i * 3);
-      for (let k = 0; k < TRAIL; k++) {
-        // the veil ripples sideways as it trails, like cloth in water
-        const a = s.hist[Math.max(0, k - 1)], b = s.hist[Math.min(TRAIL - 1, k + 1)];
-        this.tmp.subVectors(b, a);
-        if (this.tmp.lengthSq() < 1e-6) this.tmp.set(0, -1, 0);
-        this.side.subVectors(cam, s.hist[k]).cross(this.tmp).normalize();
-        const wave = Math.sin(f.t * 3.2 - k * 0.55 + i) * s.size * 0.18 * (k / TRAIL);
-        const h = s.hist[k];
-        const v = (i * TRAIL + k) * 3;
-        va[v] = h.x + this.side.x * wave;
-        va[v + 1] = h.y + this.side.y * wave - k * 0.015;
-        va[v + 2] = h.z + this.side.z * wave;
+      for (let j = 0; j < VEIL; j++) {
+        // a smooth curve through the remembered points; the veil ripples sideways as it trails,
+        // like cloth in water
+        const u = (j / (VEIL - 1)) * (TRAIL - 1), k = Math.min(TRAIL - 2, Math.floor(u));
+        const h = s.hist;
+        catmull(h[Math.max(0, k - 1)], h[k], h[k + 1], h[Math.min(TRAIL - 1, k + 2)], u - k, this.tmp);
+        this.side.subVectors(h[k + 1], h[k]);
+        if (this.side.lengthSq() < 1e-6) this.side.set(0, -1, 0);
+        const cross = this.tan.subVectors(cam, this.tmp).cross(this.side).normalize();
+        const wave = Math.sin(t0 * 3.2 - u * 0.55 + i) * s.size * 0.18 * (u / TRAIL);
+        const v = (i * VEIL + j) * 6;
+        const x = this.tmp.x + cross.x * wave, y = this.tmp.y + cross.y * wave - u * 0.015, z = this.tmp.z + cross.z * wave;
+        va[v] = va[v + 3] = x;
+        va[v + 1] = va[v + 4] = y;
+        va[v + 2] = va[v + 5] = z;
+        ta[v] = ta[v + 3] = this.side.x;
+        ta[v + 1] = ta[v + 4] = this.side.y;
+        ta[v + 2] = ta[v + 5] = this.side.z;
       }
     });
     hp.needsUpdate = true;
     vp.needsUpdate = true;
+    tp.needsUpdate = true;
   }
 }

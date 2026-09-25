@@ -6,19 +6,19 @@
 - Add `#stats` to the URL to see frame-rate readings.
 
 ## Controls
-One round button, as in Sky. One small word appears beside it only when it helps.
+A stick in the bottom-left corner and one round button in the bottom-right, as in Sky. One small word appears beside the button only when it helps.
 
 | | Phone | Keyboard + mouse |
 |---|---|---|
 | Walk to a spot | Tap it | Click it |
-| Walk freely | Touch and drag on the left half | W A S D or arrow keys |
-| Run | Push your thumb to the edge of the joystick | Hold Shift |
+| Walk freely | The stick, bottom left: push it any way, 360°, gently to stroll | W A S D or arrow keys |
+| Run | Push the stick to its edge (its ring turns gold) | Hold Shift |
 | Glide | Run off a slope | Run off a slope |
 | Jump | Tap the round button | Tap Space |
 | Fly | Hold the round button: you take off and keep rising, faster the longer you hold. Let go and you drift gently down. | Hold Space; let go to drift down |
 | Land | Tap **Land** (shows only while you're flying) | C or L |
 | Dive / come up in the water | Hold **Dive** (shows only in the water) / hold the round button | Hold C / hold Space |
-| Look around | Drag on the right half | Drag with the mouse |
+| Look around | Drag anywhere off the stick | Drag with the mouse |
 | Zoom | Pinch | Scroll wheel |
 | Sit with an archetype, stand up | Tap "Sit with…" | E |
 | Hear an orb or a fruit | Tap it | Click it, or Enter when near |
@@ -60,7 +60,7 @@ There is no island and no path. After "Touch the water to begin", a map unfolds:
   | Arch of three stones | Walk through: a ripple and a low tone. |
   | Two crossing rings | Walk to the crossing: the rings pulse. |
 
-- **Stillness:** stop and stay still. The wanderer turns inward, head bowed and hands together at the heart. Its aura breathes out as a luminous gas. Strokes of light, like paint, wind in from the trees, crystals and archetypes and flow out into the world, and the network of roots lights up. The spirits gather, and the horses come near. Move, and it all dissolves.
+- **Stillness:** stop and stay still. The wanderer turns inward, head bowed and hands together at the heart. Its aura breathes out as a pale, luminous mist. Long, soft strokes of light wind in from the trees, crystals and archetypes, melt into the aura, and a few flow out into the world; slow swells of light travel along them. The network of roots lights up. The spirits gather, and the horses come near. Move, and it all dissolves.
 - **Under the water:** swim out and hold Down to dive. Sea-ribbons glow at their tips, anemones breathe light on the floor, jellyfish drift, and fish circle you. Moonlight falls in shafts, and looking up you see a bright window of sky.
 - **Creatures:** herds of light horses roam the meadows in slow, dreamlike gallops. Run at them and they wheel away; stand still and they come close. Storks, flamingos and parrots wheel overhead.
 - **Stones that answer:** stop in front of a rock or crystal. It vibrates light outward, with waves racing over its surface and motes streaming off it.
