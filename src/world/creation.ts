@@ -14,6 +14,7 @@
    Everything is placed by a hash of its cell, so the world is the same on every visit. Nothing
    here makes a sound. */
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { LifeFrame, Sparks } from "./life";
 import { etchedStone } from "./etching";
 import { colliders, fbm, groundKind, heightAt, LANDMARK_SITES, SPAWN, smooth, WATER_Y, type Collider } from "./terrain";
@@ -51,7 +52,10 @@ function clearOf(x: number, z: number, spawnR: number, padR: number): boolean {
   return true;
 }
 
-/* ================================================================ tree growing */
+/* ================================================================ tree growing
+   Living things are drawn round (Samuel: "rounder and circular"). Every limb is one smooth
+   curve bending in an arc, with no joints. Twigs and the finest roots curl into small spirals
+   at their ends: the spiral of the drawings. */
 const V = THREE.Vector3;
 interface Seg {
   a: THREE.Vector3;
@@ -61,6 +65,15 @@ interface Seg {
   ua: number;
   ub: number;
 }
+interface Limb {
+  pts: THREE.Vector3[];
+  r0: number;
+  r1: number;
+  u0: number;
+  u1: number;
+  flare?: boolean;
+  curl?: boolean;
+}
 interface TreeShape {
   height: number;
   radius: number;
@@ -68,157 +81,166 @@ interface TreeShape {
   depth: number;
   spread: number;
   limbLen: number;
+  bend: number; // how far each limb arcs, in radians
   roots: number;
   rootLen: number;
-  leaves: number; // glints per twig tip
+  leaves: number; // glints in the rosette at each twig tip
 }
 const SHAPES: TreeShape[] = [
-  { height: 5.2, radius: 0.26, limbs: 3, depth: 3, spread: 0.55, limbLen: 2.5, roots: 6, rootLen: 3.2, leaves: 4 }, // graceful
-  { height: 7.4, radius: 0.22, limbs: 2, depth: 3, spread: 0.38, limbLen: 2.3, roots: 5, rootLen: 3.6, leaves: 4 }, // slender
-  { height: 4.2, radius: 0.3, limbs: 4, depth: 2, spread: 0.95, limbLen: 3.2, roots: 6, rootLen: 3.0, leaves: 6 }, // spreading, like a tree of life
-  { height: 7.8, radius: 0.55, limbs: 4, depth: 3, spread: 0.7, limbLen: 3.6, roots: 9, rootLen: 5.5, leaves: 5 }, // the elder
+  { height: 5.2, radius: 0.26, limbs: 3, depth: 2, spread: 0.6, limbLen: 2.8, bend: 0.7, roots: 6, rootLen: 3.4, leaves: 6 }, // graceful
+  { height: 7.4, radius: 0.22, limbs: 3, depth: 2, spread: 0.42, limbLen: 2.6, bend: 0.5, roots: 5, rootLen: 3.8, leaves: 5 }, // slender
+  { height: 4.2, radius: 0.3, limbs: 4, depth: 2, spread: 0.95, limbLen: 3.4, bend: 0.9, roots: 6, rootLen: 3.2, leaves: 7 }, // spreading, like a tree of life
+  { height: 7.8, radius: 0.55, limbs: 5, depth: 2, spread: 0.72, limbLen: 4.2, bend: 0.8, roots: 9, rootLen: 5.8, leaves: 7 }, // the elder
 ];
 
-function grow(shape: TreeShape, seed: number): { trunk: Seg[]; roots: Seg[]; tips: THREE.Vector3[] } {
+const polyLen = (p: THREE.Vector3[]) => p.reduce((s, q, i) => (i ? s + q.distanceTo(p[i - 1]) : 0), 0);
+function perpendicular(d: THREE.Vector3, R: () => number): THREE.Vector3 {
+  const a = new V().crossVectors(d, new V(R() - 0.5, R() - 0.5, R() - 0.5));
+  return a.lengthSq() < 1e-6 ? new V().crossVectors(d, new V(1, 0, 0)).normalize() : a.normalize();
+}
+/** One limb as a smooth arc. A curling limb turns ever faster toward its end, into a spiral. */
+function arc(p: THREE.Vector3, dir: THREE.Vector3, len: number, turn: number, axis: THREE.Vector3, curl: boolean, lift: number): THREE.Vector3[] {
+  const n = curl ? 14 : 8;
+  const w = Array.from({ length: n }, (_, i) => (curl ? 1 + (i / n) ** 2 * 9 : 1));
+  const sw = w.reduce((a, b) => a + b, 0);
+  const d = dir.clone().normalize();
+  const pts = [p.clone()];
+  let c = p.clone();
+  for (let i = 0; i < n; i++) {
+    d.applyAxisAngle(axis, (turn * w[i]) / sw);
+    d.y += lift / n;
+    d.normalize();
+    // a spiral's steps shorten as it winds in
+    c = c.clone().addScaledVector(d, (len / n) * (curl ? 1.35 - (i / n) * 0.8 : 1));
+    pts.push(c);
+  }
+  return pts;
+}
+
+function grow(shape: TreeShape, seed: number): { limbs: Limb[]; roots: Limb[]; tips: THREE.Vector3[] } {
   const R = rng(seed);
-  const trunk: Seg[] = [];
-  const roots: Seg[] = [];
+  const limbs: Limb[] = [];
+  const roots: Limb[] = [];
   const tips: THREE.Vector3[] = [];
-  const frame = (d: THREE.Vector3) => {
-    const up = Math.abs(d.y) < 0.99 ? new V(0, 1, 0) : new V(1, 0, 0);
-    const s = new V().crossVectors(d, up).normalize();
-    return [s, new V().crossVectors(s, d)] as const;
-  };
-  // A branch: three gently bending pieces, then two or three children.
+  const up = new V(0, 1, 0);
   const branch = (p: THREE.Vector3, dir: THREE.Vector3, len: number, r: number, depth: number, u: number) => {
-    let cur = p.clone();
-    const d = dir.clone();
-    for (let i = 0; i < 3; i++) {
-      d.x += (R() - 0.5) * 0.35;
-      d.z += (R() - 0.5) * 0.35;
-      d.y += 0.1; // reaching toward the light
-      d.normalize();
-      const next = cur.clone().addScaledVector(d, len / 3);
-      const r0 = r * (1 - (i / 3) * 0.35), r1 = r * (1 - ((i + 1) / 3) * 0.35);
-      trunk.push({ a: cur, b: next, ra: r0, rb: r1, ua: u, ub: u + len / 3 });
-      u += len / 3;
-      cur = next;
+    const curl = depth === 0;
+    let axis: THREE.Vector3, turn: number;
+    if (curl) {
+      // twigs curl mostly upward and inward, like fronds unfurling
+      axis = new V().crossVectors(up, dir);
+      if (axis.lengthSq() < 1e-4) axis = perpendicular(dir, R);
+      axis.normalize();
+      turn = (R() < 0.7 ? -1 : 1) * (3.2 + R() * 2.2);
+    } else {
+      axis = perpendicular(dir, R);
+      turn = shape.bend * (0.6 + R() * 0.8) * (R() < 0.5 ? -1 : 1);
     }
-    if (depth === 0) {
-      tips.push(cur);
+    const pts = arc(p, dir, len, turn, axis, curl, curl ? 0 : 0.35);
+    const L = polyLen(pts);
+    limbs.push({ pts, r0: r, r1: curl ? r * 0.2 : r * 0.6, u0: u, u1: u + L, curl });
+    if (curl) {
+      tips.push(pts[Math.floor(pts.length * 0.7)].clone());
       return;
     }
-    const n = R() < 0.55 ? 2 : 3;
-    const [s, t] = frame(d);
-    const az0 = R() * Math.PI * 2;
+    const n = 2 + (R() < 0.6 ? 1 : 0);
     for (let k = 0; k < n; k++) {
-      const az = az0 + (k / n) * Math.PI * 2 + (R() - 0.5) * 0.6;
-      const ang = shape.spread * (0.6 + R() * 0.6);
-      const perp = s.clone().multiplyScalar(Math.cos(az)).addScaledVector(t, Math.sin(az));
-      const cd = d.clone().multiplyScalar(Math.cos(ang)).addScaledVector(perp, Math.sin(ang));
-      branch(cur, cd.normalize(), len * (0.66 + R() * 0.14), r * 0.6, depth - 1, u);
+      const at = Math.min(pts.length - 1, Math.floor(pts.length * (0.5 + (k / n) * 0.45 + R() * 0.1)));
+      const tan = new V().subVectors(pts[at], pts[at - 1]).normalize();
+      const perp = perpendicular(tan, R);
+      const ang = shape.spread * (0.7 + R() * 0.6);
+      const cd = tan.clone().multiplyScalar(Math.cos(ang)).addScaledVector(perp, Math.sin(ang));
+      const t = at / (pts.length - 1);
+      branch(pts[at], cd.normalize(), len * (0.62 + R() * 0.14), r * (1 - t * 0.4) * 0.7, depth - 1, u + L * t);
     }
   };
-  // The trunk: a slight lean and sway, flaring at the foot.
-  const lean = new V((R() - 0.5) * 0.25, 1, (R() - 0.5) * 0.25).normalize();
-  const split = shape.height * 0.55;
-  let cur = new V(0, -0.3, 0);
-  let u = 0;
-  const pieces = 5;
-  for (let i = 0; i < pieces; i++) {
-    const d = lean.clone();
-    d.x += Math.sin(i * 1.3 + seed * 10) * 0.12;
-    d.z += Math.cos(i * 1.1 + seed * 7) * 0.12;
-    d.normalize();
-    const l = (split + 0.3) / pieces;
-    const next = cur.clone().addScaledVector(d, l);
-    const ra = shape.radius * (i === 0 ? 1.7 : 1 - (i / pieces) * 0.25);
-    const rb = shape.radius * (1 - ((i + 1) / pieces) * 0.25);
-    trunk.push({ a: cur, b: next, ra, rb, ua: u, ub: u + l });
-    u += l;
-    cur = next;
-  }
-  const [s, t] = frame(lean);
-  const az0 = R() * Math.PI * 2;
+  // The trunk: one gentle curve, flaring at the foot.
+  const lean = new V((R() - 0.5) * 0.3, 1, (R() - 0.5) * 0.3).normalize();
+  const trunkPts = arc(new V(0, -0.3, 0), lean, shape.height * 0.55 + 0.3, 0.25 + R() * 0.2, perpendicular(lean, R), false, 0);
+  const trunkLen = polyLen(trunkPts);
+  limbs.push({ pts: trunkPts, r0: shape.radius, r1: shape.radius * 0.72, u0: 0, u1: trunkLen, flare: true });
   for (let k = 0; k < shape.limbs; k++) {
-    const az = az0 + (k / shape.limbs) * Math.PI * 2 + (R() - 0.5) * 0.5;
-    const ang = shape.spread * (0.7 + R() * 0.5);
-    const perp = s.clone().multiplyScalar(Math.cos(az)).addScaledVector(t, Math.sin(az));
-    const cd = lean.clone().multiplyScalar(Math.cos(ang)).addScaledVector(perp, Math.sin(ang)).normalize();
-    branch(cur, cd, shape.limbLen * (0.85 + R() * 0.3), shape.radius * 0.7, shape.depth, u);
+    // most limbs leave from the top; one or two from lower down the trunk
+    const at = k < shape.limbs - 1 || shape.limbs < 3 ? trunkPts.length - 1 : Math.floor(trunkPts.length * 0.7);
+    const t = at / (trunkPts.length - 1);
+    const tan = new V().subVectors(trunkPts[at], trunkPts[at - 1]).normalize();
+    const az = (k / shape.limbs) * Math.PI * 2 + R() * 0.8;
+    const perp = new V(Math.cos(az), 0, Math.sin(az));
+    const ang = shape.spread * (0.75 + R() * 0.5);
+    const cd = tan.clone().multiplyScalar(Math.cos(ang)).addScaledVector(perp, Math.sin(ang)).normalize();
+    branch(trunkPts[at], cd, shape.limbLen * (0.85 + R() * 0.3), shape.radius * 0.72, shape.depth, trunkLen * t);
   }
-  // Roots: they flare out at the surface, then dive, dividing as they go down.
+  // Roots: they flare out, arc down into the earth and divide; the finest end in curls.
   const root = (p: THREE.Vector3, dir: THREE.Vector3, len: number, r: number, depth: number, u: number) => {
-    let c = p.clone();
-    const d = dir.clone();
-    for (let i = 0; i < 4; i++) {
-      d.y -= 0.2 + R() * 0.12;
-      d.x += (R() - 0.5) * 0.4;
-      d.z += (R() - 0.5) * 0.4;
-      d.normalize();
-      const next = c.clone().addScaledVector(d, len / 4);
-      const r0 = r * (1 - (i / 4) * 0.5), r1 = r * (1 - ((i + 1) / 4) * 0.5);
-      roots.push({ a: c, b: next, ra: r0, rb: r1, ua: -u, ub: -(u + len / 4) });
-      u += len / 4;
-      c = next;
-    }
-    if (depth === 0) return;
+    const curl = depth === 0;
+    const axis = curl ? perpendicular(dir, R) : new V().crossVectors(dir, up).normalize();
+    const turn = curl ? (R() < 0.5 ? -1 : 1) * (3 + R() * 2.5) : -(0.5 + R() * 0.6);
+    const pts = arc(p, dir, len, turn, axis.lengthSq() > 1e-4 ? axis : perpendicular(dir, R), curl, curl ? 0 : -0.9);
+    const L = polyLen(pts);
+    roots.push({ pts, r0: r, r1: r * 0.4, u0: -u, u1: -(u + L) });
+    if (curl) return;
     for (let k = 0; k < 2; k++) {
-      const cd = d.clone();
-      cd.x += (R() - 0.5) * 1.2;
-      cd.z += (R() - 0.5) * 1.2;
-      root(c, cd.normalize(), len * 0.7, r * 0.5, depth - 1, u);
+      const at = Math.floor(pts.length * (0.45 + k * 0.4));
+      const tan = new V().subVectors(pts[at], pts[at - 1]).normalize();
+      const cd = tan.clone().multiplyScalar(Math.cos(0.6)).addScaledVector(perpendicular(tan, R), Math.sin(0.6));
+      root(pts[at], cd.normalize(), len * 0.62, r * 0.55, depth - 1, u + (L * at) / (pts.length - 1));
     }
   };
   for (let k = 0; k < shape.roots; k++) {
     const az = (k / shape.roots) * Math.PI * 2 + R() * 0.5;
-    const out = new V(Math.cos(az), -0.45, Math.sin(az)); // a short flare at the surface, then down
+    const out = new V(Math.cos(az), -0.3, Math.sin(az));
     const p = new V(Math.cos(az) * shape.radius * 0.7, 0.1, Math.sin(az) * shape.radius * 0.7);
-    root(p, out, shape.rootLen * (0.7 + R() * 0.6), shape.radius * 0.55, 3, 0);
+    root(p, out, shape.rootLen * (0.7 + R() * 0.6), shape.radius * 0.5, 3, 0);
   }
   // Normalise "along" so the crown's tips are 1 and the deepest root tips are -1.
-  const maxU = Math.max(...trunk.map((g) => g.ub));
-  const minU = Math.min(...roots.map((g) => g.ub));
-  for (const g of trunk) {
-    g.ua /= maxU;
-    g.ub /= maxU;
+  const maxU = Math.max(...limbs.map((g) => g.u1));
+  const minU = Math.min(...roots.map((g) => g.u1));
+  for (const g of limbs) {
+    g.u0 /= maxU;
+    g.u1 /= maxU;
   }
   for (const g of roots) {
-    g.ua /= -minU;
-    g.ub /= -minU;
+    g.u0 /= -minU;
+    g.u1 /= -minU;
   }
-  return { trunk, roots, tips };
+  return { limbs, roots, tips };
 }
 
-/** Tapered tubes: position, normal, aU (along the tree, -1 root tip … 1 crown tip), aAng (around). */
-function tubes(segs: Seg[]): THREE.BufferGeometry {
+/** Smooth, round tubes along each limb: position, normal, aU (along the tree, -1 root tip … 1
+    crown tip), aAng (around). Rings stop once aU falls below `minU` (to keep only the roots
+    near the surface). */
+function tubes(limbs: Limb[], minU = -Infinity): THREE.BufferGeometry {
   const pos: number[] = [], nor: number[] = [], au: number[] = [], ang: number[] = [], idx: number[] = [];
-  const up = new V(0, 1, 0), side = new V(1, 0, 0);
-  for (const g of segs) {
-    const d = new V().subVectors(g.b, g.a);
-    const len = d.length();
-    if (len < 1e-4) continue;
-    d.divideScalar(len);
-    const s = new V().crossVectors(d, Math.abs(d.y) < 0.99 ? up : side).normalize();
-    const t = new V().crossVectors(s, d);
-    const sides = g.ra > 0.15 ? 6 : g.ra > 0.06 ? 4 : 3;
-    const b2 = g.b.clone().addScaledVector(d, g.rb * 0.8); // overlap the next piece, so joints never gape
+  for (const g of limbs) {
+    const curve = new THREE.CatmullRomCurve3(g.pts);
+    const L = curve.getLength();
+    const segs = g.curl ? 7 : Math.max(3, Math.min(12, Math.round(L / 0.45)));
+    const sides = g.curl ? 3 : g.r0 > 0.15 ? 8 : g.r0 > 0.06 ? 5 : 4;
+    const fr = curve.computeFrenetFrames(segs, false);
     const base = pos.length / 3;
-    for (let ring = 0; ring < 2; ring++) {
-      const c = ring ? b2 : g.a, r = ring ? g.rb : g.ra, u = ring ? g.ub : g.ua;
+    let rings = 0;
+    for (let i = 0; i <= segs; i++) {
+      const t = i / segs;
+      const u = g.u0 + (g.u1 - g.u0) * t;
+      if (u < minU && rings >= 2) break;
+      const P = curve.getPointAt(t);
+      const r = (g.r0 + (g.r1 - g.r0) * t) * (g.flare ? 1 + 0.9 * (1 - t) ** 6 : 1);
+      const N = fr.normals[i], B = fr.binormals[i];
       for (let k = 0; k <= sides; k++) {
         const a = (k / sides) * Math.PI * 2;
-        const n = s.clone().multiplyScalar(Math.cos(a)).addScaledVector(t, Math.sin(a));
-        pos.push(c.x + n.x * r, c.y + n.y * r, c.z + n.z * r);
+        const n = N.clone().multiplyScalar(Math.cos(a)).addScaledVector(B, -Math.sin(a));
+        pos.push(P.x + n.x * r, P.y + n.y * r, P.z + n.z * r);
         nor.push(n.x, n.y, n.z);
         au.push(u);
         ang.push(k / sides);
       }
+      rings++;
     }
-    for (let k = 0; k < sides; k++) {
-      const i0 = base + k, i1 = i0 + 1, j0 = base + sides + 1 + k, j1 = j0 + 1;
-      idx.push(i0, j0, i1, i1, j0, j1);
-    }
+    for (let i = 0; i < rings - 1; i++)
+      for (let k = 0; k < sides; k++) {
+        const i0 = base + i * (sides + 1) + k, i1 = i0 + 1, j0 = i0 + sides + 1, j1 = j0 + 1;
+        idx.push(i0, j0, i1, i1, j0, j1);
+      }
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
@@ -228,6 +250,23 @@ function tubes(segs: Seg[]): THREE.BufferGeometry {
   geo.setIndex(idx);
   geo.computeBoundingSphere();
   return geo;
+}
+
+/** The roots as fine lines: each root's curve, sampled finely so it reads round. */
+function rootLineSegs(roots: Limb[]): Seg[] {
+  const out: Seg[] = [];
+  for (const g of roots) {
+    const curve = new THREE.CatmullRomCurve3(g.pts);
+    const n = Math.max(4, Math.round(curve.getLength() / 0.18));
+    let prev = curve.getPointAt(0);
+    for (let i = 1; i <= n; i++) {
+      const q = curve.getPointAt(i / n);
+      const ua = g.u0 + ((g.u1 - g.u0) * (i - 1)) / n, ub = g.u0 + ((g.u1 - g.u0) * i) / n;
+      out.push({ a: prev, b: q, ra: 0, rb: 0, ua, ub });
+      prev = q;
+    }
+  }
+  return out;
 }
 
 const TREE_VERT = /* glsl */ `
@@ -410,19 +449,21 @@ export class Creation {
     this.rootLines.renderOrder = 3;
     this.group.add(this.rootLines);
     SHAPES.forEach((shape, kind) => {
-      const { trunk, roots, tips } = grow(shape, 0.137 + kind * 0.211);
-      const geo = tubes([...trunk, ...roots.filter((g) => g.ua > -0.22)]);
+      const { limbs, roots, tips } = grow(shape, 0.137 + kind * 0.211);
+      const geo = mergeGeometries([tubes(limbs), tubes(roots, -0.2)]);
       const mesh = new THREE.InstancedMesh(geo, bark, MAX_TREES);
       mesh.count = 0;
       this.barks.push(mesh);
-      this.rootSegs.push(roots);
+      this.rootSegs.push(rootLineSegs(roots));
       this.group.add(mesh);
-      // glints around each twig tip, and a soft glow over every few
+      // a round rosette of glints around each twig's curl, and a soft glow over every other
       const R = rng(0.77 + kind * 0.1);
       const p: number[] = [], k: number[] = [];
       tips.forEach((tp, i) => {
+        const tilt = (R() - 0.5) * 0.8, ph = R() * 6.28, rr = 0.35 + R() * 0.25;
         for (let j = 0; j < shape.leaves; j++) {
-          p.push(tp.x + (R() - 0.5) * 1.3, tp.y + (R() - 0.3) * 0.9, tp.z + (R() - 0.5) * 1.3);
+          const a = ph + (j / shape.leaves) * Math.PI * 2;
+          p.push(tp.x + Math.cos(a) * rr, tp.y + Math.sin(a) * rr * tilt + 0.1, tp.z + Math.sin(a) * rr);
           k.push(R() * 0.9); // small glints
         }
         if (i % 2 === 0) {
@@ -919,7 +960,7 @@ export class Creation {
         if (seen.has(key)) continue;
         seen.add(key);
         const [x2, z2] = nodes[j];
-        const steps = Math.max(4, Math.round(d / 1.2));
+        const steps = Math.max(8, Math.round(d / 0.5));
         const nx = -(z2 - z) / d, nz = (x2 - x) / d;
         const seed = cellHash(i, j, 95);
         let px = 0, py = 0, pz = 0;

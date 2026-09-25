@@ -38,7 +38,7 @@ There is no island and no path. You wake on a meadow at night beside the water. 
   | Two crossing rings | Walk to the crossing: the rings pulse. |
 
 - **The whole creation:**
-  - **Trees of light.** Pulses of light run down from the crown through the trunk. Under the ground you can see the roots as fine lines of light going deep, brightest near you.
+  - **Trees of light,** grown in smooth curves, with twigs that curl into spirals. Pulses of light run down from the crown through the trunk. Under the ground you can see the roots as fine lines of light going deep, brightest near you.
   - **The network.** Threads of light join the roots of neighbouring trees and crystals underground, and the same pulses travel along them.
   - **Crystals.** The great ones take a shaft of light from the sky. Every cluster splits light into rainbow petals on the ground and shifts colour as you walk around it. Walk close and they wake.
   - **Rocks,** etched with fine gold lines.

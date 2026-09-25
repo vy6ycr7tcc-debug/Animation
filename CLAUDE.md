@@ -60,6 +60,12 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - no bells on the lantern orbs;
   - the narration describes places that don't match where the wanderer is. Samuel will draw a map. Don't change the map or the narration order until he does;
   - focus on the environment's items and the love/light flowing through everything.
+- 2026-09-25: living things (second density) are drawn round and circular, never stiff:
+  - smooth curved limbs with no joints;
+  - twigs and fine roots end in spiral curls;
+  - flowing threads.
+  - Crystals and rocks may stay geometric.
+- 2026-09-25: Samuel: "Whenever done push to mainline." Merge finished, verified work into `main` without asking.
 - 2026-09-25: Samuel likes the female voice and not the male one.
   - Only the female voice plays.
   - Male-voice tracks (J02, J04, J06, J08, J10) are skipped by the background playlist until `narration/revoice-female.sh` has made female copies in `public/audio/female/`.
