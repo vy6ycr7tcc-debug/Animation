@@ -62,7 +62,7 @@ export class Water {
           c+=vec3(1.0,0.78,0.48)*sp*2.2;
           // the wanderer's own light, reflected nearby
           float gd=length(vW.xz-uGlow.xz);
-          c+=vec3(1.0,0.85,0.65)*exp(-gd*gd*0.25)*0.18*uGlow.y;
+          c+=vec3(1.0,0.82,0.58)*exp(-gd*gd*0.35)*0.07*uGlow.y;
           float fog=1.0-exp(-pow(dist*uFogDensity,2.0));
           c=mix(c,uFogColor,fog);
           gl_FragColor=vec4(c,1.0);
