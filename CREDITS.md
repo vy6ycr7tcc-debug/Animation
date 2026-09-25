@@ -10,3 +10,10 @@
 
 ## Ambient occlusion
 - N8AO by N8python (MIT) — github.com/N8python/n8ao
+
+## Animals
+- Horse, Stork, Flamingo, Parrot — models and animation by mirada, from ROME (rome.mrdoob.com), as distributed in the three.js examples (github.com/mrdoob/three.js, examples/models/gltf) — `public/models/animals/`.
+
+## Archive narrations
+- Some narrations in this world are interpretive adaptations of channeled material from the L/L Research archive, voiced by AI. They are artistic interpretations, not the channeling itself. This is an independent work, not affiliated with or endorsed by L/L Research. The complete archive is freely available at llresearch.org.
+- `public/audio/orbs/` currently holds generated placeholder tones only.

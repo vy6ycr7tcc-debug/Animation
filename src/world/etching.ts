@@ -4,6 +4,13 @@
 import * as THREE from "three";
 import { surface } from "./textures";
 
+/** Stillness before a rock or crystal: it vibrates light outward (waves over its surface). */
+export const vibeUniforms = {
+  uVibePos: { value: new THREE.Vector3(0, -1e4, 0) },
+  uVibeK: { value: 0 },
+  uVibeR: { value: 1 },
+};
+
 export const etchUniforms = {
   uEtchT: { value: 0 },
   uEtchGain: { value: 1 }, // raised as the world brightens with progress
@@ -137,6 +144,7 @@ export function etchedStone(color = "#1c1a2c", line = "#e9c37d", scale = 2.2, op
     sh.uniforms.uLine = { value: lineColor };
     sh.uniforms.uScale = { value: scale };
     sh.uniforms.tRockD = { value: rock.diff };
+    Object.assign(sh.uniforms, vibeUniforms);
     sh.uniforms.tRockN = { value: rock.nor };
     sh.vertexShader = sh.vertexShader
       .replace("#include <common>", "#include <common>\nvarying vec3 vEW;varying vec3 vEN;")
@@ -153,6 +161,7 @@ export function etchedStone(color = "#1c1a2c", line = "#e9c37d", scale = 2.2, op
       .replace("#include <common>", `#include <common>
         varying vec3 vEW;varying vec3 vEN;uniform vec3 uLine;uniform float uScale,uEtchT,uEtchGain;
         uniform sampler2D tRockD,tRockN;
+        uniform vec3 uVibePos;uniform float uVibeK,uVibeR;
         vec3 triW(){vec3 w=pow(abs(vEN),vec3(4.0));return w/(w.x+w.y+w.z);}
         vec3 triTex(sampler2D t,float s){vec3 w=triW();
           return texture2D(t,vEW.zy/s).rgb*w.x+texture2D(t,vEW.xz/s).rgb*w.y+texture2D(t,vEW.xy/s).rgb*w.z;}
@@ -206,6 +215,13 @@ export function etchedStone(color = "#1c1a2c", line = "#e9c37d", scale = 2.2, op
           float fade=1.0-smoothstep(25.0,70.0,dist);
           // the drawings' lattice survives only as a faint trace in the stone
           totalEmissiveRadiance+=uLine*l*fade*0.06*uEtchGain*(0.85+0.15*sin(uEtchT*0.6+vEW.y));
+          // vibrating: rings of light race outward over the stone, and its lattice wakes
+          if(uVibeK>0.001){
+            float vd=distance(vEW,uVibePos);
+            float on=1.0-smoothstep(uVibeR*1.1,uVibeR*1.6+0.6,vd);
+            float wave=pow(0.5+0.5*sin(vd*10.0-uEtchT*9.0),6.0)+pow(0.5+0.5*sin(vd*4.0-uEtchT*5.0),10.0)*0.6;
+            totalEmissiveRadiance+=(vec3(1.0,0.85,0.6)*wave*0.9+uLine*l*1.2)*on*uVibeK;
+          }
         }`);
   };
   return m;

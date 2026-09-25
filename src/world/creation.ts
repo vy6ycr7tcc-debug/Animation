@@ -16,8 +16,9 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { LifeFrame, Sparks } from "./life";
-import { etchedStone } from "./etching";
+import { etchedStone, vibeUniforms } from "./etching";
 import { surface } from "./textures";
+import { GROVE_SITES } from "./sites";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { loadBytes } from "../core/assets";
@@ -54,6 +55,7 @@ function rng(seed: number): () => number {
 function clearOf(x: number, z: number, spawnR: number, padR: number): boolean {
   if (Math.hypot(x - SPAWN.x, z - SPAWN.z) < spawnR) return false;
   for (const [lx, lz] of LANDMARK_SITES) if (Math.hypot(x - lx, z - lz) < padR) return false;
+  for (const g of GROVE_SITES) if (Math.hypot(x - g.x, z - g.z) < padR + 6) return false;
   return true;
 }
 
@@ -79,7 +81,7 @@ interface Limb {
   flare?: boolean;
   curl?: boolean;
 }
-interface TreeShape {
+export interface TreeShape {
   height: number;
   radius: number;
   limbs: number;
@@ -122,7 +124,7 @@ function arc(p: THREE.Vector3, dir: THREE.Vector3, len: number, turn: number, ax
   return pts;
 }
 
-function grow(shape: TreeShape, seed: number): { limbs: Limb[]; roots: Limb[]; tips: THREE.Vector3[] } {
+export function grow(shape: TreeShape, seed: number): { limbs: Limb[]; roots: Limb[]; tips: THREE.Vector3[] } {
   const R = rng(seed);
   const limbs: Limb[] = [];
   const roots: Limb[] = [];
@@ -214,7 +216,7 @@ function grow(shape: TreeShape, seed: number): { limbs: Limb[]; roots: Limb[]; t
 /** Smooth, round tubes along each limb: position, normal, aU (along the tree, -1 root tip … 1
     crown tip), aAng (around). Rings stop once aU falls below `minU` (to keep only the roots
     near the surface). */
-function tubes(limbs: Limb[], minU = -Infinity): THREE.BufferGeometry {
+export function tubes(limbs: Limb[], minU = -Infinity): THREE.BufferGeometry {
   const pos: number[] = [], nor: number[] = [], au: number[] = [], ang: number[] = [], idx: number[] = [];
   for (const g of limbs) {
     const curve = new THREE.CatmullRomCurve3(g.pts);
@@ -291,6 +293,51 @@ void main(){
   vW=w.xyz;vN=normalize(mat3(modelMatrix*im)*normal);vU=aU;vAng=aAng;
   gl_Position=projectionMatrix*viewMatrix*w;
 }`;
+
+/** Living bark: willow-bark relief, a thin rim of starlight, fine grain lines of light, and
+    light flowing down from the crown. `accent`: the colour of that light (default: gold/silver). */
+export function barkMaterial(accent?: THREE.Color): THREE.ShaderMaterial {
+  const barkTex = surface("bark");
+  return new THREE.ShaderMaterial({
+    uniforms: { ...U, tBarkD: { value: barkTex.diff }, tBarkN: { value: barkTex.nor }, uAccent: { value: accent ?? new THREE.Color(0, 0, 0) }, uUseAccent: { value: accent ? 1 : 0 } },
+    vertexShader: TREE_VERT,
+    fragmentShader: /* glsl */ `
+      varying vec3 vW;varying vec3 vN;varying float vU;varying float vAng;varying float vSeed;
+      uniform sampler2D tBarkD,tBarkN;uniform vec3 uAccent;uniform float uUseAccent;
+      ${GLSL_COMMON}
+      // the bark's relief, from its normal map, oriented by the surface's own derivatives
+      vec3 barkNormal(vec3 n,vec2 uv,vec3 m){
+        vec3 q0=dFdx(vW),q1=dFdy(vW);vec2 s0=dFdx(uv),s1=dFdy(uv);
+        vec3 q1p=cross(q1,n),q0p=cross(n,q0);
+        vec3 T=q1p*s0.x+q0p*s1.x,B=q1p*s0.y+q0p*s1.y;
+        float d=max(dot(T,T),dot(B,B));float k=d==0.0?0.0:inversesqrt(d);
+        return normalize(T*(m.x*k)+B*(m.y*k)+n*m.z);
+      }
+      void main(){
+        vec2 buv=vec2(vAng*2.0,vU*7.0+vSeed);
+        vec3 n=normalize(vN);vec3 v=normalize(cameraPosition-vW);
+        float dist0=length(vW-cameraPosition);
+        if(dist0<60.0)n=barkNormal(n,buv,mix(vec3(0,0,1),texture2D(tBarkN,buv).xyz*2.0-1.0,1.0-smoothstep(25.0,60.0,dist0)));
+        vec3 bk=texture2D(tBarkD,buv).rgb;
+        float hemi=0.5+0.5*n.y;
+        vec3 c=mix(vec3(0.006,0.005,0.014),vec3(0.03,0.028,0.06),hemi)*(0.4+bk*2.4);
+        c+=vec3(0.09,0.07,0.05)*max(0.0,dot(n,uStar));
+        c+=vec3(0.3,0.38,0.8)*pow(1.0-max(0.0,dot(n,v)),5.0)*0.18; // a thin rim of starlight
+        // the grain spirals up the trunk as fine lines of light
+        float f=vAng*4.0+vU*5.0+vSeed*3.0;float w=fwidth(f);
+        float grain=1.0-smoothstep(w*0.4,w*1.4,abs(fract(f)-0.5));
+        // light pours down from the crown toward the roots
+        float flow=pow(fract(vU*3.0+uT*0.11+vSeed),14.0);
+        float near=smoothstep(12.0,2.0,distance(vW.xz,uPlayer.xz));
+        vec3 gold=mix(mix(vec3(1.0,0.78,0.48),vec3(0.75,0.85,1.0),step(0.5,vSeed)),uAccent,uUseAccent);
+        c+=gold*(grain*(0.05+near*0.12+flow*1.1)+flow*0.08);
+        float d=length(vW-cameraPosition);
+        // never a wall of bark in front of the camera: it dissolves as the camera comes close
+        if(hash1(gl_FragCoord.xy)>smoothstep(0.6,2.2,d))discard;
+        gl_FragColor=vec4(mix(c,uFogC,fogF(d)),1.0);
+      }`,
+  });
+}
 
 /* ================================================================ crystals */
 function prismGeometry(): THREE.BufferGeometry {
@@ -374,6 +421,7 @@ export class Creation {
   private fans: THREE.Mesh;
   private web: THREE.LineSegments;
   private mine: Collider[] = [];
+  private stones: { p: THREE.Vector3; r: number; crystal: boolean }[] = [];
   private cx = Infinity;
   private cz = Infinity;
   private m4 = new THREE.Matrix4();
@@ -398,46 +446,7 @@ export class Creation {
 
   /* ---------------------------------------------------------------- materials and meshes */
   private buildTrees(): void {
-    const barkTex = surface("bark");
-    const bark = new THREE.ShaderMaterial({
-      uniforms: { ...U, tBarkD: { value: barkTex.diff }, tBarkN: { value: barkTex.nor } },
-      vertexShader: TREE_VERT,
-      fragmentShader: /* glsl */ `
-        varying vec3 vW;varying vec3 vN;varying float vU;varying float vAng;varying float vSeed;
-        uniform sampler2D tBarkD,tBarkN;
-        ${GLSL_COMMON}
-        // the bark's relief, from its normal map, oriented by the surface's own derivatives
-        vec3 barkNormal(vec3 n,vec2 uv,vec3 m){
-          vec3 q0=dFdx(vW),q1=dFdy(vW);vec2 s0=dFdx(uv),s1=dFdy(uv);
-          vec3 q1p=cross(q1,n),q0p=cross(n,q0);
-          vec3 T=q1p*s0.x+q0p*s1.x,B=q1p*s0.y+q0p*s1.y;
-          float d=max(dot(T,T),dot(B,B));float k=d==0.0?0.0:inversesqrt(d);
-          return normalize(T*(m.x*k)+B*(m.y*k)+n*m.z);
-        }
-        void main(){
-          vec2 buv=vec2(vAng*2.0,vU*7.0+vSeed);
-          vec3 n=normalize(vN);vec3 v=normalize(cameraPosition-vW);
-          float dist0=length(vW-cameraPosition);
-          if(dist0<60.0)n=barkNormal(n,buv,mix(vec3(0,0,1),texture2D(tBarkN,buv).xyz*2.0-1.0,1.0-smoothstep(25.0,60.0,dist0)));
-          vec3 bk=texture2D(tBarkD,buv).rgb;
-          float hemi=0.5+0.5*n.y;
-          vec3 c=mix(vec3(0.006,0.005,0.014),vec3(0.03,0.028,0.06),hemi)*(0.4+bk*2.4);
-          c+=vec3(0.09,0.07,0.05)*max(0.0,dot(n,uStar));
-          c+=vec3(0.3,0.38,0.8)*pow(1.0-max(0.0,dot(n,v)),5.0)*0.18; // a thin rim of starlight
-          // the grain spirals up the trunk as fine lines of light
-          float f=vAng*4.0+vU*5.0+vSeed*3.0;float w=fwidth(f);
-          float grain=1.0-smoothstep(w*0.4,w*1.4,abs(fract(f)-0.5));
-          // light pours down from the crown toward the roots
-          float flow=pow(fract(vU*3.0+uT*0.11+vSeed),14.0);
-          float near=smoothstep(12.0,2.0,distance(vW.xz,uPlayer.xz));
-          vec3 gold=mix(vec3(1.0,0.78,0.48),vec3(0.75,0.85,1.0),step(0.5,vSeed));
-          c+=gold*(grain*(0.05+near*0.12+flow*1.1)+flow*0.08);
-          float d=length(vW-cameraPosition);
-          // never a wall of bark in front of the camera: it dissolves as the camera comes close
-          if(hash1(gl_FragCoord.xy)>smoothstep(0.6,2.2,d))discard;
-          gl_FragColor=vec4(mix(c,uFogC,fogF(d)),1.0);
-        }`,
-    });
+    const bark = barkMaterial();
     // Roots seen through the ground as fine lines of light: drawn only where something (the
     // earth) is in front of them. Rebuilt for the trees near the wanderer as they stream in.
     this.rootLines = new THREE.LineSegments(
@@ -629,6 +638,7 @@ export class Creation {
       fragmentShader: /* glsl */ `
         varying vec3 vW;varying vec3 vN;varying float vY;varying vec3 vCv;
         ${GLSL_COMMON}
+        uniform vec3 uVibePos;uniform float uVibeK,uVibeR;
         void main(){
           vec3 n=normalize(vN);vec3 v=normalize(cameraPosition-vW);
           float ndv=abs(dot(n,v));
@@ -643,10 +653,18 @@ export class Creation {
           vec3 r=reflect(-v,n);float glint=pow(max(0.0,dot(r,uStar)),40.0);
           vec3 c=core*(0.08+0.3*vY)+split*fres*0.8+core*rise*0.7+vec3(1.0,0.95,0.9)*glint*2.5;
           c*=1.0+glow*1.6;
+          // vibrating: light pulses up through the crystal and races out from it
+          if(uVibeK>0.001){
+            float vd=distance(vW,uVibePos);
+            float on=1.0-smoothstep(uVibeR*1.1,uVibeR*1.6+0.8,vd);
+            float wave=pow(0.5+0.5*sin(vd*8.0-uT*10.0),5.0);
+            c+=(split*1.2+core)*wave*on*uVibeK*1.5;
+          }
           float d=length(vW-cameraPosition);
           gl_FragColor=vec4(c*(1.0-fogF(d)*0.85),1.0);
         }`,
     });
+    Object.assign(mat.uniforms, vibeUniforms);
     const m = new THREE.InstancedMesh(geo, mat, MAX_PRISMS);
     m.count = 0;
     m.renderOrder = 2;
@@ -990,6 +1008,11 @@ export class Creation {
     this.mine = [];
     for (const t of this.activeTrees) this.mine.push({ x: t.x, z: t.z, r: SHAPES[t.kind].radius * t.scale * 1.1, top: t.y + SHAPES[t.kind].height * t.scale });
     for (const list of rocks) for (const r of list) if (r.r > 0.6) this.mine.push({ x: r.x, z: r.z, r: r.r * 0.9, top: r.y + r.r * 0.8 });
+    // the stones that can answer stillness: rocks of some size, and every crystal cluster
+    this.stones = [
+      ...rocks.flat().filter((r) => r.r > 0.35).map((r) => ({ p: new THREE.Vector3(r.x, r.y + r.r * 0.4, r.z), r: r.r * 1.1, crystal: false })),
+      ...this.activeClusters.map((c) => ({ p: new THREE.Vector3(c.x, c.y + (c.great ? 1.6 : 0.8), c.z), r: c.great ? 2.2 : 1.2, crystal: true })),
+    ];
     for (const c of this.activeClusters) this.mine.push({ x: c.x, z: c.z, r: c.great ? 1.4 : 0.8, top: c.y + (c.great ? 3.6 : 1.6) });
     colliders.push(...this.mine);
 
@@ -1071,6 +1094,22 @@ export class Creation {
   }
 
   /** Trees and crystals near a point, for the spirits to gather around. */
+  /** The rock or crystal the wanderer has stopped in front of (near, and ahead), if any. */
+  stoneBefore(p: THREE.Vector3, heading: number): { p: THREE.Vector3; r: number; crystal: boolean } | null {
+    const fx = -Math.sin(heading), fz = -Math.cos(heading);
+    let best: (typeof this.stones)[number] | null = null, bd = Infinity;
+    for (const s of this.stones) {
+      const dx = s.p.x - p.x, dz = s.p.z - p.z;
+      const d = Math.hypot(dx, dz) - s.r;
+      if (d > 6 || (dx * fx + dz * fz) / Math.max(0.01, Math.hypot(dx, dz)) < 0.1) continue;
+      if (d < bd) {
+        bd = d;
+        best = s;
+      }
+    }
+    return best;
+  }
+
   anchors(): THREE.Vector3[] {
     return [
       ...this.activeTrees.map((t) => new V(t.x, t.y + SHAPES[t.kind].height * t.scale * 0.8, t.z)),

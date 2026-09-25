@@ -58,12 +58,15 @@ There is no island and no path. After "Touch the water to begin", a map unfolds:
   | Arch of three stones | Walk through: a ripple and a low tone. |
   | Two crossing rings | Walk to the crossing: the rings pulse. |
 
-- **Stillness:** stop and stay still. The wanderer turns inward, head bowed and hands together at the heart. Its aura opens, and rings of light spread over the ground. Streams of light arrive from the trees, crystals and archetypes, then everything connects to everything, and the network of roots lights up. The spirits gather, and the deer come near. Move, and it all dissolves.
+- **Stillness:** stop and stay still. The wanderer turns inward, head bowed and hands together at the heart. Its aura breathes out as a luminous gas. Strokes of light, like paint, wind in from the trees, crystals and archetypes and flow out into the world, and the network of roots lights up. The spirits gather, and the horses come near. Move, and it all dissolves.
 - **Under the water:** swim out and hold Down to dive. Sea-ribbons glow at their tips, anemones breathe light on the floor, jellyfish drift, and fish circle you. Moonlight falls in shafts, and looking up you see a bright window of sky.
-- **Creatures:**
-  - herds of light deer graze the meadows (the stags' antlers curl into spirals); they drift away if you run at them, and come close when you're still;
-  - small round hoppers bound through the grass;
-  - flocks of birds wheel overhead.
+- **Creatures:** herds of light horses roam the meadows in slow, dreamlike gallops. Run at them and they wheel away; stand still and they come close. Storks, flamingos and parrots wheel overhead.
+- **Stones that answer:** stop in front of a rock or crystal. It vibrates light outward, with waves racing over its surface and motes streaming off it.
+- **The archive's orbs and groves:** small glowing planets float through the world: in the sky (fly), deep in the lakes (dive), and over the land. Great trees stand in groves, each bearing glowing fruits.
+  - Come near and a quiet label shows the title, the entity and the date.
+  - Tap an orb or a fruit to hear its narration. A small player appears top-left with pause, source and close, and you keep exploring.
+  - When a narration ends, choose "Continue with background narration" or "Just the music".
+  - These are placeholders (soft tones) until the real narrations arrive.
 - **The whole creation:**
   - **Trees of light,** grown in smooth curves, with twigs that curl into spirals. Pulses of light run down from the crown through the trunk. Under the ground you can see the roots as fine lines of light going deep, brightest near you.
   - **The network.** Threads of light join the roots of neighbouring trees and crystals underground, and the same pulses travel along them.

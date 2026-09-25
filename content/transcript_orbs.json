@@ -1,0 +1,222 @@
+{
+ "note": "Placeholders. Real audio + transcripts arrive later; schema is locked.",
+ "orbs": [
+  {
+   "id": "orb-01",
+   "title": "Placeholder: The Open Heart",
+   "audio": "audio/orbs/orb-01.mp3",
+   "transcript": "Placeholder transcript text. The real narration and its transcript arrive with the delivery; this line only stands in so the player, captions and source record can be tested.",
+   "interpretive": true,
+   "sources": [
+    {
+     "entity": "Q'uo",
+     "date": "July 1, 1990",
+     "session_label": "Saturday meditation, July 1, 1990"
+    }
+   ]
+  },
+  {
+   "id": "orb-02",
+   "title": "Placeholder: The Veil",
+   "audio": "audio/orbs/orb-02.mp3",
+   "transcript": "Placeholder transcript text. The real narration and its transcript arrive with the delivery; this line only stands in so the player, captions and source record can be tested.",
+   "interpretive": true,
+   "sources": [
+    {
+     "entity": "Latwii",
+     "date": "October 12, 1986",
+     "session_label": "Sunday meditation, October 12, 1986"
+    }
+   ]
+  },
+  {
+   "id": "orb-03",
+   "title": "Placeholder: Catalyst",
+   "audio": "audio/orbs/orb-03.mp3",
+   "transcript": "Placeholder transcript text. The real narration and its transcript arrive with the delivery; this line only stands in so the player, captions and source record can be tested.",
+   "interpretive": true,
+   "sources": [
+    {
+     "entity": "Hatonn",
+     "date": "February 3, 1985",
+     "session_label": "Sunday meditation, February 3, 1985"
+    }
+   ]
+  },
+  {
+   "id": "orb-04",
+   "title": "Placeholder: The Choice",
+   "audio": "audio/orbs/orb-04.mp3",
+   "transcript": "Placeholder transcript text. The real narration and its transcript arrive with the delivery; this line only stands in so the player, captions and source record can be tested.",
+   "interpretive": true,
+   "sources": [
+    {
+     "entity": "Q'uo",
+     "date": "April 20, 1997",
+     "session_label": "Sunday meditation, April 20, 1997"
+    },
+    {
+     "entity": "Latwii",
+     "date": "April 20, 1997",
+     "session_label": "Sunday meditation, April 20, 1997"
+    }
+   ]
+  },
+  {
+   "id": "orb-05",
+   "title": "Placeholder: Silence",
+   "audio": "audio/orbs/orb-05.mp3",
+   "transcript": "Placeholder transcript text. The real narration and its transcript arrive with the delivery; this line only stands in so the player, captions and source record can be tested.",
+   "interpretive": true,
+   "sources": [
+    {
+     "entity": "Laitos",
+     "date": "May 14, 1983",
+     "session_label": "Intermediate meditation, May 14, 1983"
+    }
+   ]
+  },
+  {
+   "id": "orb-06",
+   "title": "Placeholder: Service",
+   "audio": "audio/orbs/orb-06.mp3",
+   "transcript": "Placeholder transcript text. The real narration and its transcript arrive with the delivery; this line only stands in so the player, captions and source record can be tested.",
+   "interpretive": true,
+   "sources": [
+    {
+     "entity": "Q'uo",
+     "date": "November 5, 1995",
+     "session_label": "Sunday meditation, November 5, 1995"
+    }
+   ]
+  },
+  {
+   "id": "orb-07",
+   "title": "Placeholder: The Higher Self",
+   "audio": "audio/orbs/orb-07.mp3",
+   "transcript": "Placeholder transcript text. The real narration and its transcript arrive with the delivery; this line only stands in so the player, captions and source record can be tested.",
+   "interpretive": true,
+   "sources": [
+    {
+     "entity": "Oxal",
+     "date": "August 9, 1981",
+     "session_label": "Sunday meditation, August 9, 1981"
+    }
+   ]
+  },
+  {
+   "id": "orb-08",
+   "title": "Placeholder: Unity",
+   "audio": "audio/orbs/orb-08.mp3",
+   "transcript": "Placeholder transcript text. The real narration and its transcript arrive with the delivery; this line only stands in so the player, captions and source record can be tested.",
+   "interpretive": true,
+   "sources": [
+    {
+     "entity": "Hatonn",
+     "date": "December 21, 1986",
+     "session_label": "Sunday meditation, December 21, 1986"
+    }
+   ]
+  }
+ ],
+ "trees": [
+  {
+   "id": "tree-01",
+   "name": "Grove of the Tender Heart",
+   "suggested_biome": "meadow near the starting shore",
+   "episodes": [
+    {
+     "id": "tree-01-ep1",
+     "title": "Placeholder: Forgiveness",
+     "audio": "audio/orbs/tree-01-ep1.mp3",
+     "transcript": "Placeholder transcript text. The real narration and its transcript arrive with the delivery; this line only stands in so the player, captions and source record can be tested.",
+     "interpretive": true,
+     "sources": [
+      {
+       "entity": "Hatonn",
+       "date": "March 8, 1987",
+       "session_label": "Sunday meditation, March 8, 1987"
+      }
+     ]
+    },
+    {
+     "id": "tree-01-ep2",
+     "title": "Placeholder: Compassion",
+     "audio": "audio/orbs/tree-01-ep2.mp3",
+     "transcript": "Placeholder transcript text. The real narration and its transcript arrive with the delivery; this line only stands in so the player, captions and source record can be tested.",
+     "interpretive": true,
+     "sources": [
+      {
+       "entity": "Q'uo",
+       "date": "June 16, 1991",
+       "session_label": "Sunday meditation, June 16, 1991"
+      }
+     ]
+    },
+    {
+     "id": "tree-01-ep3",
+     "title": "Placeholder: The Open Door",
+     "audio": "audio/orbs/tree-01-ep3.mp3",
+     "transcript": "Placeholder transcript text. The real narration and its transcript arrive with the delivery; this line only stands in so the player, captions and source record can be tested.",
+     "interpretive": true,
+     "sources": [
+      {
+       "entity": "Latwii",
+       "date": "January 25, 1987",
+       "session_label": "Sunday meditation, January 25, 1987"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "tree-02",
+   "name": "Grove of Still Water",
+   "suggested_biome": "lakeshore, by the water",
+   "episodes": [
+    {
+     "id": "tree-02-ep1",
+     "title": "Placeholder: Patience",
+     "audio": "audio/orbs/tree-02-ep1.mp3",
+     "transcript": "Placeholder transcript text. The real narration and its transcript arrive with the delivery; this line only stands in so the player, captions and source record can be tested.",
+     "interpretive": true,
+     "sources": [
+      {
+       "entity": "Q'uo",
+       "date": "September 8, 1996",
+       "session_label": "Sunday meditation, September 8, 1996"
+      }
+     ]
+    },
+    {
+     "id": "tree-02-ep2",
+     "title": "Placeholder: The Deep Mind",
+     "audio": "audio/orbs/tree-02-ep2.mp3",
+     "transcript": "Placeholder transcript text. The real narration and its transcript arrive with the delivery; this line only stands in so the player, captions and source record can be tested.",
+     "interpretive": true,
+     "sources": [
+      {
+       "entity": "Laitos",
+       "date": "March 1, 1984",
+       "session_label": "Intermediate meditation, March 1, 1984"
+      }
+     ]
+    },
+    {
+     "id": "tree-02-ep3",
+     "title": "Placeholder: Listening",
+     "audio": "audio/orbs/tree-02-ep3.mp3",
+     "transcript": "Placeholder transcript text. The real narration and its transcript arrive with the delivery; this line only stands in so the player, captions and source record can be tested.",
+     "interpretive": true,
+     "sources": [
+      {
+       "entity": "Hatonn",
+       "date": "July 27, 1986",
+       "session_label": "Sunday meditation, July 27, 1986"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
