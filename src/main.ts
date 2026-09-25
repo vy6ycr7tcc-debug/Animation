@@ -159,6 +159,7 @@ function resize(): void {
 }
 function applyTier(t: Tier, i: number = quality.tier): void {
   raysPass.enabled = i <= 1; // god rays on the two higher tiers only
+  wanderer.setQuality([48, 40, 32, 24][i] ?? 32); // ray-march steps for the fluid body
   bloomPass.enabled = t.bloom;
   plainPass.enabled = !t.bloom;
   const sh = star.shadow;
