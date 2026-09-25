@@ -32,6 +32,13 @@
 <div id="sit-panel" role="dialog" aria-labelledby="sit-title" hidden>
   <p id="sit-title"></p>
   <div id="sit-prompts"></div>
+  <div id="heart" hidden>
+    <p class="group" id="heart-label"></p>
+    <div id="heart-track" role="slider" tabindex="0" aria-labelledby="heart-label" aria-valuemin="0" aria-valuemax="4" aria-valuenow="2">
+      <div id="heart-thumb"></div>
+    </div>
+    <div id="heart-ends" aria-hidden="true"><span></span><span></span></div>
+  </div>
   <div id="sit-actions">
     <button id="sit-still" type="button">Rest in silence</button>
     <button id="sit-offer-light" type="button">Offer light</button>

@@ -26,6 +26,7 @@ export class Water {
     for (let i = 0; i < MAX_RIPPLES; i++) this.ripples.push(new THREE.Vector4(0, 0, -100, 0));
     this.uniforms.uRip.value = this.ripples;
     const mat = new THREE.ShaderMaterial({
+      side: THREE.DoubleSide, // seen from beneath when diving
       uniforms: { ...skyUniforms, ...this.uniforms },
       vertexShader: /* glsl */ `varying vec3 vW;void main(){vec4 w=modelMatrix*vec4(position,1.0);vW=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`,
       fragmentShader: /* glsl */ `precision highp float;
@@ -37,6 +38,18 @@ export class Water {
         ${SKY_GLSL}
         ${IJ_FOG_GLSL}
         void main(){
+          if(cameraPosition.y<vW.y-0.001){
+            // from below: the sky seen through a bright window straight up, and elsewhere the
+            // surface a dim teal mirror, shimmering with the ripples
+            vec3 up=normalize(vW-cameraPosition);
+            float wob=sin(vW.x*1.3+uT*0.9)*sin(vW.z*1.1-uT*0.7)*0.5+0.5;
+            float window_=smoothstep(0.62,0.9,up.y+wob*0.05);
+            vec3 below=vec3(0.02,0.1,0.13)*(0.7+wob*0.6);
+            vec3 sky=skyColor(normalize(vec3(up.x,up.y*1.4,up.z)))*1.6+vec3(0.05,0.12,0.14);
+            float moon=pow(max(dot(normalize(vec3(up.x,up.y*1.4,up.z)),uStar),0.0),30.0);
+            gl_FragColor=vec4(mix(below,sky,window_)+vec3(0.9,0.85,0.7)*moon*window_,1.0);
+            return;
+          }
           vec3 toEye=cameraPosition-vW;
           float dist=length(toEye);
           vec3 v=toEye/dist;

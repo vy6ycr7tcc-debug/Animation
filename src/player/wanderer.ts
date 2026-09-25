@@ -313,7 +313,7 @@ export class Wanderer {
     this.light.position.y = 1.2;
     this.root.add(this.light);
     // In water the body becomes an orb of light floating on the surface.
-    this.orbCore = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.35, 1.0), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+    this.orbCore = new THREE.MeshBasicMaterial({ color: new THREE.Color(3.2, 2.7, 2.0), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
     const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.9 }));
     halo.scale.setScalar(0.95);
     halo.material.depthTest = false; // never sliced by the water's surface
@@ -469,6 +469,7 @@ export class Wanderer {
 
     // Place the fluid body along the skeleton.
     this.root.updateMatrixWorld(true);
+    this.meditate(this.meditation * (1 - water));
     if (this.ready) {
       SEGS.forEach((s, i) => {
         const put = (e: End, out: THREE.Vector3) => (typeof e === "string" ? this.bonePos(e, out) : this.bonePos(e[0], out, e[1]));
@@ -491,6 +492,64 @@ export class Wanderer {
       this.ribbons[0].update(dt, this.bonePos("DEF-hand.L", this.tmp.a, 0.12), cam, strength);
       this.ribbons[1].update(dt, this.bonePos("DEF-hand.R", this.tmp.a, 0.12), cam, strength);
       this.ribbons[2].update(dt, this.bonePos("DEF-head", this.tmp.a, 0.2), cam, strength * 0.7);
+    }
+  }
+
+  /* ---------- stillness: head bowed, hands together before the heart ---------- */
+  /** 0–1, set each frame: how deeply the wanderer has settled into stillness. */
+  meditation = 0;
+  private q = [new THREE.Quaternion(), new THREE.Quaternion(), new THREE.Quaternion()];
+  private v = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+
+  /** Rotate a bone by a world-space rotation, blended by k. */
+  private turnBone(b: THREE.Bone | undefined, rot: THREE.Quaternion, k: number): void {
+    if (!b || !b.parent) return;
+    const w = b.getWorldQuaternion(this.q[0]);
+    const pw = b.parent.getWorldQuaternion(this.q[1]);
+    const r = this.q[2].identity().slerp(rot, k);
+    b.quaternion.copy(pw.invert().multiply(r.multiply(w)));
+    b.updateMatrixWorld(true);
+  }
+
+  /** Two-bone reach: upper arm and forearm bend so the wrist arrives at the target. */
+  private reachTo(side: "L" | "R", target: THREE.Vector3, pole: THREE.Vector3, k: number): void {
+    const U = this.bones[key(`DEF-upper_arm.${side}`)], F = this.bones[key(`DEF-forearm.${side}`)], H = this.bones[key(`DEF-hand.${side}`)];
+    if (!U || !F || !H) return;
+    const [s, e, w, d, p] = this.v;
+    U.getWorldPosition(s);
+    F.getWorldPosition(e);
+    H.getWorldPosition(w);
+    const a = s.distanceTo(e), b = e.distanceTo(w);
+    d.subVectors(target, s);
+    const c = Math.min(Math.max(d.length(), 0.01), a + b - 0.002);
+    d.normalize();
+    const cosA = THREE.MathUtils.clamp((a * a + c * c - b * b) / (2 * a * c), -1, 1);
+    p.copy(pole).addScaledVector(d, -pole.dot(d)).normalize();
+    const elbow = new THREE.Vector3().copy(s).addScaledVector(d, a * cosA).addScaledVector(p, a * Math.sqrt(1 - cosA * cosA));
+    const rot = new THREE.Quaternion().setFromUnitVectors(e.clone().sub(s).normalize(), elbow.clone().sub(s).normalize());
+    this.turnBone(U, rot, k);
+    F.getWorldPosition(e);
+    H.getWorldPosition(w);
+    rot.setFromUnitVectors(w.clone().sub(e).normalize(), target.clone().sub(e).normalize());
+    this.turnBone(F, rot, k);
+  }
+
+  private meditate(k: number): void {
+    if (k < 0.001 || !this.ready) return;
+    const h = this.root.rotation.y;
+    const fwd = new THREE.Vector3(-Math.sin(h), 0, -Math.cos(h));
+    const up = new THREE.Vector3(0, 1, 0);
+    const right = new THREE.Vector3().crossVectors(fwd, up).normalize();
+    // the head bows
+    const bow = new THREE.Quaternion().setFromAxisAngle(right, -0.28);
+    this.turnBone(this.bones[key("DEF-neck")], bow, k);
+    this.turnBone(this.bones[key("DEF-head")], bow, k);
+    // the hands come together before the heart, elbows soft and low
+    const heart = this.bonePos("DEF-spine.003", new THREE.Vector3()).addScaledVector(fwd, 0.22).addScaledVector(up, 0.12);
+    for (const [side, sgn] of [["L", -1], ["R", 1]] as const) {
+      const target = heart.clone().addScaledVector(right, 0.03 * sgn);
+      const pole = up.clone().multiplyScalar(-1).addScaledVector(right, 0.7 * sgn);
+      this.reachTo(side, target, pole, k);
     }
   }
 

@@ -17,7 +17,9 @@
 | Glide | Hold the round button in the air, or run off a slope | Hold Space in the air, or run off a slope |
 | Run | Hold **Run** (or push the thumb to the edge) | Hold Shift |
 | Fly, or stop flying | Tap **Fly** | F |
-| Rise / sink while flying | Hold the round button / hold **Down** | Hold Space / hold C |
+| Rise / sink while flying | Hold the round button / hold **Down** (the longer you hold, the faster) | Hold Space / hold C |
+| Dive / come up while swimming | Hold **Down** / hold the round button | Hold C / hold Space |
+| Turn inward | Stand still for a moment | Stand still |
 | Sit with an archetype, stand up | Tap “Sit with…” | E |
 | Settings, Leave, Begin again | ⋮ top right | Esc |
 
@@ -33,7 +35,8 @@ There is no island and no path. After "Touch the water to begin", a map unfolds:
   - VII, the Chariot: standing in the vessel under a canopy, with a light and a dark sphinx form before it.
 - **When you come near a being,** it turns toward you, brightens and greets you, and its narration begins. The narration keeps going as you walk on.
 - **Sit with a being:** near one, tap **Sit with…** (or press E). Your wanderer walks up, a stone rises, and you sit facing it. Then choose:
-  - **Ask** a question, or **Share a feeling.** The archetype answers, its light shimmering as it speaks.
+  - **Ask:** "Who are you?", "What do you teach?", "Where do I meet you in my life?" The archetype answers in Samuel's recordings (all 22 are recorded), its light shimmering as it speaks.
+  - **How is your heart right now?** Drag slowly along the gradient from shadow to light and let go. The archetype answers from the nearest of five places. These answers are placeholders until recorded.
   - **Rest in silence:** the stars come out and time slows.
   - **Offer light:** a stream of light flows from you to it, and it answers.
   - **Stand up,** or just move.
@@ -55,6 +58,12 @@ There is no island and no path. After "Touch the water to begin", a map unfolds:
   | Arch of three stones | Walk through: a ripple and a low tone. |
   | Two crossing rings | Walk to the crossing: the rings pulse. |
 
+- **Stillness:** stop and stay still. The wanderer turns inward, head bowed and hands together at the heart. Its aura opens, and rings of light spread over the ground. Streams of light arrive from the trees, crystals and archetypes, then everything connects to everything, and the network of roots lights up. The spirits gather, and the deer come near. Move, and it all dissolves.
+- **Under the water:** swim out and hold Down to dive. Sea-ribbons glow at their tips, anemones breathe light on the floor, jellyfish drift, and fish circle you. Moonlight falls in shafts, and looking up you see a bright window of sky.
+- **Creatures:**
+  - herds of light deer graze the meadows (the stags' antlers curl into spirals); they drift away if you run at them, and come close when you're still;
+  - small round hoppers bound through the grass;
+  - flocks of birds wheel overhead.
 - **The whole creation:**
   - **Trees of light,** grown in smooth curves, with twigs that curl into spirals. Pulses of light run down from the crown through the trunk. Under the ground you can see the roots as fine lines of light going deep, brightest near you.
   - **The network.** Threads of light join the roots of neighbouring trees and crystals underground, and the same pulses travel along them.
@@ -69,7 +78,7 @@ There is no island and no path. After "Touch the water to begin", a map unfolds:
 - To re-voice them, run `sh narration/revoice-female.sh` where the `tts` CLI is installed, then commit `public/audio/female/`. The game picks the new files up automatically.
 
 ## Adding the archetypes' answers
-- Each answer is one recording: `public/audio/answers/<numeral>/<prompt>.mp3`, for example `public/audio/answers/IV/who.mp3` for the Emperor's answer to "Who are you?".
+- Each answer is one recording: `public/audio/answers/<numeral>/<id>.mp3`, for example `public/audio/answers/IV/who.mp3`. The heart-spectrum anchors are `lost`, `afraid`, `still`, `bright` and `radiant`, for example `public/audio/answers/III/radiant.mp3`.
 - Paste its words into `transcript` for that answer in `content/dialogues.json`. The subtitles follow the recording by sentence.
 - **Changing the choices:**
   - edit `prompts` in the same file;

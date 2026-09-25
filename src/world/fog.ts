@@ -28,6 +28,7 @@ vec4 ijFog(vec3 p){
   float integ=abs(k)>1e-3?(1.0-exp(-k))/k:1.0-0.5*k;
   float depth=${FOG.density.toFixed(5)}*d*exp(-a*max(cameraPosition.y,0.0))*integ+${FOG.haze.toFixed(5)}*d;
   float f=1.0-exp(-depth);
+  f=max(f,smoothstep(1700.0,2450.0,d)); // the far edge of the streamed land always melts into the haze
   float moon=pow(max(dot(rd,${v3(starDirection())}),0.0),5.0);
   vec3 col=mix(${v3(FOG.color)},${v3(FOG.moon)},moon*0.7);
   // a touch lighter near the ground, where the haze gathers
