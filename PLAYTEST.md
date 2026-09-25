@@ -17,7 +17,10 @@ A stick in the bottom-left corner and one round button in the bottom-right, as i
 | Jump | Tap the round button | Tap Space |
 | Fly | Hold the round button: you take off and keep rising, faster the longer you hold. Let go and you drift gently down. | Hold Space; let go to drift down |
 | Land | Tap **Land** (shows only while you're flying) | C or L |
-| Dive / come up in the water | Hold **Dive** (shows only in the water) / hold the round button | Hold C / hold Space |
+| Dive | On the water, tap the round button (or **Dive**): a small leap and a plunge | Tap Space, or L |
+| Swim under the water | The stick swims where you look: look down to go deeper, up to rise. Tap the round button for a stroke; hold it to rise; let go to hover | W A S D and the mouse; Space (tap: stroke, hold: rise); hold C to sink |
+| Come up | Tap **Surface**. Rising fast with the button held, you leap clear; keep holding to fly | L |
+| Fly out of the water | On the water, hold the round button | Hold Space |
 | Look around | Drag anywhere off the stick | Drag with the mouse |
 | Zoom | Pinch | Scroll wheel |
 | Sit with an archetype, stand up | Tap "Sit with…" | E |
@@ -26,7 +29,9 @@ A stick in the bottom-left corner and one round button in the bottom-right, as i
 | Settings, Map, About | ⋮ top right | Esc |
 
 ## What it is
-There is no island and no path. After "Touch the water to begin", a map unfolds: the land drawn in gold contour lines, with the shore and the seven archetypes' places marked. Tap a place, or anywhere on the land, and you wake there. From there you can go anywhere. ⋮ → Map lets you travel again.
+There is no island and no path. After "Touch the water to begin", a map unfolds: the land drawn in gold contour lines, with the shore and the homes of all twenty-two archetypes marked. From there you can go anywhere. ⋮ → Map lets you travel again.
+- **The map:** drag to move it; pinch, scroll or use − / + / All to come closer or see everything. Tap a place (or its name in the list below the map), or any spot on the land, then **Wake here**. Each group has its own mark: the Mind a circle, the Body a diamond, the Spirit a triangle, the Choice a star. A wave under a mark means that home is in the deep; you wake on the water above it and dive.
+- **Where they live:** the Mind's seven around the shore where you wake; the Body's seven (VIII–XIV) out to the east; the Spirit's seven (XV–XXI) out to the west; the Choice (XXII) on a small island in the northern lake. The Moon (XVIII) and Judgement (XX) live on the floor of deep lakes, marked by a column of light and a ring on the water.
 - **The archetypes live in the world as beings you meet,** recreated from the Ra tarot cards. Each is a figure of flowing light in its own colour, posed as on its card:
   - I, the Magician: standing, holding out a sphere of light, beside a cube with a bird of light inside;
   - II, the High Priestess: seated before her veil, between the pillars;
@@ -34,8 +39,28 @@ There is no island and no path. After "Touch the water to begin", a map unfolds:
   - IV, the Emperor: seated on his throne on the square of light, holding a sphere;
   - V, the Hierophant: seated beyond the arch, with a staff of three rings and two small kneeling lights;
   - VI, the Lovers: a figure between two veiled companions, a bow of light above;
-  - VII, the Chariot: standing in the vessel under a canopy, with a light and a dark sphinx form before it.
-- **When you come near a being,** it turns toward you, brightens and greets you, and its narration begins. The narration keeps going as you walk on.
+  - VII, the Chariot: standing in the vessel under a canopy, with a light and a dark sphinx form before it;
+  - VIII, Strength: one gentle hand, and a lion of light at rest, its mane a ring of curling light;
+  - IX, the Hermit: high on the hills, with a staff and a lamp;
+  - X, the Wheel of Fortune: before a great turning wheel, two small lights riding it, one rising, one falling;
+  - XI, Justice: seated, the scales in one hand, the sword in the other, an eight-rayed star above;
+  - XII, the Hanged Man: head down by one foot from a beam between two vine-wound pillars, above still water (drawn dashed: the archive leaves him open);
+  - XIII, Death: a long scythe of light, and a rainbow over the field;
+  - XIV, Temperance: wings and a disc of rays, pouring light from cup to cup at the water's edge;
+  - XV, the Devil: great wings, a raised torch, two small figures held by a cord loose enough to slip;
+  - XVI, the Tower: beside a tower of light whose capstone the lightning has lifted; two small lights fall;
+  - XVII, the Star: kneeling by the lake, pouring from two vessels under a star of eight points;
+  - XVIII, the Moon: in the deep, between a pale and a dark pyramid, with a dim path and the moon above;
+  - XIX, the Sun: two figures hand in hand in a ring of flowers, under a sun with curling rays;
+  - XX, Judgement: in the deep, figures of light rising from a sarcophagus toward the surface;
+  - XXI, the World: seated with a harp, under a wreath with a dove at its heart and four lights at the corners (the wreath unfinished: the archive leaves it open);
+  - XXII, the Choice: a traveller with a bindle and a flowering staff, under an eclipse, on its island.
+  - Where a card and Samuel's recorded voice differ, the being follows the voice (VIII rests a hand on a lion; XI holds the scales and the sword).
+- **When you come near a being,** it turns toward you, brightens and greets you, and it speaks, as in Samuel's Q&A package (the tunnel):
+  - **arrival:** the Mind's seven begin their journey narration; the others say who they are ("Who are you?");
+  - **step closer** (about 3 m): it speaks its teaching;
+  - **sit with it:** it speaks its practice ("How shall I work with you?") before you choose anything. In the deep you can't sit: rest still before the being instead;
+  - **walk on:** once you are some way off, the passage for the road to the next archetype is the next voice you hear.
 - **Sit with a being:** near one, tap **Sit with…** (or press E). Your wanderer walks up, a stone rises, and you sit facing it. Then choose:
   - **Ask:** "Who are you?", "What do you teach?", "Where do I meet you in my life?" The archetype answers in Samuel's recordings (all 22 are recorded), its light shimmering as it speaks.
   - **How is your heart right now?** Drag slowly along the gradient from shadow to light and let go. The archetype answers from the nearest of five places.
@@ -61,7 +86,10 @@ There is no island and no path. After "Touch the water to begin", a map unfolds:
   | Two crossing rings | Walk to the crossing: the rings pulse. |
 
 - **Stillness:** stop and stay still. The wanderer turns inward, head bowed and hands together at the heart. Its aura breathes out as a pale, luminous mist. Long, soft strokes of light wind in from the trees, crystals and archetypes, melt into the aura, and a few flow out into the world; slow swells of light travel along them. The network of roots lights up. The spirits gather, and the horses come near. Move, and it all dissolves.
-- **Under the water:** swim out and hold Down to dive. Sea-ribbons glow at their tips, anemones breathe light on the floor, jellyfish drift, and fish circle you. Moonlight falls in shafts, and looking up you see a bright window of sky.
+- **Under the water:** the lakes are deep now (tens of metres). Tap to dive, then swim where you look.
+  - Light is absorbed as it travels, red first, so the far water turns teal and then indigo, darker the deeper you go. Moonlight falls in slow shafts that stay put as you swim through them. Looking up you see the sky through a bright, rippling window. Your orb is a lantern in the murk.
+  - Kelp sways and parts around you, with specks of light rising up it; caustics dance on the floor; marine snow drifts past; bubbles rise from your strokes. The world's sounds are muffled; the voices stay clear.
+  - Fish swim in schools, and mantas, dolphins and, in the deepest water, a whale. They glow softly and part around your light.
 - **Creatures:** herds of light horses roam the meadows in slow, dreamlike gallops. Run at them and they wheel away; stand still and they come close. Storks, flamingos and parrots wheel overhead.
 - **Stones that answer:** stop in front of a rock or crystal. It vibrates light outward, with waves racing over its surface and motes streaming off it.
 - **The archive's orbs and groves:** small glowing planets float through the world: in the sky (fly), deep in the lakes (dive), and over the land. Great trees stand in groves, each bearing glowing fruits.
@@ -93,7 +121,6 @@ There is no island and no path. After "Touch the water to begin", a map unfolds:
 
 ## Known issues
 - Subtitle timings were aligned automatically to pauses in each recording, so a line may change a moment early or late.
-- Only the seven Mind archetypes have beings so far. The other 15 cards are waiting on a go-ahead and narration.
 - The narration talks about places that don't match where you are. This waits on Samuel's map drawing.
 - When the camera passes through a tree, the tree dissolves into a fine stipple.
 - ⋮ → Begin again (tap twice) forgets the lit lanterns and starts over.

@@ -1,0 +1,379 @@
+{
+ "note": "Samuel's archetype Q&A package (reference/archetype-qa-audio.zip, scripts/ARCHETYPE_QA_SCRIPTS.md), audited 2026-09-25. The tunnel: Threshold (Q1, on arrival), Walk (Q2, the teaching, deeper in), Heart (Q3, the practice, innermost). Q1 is the same recording as answers/<numeral>/who.mp3.",
+ "archetypes": {
+  "I": {
+   "threshold": {
+    "question": "Who are you?",
+    "file": "audio/archetype_qa/A01Q1.mp3",
+    "transcript": "I am the Magician. I am consciousness itself, before anything has happened to it — the aware self, the watcher at the beginning of the journey. I am, as Ra says, 'full of the magic of that which is to come.' Nothing has been made yet. Everything is possible. It begins with attention."
+   },
+   "walk": {
+    "question": "What is the matrix of the mind?",
+    "file": "audio/archetype_qa/A01Q2.mp3",
+    "transcript": "The matrix is the conscious mind — the 'I am' that observes. It is the starting point from which all experience unfolds: unmoving, aware, full of potential. Every thought you will ever think, every choice you will ever make, begins here, in the simple fact that you are awake to yourself."
+   },
+   "heart": {
+    "question": "How shall I work with you?",
+    "file": "audio/archetype_qa/A01Q3.mp3",
+    "transcript": "Choose one thing, and rest your attention upon it. A stone. A flame. Your breath. Will is attention, held steady. Before anything is made, something watches — practice being the watcher, and the magic will follow."
+   }
+  },
+  "II": {
+   "threshold": {
+    "question": "Who are you?",
+    "file": "audio/archetype_qa/A02Q1.mp3",
+    "transcript": "I am the High Priestess. I am the unconscious — what Ra calls 'a vast realm of potential in the mind.' I am veiled, and the veil is part of the teaching. What you seek is seeking you. Be still enough to be found."
+   },
+   "walk": {
+    "question": "What is the potentiator of the mind?",
+    "file": "audio/archetype_qa/A02Q2.mp3",
+    "transcript": "The potentiator is that which empowers the conscious mind — the deep waters beneath the surface of thought. Between the Magician and me, the veil is drawn, and that veiling is what makes your inner life mysterious, fertile, and worth seeking. I do not give answers. I give depth."
+   },
+   "heart": {
+    "question": "How shall I work with you?",
+    "file": "audio/archetype_qa/A02Q3.mp3",
+    "transcript": "Sit. Wait. Do not chase me — I come to stillness, never to effort. The longer you rest in silence, the more the scroll steadies into legibility. Leave when you must; I keep. Return when you can; I am patient."
+   }
+  },
+  "III": {
+   "threshold": {
+    "question": "Who are you?",
+    "file": "audio/archetype_qa/A03Q1.mp3",
+    "transcript": "I am the Empress — that which acts upon the conscious mind to change it, as the questioner put it, and as Ra confirmed. The storm, the tide, the unexpected word — everything that happens to you passes through my garden. I do not choose for you. I only tend the ground in which you choose."
+   },
+   "walk": {
+    "question": "What is the catalyst of the mind?",
+    "file": "audio/archetype_qa/A03Q2.mp3",
+    "transcript": "All catalyst is designed to offer experience. This experience may be loved and accepted, or it may be controlled — these are the two paths. When neither path is chosen, the catalyst simply returns, deeper, until you form a bias toward acceptance and love, or toward separation and control. I am the storm. Your response is the harvest."
+   },
+   "heart": {
+    "question": "How shall I work with you?",
+    "file": "audio/archetype_qa/A03Q3.mp3",
+    "transcript": "Do not repress what you feel. It is far better to allow the experience to express itself, so that you may make fuller use of it. Stay with what comes until it has taught you — then let it go, the way the garden lets go of every season."
+   }
+  },
+  "IV": {
+   "threshold": {
+    "question": "Who are you?",
+    "file": "audio/archetype_qa/A04Q1.mp3",
+    "transcript": "I am the Emperor. I am experience itself — what the mind becomes through everything that has happened to it. Order, structure, authority: these are not prisons. Rightly used, they are how the mind loves the world."
+   },
+   "walk": {
+    "question": "What is the experience of the mind?",
+    "file": "audio/archetype_qa/A04Q2.mp3",
+    "transcript": "Experience is catalyst digested — what the storm made of the watcher. Every event you met with acceptance or with control has built these halls, stone by stone. Look at them honestly: they are the shape of your journey so far. Nothing here is wasted. Everything was material."
+   },
+   "heart": {
+    "question": "How shall I work with you?",
+    "file": "audio/archetype_qa/A04Q3.mp3",
+    "transcript": "Build one small order. Arrange the stones with care. Contemplate what you have made — and then release it. Scatter the stones. Structure serves; it does not own. The master of order is the one who can lay it down."
+   }
+  },
+  "V": {
+   "threshold": {
+    "question": "Who are you?",
+    "file": "audio/archetype_qa/A05Q1.mp3",
+    "transcript": "I am the Hierophant. I am the significator of the mind — its meaning, its central teaching, the temple where learning becomes sacred. Pilgrims come to me asking for the truth. I give them something better: the way to find it in themselves."
+   },
+   "walk": {
+    "question": "What is the significator of the mind?",
+    "file": "audio/archetype_qa/A05Q2.mp3",
+    "transcript": "The significator is what the mind signifies — its heart-teaching. And the heart of the discipline of the personality is threefold. One: know your self. Two: accept your self. Three: become the Creator. Everything I teach is a finger pointing at this moon."
+   },
+   "heart": {
+    "question": "How shall I work with you?",
+    "file": "audio/archetype_qa/A05Q3.mp3",
+    "transcript": "Speak one true sentence aloud. Not a doctrine — a truth, yours, spoken in your own voice. Or offer silence; silence is also an answer. The teaching is a finger pointing. Do not worship the finger. Look where it points: inward."
+   }
+  },
+  "VI": {
+   "threshold": {
+    "question": "Who are you?",
+    "file": "audio/archetype_qa/A06Q1.mp3",
+    "transcript": "I am the Lovers. I am transformation — the moment a choice changes the chooser. Two paths lie before you, and both are beautiful. I am not the choice itself. I am what the choice makes of you."
+   },
+   "walk": {
+    "question": "What is the transformation of the mind?",
+    "file": "audio/archetype_qa/A06Q2.mp3",
+    "transcript": "Transformation is the alchemy of choosing. The mind that has been potentized, catalyzed, and experienced now faces itself — and in choosing, becomes something new. Every great change in you has come through a moment like this: standing between two beloved paths, and becoming, in the choosing, someone who could walk either."
+   },
+   "heart": {
+    "question": "How shall I work with you?",
+    "file": "audio/archetype_qa/A06Q3.mp3",
+    "transcript": "Choose — and then practice the harder half: release the choice. Do not clutch the path you took, and do not mourn the one you didn't. Love is not the finding. It is the becoming. Walk on, lighter than you arrived."
+   }
+  },
+  "VII": {
+   "threshold": {
+    "question": "Who are you?",
+    "file": "audio/archetype_qa/A07Q1.mp3",
+    "transcript": "I am the Chariot. I am the Great Way of the mind — will mastered, the road made ready. The sphinxes in my traces are light and shadow, and neither pulls against the other now. I do not hurry. The way is the destination, traveled well."
+   },
+   "walk": {
+    "question": "What is the Great Way of the mind?",
+    "file": "audio/archetype_qa/A07Q2.mp3",
+    "transcript": "The Great Way is the mind traveling as one — every station behind you, gathered into a single forward motion. The Magician's attention, the Priestess's depth, the Empress's storms, the Emperor's order, the Hierophant's teaching, the Lovers' choice: all of it, harnessed, moving. This is what the journey was for."
+   },
+   "heart": {
+    "question": "How shall I work with you?",
+    "file": "audio/archetype_qa/A07Q3.mp3",
+    "transcript": "Take the reins — then be still. Pulling does nothing; settling everything. The chariot moves only when the driver is inwardly quiet. The way does not need your effort. It needs your presence. Cross the water. The next shore is waiting."
+   }
+  },
+  "VIII": {
+   "threshold": {
+    "question": "Who are you?",
+    "file": "audio/archetype_qa/A08Q1.mp3",
+    "transcript": "I am Strength. I am the matrix of the body — the physical vessel, aware of itself, at the beginning of its journey. Look: no force anywhere. One gentle hand, and the lion rests. True strength never needs to prove itself. It is busy being gentle."
+   },
+   "walk": {
+    "question": "What is the matrix of the body?",
+    "file": "audio/archetype_qa/A08Q2.mp3",
+    "transcript": "The matrix of the body is the body as foundation — the 'red ray,' as Ra calls it, the understanding and acceptance of which is fundamental to everything that follows. Your body is not an obstacle to the journey. It is the journey's ground, its first instrument, its home."
+   },
+   "heart": {
+    "question": "How shall I work with you?",
+    "file": "audio/archetype_qa/A08Q3.mp3",
+    "transcript": "Approach slowly. Kneel. Offer an open hand. Breathe — and let your breathing slow until it matches the lion's. Gentleness is not weakness. It is strength so complete it has forgotten how to threaten."
+   }
+  },
+  "IX": {
+   "threshold": {
+    "question": "Who are you?",
+    "file": "audio/archetype_qa/A09Q1.mp3",
+    "transcript": "I am the Hermit. I am the potentiator of the body — solitude that empowers. I carry a lamp into the high snows, and the light inside it is not mine. Go apart to go together: that is my whole teaching, and it fits in one lantern."
+   },
+   "walk": {
+    "question": "What is the potentiator of the body?",
+    "file": "audio/archetype_qa/A09Q2.mp3",
+    "transcript": "The potentiator is withdrawal that strengthens. The body, taken apart from the noise of the world, remembers what it is for. In the silence of the snows there is no audience, no performance — only the lamp, the path, and the one who walks. What is found here is carried back down the mountain."
+   },
+   "heart": {
+    "question": "How shall I work with you?",
+    "file": "audio/archetype_qa/A09Q3.mp3",
+    "transcript": "Carry the lamp a little way along the path — then set it down for the next traveler. Potentiation is completed by passing it on. The light you carry was never yours. That is why you can give it away."
+   }
+  },
+  "X": {
+   "threshold": {
+    "question": "Who are you?",
+    "file": "audio/archetype_qa/A10Q1.mp3",
+    "transcript": "I am the Wheel. I am the catalyst of the body — fortune, seasons, the turning. I rise and I fall and I rise again, and I do not ask your permission. Everything that lifts you and everything that lays you low passes through me."
+   },
+   "walk": {
+    "question": "What is the catalyst of the body?",
+    "file": "audio/archetype_qa/A10Q2.mp3",
+    "transcript": "That which acts upon the body to change it — the outer turning that the inner self must meet. All catalyst is designed to offer experience. Yours is to meet the turning without clinging to the top of the wheel, and without fearing its bottom. The hub, remember, does not move."
+   },
+   "heart": {
+    "question": "How shall I work with you?",
+    "file": "audio/archetype_qa/A10Q3.mp3",
+    "transcript": "Step onto the rim. Feel the turning — the rise, the fall, the strange weightlessness between. Then step off, at will. Nothing clung to, nothing pushed away. Fortune turns. You are the still point it turns around."
+   }
+  },
+  "XI": {
+   "threshold": {
+    "question": "Who are you?",
+    "file": "audio/archetype_qa/A11Q1.mp3",
+    "transcript": "I am Justice — the Enchantress, in the deck you carry. I am the experience of the body, weighed and balanced. My scales do not punish. My sword does not wound. I am discernment itself, and I have been waiting for you."
+   },
+   "walk": {
+    "question": "What is the experience of the body?",
+    "file": "audio/archetype_qa/A11Q2.mp3",
+    "transcript": "The experience of the body is what the body's journey amounts to — every rise and fall of the Wheel, gathered and weighed. And the weighing is gentle: with your higher self beside you, and with what can only be called grace, you yourself judge the journey. You are the judge you feared. Judge as love would."
+   },
+   "heart": {
+    "question": "How shall I work with you?",
+    "file": "audio/archetype_qa/A11Q3.mp3",
+    "transcript": "Lay one memory on the scales — any one. Watch it balance. There is no condemnation here, only the quiet arithmetic of the heart. Bow to the higher self who weighed with you. The higher self bows back."
+   }
+  },
+  "XII": {
+   "threshold": {
+    "question": "Who are you?",
+    "file": "audio/archetype_qa/A12Q1.mp3",
+    "transcript": "I am the Hanged Man. I am the significator of the body — its deepest meaning, which is surrender. I hang by one foot above still water, and I am at peace. The world looks different from here. That is the point."
+   },
+   "walk": {
+    "question": "What is the significator of the body?",
+    "file": "audio/archetype_qa/A12Q2.mp3",
+    "transcript": "The significator is what the body signifies when it stops striving — the wisdom of voluntary suspension. Not defeat: release. The swimmer who stops thrashing discovers the water was holding them all along. Everything you tried to force was waiting for you to stop forcing it."
+   },
+   "heart": {
+    "question": "How shall I work with you?",
+    "file": "audio/archetype_qa/A12Q3.mp3",
+    "transcript": "Hang. Remain. Do nothing, beautifully, on purpose. Insights will arrive unforced — they always do, when the grasping stops. Stop struggling, and the water holds you. This, too, is a way forward."
+   }
+  },
+  "XIII": {
+   "threshold": {
+    "question": "Who are you?",
+    "file": "audio/archetype_qa/A13Q1.mp3",
+    "transcript": "I am Death. I am the transformation of the body — the end of a form, honored. Do not fear me: the pale rider passes without menace, the crown lies down in the grass, and the sunrise was already here before I arrived."
+   },
+   "walk": {
+    "question": "What is the transformation of the body?",
+    "file": "audio/archetype_qa/A13Q2.mp3",
+    "transcript": "Transformation is release — what falls away so that the new can rise. Every ending you have ever grieved was a transformation wearing a dark cloak. The form passes. Nothing real is ever lost. Only the shape changes — and the shape was never you."
+   },
+   "heart": {
+    "question": "How shall I work with you?",
+    "file": "audio/archetype_qa/A13Q3.mp3",
+    "transcript": "Lay one thing to rest — a habit, a fear, a finished chapter. Give your grief its full weight; I can carry it. And when you are ready, look east. The sunrise does the rest. It always does."
+   }
+  },
+  "XIV": {
+   "threshold": {
+    "question": "Who are you?",
+    "file": "audio/archetype_qa/A14Q1.mp3",
+    "transcript": "I am Temperance — the Alchemist, in the deck you carry. I am the Great Way of the body: the mixing of opposites, fire into water, water into fire, until they shine. One foot on land, one in the stream. I am the middle path, and I am radiant."
+   },
+   "walk": {
+    "question": "What is the Great Way of the body?",
+    "file": "audio/archetype_qa/A14Q2.mp3",
+    "transcript": "The Great Way is balance made luminous — the body's opposites poured together until a third thing appears, which contains them both. Strength and surrender. Effort and rest. The lion and the lamb, drinking from the same vessel. This is what the body's whole journey was converging upon."
+   },
+   "heart": {
+    "question": "How shall I work with you?",
+    "file": "audio/archetype_qa/A14Q3.mp3",
+    "transcript": "Pour slowly between the vessels. Do not rush the mixing — the shining takes the time it takes. Patience is the whole mechanic. Not this, not that: the third thing. When the liquid shines, drink, and cross the water. The Island of Spirit is waiting."
+   }
+  },
+  "XV": {
+   "threshold": {
+    "question": "Who are you?",
+    "file": "audio/archetype_qa/A15Q1.mp3",
+    "transcript": "I am the Devil. I am the matrix of the spirit — its raw material, including everything you have refused to look at. I am not evil. I am unexamined. Every horror in this cavern is a disowned fragment of yourself, waiting to be recognized. Look closer."
+   },
+   "walk": {
+    "question": "What is the matrix of the spirit?",
+    "file": "audio/archetype_qa/A15Q2.mp3",
+    "transcript": "The matrix of the spirit is the spirit's starting point — the full raw substance, shadow included. The chains you see hang loose. They always have. The prison was unlocked from the inside, all along. What you fear in the dark is only yourself, unmet — and the meeting is the liberation."
+   },
+   "heart": {
+    "question": "How shall I work with you?",
+    "file": "audio/archetype_qa/A15Q3.mp3",
+    "transcript": "Look at the chains until you see that they hang loose. Stand up. Walk out. No battle — recognition is the whole event. What you have faced without flinching can never frighten you again."
+   }
+  },
+  "XVI": {
+   "threshold": {
+    "question": "Who are you?",
+    "file": "audio/archetype_qa/A16Q1.mp3",
+    "transcript": "I am the Tower. I am the potentiator of the spirit — sudden revelation, the lightning that shatters false structure. What I destroy was never true. What I leave standing was never built by hands. Do not be afraid of the thunder. It is the sound of lies falling."
+   },
+   "walk": {
+    "question": "What is the potentiator of the spirit?",
+    "file": "audio/archetype_qa/A16Q2.mp3",
+    "transcript": "The potentiator is that which empowers — and for the spirit, empowerment comes as demolition. A belief you leaned on, a structure you trusted: struck, shattered, gone. The shock is real. The harm is none. What falls was never you. What remains was never built — it simply is."
+   },
+   "heart": {
+    "question": "How shall I work with you?",
+    "file": "audio/archetype_qa/A16Q3.mp3",
+    "transcript": "Let it fall. Do not rebuild it the same way — that is the only instruction, and the only temptation. Stand in the rain that follows the lightning. Feel the clean air. Something truer is already growing in the ruins."
+   }
+  },
+  "XVII": {
+   "threshold": {
+    "question": "Who are you?",
+    "file": "audio/archetype_qa/A17Q1.mp3",
+    "transcript": "I am the Star — called Faith by those who know me best. I am the catalyst of the spirit. After the Tower's lightning, after the fall, I am what remains: eight stars wheeling over still water, and one blazing above all. I am hope that asks for nothing."
+   },
+   "walk": {
+    "question": "What is the catalyst of the spirit?",
+    "file": "audio/archetype_qa/A17Q2.mp3",
+    "transcript": "That which acts upon the spirit to change it — and for the spirit, the catalyst is faith itself. Not belief in a thing, but the call to move forward without evidence. The mind has its storms, the body its turnings; the spirit has only this: the quiet certainty that pours itself out, regardless."
+   },
+   "heart": {
+    "question": "How shall I work with you?",
+    "file": "audio/archetype_qa/A17Q3.mp3",
+    "transcript": "Pour out, and pour back. Kneel beside the still pool. Drink. Each pouring steadies the starlight's reflection a little more. Hope is not the expectation that things will turn out. It is the pouring, regardless."
+   }
+  },
+  "XVIII": {
+   "threshold": {
+    "question": "Who are you?",
+    "file": "audio/archetype_qa/A18Q1.mp3",
+    "transcript": "I am the Moon. I am the experience of the spirit — the dim path, the reflections, the dreams. What you meet on my road are your own unexamined fears, wearing shapes. They dissolve when approached with kindness. Everything here is a mirror. Smile at it."
+   },
+   "walk": {
+    "question": "What is the experience of the spirit?",
+    "file": "audio/archetype_qa/A18Q2.mp3",
+    "transcript": "The experience of the spirit is walking by reflected light — through illusion, through dreams, through the beautiful deceptions of the half-seen. The dogs bay, the towers loom, the water lies. None of it is false; all of it is partial. Wisdom, here, is learning to walk without chasing reflections."
+   },
+   "heart": {
+    "question": "How shall I work with you?",
+    "file": "audio/archetype_qa/A18Q3.mp3",
+    "transcript": "Walk the dim path. When a fear-figure rises before you, do not run and do not fight — greet it. It is yourself, unmet. It will bow, and fade. The moon shows you your own face in the water. Smile at it, and walk on toward the dawn."
+   }
+  },
+  "XIX": {
+   "threshold": {
+    "question": "Who are you?",
+    "file": "audio/archetype_qa/A19Q1.mp3",
+    "transcript": "I am the Sun. I am the significator of the spirit — its meaning made visible, radiant, undeniable. The walled garden, the child, the horse, the sunflowers: all of it is saying one thing. You are the sun's idea of itself, walking around in a garden."
+   },
+   "walk": {
+    "question": "What is the significator of the spirit?",
+    "file": "audio/archetype_qa/A19Q2.mp3",
+    "transcript": "The significator is what the spirit signifies — and the spirit signifies joy. Not joy earned, not joy explained: joy without reason, without achievement, without permission. After the Moon's illusions, this is the correction: the truth was never hidden. It was shining the whole time."
+   },
+   "heart": {
+    "question": "How shall I work with you?",
+    "file": "audio/archetype_qa/A19Q3.mp3",
+    "transcript": "Simply be in the light. Laugh if it comes. There is nothing to do here, and doing nothing is the practice. Let the warmth convince you of what the darkness could not: you were never separate from it."
+   }
+  },
+  "XX": {
+   "threshold": {
+    "question": "Who are you?",
+    "file": "audio/archetype_qa/A20Q1.mp3",
+    "transcript": "I am Judgement — the Sarcophagus, in the deck you carry: the material world as the spirit transforms it, into that which is infinite and eternal. The trumpet sounds, the graves open, and the figures rise — not in fear, but in recognition. I am the call you have been waiting your whole journey to hear."
+   },
+   "walk": {
+    "question": "What does the spirit transform?",
+    "file": "audio/archetype_qa/A20Q2.mp3",
+    "transcript": "The material world itself: into that which is infinite and eternal. For the spirit, transformation is rising — answering the trumpet of the higher self, stepping out of the grave of the old self into the dawn air. You were never dead. You were only dreaming you were. And now the dream is over, and the morning is exactly as beautiful as you were promised."
+   },
+   "heart": {
+    "question": "How shall I work with you?",
+    "file": "audio/archetype_qa/A20Q3.mp3",
+    "transcript": "Rise. Answer. When you hear your name — the true one, the one this journey has earned you — do not hesitate. Step out of the grave and stand in the dawn air. The past is a sarcophagus. You were only ever visiting."
+   }
+  },
+  "XXI": {
+   "threshold": {
+    "question": "Who are you?",
+    "file": "audio/archetype_qa/A21Q1.mp3",
+    "transcript": "I am the World. I am the Great Way of the spirit — completion. The dancer in the laurel wreath, the four guardians at the corners of the sky, and every station of your journey present at once, arranged as a dance. We have been waiting for you. Take your place."
+   },
+   "walk": {
+    "question": "What is the Great Way of the spirit?",
+    "file": "audio/archetype_qa/A21Q2.mp3",
+    "transcript": "The Great Way is the end of the journey discovering it was the journey — every island, every storm, every stillness, gathered into a single dance. The Magician's attention and the Sun's joy are the same light. The Tower's ruins and the Star's pouring are the same water. It was all one road. It was all you."
+   },
+   "heart": {
+    "question": "How shall I work with you?",
+    "file": "audio/archetype_qa/A21Q3.mp3",
+    "transcript": "Dance. Move, sway, be moved. The world dances back — it cannot help it. The wreath is a mirror: the dancer is you, and you are the dance. When the music slows, look beyond the meadow. A cliff waits at sunrise, and someone young is about to step off it, laughing."
+   }
+  },
+  "XXII": {
+   "threshold": {
+    "question": "Who are you?",
+    "file": "audio/archetype_qa/A22Q1.mp3",
+    "transcript": "I am the Fool. I am the Choice — the only one of us, Ra says, that is relatively fixed and single. I carry nothing but a bindle and absolute trust, and I am about to step off a cliff at sunrise. Everyone thinks I am mad. Everyone is wrong."
+   },
+   "walk": {
+    "question": "What is the Choice?",
+    "file": "audio/archetype_qa/A22Q2.mp3",
+    "transcript": "The Choice is the leap — trust without evidence, taken after everything is known. Twenty-one stations taught you attention, surrender, faith, and joy. Now put them all down. The Choice is not a decision between paths. It is the willingness to step where there is no path, knowing the air will hold."
+   },
+   "heart": {
+    "question": "How shall I work with you?",
+    "file": "audio/archetype_qa/A22Q3.mp3",
+    "transcript": "Step off. Do not look down — look out, at the sunrise. The fall never comes; the light catches you. And hear the words for the road: 'Go forth, therefore, rejoicing in the power and the peace of the One Infinite Creator.' Rest now. Or begin again, knowing."
+   }
+  }
+ }
+}

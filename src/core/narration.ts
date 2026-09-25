@@ -41,6 +41,8 @@ export class Narration {
   private decoded = new Map<string, Promise<AudioBuffer | null>>();
   private playing: { id: string; src: AudioBufferSourceNode; gain: GainNode; start: number; scale: number } | null = null;
   private cueIndex = -1;
+  /** Bumped by every play and stop: a track still loading when another is asked for never starts. */
+  private token = 0;
 
   constructor(
     private audio: AudioEngine,
@@ -59,6 +61,13 @@ export class Narration {
     const ctx = this.audio.ctx;
     if (!ctx) return Promise.resolve(null);
     let p = this.decoded.get(id);
+    // decoded audio is large (about 10 MB a minute): keep only the few most recent, or Safari
+    // may run out of memory and reload the page
+    if (p) {
+      this.decoded.delete(id);
+      this.decoded.set(id, p);
+    }
+    while (this.decoded.size > 4) this.decoded.delete(this.decoded.keys().next().value!);
     if (!p) {
       this.preload([id]);
       p = this.raw.get(id)!.then(async (data) => {
@@ -82,11 +91,14 @@ export class Narration {
   async play(id: string): Promise<void> {
     const track = TRACKS[id];
     if (!track) return;
-    this.stop(1.5);
+    // one voice at a time: the one speaking steps aside quickly, and the new one waits for it
+    const handoff = this.playing ? 0.5 : 0;
+    this.stop(0.5);
+    const token = this.token;
     this.current = id;
     const buf = await this.buffer(id);
     const ctx = this.audio.ctx;
-    if (this.current !== id || !ctx) return;
+    if (token !== this.token || this.current !== id || !ctx) return;
     if (!buf) {
       // No audio: the words still arrive, as subtitles paced like speech.
       this.fakePlay(track);
@@ -97,11 +109,12 @@ export class Narration {
     // A re-voiced recording has its own pace: stretch the cue times to fit it.
     const scale = buf.duration / (track.duration || buf.duration);
     const gain = ctx.createGain();
-    gain.gain.value = 0;
-    gain.gain.linearRampToValueAtTime(1, ctx.currentTime + 0.4);
+    const at = ctx.currentTime + handoff;
+    gain.gain.setValueAtTime(0, at);
+    gain.gain.linearRampToValueAtTime(1, at + 0.4);
     src.connect(gain).connect(this.audio.voice);
-    src.start();
-    this.playing = { id, src, gain, start: ctx.currentTime, scale };
+    src.start(at);
+    this.playing = { id, src, gain, start: at, scale };
     this.cueIndex = -1;
     this.audio.duck(true);
     src.onended = () => {
@@ -116,6 +129,7 @@ export class Narration {
     const p = this.playing;
     const ctx = this.audio.ctx;
     this.playing = null;
+    this.token++;
     if (p && ctx) {
       const t = ctx.currentTime;
       p.gain.gain.cancelScheduledValues(t);

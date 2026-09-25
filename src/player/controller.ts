@@ -1,5 +1,10 @@
-/* Movement: walk, run, glide, jump, swim, fly. Ground comes from the analytic height function;
-   solid features are circle colliders. There is no way to fall or fail. */
+/* Movement: walk, run, glide, jump, swim, dive, fly. Ground comes from the analytic height
+   function; solid features are circle colliders. There is no way to fall or fail.
+   Swimming (as in Abzû and Sky): at the surface the stick swims across the water; tap to dive
+   (a small leap and a curving plunge); hold to rise out of the water into flight. Under the
+   water you swim where you look, in three dimensions: look down to go deeper, up to rise. Tap
+   for a stroke (a burst that eases off; taps in rhythm keep the glide going); hold to rise; let
+   go and you hover, weightless. No breath, no current, nothing to fear. */
 import * as THREE from "three";
 import { colliders, heightAt, WATER_Y } from "../world/terrain";
 import type { Pose } from "./wanderer";
@@ -9,6 +14,9 @@ const WALK = 1.6;
 const RUN = 6.0; // holding Run
 const AIR_GLIDE = 7.0; // running off an edge, or holding jump in the air
 const SWIM = 2.6;
+const SWIM_FAST = 4.5; // the thumb at the edge
+const UNDER = 3.0; // swimming under the water
+const STROKE = 6.0; // the burst of one stroke
 const FLY = 6.0;
 const FLY_FAST = 13.0; // flying while holding Run
 const CLIMB = 4.5; // rising or sinking while flying
@@ -25,8 +33,10 @@ export interface MoveInput {
   glide: boolean;
   /** Jump held: in the air, the wanderer glides down slowly; while flying, rises. */
   hold?: boolean;
-  /** In the water: dive, while held. */
+  /** In the water: sink, while held. */
   down?: boolean;
+  /** The camera's pitch (positive looking down): under the water you swim where you look. */
+  pitch?: number;
 }
 
 export class Controller {
@@ -48,6 +58,12 @@ export class Controller {
   get diving(): boolean {
     return this.swimming && this.depth > 0.4;
   }
+  /** The swimmer's own velocity under the water (3D); the stroke's burst, easing off. */
+  private swimVel = new THREE.Vector3();
+  private burst = 0;
+  private surfacing = false;
+  private plunge = 0; // a dolphin dive in progress: seconds left
+  private holdWater = 0;
   /** How long rise has been held: the climb gathers speed the longer you hold it. */
   private climbHeld = 0;
   speed = 0;
@@ -62,6 +78,25 @@ export class Controller {
     if (this.flying) this.landing = true;
   }
 
+  /** In the water, the round button's tap: at the surface a dive, under it a stroke. */
+  stroke(): void {
+    if (!this.swimming) return;
+    if (this.depth < 0.5) {
+      this.plunge = 0.9;
+      this.surfacing = false;
+      return;
+    }
+    this.burst = Math.min(STROKE * 1.4, this.burst + STROKE);
+  }
+  /** The "Dive" word: the same dive as a tap at the surface. */
+  dive(): void {
+    if (this.swimming && this.depth < 0.5) this.plunge = 0.9;
+  }
+  /** The "Surface" word: glide up to the surface in a smooth arc. */
+  surface(): void {
+    if (this.diving) this.surfacing = true;
+  }
+
   jump(): void {
     if (this.grounded && !this.swimming) {
       this.vy = JUMP_V;
@@ -70,6 +105,10 @@ export class Controller {
   }
 
   update(dt: number, input: MoveInput, camYaw: number): void {
+    if (this.swimming && !this.flying && (this.depth > 0.5 || this.plunge > 0)) {
+      this.swimUnder(dt, input, camYaw);
+      return;
+    }
     // Camera-relative direction.
     const fx = -Math.sin(camYaw), fz = -Math.cos(camYaw);
     const rx = Math.cos(camYaw), rz = -Math.sin(camYaw);
@@ -95,7 +134,7 @@ export class Controller {
     }
     const top = this.flying
       ? input.glide ? FLY_FAST : FLY
-      : this.swimming ? SWIM : this.gliding && !this.grounded ? AIR_GLIDE : input.glide ? RUN : WALK;
+      : this.swimming ? (input.glide ? SWIM_FAST : SWIM) : this.gliding && !this.grounded ? AIR_GLIDE : input.glide ? RUN : WALK;
     const target = mag * top;
     const accel = this.flying ? 2.2 : this.grounded || this.swimming ? (input.glide ? 3.5 : 7) : this.gliding ? 3 : 2;
     this.vel.x += (dx * target - this.vel.x) * Math.min(1, dt * accel);
@@ -158,10 +197,22 @@ export class Controller {
     if (!this.swimming) this.depth = 0;
 
     if (this.swimming) {
-      // Float at the surface, or dive: hold Down to sink, rise to come up; let go to hang still.
-      const want = (input.down ? 1 : 0) - (input.hold ? 1 : 0);
+      // Float at the surface. Holding Down sinks you under; holding the button a moment lifts
+      // you out of the water into flight.
       const deepest = Math.max(0, SWIM_FEET - (ground + 0.4));
-      this.depth = Math.min(deepest, Math.max(0, this.depth + want * (want > 0 ? 2.4 : 3.2) * dt));
+      if (input.down) this.depth = Math.min(deepest, this.depth + 2.4 * dt);
+      else this.depth = Math.max(0, this.depth - 3 * dt);
+      this.holdWater = input.hold ? this.holdWater + dt : 0;
+      if (this.holdWater > 0.3) {
+        this.holdWater = 0;
+        this.swimming = false;
+        this.flying = true;
+        this.landing = false;
+        this.vy = 4;
+        this.pos.y = WATER_Y + 0.35;
+        this.pose = "fly";
+        return;
+      }
       this.vy = 0;
       this.pos.y += (SWIM_FEET - this.depth - this.pos.y) * Math.min(1, dt * (wasSwimming ? 4 : 2.5));
       this.grounded = false;
@@ -213,5 +264,88 @@ export class Controller {
           : input.glide && this.speed > WALK + 0.5
             ? "glide"
             : "walk";
+  }
+
+  /** Under the water: swim where you look. */
+  private swimUnder(dt: number, input: MoveInput, camYaw: number): void {
+    const pitch = input.pitch ?? 0.3;
+    const cp = Math.cos(pitch), sp = Math.sin(pitch);
+    const fx = -Math.sin(camYaw), fz = -Math.cos(camYaw);
+    const rx = Math.cos(camYaw), rz = -Math.sin(camYaw);
+    // forward follows the camera down and up; right stays level
+    const dir = new THREE.Vector3(fx * cp * input.y + rx * input.x, -sp * input.y, fz * cp * input.y + rz * input.x);
+    const mag = Math.min(1, dir.length());
+    if (mag > 0.001) dir.divideScalar(dir.length());
+    this.target = null;
+    // the dive: a curving plunge forward and down from the surface
+    if (this.plunge > 0) {
+      this.plunge -= dt;
+      const hx = -Math.sin(this.heading), hz = -Math.cos(this.heading);
+      dir.set(hx * 0.55, -1, hz * 0.55).normalize();
+      this.swimVel.lerp(dir.clone().multiplyScalar(4.2), Math.min(1, dt * 6));
+    } else {
+      const want = dir.multiplyScalar(mag * (input.glide ? SWIM_FAST : UNDER));
+      // a stroke's burst carries you on the way you are heading, easing off over a second or so
+      if (this.burst > 0.01) {
+        const along = this.swimVel.lengthSq() > 0.04 ? this.swimVel.clone().normalize() : new THREE.Vector3(fx * cp, -sp, fz * cp);
+        want.addScaledVector(along, this.burst);
+      }
+      if (input.hold) want.y += 2.6;
+      if (input.down) want.y -= 2.6;
+      if (this.surfacing) {
+        want.y = Math.max(want.y, 3.2);
+        if (input.down) this.surfacing = false;
+      }
+      this.swimVel.lerp(want, Math.min(1, dt * (mag > 0.05 || this.burst > 0.1 || input.hold || input.down || this.surfacing ? 2.4 : 1.4)));
+    }
+    this.burst *= Math.exp(-dt * 1.6);
+
+    // move, gliding along the floor and the surface rather than stopping at them
+    this.pos.addScaledVector(this.swimVel, dt);
+    const ground = heightAt(this.pos.x, this.pos.z);
+    if (this.pos.y < ground + 0.25) {
+      this.pos.y = ground + 0.25;
+      if (this.swimVel.y < 0) this.swimVel.y *= 0.2;
+    }
+    const moved = this.swimVel.length() * dt;
+    this.odometer += moved;
+    this.speed = this.swimVel.length();
+    this.depth = Math.max(0, SWIM_FEET - this.pos.y);
+    // coming up: rest at the surface, or, rising fast, leap clear of it (hold on to fly)
+    if (this.pos.y >= SWIM_FEET && this.plunge <= 0) {
+      this.surfacing = false;
+      if (this.swimVel.y > 2.4 && input.hold) {
+        this.swimming = false;
+        this.grounded = false;
+        this.vy = 5.5;
+        this.pos.y = SWIM_FEET + 0.1;
+        this.vel.set(this.swimVel.x, 0, this.swimVel.z);
+      } else {
+        this.pos.y = SWIM_FEET;
+        this.depth = 0;
+        this.vel.set(this.swimVel.x, 0, this.swimVel.z);
+        this.vy = 0;
+      }
+      this.swimVel.set(0, 0, 0);
+      this.burst = 0;
+    }
+    if (ground >= WATER_Y - SWIM_DEPTH) {
+      // the shallows: out of the deep, onto your feet
+      this.swimming = false;
+      this.depth = 0;
+      this.swimVel.set(0, 0, 0);
+      this.pos.y = Math.max(this.pos.y, ground);
+    }
+    const hs = Math.hypot(this.swimVel.x, this.swimVel.z);
+    if (hs > 0.2) {
+      const want = Math.atan2(-this.swimVel.x, -this.swimVel.z);
+      let dh = want - this.heading;
+      dh = Math.atan2(Math.sin(dh), Math.cos(dh));
+      this.heading += dh * Math.min(1, dt * 4);
+    }
+    this.vel.set(this.swimVel.x, 0, this.swimVel.z);
+    this.grounded = false;
+    this.gliding = false;
+    this.pose = "swim";
   }
 }

@@ -19,6 +19,8 @@ export class AudioEngine {
   voice!: GainNode; // narration bus
   private bed!: GainNode; // everything that ducks under narration
   private fx!: GainNode;
+  private muffle!: BiquadFilterNode;
+  private under = false;
   private rev!: ConvolverNode;
   private noise!: AudioBuffer;
   private laps: GainNode | null = null;
@@ -69,12 +71,18 @@ export class AudioEngine {
       for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.8);
     }
     this.rev.buffer = ir;
+    // under the water, the world's sounds are muffled (the voices stay clear)
+    this.muffle = c.createBiquadFilter();
+    this.muffle.type = "lowpass";
+    this.muffle.frequency.value = 20000;
+    this.muffle.Q.value = 0.5;
+    this.muffle.connect(this.master);
     const wet = c.createGain();
     wet.gain.value = 0.45;
-    this.rev.connect(wet).connect(this.master);
+    this.rev.connect(wet).connect(this.muffle);
 
     this.bed = c.createGain();
-    this.bed.connect(this.master);
+    this.bed.connect(this.muffle);
     this.fx = c.createGain();
     this.fx.connect(this.bed);
     this.fx.connect(this.rev);
@@ -95,6 +103,17 @@ export class AudioEngine {
   }
   suspend(): void {
     if (this.ctx && this.ctx.state === "running") this.ctx.suspend();
+  }
+
+  /** The camera has gone under the water (or come up): muffle the world, gently. */
+  underwater(on: boolean): void {
+    const c = this.ctx;
+    if (!c || !this.muffle || on === this.under) return;
+    this.under = on;
+    const f = this.muffle.frequency, t = c.currentTime;
+    f.cancelScheduledValues(t);
+    f.setValueAtTime(f.value, t);
+    f.exponentialRampToValueAtTime(on ? 750 : 20000, t + (on ? 0.3 : 0.6));
   }
 
   setVolume(v: number, ramp = 0.3): void {

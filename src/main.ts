@@ -21,7 +21,7 @@ import { AudioEngine } from "./core/audio";
 import { Input } from "./core/input";
 import { Narration } from "./core/narration";
 import { Playlist } from "./core/playlist";
-import { promptsFor, registerAnswers, SPECTRUM, trackId } from "./core/dialogues";
+import { heartId, passageId, promptsFor, registerAnswers, registerTunnel, SPECTRUM, trackId, walkId } from "./core/dialogues";
 import { AdaptiveQuality, FrameStats, MOBILE, type Tier } from "./core/quality";
 import { clear, load, save, type SaveData } from "./core/save";
 import { FollowCamera } from "./player/camera";
@@ -35,7 +35,7 @@ import { Butterflies, Flowers, Gliders, Lanterns, LightGrass, Sparks, type LifeF
 import { Motes } from "./world/motes";
 import { Creation, creationUniforms, Spirits } from "./world/creation";
 import { Beings } from "./world/beings";
-import { SeaLife, UnderwaterEffect } from "./world/underwater";
+import { SeaFauna, SeaLife, UnderwaterEffect } from "./world/underwater";
 import { Communion } from "./world/communion";
 import { Creatures } from "./world/creatures";
 import { Vessels } from "./world/vessels";
@@ -43,7 +43,7 @@ import { TranscriptPlayer } from "./ui/transcriptPlayer";
 import { StartMap, type Choice, type Place } from "./ui/map";
 import { Reflection } from "./world/reflection";
 import { buildSky, skyUniforms, starDirection } from "./world/sky";
-import { heightAt, SPAWN, Terrain, WATER_Y } from "./world/terrain";
+import { groundUniforms, heightAt, SPAWN, Terrain, WATER_Y } from "./world/terrain";
 import { Water } from "./world/water";
 import { FOG, installFog } from "./world/fog";
 import { N8AOPostPass } from "n8ao";
@@ -187,6 +187,7 @@ const audio = new AudioEngine("audio/water-bed.mp3");
 const narration = new Narration(audio, $("#sub"));
 const playlist = new Playlist(narration);
 registerAnswers();
+registerTunnel();
 
 /* ============ THE LIVING WORLD ============ */
 const sparks = new Sparks();
@@ -210,6 +211,8 @@ const spirits = new Spirits(creation, MOBILE ? 10 : 14);
 scene.add(creation.group, spirits.group);
 const seaLife = new SeaLife();
 scene.add(seaLife.group);
+const fauna = new SeaFauna();
+scene.add(fauna.group);
 const communion = new Communion();
 scene.add(communion.group);
 // The archive's vessels: orbs and groves, and the quiet player for their narrations.
@@ -249,9 +252,12 @@ function resize(): void {
   camera.fov = h > w ? 66 : 55;
   camera.updateProjectionMatrix();
 }
+/** What the quality tier allows; under the water, ambient occlusion and god rays rest. */
+const tierFx = { rays: true, ao: true };
 function applyTier(t: Tier, i: number = quality.tier): void {
-  raysPass.enabled = i <= 1; // god rays on the two higher tiers only
-  aoPass.enabled = i <= 1;
+  tierFx.rays = tierFx.ao = i <= 1; // god rays and ambient occlusion on the two higher tiers only
+  raysPass.enabled = tierFx.rays;
+  aoPass.enabled = tierFx.ao;
   reflection.enabled = i <= 1; // mirrored world in the lakes
   water.uniforms.uReflOn.value = reflection.enabled ? 1 : 0;
   wanderer.setQuality([48, 40, 32, 24][i] ?? 32); // ray-march steps for the fluid body
@@ -323,11 +329,15 @@ input.onLand = () => {
   if (player.flying) {
     player.land();
     whisper("Coming down to land", 2500);
-  }
+  } else if (player.diving) player.surface();
+  else if (player.swimming) player.dive();
 };
 input.onAction = () => {
   if (wanderer.gesture !== "none") wanderer.setGesture("none");
-  player.jump();
+  if (player.swimming) {
+    player.stroke();
+    seaLife.bubbles(player.pos, 10);
+  } else player.jump();
 };
 input.onTap = (x, y) => {
   if (S.mode !== "play") return;
@@ -370,10 +380,12 @@ function begin(e?: Event): void {
 /** The places on the map: the shore, and the seven archetypes' homes. */
 function places(): Place[] {
   return [
-    { numeral: "", label: "The shore", x: SPAWN.x, z: SPAWN.z, narration: "J01", start: { x: SPAWN.x, z: SPAWN.z, heading: SPAWN.heading } },
+    { numeral: "", label: "The shore", group: "Shore", x: SPAWN.x, z: SPAWN.z, narration: "J01", start: { x: SPAWN.x, z: SPAWN.z, heading: SPAWN.heading } },
     ...beings.list.map((b, i) => ({
       numeral: b.spec.numeral,
       label: b.spec.name,
+      group: b.spec.realm,
+      deep: !!b.spec.under,
       x: b.root.position.x,
       z: b.root.position.z,
       narration: b.spec.narration,
@@ -398,6 +410,8 @@ function arrive(c: Choice, first: boolean): void {
   wanderer.setForm(0);
   wanderer.setGesture("none");
   beings.reset();
+  lastMet = -1;
+  passed.clear();
   playlist.startWith(c.place.narration);
   input.enabled = true;
   S.mode = "play";
@@ -412,14 +426,42 @@ function arrive(c: Choice, first: boolean): void {
 }
 $("#begin").addEventListener("click", begin);
 const startMap = new StartMap();
-// Meeting an archetype: it greets you, and its voice begins.
+// Meeting an archetype: it greets you, and its voice begins (the Threshold).
 beings.onMeet = (a) => {
   playlist.meet(a.narration);
   whisper(`${a.numeral} · ${a.name}`, 5000);
   say(`${a.name} turns toward you.`);
 };
+/* The tunnel, deeper in: step close to a being you have met and it speaks its teaching (the
+   Walk); sit with it (or, in the deep, rest still before it) and it speaks its practice (the
+   Heart). When you leave it behind, the passage for the road onward is the next voice you hear. */
+let lastMet = -1;
+const passed = new Set<number>();
+function updateTunnel(): void {
+  if (S.mode !== "play" || !playlist.on || playlist.held || tp.active) return;
+  const n = beings.nearest(player.pos);
+  const b = n.i >= 0 ? beings.list[n.i] : null;
+  if (b?.met) lastMet = n.i;
+  const idle = !narration.current;
+  if (b && b.met && !b.walked && idle && sitting.phase === "none" && n.d < (b.spec.under ? 5 : 3.4)) {
+    b.walked = true;
+    void narration.play(walkId(b.spec.numeral));
+    return;
+  }
+  const settled = sitting.phase === "seated" ? sitting.since > 1.2 && !sitting.asked : !!b?.spec.under && b.walked && n.d < 5 && stillFor > 2.5;
+  if (b && b.met && !b.hearted && idle && settled && (sitting.phase !== "seated" || sitting.being === n.i)) {
+    b.hearted = true;
+    void narration.play(heartId(b.spec.numeral));
+    return;
+  }
+  if (lastMet >= 0 && !passed.has(lastMet) && beings.list[lastMet].distanceTo(player.pos) > 35) {
+    passed.add(lastMet);
+    const id = passageId(lastMet + 1);
+    if (id) playlist.queueNext(id);
+  }
+}
 /* ---- Sitting with an archetype: ask it something, rest in silence, offer light ---- */
-const sitting = { being: -1, phase: "none" as "none" | "walking" | "seated", x: 0, z: 0, heading: 0, rise: 0 };
+const sitting = { being: -1, phase: "none" as "none" | "walking" | "seated", x: 0, z: 0, heading: 0, rise: 0, since: 0, asked: false };
 const seatStone = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 18), etchedStone("#3a3552"));
 seatStone.scale.set(0.46, 0.42, 0.36);
 seatStone.castShadow = seatStone.receiveShadow = true;
@@ -443,6 +485,8 @@ function offerSit(): void {
 function sitDown(): void {
   const b = beings.list[sitting.being];
   sitting.phase = "seated";
+  sitting.since = 0;
+  sitting.asked = false;
   player.pos.x = sitting.x;
   player.pos.z = sitting.z;
   player.target = null;
@@ -468,6 +512,7 @@ function sitDown(): void {
     btn.textContent = p.label;
     btn.addEventListener("click", () => {
       btn.classList.add("heard");
+      sitting.asked = true;
       stillness(false);
       b.greet();
       if (tp.active) tp.close(); // at a station, only the archetype speaks
@@ -536,6 +581,7 @@ const heart = (() => {
     track.setAttribute("aria-valuetext", said[i] ?? "");
     const b = beings.list[sitting.being];
     if (!b || !anchors[i]) return;
+    sitting.asked = true;
     stillness(false);
     b.greet();
     if (tp.active) tp.close();
@@ -620,9 +666,14 @@ function updateStillness(dt: number, wt: number): void {
 
 /** Each frame: offer a seat near a being, walk to it, and keep the sitting in step. */
 function updateSitting(dt: number): void {
-  if (sitting.phase === "seated") heart.update(dt);
+  if (sitting.phase === "seated") {
+    heart.update(dt);
+    sitting.since += dt;
+  }
   const n = beings.nearest(player.pos);
-  sitOffer.hidden = !(S.mode === "play" && sitting.phase === "none" && n.i >= 0 && n.d < 6.5 && !startMap.isOpen);
+  // in the deep there is nowhere to sit: you rest before the being instead
+  const canSit = n.i >= 0 && !beings.list[n.i].spec.under;
+  sitOffer.hidden = !(S.mode === "play" && sitting.phase === "none" && canSit && n.d < 6.5 && !startMap.isOpen);
   if (!sitOffer.hidden) sitOffer.textContent = `Sit with ${beings.list[n.i].spec.name.replace(/^The /, "the ")}`;
   if (sitting.phase === "walking") {
     const moved = Math.hypot(input.move.x, input.move.y) > 0.2;
@@ -636,7 +687,8 @@ function updateSitting(dt: number): void {
   seatStone.position.y = heightAt(seatStone.position.x, seatStone.position.z) - 0.5 + sitting.rise * 0.5;
   if (sitting.rise < 0.01 && sitting.phase === "none") seatStone.visible = false;
   landmarks.stillness += ((stillBtn.getAttribute("aria-pressed") === "true" ? 1 : 0) - landmarks.stillness) * Math.min(1, dt * 0.5);
-  beings.list.forEach((b) => (b.speaking = narration.current?.startsWith(`A-${b.spec.numeral}-`) ? 1 : 0));
+  const cur = narration.current ?? "";
+  beings.list.forEach((b) => (b.speaking = cur.startsWith(`A-${b.spec.numeral}-`) || cur === walkId(b.spec.numeral) || cur === heartId(b.spec.numeral) ? 1 : 0));
 }
 
 /* ---- The archive's narrations: started only by the player, one quiet bar, never a modal ---- */
@@ -817,6 +869,8 @@ function readings(): string {
 let lastPrint = 0;
 let printSide = 1;
 let lastStroke = 0;
+const orbPos = new THREE.Vector3();
+let wasSwimming = false;
 let saveTimer = 0;
 const center = new THREE.Vector3();
 const glow = new THREE.Vector3();
@@ -845,17 +899,17 @@ function update(dt: number): void {
 
   if (S.mode === "play") {
     if (wanderer.gesture !== "none" && Math.hypot(input.move.x, input.move.y) > 0.2 && wanderer.gesture === "sit") wanderer.setGesture("none");
-    player.update(dt, { ...input.move, glide: input.boost, hold: input.hold, down: input.descend }, follow.yaw);
-    // the one context word: "Land" high in the air, "Dive" in the water
+    player.update(dt, { ...input.move, glide: input.boost, hold: input.hold, down: input.descend, pitch: follow.pitch }, follow.yaw);
+    // the one context word: "Land" high in the air, "Dive" on the water, "Surface" under it
     const ctx = $("#ctx");
     const high = player.flying && !player.landing && player.pos.y - Math.max(heightAt(player.pos.x, player.pos.z), WATER_Y) > 2.5;
-    const word = sitting.phase === "seated" ? "" : high ? "Land" : player.swimming ? (player.diving ? "Dive deeper" : "Dive") : "";
+    const word = sitting.phase === "seated" ? "" : high ? "Land" : player.swimming ? (player.diving ? "Surface" : "Dive") : "";
     ctx.hidden = !(MOBILE || input.touchUsed) || !word;
     if (ctx.textContent !== word) ctx.textContent = word;
     document.body.classList.toggle("flying", player.flying);
     if (player.swimming && !S.toldDive) {
       S.toldDive = true;
-      whisper(MOBILE ? "Hold Dive to go down; hold the round button to come up" : "Hold C to dive; hold Space to come up", 5000);
+      whisper(MOBILE ? "Tap the round button to dive. Under the water, swim where you look" : "Tap Space to dive. Under the water, swim where you look", 6000);
     }
   }
   S.wt += dt * landmarks.timeScale;
@@ -878,11 +932,12 @@ function update(dt: number): void {
       audio.step(false);
       if (gy < 0.15) water.ripple(player.pos.x, player.pos.z, 0.5, t);
     }
-    if (player.swimming && player.odometer - lastStroke > 1.1) {
+    if (player.swimming && !player.diving && player.odometer - lastStroke > 1.1) {
       lastStroke = player.odometer;
       water.ripple(player.pos.x, player.pos.z, 0.8, t);
       audio.step(true);
     }
+    playlist.quiet = sitting.phase === "seated";
     playlist.update(dt);
   }
   narration.update();
@@ -907,6 +962,7 @@ function update(dt: number): void {
   landmarks.update(wt, dt, player.pos, S.mode === "play" ? player.speed : 1, S.reduced);
   if (S.mode === "play") beings.update(wt, dt, player.pos, S.reduced);
   updateSitting(dt);
+  updateTunnel();
   vessels.update(wt, player.pos, camera, S.reduced, S.mode === "play" && !startMap.isOpen);
   tp.subtitlesOn = narration.subtitlesOn;
   tp.update();
@@ -914,9 +970,21 @@ function update(dt: number): void {
   if (S.mode !== "intro") creatures.update(wt, dt, player.pos, medK, player.speed > 3 || player.gliding, S.reduced);
   const camUnder = camera.position.y < WATER_Y - 0.05;
   underwaterPass.enabled = camUnder;
-  underwater.time = wt;
-  follow.underwater = player.diving;
-  seaLife.update(wt, dt, player.pos, player.swimming || camUnder);
+  raysPass.enabled = tierFx.rays && !camUnder;
+  aoPass.enabled = tierFx.ao && !camUnder;
+  audio.underwater(camUnder);
+  groundUniforms.uT.value = wt;
+  // the camera goes under with you once you are properly down, and comes up as you surface
+  if (player.swimming && player.depth > 0.7) follow.underwater = true;
+  else if (!player.swimming || player.depth < 0.15) follow.underwater = false;
+  input.inWater = player.swimming;
+  const orbAt = orbPos.set(player.pos.x, player.pos.y + 1.22, player.pos.z);
+  const inWater = player.swimming || camUnder;
+  seaLife.update(wt, dt, player.pos, inWater, orbAt, camera.position, (innerHeight * dpr) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
+  fauna.update(wt, dt, player.pos, inWater, orbAt, S.reduced);
+  if (player.swimming && !wasSwimming) seaLife.bubbles(player.pos, 18); // into the water
+  if (player.diving && Math.random() < dt * 0.6) seaLife.bubbles(player.pos, 1);
+  wasSwimming = player.swimming;
 
   follow.update(dt, player.pos, player.heading, player.speed > 0.5, t, S.reduced);
   // high in the air, the camera reaches farther (and keeps its depth precise)
@@ -928,6 +996,10 @@ function update(dt: number): void {
       camera.far = far;
       camera.updateProjectionMatrix();
     }
+  }
+  if (camUnder) {
+    camera.updateMatrixWorld();
+    underwater.follow(camera, wt, orbPos);
   }
   sky.position.copy(camera.position);
   starSource.position.copy(camera.position).addScaledVector(starDir, 900);
@@ -971,4 +1043,4 @@ function frame(now: number): void {
 }
 requestAnimationFrame(frame);
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, aoPass, composer, underwaterPass, reflection, terrain, water, grass, seaLife, raysPass } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, aoPass, composer, underwaterPass, fauna, reflection, terrain, water, grass, seaLife, raysPass } });
