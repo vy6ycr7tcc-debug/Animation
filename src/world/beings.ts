@@ -17,8 +17,8 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { loadBytes } from "../core/assets";
-import { FluidBody, SEGMENTS } from "../player/fluidBody";
-import { HEIGHT, key, SEGS, type End } from "../player/wanderer";
+import { lightBodyMaterial, tickLightBody } from "../player/lightBody";
+import { HEIGHT, key } from "../player/wanderer";
 import type { Sparks } from "./life";
 import { etchedStone } from "./etching";
 import type { Station } from "./stations";
@@ -106,7 +106,8 @@ function orb(color: THREE.Color, r = 0.1): THREE.Group {
 class Being {
   root = new THREE.Group(); // at the feet
   props = new THREE.Group(); // in the being's frame
-  fluid: FluidBody;
+  skin: THREE.MeshStandardMaterial;
+  private meshes: THREE.Mesh[] = [];
   held: { obj: THREE.Object3D; bone: string; along: number; lift: number }[] = [];
   met = false;
   wake = 0;
@@ -129,9 +130,7 @@ class Being {
 
   constructor(public spec: Spec, public station: Station) {
     this.U.uTint.value.set(...spec.tint);
-    this.fluid = new FluidBody(this.U);
-    this.fluid.setSteps(32);
-    this.fluid.mesh.visible = false;
+    this.skin = lightBodyMaterial(new THREE.Color(...spec.tint).multiplyScalar(0.9));
     const [x, y, z] = spec.at;
     this.root.position.set(station.center.x + x, station.center.y + y, station.center.z + z);
     this.root.rotation.y = this.yaw;
@@ -150,7 +149,13 @@ class Being {
   attach(model: THREE.Object3D, clips: THREE.AnimationClip[], scale: number): void {
     const m = cloneSkinned(model);
     m.traverse((o) => {
-      if ((o as THREE.Mesh).isMesh) o.visible = false;
+      if ((o as THREE.Mesh).isMesh) {
+        const mesh = o as THREE.Mesh;
+        mesh.material = this.skin;
+        mesh.castShadow = true;
+        mesh.frustumCulled = false;
+        this.meshes.push(mesh);
+      }
       if ((o as THREE.Bone).isBone) this.bones[key(o.name)] = o as THREE.Bone;
     });
     m.rotation.y = Math.PI;
@@ -191,7 +196,8 @@ class Being {
     const near = d < 9;
     this.wake += ((near ? 1 : 0) - this.wake) * Math.min(1, dt * (near ? 1.2 : 0.3));
     this.greetT += dt;
-    this.fluid.mesh.visible = show && !!this.mixer;
+    const d0 = this.distanceTo(player);
+    for (const m of this.meshes) m.visible = d0 < 90;
     this.U.uT.value = reduced ? t * 0.4 : t;
     this.U.uForm.value = Math.min(1, this.U.uForm.value + dt / 2);
     const breathe = reduced ? 0 : Math.sin(t * 0.55 + this.spec.at[0]);
@@ -212,8 +218,10 @@ class Being {
     this.yaw += Math.atan2(Math.sin(target - this.yaw), Math.cos(target - this.yaw)) * Math.min(1, dt * 1.5);
     this.root.rotation.y = this.yaw;
 
+    this.skin.emissiveIntensity = this.U.uPulse.value * Math.min(1, this.U.uForm.value);
+    tickLightBody(this.skin, t);
     for (const a of this.animated) a.update(t, this.wake, greet);
-    if (!show || !this.mixer) return;
+    if (!show || !this.mixer) return; // only the nearest two keep moving
 
     // the recorded pose, and for the standing ones a greeting when you arrive
     const g = this.acts.greet;
@@ -223,14 +231,6 @@ class Being {
     if (this.acts.idle) this.acts.idle.timeScale = reduced ? 0.4 : 0.7;
     this.mixer.update(dt);
     this.root.updateMatrixWorld(true);
-    SEGS.forEach((s, i) => {
-      const put = (e: End, out: THREE.Vector3) => (typeof e === "string" ? this.bonePos(e, out) : this.bonePos(e[0], out, e[1]));
-      put(s.from, this.fluid.a[i]);
-      put(s.to, this.fluid.b[i]);
-      this.fluid.r[i].set(s.r[0], s.r[1]);
-    });
-    for (let i = SEGS.length; i < SEGMENTS; i++) this.fluid.r[i].set(0.0001, 0.0001);
-    this.fluid.commit(this.root.position);
     // what it holds follows its hand
     for (const h of this.held) {
       this.bonePos(h.bone, h.obj.position, h.along);
@@ -470,7 +470,7 @@ export class Beings {
       if (!st) return;
       const b = new Being(spec, st);
       buildProps(b, this.group, stone);
-      this.group.add(b.root, b.fluid.mesh);
+      this.group.add(b.root);
       this.list.push(b);
     });
   }

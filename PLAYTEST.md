@@ -14,7 +14,10 @@
 | Look around | Drag on the right half | Drag with the mouse |
 | Zoom | Pinch | Scroll wheel |
 | Jump | Tap the round button, bottom right | Space |
-| Glide | Hold the round button in the air | Hold Space in the air |
+| Glide | Hold the round button in the air, or run off a slope | Hold Space in the air, or run off a slope |
+| Run | Hold **Run** (or push the thumb to the edge) | Hold Shift |
+| Fly, or stop flying | Tap **Fly** | F |
+| Rise / sink while flying | Hold the round button / hold **Down** | Hold Space / hold C |
 | Sit with an archetype, stand up | Tap “Sit with…” | E |
 | Settings, Leave, Begin again | ⋮ top right | Esc |
 
@@ -59,7 +62,7 @@ There is no island and no path. After "Touch the water to begin", a map unfolds:
   - **Rocks,** etched with fine gold lines.
   - **Spirits.** Wisps of light with trailing veils. They circle the trees and crystals, and now and then one comes to keep you company.
   - Lanterns kindle silently.
-- Water is safe: walk in and you swim. Far out, mountains mark the edge of the world.
+- Water is safe: walk in and you become an orb of light floating on the surface. Far out, mountains mark the edge of the world.
 
 ## Voices
 - Only the female voice plays. The five tracks recorded in the male voice (J02, J04, J06, J08, J10) are skipped by the background narration until they're re-voiced. Meeting the Magician, Empress, Hierophant or Chariot (or starting at their place) shows their narration as subtitles only for now.

@@ -11,8 +11,9 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { loadBytes } from "../core/assets";
 import { FluidBody, SEGMENTS } from "./fluidBody";
+import { lightBodyMaterial, tickLightBody } from "./lightBody";
 
-export type Pose = "idle" | "walk" | "glide" | "swim" | "air";
+export type Pose = "idle" | "walk" | "glide" | "swim" | "air" | "fly" | "hover";
 export type Gesture = "none" | "sit" | "reach";
 
 export const HEIGHT = 1.65;
@@ -286,11 +287,15 @@ export class Wanderer {
   private mixer: THREE.AnimationMixer | null = null;
   private act: Partial<Record<ActName, THREE.AnimationAction>> = {};
   private fluid = new FluidBody(U);
-  private motes = new BodyMotes(380, this.fluid);
+  private motes = new BodyMotes(160, this.fluid);
+  private skin = lightBodyMaterial();
+  private skinMeshes: THREE.Mesh[] = [];
+  private orb = new THREE.Group();
+  private orbCore: THREE.MeshBasicMaterial;
   private ribbons = [new Ribbon(30, 0.035), new Ribbon(30, 0.035), new Ribbon(22, 0.05)];
   private halo: THREE.Sprite;
   private light: THREE.PointLight;
-  private k = { swim: 0, glide: 0, move: 0, air: 0, sit: 0, reach: 0 };
+  private k = { swim: 0, water: 0, glide: 0, move: 0, air: 0, sit: 0, reach: 0 };
   private form = 0;
   private flow = 0;
   private landT = 9;
@@ -307,7 +312,19 @@ export class Wanderer {
     this.light = new THREE.PointLight(0xffdcb0, 6, 9, 1.6);
     this.light.position.y = 1.2;
     this.root.add(this.light);
-    this.fx.add(this.fluid.mesh, this.motes.points, ...this.ribbons.map((r) => r.mesh));
+    // In water the body becomes an orb of light floating on the surface.
+    this.orbCore = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.35, 1.0), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.9 }));
+    halo.scale.setScalar(0.95);
+    halo.material.depthTest = false; // never sliced by the water's surface
+    halo.renderOrder = 12;
+    this.orb.add(new THREE.Mesh(new THREE.SphereGeometry(0.15, 24, 16), this.orbCore), halo);
+    this.orb.position.y = 1.22;
+    this.orb.scale.setScalar(0.001);
+    this.root.add(this.orb);
+    // the fluid body is no longer drawn; its capsules still guide the motes over the figure
+    this.fluid.mesh.visible = false;
+    this.fx.add(this.motes.points, ...this.ribbons.map((r) => r.mesh));
   }
 
   /** Ray-march budget for the body (lower on slow devices). */
@@ -324,7 +341,14 @@ export class Wanderer {
     const model = gltf.scene;
     model.traverse((o) => {
       // the mesh itself is never drawn: only its skeleton, which moves the fluid body
-      if ((o as THREE.Mesh).isMesh) o.visible = false;
+      if ((o as THREE.Mesh).isMesh) {
+        // the figure itself, drawn as clear light
+        const mesh = o as THREE.Mesh;
+        mesh.material = this.skin;
+        mesh.castShadow = true;
+        mesh.frustumCulled = false;
+        this.skinMeshes.push(mesh);
+      }
       if ((o as THREE.Bone).isBone) this.bones[key(o.name)] = o as THREE.Bone;
     });
     model.rotation.y = Math.PI; // face -z like the rest of the game
@@ -382,12 +406,14 @@ export class Wanderer {
 
     const ease = (key: keyof typeof this.k, target: number, rate: number) =>
       (this.k[key] += (target - this.k[key]) * Math.min(1, dt * rate));
-    const swim = ease("swim", pose === "swim" ? 1 : 0, 2.5);
+    // "swim" blends the swimming clips: used in water, and (without the orb) while flying
+    const water = ease("water", pose === "swim" ? 1 : 0, 2.5);
+    const swim = ease("swim", pose === "swim" || pose === "fly" || pose === "hover" ? 1 : 0, 2.5);
     const glide = ease("glide", pose === "glide" ? 1 : 0, 3);
     const air = ease("air", pose === "air" ? 1 : 0, 8);
     const sit = ease("sit", this.gesture === "sit" ? 1 : 0, 2.2);
     const reach = ease("reach", this.gesture === "reach" ? 1 : 0, 2.5);
-    const moving = pose === "walk" || pose === "glide" || (pose === "swim" && speed > 0.2);
+    const moving = pose === "walk" || pose === "glide" || pose === "fly" || (pose === "swim" && speed > 0.2);
     const sp = ease("move", moving ? speed : 0, 6);
 
     if (this.mixer) {
@@ -422,14 +448,23 @@ export class Wanderer {
       if (this.act.idle) this.act.idle.timeScale = reduced ? 0.5 : 0.85;
       if (this.act.tread) this.act.tread.timeScale = reduced ? 0.5 : 0.8;
       this.mixer.update(dt);
-      this.body.position.y = swim * (swimMove * 0.28 + (1 - swimMove) * 0.35);
+      this.body.position.y = water * (swimMove * 0.28 + (1 - swimMove) * 0.35);
     }
 
     const breathe = reduced ? 0 : Math.sin(t * 0.63);
     U.uPulse.value = 1 + 0.08 * breathe + glide * 0.2 + reach * 0.25;
     this.halo.position.y = 1.1 + swim * 0.2 - sit * 0.4;
     this.halo.scale.multiplyScalar(1 - swim * 0.4);
-    this.halo.material.opacity *= 1 - swim; // the water would slice it into a box
+    this.halo.material.opacity *= 1 - water; // the water would slice it into a box
+    // the body fades into an orb in the water, and forms again on the shore
+    this.skin.opacity = (1 - water) * f;
+    for (const m of this.skinMeshes) m.visible = this.skin.opacity > 0.01;
+    tickLightBody(this.skin, t);
+    const orbK = THREE.MathUtils.smoothstep(water, 0.2, 1);
+    this.orb.scale.setScalar(Math.max(0.001, orbK * (1 + (reduced ? 0 : Math.sin(t * 2.2) * 0.05))));
+    this.orb.position.y = 1.22 + (reduced ? 0 : Math.sin(t * 1.3) * 0.04);
+    this.orbCore.opacity = orbK;
+    this.motes.points.visible = water < 0.5;
     this.light.intensity = 6 + glide * 2 + reach * 3;
 
     // Place the fluid body along the skeleton.
@@ -444,14 +479,14 @@ export class Wanderer {
       for (let i = SEGS.length; i < SEGMENTS; i++) this.fluid.r[i].set(0.0001, 0.0001);
       this.fluid.commit(this.root.position);
     }
-    this.fluid.mesh.visible = this.ready;
+    this.fluid.mesh.visible = false;
 
     this.flow += ((moving ? speed : 0) - this.flow) * Math.min(1, dt * 2);
     if (this.ready) this.motes.update(dt, dpr, this.flow);
 
     // Ribbons trail from the hands and the crown, stronger in motion.
     const cam = this.tmp.cam.copy(this.camera.position);
-    const strength = Math.min(1, 0.25 + this.flow * 0.4 + reach * 0.5) * f;
+    const strength = Math.min(1, 0.25 + this.flow * 0.4 + reach * 0.5) * f * (1 - water);
     if (this.ready) {
       this.ribbons[0].update(dt, this.bonePos("DEF-hand.L", this.tmp.a, 0.12), cam, strength);
       this.ribbons[1].update(dt, this.bonePos("DEF-hand.R", this.tmp.a, 0.12), cam, strength);

@@ -12,6 +12,8 @@
 *, *::before, *::after { box-sizing: border-box; }
 html, body {
   margin: 0; height: 100%; overflow: hidden;
+  /* a held thumb must never start selecting text or open the copy menu */
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
   background: var(--night); color: var(--pearl); font-family: var(--serif);
   -webkit-text-size-adjust: 100%;
 }
@@ -238,3 +240,19 @@ button:focus-visible, input:focus-visible { outline: 1px solid var(--gold); outl
 #sit-actions button:hover, #sit-actions button:focus-visible, #sit-actions button[aria-pressed="true"] { color: var(--pearl); }
 body.seated #sub { bottom: auto; top: calc(14% + env(safe-area-inset-top, 0px)); }
 body.seated #joy, body.seated #act { opacity: 0.25; }
+
+/* ---- run, fly, descend ---- */
+.pad {
+  position: fixed; width: 56px; height: 56px; border-radius: 50%;
+  border: 1px solid rgba(244, 239, 230, 0.35); background: rgba(14, 12, 34, 0.25);
+  font-size: 12px; font-style: italic; letter-spacing: 0.04em; color: var(--dim);
+  touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+.pad[hidden] { display: none; }
+.pad:active, .pad[aria-pressed="true"] { color: var(--pearl); border-color: var(--gold); box-shadow: 0 0 14px rgba(255, 220, 170, 0.35); }
+#run { right: calc(108px + env(safe-area-inset-right, 0px)); bottom: calc(42px + env(safe-area-inset-bottom, 0px)); }
+#fly { right: calc(30px + env(safe-area-inset-right, 0px)); bottom: calc(120px + env(safe-area-inset-bottom, 0px)); }
+#down { right: calc(108px + env(safe-area-inset-right, 0px)); bottom: calc(120px + env(safe-area-inset-bottom, 0px)); }
+#act, #joy, #knob, #surface { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea { -webkit-user-select: text; user-select: text; }
+body.seated .pad { opacity: 0.25; }
