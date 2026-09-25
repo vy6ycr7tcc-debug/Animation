@@ -183,3 +183,4 @@ button:focus-visible, input:focus-visible { outline: 1px solid var(--gold); outl
 @media (prefers-reduced-motion: reduce) {
   #fade, #ending, #question, #prompt { transition-duration: 0.4s; }
 }
+#restart { color: var(--dim); min-height: 44px; padding: 8px 16px; font-size: 14px; font-style: italic; }

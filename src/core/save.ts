@@ -32,3 +32,12 @@ export function save(d: SaveData): void {
     /* storage unavailable: progress simply isn't kept */
   }
 }
+
+/** Forget the journey's progress (the journal is kept). */
+export function clear(): void {
+  try {
+    localStorage.removeItem(KEY);
+  } catch {
+    /* nothing to clear */
+  }
+}

@@ -15,7 +15,7 @@
 | Zoom | Pinch | Scroll wheel |
 | The offered word (sit, board…), otherwise jump | The round button, bottom right | Space or E |
 | Stand up after sitting | Tap, move, or the round button | Move, or Space |
-| Settings, journal, Leave | ⋮ top right | Esc |
+| Settings, journal, Leave, Begin again | ⋮ top right | Esc |
 
 ## The path
 1. **The shore.** Touch the water to begin. J01 plays.
@@ -48,7 +48,7 @@
 ## Known issues
 - Subtitle timings were aligned automatically to pauses in each recording, so a line may change a moment early or late.
 - Jumping has no animation of its own beyond the recorded jump and landing.
-- To replay from the beginning, clear the site's data in Safari. The journal is cleared too.
+- To replay from the shore, use ⋮ → Begin again (tap twice). Your journal is kept.
 
 ## Performance
 - Measured only in a headless software renderer here, which says nothing about a phone. Please send the `#stats` readings from the iPhone.

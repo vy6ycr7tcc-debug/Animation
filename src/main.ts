@@ -20,7 +20,7 @@ import { AudioEngine } from "./core/audio";
 import { Input } from "./core/input";
 import { Narration } from "./core/narration";
 import { AdaptiveQuality, FrameStats, MOBILE, type Tier } from "./core/quality";
-import { load, save, type SaveData } from "./core/save";
+import { clear, load, save, type SaveData } from "./core/save";
 import { FollowCamera } from "./player/camera";
 import { Controller } from "./player/controller";
 import { Footprints } from "./player/footprints";
@@ -227,7 +227,7 @@ if (saved) {
   narration.subtitlesOn = saved.settings?.subtitles ?? true;
 }
 function persist(): void {
-  if (S.mode === "intro") return;
+  if (S.mode === "intro" || resetting) return;
   const d: SaveData = {
     v: 1,
     pos: [player.pos.x, player.pos.y, player.pos.z],
@@ -454,6 +454,24 @@ $("#leave").addEventListener("click", () => {
   $<HTMLButtonElement>("#return").focus();
   say("Your place is kept.");
 });
+// Begin again: asks once more before forgetting the journey (the journal is kept).
+let restartArmed = 0;
+$("#restart").addEventListener("click", () => {
+  const b = $("#restart");
+  if (!restartArmed) {
+    b.textContent = "Tap again to begin from the shore";
+    restartArmed = window.setTimeout(() => {
+      restartArmed = 0;
+      b.textContent = "Begin again";
+    }, 5000);
+    return;
+  }
+  resetting = true;
+  clear();
+  location.reload();
+});
+let resetting = false;
+
 $("#return").addEventListener("click", () => {
   audio.start();
   audio.fade(true);
