@@ -98,7 +98,8 @@ const underwater = new UnderwaterEffect();
 const underwaterPass = new EffectPass(camera, underwater);
 underwaterPass.enabled = false;
 composer.addPass(underwaterPass);
-const bloom = new BloomEffect({ mipmapBlur: true, luminanceThreshold: 0.6, luminanceSmoothing: 0.25, intensity: 1.15, radius: 0.75 });
+// bloom with restraint: only what is truly bright glows (threshold near 1, gentle strength)
+const bloom = new BloomEffect({ mipmapBlur: true, luminanceThreshold: 0.88, luminanceSmoothing: 0.3, intensity: 0.7, radius: 0.7 });
 const bloomPass = new EffectPass(camera, bloom, new ToneMappingEffect({ mode: ToneMappingMode.AGX }));
 const plainPass = new EffectPass(camera, new ToneMappingEffect({ mode: ToneMappingMode.AGX }));
 const finalPass = new EffectPass(camera, new SMAAEffect({ preset: SMAAPreset.MEDIUM }), new VignetteEffect({ offset: 0.35, darkness: 0.5 }));

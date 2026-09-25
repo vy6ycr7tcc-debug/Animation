@@ -125,7 +125,7 @@ class BodyMotes {
       fragmentShader: /* glsl */ `uniform float uForm;varying float vA;varying float vT;
         void main(){float r=length(gl_PointCoord-0.5);float a=smoothstep(0.5,0.0,r)*vA*uForm;
           vec3 c=vT<0.65?vec3(1.0,0.88,0.66):vT<0.9?vec3(0.8,0.93,1.0):vec3(1.0,0.7,0.45);
-          gl_FragColor=vec4(c*a*1.5,1.0);}`,
+          gl_FragColor=vec4(c*a*0.55,1.0);}`,
     });
     this.points = new THREE.Points(g, this.mat);
     this.points.frustumCulled = false;
@@ -217,7 +217,7 @@ class Ribbon {
         vertexShader: /* glsl */ `attribute float aA,aE;varying float vA;varying float vE;void main(){vA=aA;vE=aE;gl_Position=projectionMatrix*viewMatrix*vec4(position,1.0);}`,
         fragmentShader: /* glsl */ `uniform float uForm;varying float vA;varying float vE;void main(){
           float soft=pow(1.0-vE*vE,2.0);  // bright thread in the middle, feathered edges
-          gl_FragColor=vec4(vec3(1.0,0.82,0.52)*vA*vA*soft*0.9*uForm,1.0);}`,
+          gl_FragColor=vec4(vec3(1.0,0.82,0.52)*vA*vA*soft*0.35*uForm,1.0);}`,
       }),
     );
     this.mesh.frustumCulled = false;
@@ -287,7 +287,7 @@ export class Wanderer {
   private mixer: THREE.AnimationMixer | null = null;
   private act: Partial<Record<ActName, THREE.AnimationAction>> = {};
   private fluid = new FluidBody(U);
-  private motes = new BodyMotes(160, this.fluid);
+  private motes = new BodyMotes(70, this.fluid);
   private skin = lightBodyMaterial();
   private skinMeshes: THREE.Mesh[] = [];
   private orb = new THREE.Group();
@@ -313,7 +313,7 @@ export class Wanderer {
     this.light.position.y = 1.2;
     this.root.add(this.light);
     // In water the body becomes an orb of light floating on the surface.
-    this.orbCore = new THREE.MeshBasicMaterial({ color: new THREE.Color(3.2, 2.7, 2.0), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+    this.orbCore = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.7, 1.45, 1.1), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
     const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.9 }));
     halo.scale.setScalar(0.95);
     halo.material.depthTest = false; // never sliced by the water's surface
@@ -401,7 +401,7 @@ export class Wanderer {
     this.form = Math.min(1, this.form + dt / 2.5);
     const f = THREE.MathUtils.smoothstep(this.form, 0, 1);
     U.uForm.value = f;
-    this.halo.material.opacity = 0.3 * f + (1 - f) * 0.8 * this.form;
+    this.halo.material.opacity = 0.07 * f + (1 - f) * 0.5 * this.form;
     this.halo.scale.setScalar(2.4 + (1 - f) * 3);
 
     const ease = (key: keyof typeof this.k, target: number, rate: number) =>
@@ -465,7 +465,7 @@ export class Wanderer {
     this.orb.position.y = 1.22 + (reduced ? 0 : Math.sin(t * 1.3) * 0.04);
     this.orbCore.opacity = orbK;
     this.motes.points.visible = water < 0.5;
-    this.light.intensity = 6 + glide * 2 + reach * 3;
+    this.light.intensity = 2.2 + glide * 0.6 + reach * 1;
 
     // Place the fluid body along the skeleton.
     this.root.updateMatrixWorld(true);
