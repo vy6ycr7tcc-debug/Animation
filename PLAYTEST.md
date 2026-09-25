@@ -18,8 +18,17 @@
 | Settings, Leave, Begin again | ⋮ top right | Esc |
 
 ## What it is
-There is no island and no path. You wake on a meadow at night beside the water. From there you can go anywhere.
-- **Narration runs in the background.** The first track starts after a few seconds. The rest follow in order (J01 → J11), with a quiet gap of 20–40 s between them. You never have to stop and wait anywhere for it. Turn it off under ⋮ → Narration.
+There is no island and no path. After "Touch the water to begin", a map unfolds: the land drawn in gold contour lines, with the shore and the seven archetypes' places marked. Tap a place, or anywhere on the land, and you wake there. From there you can go anywhere. ⋮ → Map lets you travel again.
+- **The archetypes live in the world as beings you meet,** recreated from the Ra tarot cards. Each is a figure of flowing light in its own colour, posed as on its card:
+  - I, the Magician: standing, holding out a sphere of light, beside a cube with a bird of light inside;
+  - II, the High Priestess: seated before her veil, between the pillars;
+  - III, the Empress: seated in her garden, with a halo of rays and a sphere;
+  - IV, the Emperor: seated on his throne on the square of light, holding a sphere;
+  - V, the Hierophant: seated beyond the arch, with a staff of three rings and two small kneeling lights;
+  - VI, the Lovers: a figure between two veiled companions, a bow of light above;
+  - VII, the Chariot: standing in the vessel under a canopy, with a light and a dark sphinx form before it.
+- **When you come near a being,** it turns toward you, brightens and greets you, and its narration begins. The narration keeps going as you walk on.
+- **Narration runs in the background.** It begins with the voice of the place you chose (the shore starts with J01). The rest follow in order, with a quiet gap of 20–40 s between them. You never have to stop and wait anywhere for it. Turn it off under ⋮ → Narration.
 - **The world answers as you pass:**
   - grass leans away from you and keeps a faint trail of light;
   - flowers open when you brush past, each with a note from one soft scale;
@@ -47,12 +56,12 @@ There is no island and no path. You wake on a meadow at night beside the water. 
 - Water is safe: walk in and you swim. Far out, mountains mark the edge of the world.
 
 ## Voices
-- Only the female voice plays. The five tracks recorded in the male voice (J02, J04, J06, J08, J10) are skipped by the background narration until they're re-voiced.
+- Only the female voice plays. The five tracks recorded in the male voice (J02, J04, J06, J08, J10) are skipped by the background narration until they're re-voiced. Meeting the Magician, Empress, Hierophant or Chariot (or starting at their place) shows their narration as subtitles only for now.
 - To re-voice them, run `sh narration/revoice-female.sh` where the `tts` CLI is installed, then commit `public/audio/female/`. The game picks the new files up automatically.
 
 ## Known issues
 - Subtitle timings were aligned automatically to pauses in each recording, so a line may change a moment early or late.
-- The Chariot is not placed in the open world yet.
+- Only the seven Mind archetypes have beings so far. The other 15 cards are waiting on a go-ahead and narration.
 - The narration talks about places that don't match where you are. This waits on Samuel's map drawing.
 - When the camera passes through a tree, the tree dissolves into a fine stipple.
 - ⋮ → Begin again (tap twice) forgets the lit lanterns and starts over.

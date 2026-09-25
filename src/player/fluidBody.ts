@@ -22,13 +22,14 @@ export class FluidBody {
   private uniforms: Record<string, THREE.IUniform>;
   private box = new THREE.Box3();
 
-  constructor(shared: { uT: THREE.IUniform; uForm: THREE.IUniform; uPulse: THREE.IUniform }) {
+  constructor(shared: { uT: THREE.IUniform; uForm: THREE.IUniform; uPulse: THREE.IUniform; uTint?: THREE.IUniform }) {
     for (let i = 0; i < SEGMENTS; i++) {
       this.a.push(new THREE.Vector3());
       this.b.push(new THREE.Vector3());
       this.r.push(new THREE.Vector2(0.001, 0.001));
     }
     this.uniforms = {
+      uTint: { value: new THREE.Vector3(1, 1, 1) }, // a being's own colour (the wanderer stays gold)
       ...shared,
       uA: { value: this.a },
       uB: { value: this.b },
@@ -54,6 +55,7 @@ export class FluidBody {
         uniform vec2 uR[${SEGMENTS}];
         uniform vec3 uBoxMin,uBoxMax,uRoot;
         uniform float uT,uForm,uPulse;
+        uniform vec3 uTint;
         uniform int uSteps;
         ${NOISE}
         float smin(float a,float b,float k){float h=max(k-abs(a-b),0.0)/k;return min(a,b)-h*h*k*0.25;}
@@ -100,7 +102,7 @@ export class FluidBody {
             if(p.y<0.0&&ro.y>0.0)s*=vec3(0.25,0.4,0.5);          // below the surface: dim and cool
             c+=s;
           }
-          gl_FragColor=vec4(c*uForm*uPulse,1.0);
+          gl_FragColor=vec4(c*uTint*uForm*uPulse,1.0);
         }`,
     });
     this.mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mat);

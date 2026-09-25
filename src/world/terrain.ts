@@ -57,6 +57,7 @@ const WISHED_SITES: [number, number][] = [
   [170, 55], // the throne on its square of light
   [-120, -235], // the arch of three stones
   [120, 205], // the crossing rings
+  [215, -175], // the chariot, with its road to the horizon
 ];
 function settle([x, z]: [number, number]): [number, number] {
   for (let r = 0; r <= 140; r += 7) {

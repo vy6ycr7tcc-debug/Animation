@@ -24,7 +24,12 @@ A contemplative third-person exploration game for Samuel about the archetypes of
   - lanterns to kindle;
   - butterflies;
   - gliders.
-- Six station forms stand as landmarks to discover (`src/world/landmarks.ts`, `src/world/stations.ts`). The terrain streams in chunks (`src/world/terrain.ts`).
+- Seven station forms stand as landmarks to discover (`src/world/landmarks.ts`, `src/world/stations.ts`). The terrain streams in chunks (`src/world/terrain.ts`).
+- In each landmark lives its archetype as a being you meet (`src/world/beings.ts`):
+  - recreated from Samuel's Ra tarot cards (`reference/IMG_0033–0056.jpeg`), never shown as cards;
+  - a fluid body of light in its own colour, posed as on the card, holding the card's objects;
+  - coming near wakes it: it turns, greets you, and its narration begins and carries on as you wander.
+- You begin from a map (`src/ui/map.ts`), drawn from the terrain. Where you choose decides whose narration comes first. ⋮ → Map travels again.
 - The whole creation (`src/world/creation.ts`), with the light of the Creator shown as light that is always moving through it:
   - trees whose roots go deep into the earth, seen through the ground as fine lines of light;
   - one network of light joining trees and crystals underground;
@@ -65,6 +70,11 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - twigs and fine roots end in spiral curls;
   - flowing threads.
   - Crystals and rocks may stay geometric.
+- 2026-09-25: Samuel added the Ra tarot deck (22 cards, `reference/IMG_00xx.jpeg`) and an archetype overview chart (`reference/BE9C2465-….png`).
+  - "Don't stamp the card on the game": each archetype is a recreated character you interact with.
+  - Players choose on a map where to start, "otherwise it's the same narration every time".
+  - Built for the seven Mind archetypes, which have narrations. Body (8–14), Spirit (15–21) and The Choice (22) wait on Samuel's go-ahead and narration.
+  - The zip he uploaded (`reference/inward-journey-game-package.zip`) holds the same recordings already in `public/audio/`.
 - 2026-09-25: Samuel: "Whenever done push to mainline." Merge finished, verified work into `main` without asking.
 - 2026-09-25: Samuel likes the female voice and not the male one.
   - Only the female voice plays.
