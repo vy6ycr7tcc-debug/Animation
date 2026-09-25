@@ -7,6 +7,7 @@
    - Sparks rise whenever something opens. */
 import * as THREE from "three";
 import type { AudioEngine } from "../core/audio";
+import { IJ_FOG_GLSL } from "./fog";
 import { fbm, groundKind, heightAt, WATER_Y } from "./terrain";
 
 export interface LifeFrame {
@@ -93,7 +94,7 @@ export class Sparks {
 
 /* ---------------------------------------------------------------- grass of light */
 const TILE = 16;
-const BLADES_PER_TILE = 150;
+const BLADES_PER_TILE = 240;
 const GRASS_RING = 2; // 5 × 5 tiles around the wanderer
 const TRAIL = 20;
 
@@ -124,7 +125,7 @@ export class LightGrass {
     const pos: number[] = [];
     const uv: number[] = [];
     for (let i = 0; i < 5; i++) {
-      pos.push(v[i * 2] * 0.03, v[i * 2 + 1], 0);
+      pos.push(v[i * 2] * 0.06, v[i * 2 + 1], 0);
       uv.push(v[i * 2] + 0.5, v[i * 2 + 1]);
     }
     this.geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
@@ -135,16 +136,14 @@ export class LightGrass {
     this.geo.setAttribute("aBase", this.base);
     this.geo.setAttribute("aParams", this.params);
     this.geo.instanceCount = 0;
+    // Solid, softly lit blades (they catch the moon at their tips), not lines of light.
     const mat = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
       side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
       uniforms: this.uniforms,
       vertexShader: /* glsl */ `
         attribute vec3 aBase;attribute vec3 aParams; // height, rotation, phase
         uniform float uT;uniform vec3 uPlayer;uniform vec4 uTrail[${TRAIL}];
-        varying float vY;varying float vGlow;varying float vFade;
+        varying float vY;varying float vGlow;varying float vFade;varying vec3 vGW;
         void main(){
           float hgt=aParams.x,rot=aParams.y,ph=aParams.z;
           vec3 p=position;p.y*=hgt;
@@ -163,17 +162,23 @@ export class LightGrass {
             vec2 e=aBase.xz-tr.xy;g+=exp(-dot(e,e)*0.9)*exp(-age*0.28);}
           vGlow=min(g,1.5);
           vY=uv.y;
+          vGW=w;
           vec4 mv=viewMatrix*vec4(w,1.0);
           float camD=length(w-cameraPosition);
           vFade=(1.0-smoothstep(22.0,34.0,length(aBase.xz-cameraPosition.xz)))*smoothstep(1.2,4.0,camD); // never a blade in your face
           gl_Position=projectionMatrix*mv;
         }`,
       fragmentShader: /* glsl */ `
-        varying float vY;varying float vGlow;varying float vFade;
+        varying float vY;varying float vGlow;varying float vFade;varying vec3 vGW;
+        ${IJ_FOG_GLSL}
         void main(){
-          vec3 base=mix(vec3(0.03,0.05,0.08),vec3(0.22,0.3,0.46),vY*vY);
-          vec3 glow=vec3(1.0,0.82,0.52)*vGlow*vY*1.8;
-          gl_FragColor=vec4((base*0.4+glow)*vFade,1.0);
+          // fade out by dissolving, so the blades stay solid and sort correctly
+          if(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)>vFade)discard;
+          vec3 base=mix(vec3(0.07,0.075,0.14),vec3(0.36,0.4,0.6),vY);
+          base+=vec3(0.35,0.28,0.24)*pow(vY,4.0)*0.35; // moonlight on the tips
+          vec3 glow=vec3(1.0,0.82,0.52)*vGlow*vY*1.2;
+          vec4 fg=ijFog(vGW);
+          gl_FragColor=vec4(mix(base+glow,fg.rgb,fg.a),1.0);
         }`,
     });
     this.mesh = new THREE.Mesh(this.geo, mat);
@@ -188,13 +193,18 @@ export class LightGrass {
     const out: number[] = [];
     let s = (i * 73856093) ^ (j * 19349663);
     const R = () => ((s = (s * 16807 + 12345) % 2147483647) / 2147483647 + 1) % 1;
-    for (let k = 0; k < BLADES_PER_TILE; k++) {
+    // in tufts: a few blades leaning out from one root, like real grass
+    for (let k = 0; k < BLADES_PER_TILE / 5; k++) {
       const x = (i + R()) * TILE, z = (j + R()) * TILE;
       const h = heightAt(x, z);
       if (h < WATER_Y + 0.25) continue;
       const m = groundKind(x, z, h).meadow;
-      if (R() > m * 1.4) continue;
-      out.push(x, h, z, 0.25 + R() * 0.4, R() * Math.PI, R() * 6.28);
+      if (R() > m * 1.6 + 0.08) continue;
+      const tall = 0.3 + R() * 0.3;
+      for (let b = 0; b < 5; b++) {
+        const a = R() * 6.28, r = R() * 0.12;
+        out.push(x + Math.cos(a) * r, h, z + Math.sin(a) * r, tall * (0.7 + R() * 0.5), R() * Math.PI, R() * 6.28);
+      }
     }
     d = new Float32Array(out);
     this.tiles.set(key, d);

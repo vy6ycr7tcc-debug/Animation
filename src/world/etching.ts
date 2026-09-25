@@ -113,7 +113,7 @@ export function buildMandala(): THREE.Group {
   g.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
   g.setAttribute("color", new THREE.Float32BufferAttribute(cols, 3));
   const mat = new THREE.LineBasicMaterial({
-    vertexColors: true, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false,
+    vertexColors: true, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false,
   });
   const lines = new THREE.LineSegments(g, mat);
   const group = new THREE.Group();
@@ -124,7 +124,7 @@ export function buildMandala(): THREE.Group {
 /** Dark stone etched with fine gold sacred-geometry linework: a triangular lattice with
     circles around its nodes, hand-wobbled, projected onto whichever faces it covers. */
 export function etchedStone(color = "#1c1a2c", line = "#e9c37d", scale = 2.2): THREE.MeshStandardMaterial {
-  const m = new THREE.MeshStandardMaterial({ color, roughness: 0.82, metalness: 0.1 });
+  const m = new THREE.MeshStandardMaterial({ color, roughness: 0.78, metalness: 0.05 });
   const lineColor = new THREE.Color(line);
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uEtchT = etchUniforms.uEtchT;
@@ -145,6 +145,10 @@ export function etchedStone(color = "#1c1a2c", line = "#e9c37d", scale = 2.2): T
     sh.fragmentShader = sh.fragmentShader
       .replace("#include <common>", `#include <common>
         varying vec3 vEW;varying vec3 vEN;uniform vec3 uLine;uniform float uScale,uEtchT,uEtchGain;
+        float stoneH(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}
+        float stoneN(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.0-2.0*f);
+          return mix(mix(mix(stoneH(i),stoneH(i+vec3(1,0,0)),f.x),mix(stoneH(i+vec3(0,1,0)),stoneH(i+vec3(1,1,0)),f.x),f.y),
+                     mix(mix(stoneH(i+vec3(0,0,1)),stoneH(i+vec3(1,0,1)),f.x),mix(stoneH(i+vec3(0,1,1)),stoneH(i+vec3(1,1,1)),f.x),f.y),f.z);}
         float etchLines(vec2 p){
           p*=uScale;
           p+=0.05*vec2(sin(p.y*1.7),sin(p.x*1.3)); // the pen's wobble
@@ -160,13 +164,26 @@ export function etchedStone(color = "#1c1a2c", line = "#e9c37d", scale = 2.2): T
           l=max(l,1.0-smoothstep(wr*0.3,wr*1.0,abs(r-0.5)));
           return l;
         }`)
+      .replace(
+        "#include <normal_fragment_maps>",
+        `#include <normal_fragment_maps>
+        {
+          // weathered stone: soft pits and swells, strongest up close
+          vec3 sp=vEW*2.3;
+          float s0=stoneN(sp);
+          vec3 g=vec3(stoneN(sp+vec3(0.2,0,0))-s0,stoneN(sp+vec3(0,0.2,0))-s0,stoneN(sp+vec3(0,0,0.2))-s0);
+          float near=1.0-smoothstep(10.0,40.0,length(vEW-cameraPosition));
+          normal=normalize(normal-mat3(viewMatrix)*g*2.2*near);
+        }`,
+      )
       .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
         {
           vec3 an=abs(vEN);
           float l=an.y>0.6?etchLines(vEW.xz):(an.x>an.z?etchLines(vEW.zy):etchLines(vEW.xy));
           float dist=length(vEW-cameraPosition);
           float fade=1.0-smoothstep(25.0,70.0,dist);
-          totalEmissiveRadiance+=uLine*l*fade*0.24*uEtchGain*(0.85+0.15*sin(uEtchT*0.6+vEW.y));
+          // the drawings' lattice survives only as a faint trace in the stone
+          totalEmissiveRadiance+=uLine*l*fade*0.06*uEtchGain*(0.85+0.15*sin(uEtchT*0.6+vEW.y));
         }`);
   };
   return m;

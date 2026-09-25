@@ -19,9 +19,10 @@ uniform float uStarBoost;
 float skyHash(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,37.719)))*43758.5453);}
 vec3 skyColor(vec3 d){
   float y=d.y;
-  vec3 zen=mix(vec3(0.004,0.005,0.022),vec3(0.03,0.04,0.11),uLight);
-  vec3 mid=mix(vec3(0.012,0.012,0.050),vec3(0.07,0.07,0.19),uLight);
-  vec3 hor=mix(vec3(0.045,0.035,0.105),vec3(0.20,0.15,0.30),uLight);
+  // a luminous night: deep blue overhead, lilac haze at the horizon (the fog's own colour)
+  vec3 zen=mix(vec3(0.016,0.022,0.072),vec3(0.03,0.04,0.11),uLight);
+  vec3 mid=mix(vec3(0.038,0.043,0.12),vec3(0.07,0.07,0.19),uLight);
+  vec3 hor=mix(vec3(0.105,0.100,0.220),vec3(0.20,0.15,0.30),uLight);
   float hy=max(y,0.0);
   vec3 c=mix(hor,mid,smoothstep(0.0,0.22,hy));
   c=mix(c,zen,smoothstep(0.2,0.9,hy));
@@ -40,7 +41,9 @@ vec3 skyColor(vec3 d){
   float sd=max(dot(d,uStar),0.0);
   c+=vec3(1.0,0.80,0.50)*pow(sd,4000.0)*14.0;
   c+=vec3(1.0,0.72,0.42)*pow(sd,300.0)*0.30;
-  c+=vec3(0.5,0.38,0.55)*pow(sd,8.0)*0.05;
+  // the moon's glow in the haze, matching the fog's light toward it
+  c=mix(c,vec3(0.55,0.42,0.34),pow(sd,5.0)*0.7*(1.0-smoothstep(0.0,0.35,hy)));
+  c+=vec3(0.35,0.28,0.3)*pow(sd,24.0)*0.35;
   return c;
 }`;
 

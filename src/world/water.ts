@@ -2,6 +2,7 @@
    pale cyan light on the ripples. Small waves near the viewer calm to a mirror far away.
    Ripples (footsteps, strokes, the first touch) are rings added to the surface normal. */
 import * as THREE from "three";
+import { IJ_FOG_GLSL } from "./fog";
 import { SKY_GLSL, skyUniforms } from "./sky";
 
 const MAX_RIPPLES = 10;
@@ -34,6 +35,7 @@ export class Water {
         uniform sampler2D uRefl;uniform mat4 uReflMat;uniform float uReflOn;
         uniform vec4 uRip[${MAX_RIPPLES}];
         ${SKY_GLSL}
+        ${IJ_FOG_GLSL}
         void main(){
           vec3 toEye=cameraPosition-vW;
           float dist=length(toEye);
@@ -66,7 +68,7 @@ export class Water {
           // pale cyan catches on the ripple slopes
           float slope=length(g);
           refl+=vec3(0.30,0.60,0.70)*smoothstep(0.02,0.25,slope)*0.10;
-          vec3 deep=vec3(0.006,0.010,0.028);
+          vec3 deep=vec3(0.012,0.024,0.055);
           vec3 c=mix(deep,refl,clamp(fres*1.25,0.0,1.0));
           // the bright star's path of light across the water
           float sp=pow(max(dot(R,uStar),0.0),220.0);
@@ -74,8 +76,8 @@ export class Water {
           // the wanderer's own light, reflected nearby
           float gd=length(vW.xz-uGlow.xz);
           c+=vec3(1.0,0.82,0.58)*exp(-gd*gd*0.35)*0.07*uGlow.y;
-          float fog=1.0-exp(-pow(dist*uFogDensity,2.0));
-          c=mix(c,uFogColor,fog);
+          vec4 fg=ijFog(vW);
+          c=mix(c,fg.rgb,fg.a);
           gl_FragColor=vec4(c,1.0);
         }`,
     });

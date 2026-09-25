@@ -5,7 +5,6 @@
    - Mountains rising far out, so the world has an edge you see but never reach.
    The ground is streamed in square chunks around the wanderer. */
 import * as THREE from "three";
-import { contourMaterial } from "./etching";
 
 export const WATER_Y = 0;
 /** Where the wanderer wakes, and faces. */
@@ -106,90 +105,214 @@ export interface Collider {
 }
 export const colliders: Collider[] = [];
 
-/* ---------- streamed chunks ---------- */
-const CHUNK = 80;
-const SEG = 24;
-const RING = 3; // chunks in each direction: a 7 × 7 field, about 280 m out
+/* ---------- streamed ground, in two levels of detail ----------
+   Near the wanderer: fine 64 m tiles (a vertex every 2 m). Around them, out to ~640 m: coarse
+   256 m tiles (every 8 m) that reach the mountains at the world's edge, so the horizon is real
+   land fading into haze. Where the near tiles cover the ground, the coarse tiles' vertices are
+   sunk out of sight. Normals come from the height function itself, so tiles meet without seams,
+   and hollows are shaded by how much sky they see. */
+interface Level {
+  chunk: number;
+  seg: number;
+  ring: number;
+}
+const NEAR: Level = { chunk: 64, seg: 32, ring: 2 }; // 5 × 5 tiles: ±160 m
+const FAR: Level = { chunk: 256, seg: 32, ring: 2 }; // 5 × 5 tiles: ±640 m
 
 const C = {
-  wet: new THREE.Color("#353450"),
-  sand: new THREE.Color("#8a84a2"),
-  meadowA: new THREE.Color("#2f4a5c"), // silver-blue
-  meadowB: new THREE.Color("#4b3a66"), // violet
-  meadowC: new THREE.Color("#5a4450"), // rose
-  stone: new THREE.Color("#3a3656"),
-  snow: new THREE.Color("#8e8cb4"),
+  wet: new THREE.Color("#35334f"),
+  sand: new THREE.Color("#a79dc0"),
+  meadowA: new THREE.Color("#3f5f73"), // silver-blue
+  meadowB: new THREE.Color("#58497e"), // violet
+  meadowC: new THREE.Color("#6d5268"), // rose
+  stone: new THREE.Color("#4b4563"),
+  snow: new THREE.Color("#bcb9da"),
 };
+
+/** The ground's material: moonlit, with sand that ripples and glitters, and no drawn lines. */
+function groundMaterial(): THREE.MeshStandardMaterial {
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0 });
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uMoon = { value: new THREE.Vector3(0.06, 0.16, -1).normalize() };
+    sh.vertexShader = sh.vertexShader
+      .replace("#include <common>", "#include <common>\nattribute vec2 aGround;varying vec2 vGround;varying vec3 vGW;")
+      .replace("#include <project_vertex>", "#include <project_vertex>\nvGround=aGround;vGW=(modelMatrix*vec4(transformed,1.0)).xyz;");
+    sh.fragmentShader = sh.fragmentShader
+      .replace(
+        "#include <common>",
+        `#include <common>
+        varying vec2 vGround; // x: sky seen (1 open … darker in hollows), y: how sandy
+        varying vec3 vGW;
+        uniform vec3 uMoon;
+        float gH(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+        float gN(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);
+          return mix(mix(gH(i),gH(i+vec2(1,0)),f.x),mix(gH(i+vec2(0,1)),gH(i+vec2(1,1)),f.x),f.y);}`,
+      )
+      .replace("#include <color_fragment>", "#include <color_fragment>\ndiffuseColor.rgb*=vGround.x;")
+      .replace(
+        "#include <normal_fragment_maps>",
+        `#include <normal_fragment_maps>
+        {
+          float gd=length(vGW-cameraPosition);
+          float near=1.0-smoothstep(12.0,55.0,gd);
+          vec2 q=vGW.xz;
+          // wind ripples in the sand, their direction wandering slowly across the dunes
+          float ang=gN(q*0.015)*3.14159*1.5;
+          vec2 dir=vec2(cos(ang),sin(ang));
+          float ph=dot(q,dir)*2.6+gN(q*0.35)*3.0;
+          vec2 slope=dir*cos(ph)*0.22*vGround.y;
+          // soft unevenness everywhere else
+          vec2 e=vec2(0.35,0.0);
+          float b0=gN(q*1.7);
+          slope+=vec2(gN(q*1.7+e.xy)-b0,gN(q*1.7+e.yx)-b0)*0.9*(1.0-vGround.y);
+          vec3 dW=vec3(-slope.x,0.0,-slope.y)*near;
+          normal=normalize(normal+mat3(viewMatrix)*dW);
+        }`,
+      )
+      .replace(
+        "#include <emissivemap_fragment>",
+        `#include <emissivemap_fragment>
+        {
+          vec3 gv=normalize(cameraPosition-vGW);
+          float gd=length(vGW-cameraPosition);
+          // glitter: grains of sand that catch the light as you move
+          vec2 gq=vGW.xz*22.0;vec2 cell=floor(gq);
+          float h=gH(cell);
+          float tw=gH(cell*1.7+floor(gv.xz*24.0+gv.y*11.0));
+          float dot_=smoothstep(0.22,0.0,length(fract(gq)-0.5)); // a point of light, not a fleck
+          float glit=step(0.975,h)*step(0.6,tw)*dot_*vGround.y*(1.0-smoothstep(3.0,18.0,gd));
+          totalEmissiveRadiance+=vec3(1.0,0.93,0.82)*glit*2.2;
+          // a soft sheen where the ground faces away toward the moon (light through the haze)
+          float back=pow(max(dot(-gv,uMoon),0.0),3.0);
+          totalEmissiveRadiance+=vec3(0.32,0.26,0.24)*back*(0.3+0.7*vGround.y)*0.18;
+        }`,
+      );
+  };
+  return m;
+}
 
 export class Terrain {
   group = new THREE.Group();
-  private chunks = new Map<string, THREE.Mesh>();
-  private pool: THREE.Mesh[] = [];
-  private material = contourMaterial("#e2b86e", 2.2);
-  private cx = Infinity;
-  private cz = Infinity;
+  private near = new Map<string, THREE.Mesh>();
+  private far = new Map<string, THREE.Mesh>();
+  private pool: { near: THREE.Mesh[]; far: THREE.Mesh[] } = { near: [], far: [] };
+  private material = groundMaterial();
+  private nc = [Infinity, Infinity];
+  private fc = [Infinity, Infinity];
+  private queue: (() => void)[] = [];
   private col = new THREE.Color();
   private tmp = new THREE.Color();
 
-  /** Build or recycle chunks so the wanderer is always in the middle of the field. */
+  /** The square the near tiles cover: coarse vertices inside it are sunk out of sight. */
+  private nearBox(): [number, number, number, number] {
+    const [cx, cz] = this.nc;
+    return [(cx - NEAR.ring) * NEAR.chunk, (cz - NEAR.ring) * NEAR.chunk, (cx + NEAR.ring + 1) * NEAR.chunk, (cz + NEAR.ring + 1) * NEAR.chunk];
+  }
+
+  /** Keep the wanderer in the middle of both levels. `force` builds everything now. */
   update(x: number, z: number, force = false): void {
-    const cx = Math.floor(x / CHUNK), cz = Math.floor(z / CHUNK);
-    if (!force && cx === this.cx && cz === this.cz) return;
-    this.cx = cx;
-    this.cz = cz;
+    const ncx = Math.floor(x / NEAR.chunk), ncz = Math.floor(z / NEAR.chunk);
+    const fcx = Math.floor(x / FAR.chunk), fcz = Math.floor(z / FAR.chunk);
+    const nearMoved = ncx !== this.nc[0] || ncz !== this.nc[1];
+    if (force || nearMoved) {
+      this.nc = [ncx, ncz];
+      this.queue = [];
+      this.stream(this.near, this.pool.near, NEAR, ncx, ncz, true);
+    }
+    if (force || nearMoved || fcx !== this.fc[0] || fcz !== this.fc[1]) {
+      this.fc = [fcx, fcz];
+      // far tiles are refilled after the near ones, since the square they give way to has moved
+      this.stream(this.far, this.pool.far, FAR, fcx, fcz, false);
+    }
+    // a few tiles per frame, so walking never stutters
+    const n = force ? this.queue.length : 2;
+    for (let i = 0; i < n && this.queue.length; i++) this.queue.shift()!();
+  }
+
+  private stream(tiles: Map<string, THREE.Mesh>, pool: THREE.Mesh[], L: Level, cx: number, cz: number, isNear: boolean): void {
     const want = new Set<string>();
-    for (let i = -RING; i <= RING; i++) for (let j = -RING; j <= RING; j++) want.add(`${cx + i},${cz + j}`);
-    for (const [k, m] of this.chunks) {
+    for (let i = -L.ring; i <= L.ring; i++) for (let j = -L.ring; j <= L.ring; j++) want.add(`${cx + i},${cz + j}`);
+    for (const [k, m] of tiles) {
       if (!want.has(k)) {
         this.group.remove(m);
-        this.pool.push(m);
-        this.chunks.delete(k);
+        pool.push(m);
+        tiles.delete(k);
       }
     }
     for (const k of want) {
-      if (this.chunks.has(k)) continue;
       const [i, j] = k.split(",").map(Number);
-      const m = this.pool.pop() ?? this.newMesh();
-      this.fill(m, i, j);
-      this.chunks.set(k, m);
-      this.group.add(m);
+      const have = tiles.get(k);
+      if (have && isNear) continue; // near tiles never change
+      if (have && !this.touchesNear(L, i, j)) continue; // far tiles change only where the near square moved
+      this.queue.push(() => {
+        const m = tiles.get(k) ?? pool.pop() ?? this.newMesh(L, isNear);
+        this.fill(m, L, i, j, isNear);
+        if (!tiles.has(k)) {
+          tiles.set(k, m);
+          this.group.add(m);
+        }
+      });
     }
   }
 
-  private newMesh(): THREE.Mesh {
-    const g = new THREE.PlaneGeometry(CHUNK, CHUNK, SEG, SEG);
+  private touchesNear(L: Level, i: number, j: number): boolean {
+    const [x0, z0, x1, z1] = this.nearBox();
+    const m = NEAR.chunk; // the old square was at most one near tile away
+    return i * L.chunk < x1 + m && (i + 1) * L.chunk > x0 - m && j * L.chunk < z1 + m && (j + 1) * L.chunk > z0 - m;
+  }
+
+  private newMesh(L: Level, isNear: boolean): THREE.Mesh {
+    const g = new THREE.PlaneGeometry(L.chunk, L.chunk, L.seg, L.seg);
     g.rotateX(-Math.PI / 2);
-    g.setAttribute("color", new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 3), 3));
+    const n = g.attributes.position.count;
+    g.setAttribute("color", new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+    g.setAttribute("aGround", new THREE.BufferAttribute(new Float32Array(n * 2), 2));
     const m = new THREE.Mesh(g, this.material);
-    m.receiveShadow = true;
+    m.receiveShadow = isNear;
     m.frustumCulled = true;
     return m;
   }
 
-  private fill(m: THREE.Mesh, i: number, j: number): void {
-    const ox = (i + 0.5) * CHUNK, oz = (j + 0.5) * CHUNK;
+  private fill(m: THREE.Mesh, L: Level, i: number, j: number, isNear: boolean): void {
+    const ox = (i + 0.5) * L.chunk, oz = (j + 0.5) * L.chunk;
     m.position.set(ox, 0, oz);
     const g = m.geometry as THREE.BufferGeometry;
     const pos = g.attributes.position as THREE.BufferAttribute;
+    const nor = g.attributes.normal as THREE.BufferAttribute;
     const col = g.attributes.color as THREE.BufferAttribute;
-    // the plane's local vertices are laid out on a fixed grid; recompute from indices
-    const n = SEG + 1;
+    const gr = g.attributes.aGround as THREE.BufferAttribute;
+    const n = L.seg + 1, B = 4; // a border of four cells, for normals and the sky-seen shading
+    const W = n + 2 * B;
+    const step = L.chunk / L.seg;
+    const H = new Float32Array(W * W);
+    for (let b = 0; b < W; b++)
+      for (let a = 0; a < W; a++) H[b * W + a] = heightAt(ox + ((a - B) - L.seg / 2) * step, oz + ((b - B) - L.seg / 2) * step);
+    const box = isNear ? null : this.nearBox();
     for (let v = 0; v < pos.count; v++) {
-      const lx = ((v % n) / SEG - 0.5) * CHUNK;
-      const lz = (Math.floor(v / n) / SEG - 0.5) * CHUNK;
+      const a = (v % n) + B, b = Math.floor(v / n) + B;
+      const lx = (a - B - L.seg / 2) * step, lz = (b - B - L.seg / 2) * step;
       const x = ox + lx, z = oz + lz;
-      const h = heightAt(x, z);
-      pos.setXYZ(v, lx, h, lz);
+      const h = H[b * W + a];
+      // hidden beneath the near tiles?
+      const sunk = box && x > box[0] + 0.01 && x < box[2] - 0.01 && z > box[1] + 0.01 && z < box[3] - 0.01;
+      pos.setXYZ(v, lx, sunk ? h - 40 : h, lz);
+      const dx = H[b * W + a - 1] - H[b * W + a + 1], dz = H[(b - 1) * W + a] - H[(b + 1) * W + a];
+      const inv = 1 / Math.hypot(dx, 2 * step, dz);
+      nor.setXYZ(v, dx * inv, 2 * step * inv, dz * inv);
+      // how much sky this spot sees: hollows darker, crests a little brighter
+      let avg = 0;
+      for (const [da, db] of [[-B, 0], [B, 0], [0, -B], [0, B], [-2, -2], [2, 2], [-2, 2], [2, -2]]) avg += H[(b + db) * W + a + da];
+      avg /= 8;
+      const sky = Math.min(1.12, Math.max(0.5, 1 - ((avg - h) * 0.9) / Math.max(4, step * B)));
       const k = groundKind(x, z, h);
       const region = fbm(x * 0.004 + 9, z * 0.004 - 4);
       this.col.copy(C.meadowA).lerp(C.meadowB, smooth(0.35, 0.6, region)).lerp(C.meadowC, smooth(0.6, 0.78, region));
       this.col.lerp(this.tmp.copy(C.sand), k.sand).lerp(C.stone, k.stone).lerp(C.snow, smooth(40, 70, h));
-      if (h < 0.1) this.col.copy(C.wet);
+      if (h < 0.1) this.col.lerp(C.wet, smooth(0.1, -0.6, h));
       col.setXYZ(v, this.col.r, this.col.g, this.col.b);
+      gr.setXY(v, sky, Math.min(1, k.sand + smooth(0.45, 0.62, fbm(x * 0.01 - 30, z * 0.01 + 12)) * (1 - k.stone) * 0.6));
     }
-    pos.needsUpdate = true;
-    col.needsUpdate = true;
-    g.computeVertexNormals();
+    pos.needsUpdate = nor.needsUpdate = col.needsUpdate = gr.needsUpdate = true;
     g.computeBoundingSphere();
     g.computeBoundingBox();
   }

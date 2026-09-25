@@ -439,9 +439,9 @@ export class Creation {
             float flow=pow(fract(vR.x*3.0+uT*0.11+vR.y),10.0);
             float near=smoothstep(14.0,1.5,distance(vW.xz,uPlayer.xz));
             float d=length(vW-cameraPosition);
-            float fade=(1.0-smoothstep(20.0,50.0,d))*(1.0-0.5*smoothstep(0.4,1.0,-vR.x));
+            float fade=(1.0-smoothstep(5.0,16.0,d))*(1.0-0.5*smoothstep(0.4,1.0,-vR.x));
             vec3 c=mix(vec3(1.0,0.78,0.5),vec3(0.72,0.82,1.0),step(0.5,vR.y));
-            gl_FragColor=vec4(c*(0.1+near*0.14+flow*(0.7+near*0.9))*fade,1.0);
+            gl_FragColor=vec4(c*(0.03+near*0.06+flow*(0.35+near*0.5))*fade,1.0);
           }`,
       }),
     );
@@ -453,6 +453,7 @@ export class Creation {
       const geo = mergeGeometries([tubes(limbs), tubes(roots, -0.2)]);
       const mesh = new THREE.InstancedMesh(geo, bark, MAX_TREES);
       mesh.count = 0;
+      mesh.castShadow = true; // the moon casts the trees' shadows near the wanderer
       this.barks.push(mesh);
       this.rootSegs.push(rootLineSegs(roots));
       this.group.add(mesh);
@@ -697,9 +698,9 @@ export class Creation {
           float pulse=pow(fract(vS.x*1.5-uT*0.09+vS.y),16.0);
           float near=smoothstep(16.0,2.0,distance(vW.xz,uPlayer.xz));
           float d=length(vW-cameraPosition);
-          float fade=1.0-smoothstep(20.0,55.0,d);
+          float fade=1.0-smoothstep(6.0,20.0,d);
           vec3 c=mix(vec3(1.0,0.8,0.55),vec3(0.8,0.75,1.0),vS.y);
-          gl_FragColor=vec4(c*(0.06+near*0.12+pulse*(0.5+near*0.8))*fade,1.0);
+          gl_FragColor=vec4(c*(0.02+near*0.05+pulse*(0.3+near*0.5))*fade,1.0);
         }`,
     });
     const l = new THREE.LineSegments(g, mat);
