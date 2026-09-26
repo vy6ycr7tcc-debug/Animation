@@ -30,3 +30,7 @@ tts synthesize-script --script closing.txt --speaker Aria=avocado_v2:MAI_01 --sp
 
 # Optional: the whole journey as one listen, in Ra's teaching order (Session 88.24)
 tts synthesize-script --script script-full.txt --speaker Aria=avocado_v2:MAI_01 --speaker Rowan=avocado_v2:miles --speed 92 --output full-journey.mp3
+
+# The opening (2026-09-26): Samuel's words, spoken out of the dark before the world appears.
+# Played by main.ts from public/audio/opening-intro.mp3 when present (it begins ~3 s after the touch).
+tts speak --text "From the stillness of the heart... in the within of noise and the silence... the soul seeks to rediscover itself... experiencing creation... and the creator... all there is." --voice avocado_v2:MAI_01 --speed 88 --output ../public/audio/opening-intro.mp3  # Aria

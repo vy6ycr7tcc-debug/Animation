@@ -745,7 +745,7 @@ player.onLand = () => {
 lanterns.onKindle = () => say("Lanterns kindle around you.");
 
 function begin(e?: Event): void {
-  if (S.mode !== "intro" || startMap.isOpen) return;
+  if (S.mode !== "intro" || startMap.isOpen || opening !== "done") return;
   // Sound starts inside this touch (iOS requirement).
   audio.start();
   audio.bell(587.33, 0.05, 6);
@@ -1424,7 +1424,9 @@ addEventListener("keydown", (e) => {
   }
   if (S.mode === "intro" && (e.key === "Enter" || e.key === " ")) {
     e.preventDefault();
-    begin();
+    if (opening === "ready") startOpening();
+    else if (opening === "playing") finishOpening();
+    else begin();
   }
 });
 const vol = $<HTMLInputElement>("#vol");
@@ -1855,23 +1857,104 @@ renderer
     endLoading();
   });
 
-/** The loading veil (index.html) lifts once the world is ready, and not before its first line was
-    read; if the shaders are slow it lifts anyway by ~14 s (they finish behind the title). */
+/* The opening (Samuel: "an animation at the start… with an explanation of what this world is…
+   it should start in the dark, and should narrate…"). While the world loads, the seed of light
+   draws itself in the dark; then "Touch the light to begin" (the touch lets sound start). His
+   words come out of the dark one phrase at a time as the seed grows, then two plain lines say
+   what this world is, and the dark lifts like a dawn onto the night water and the title. If
+   `audio/opening-intro.mp3` exists (his recording; narration/generate.sh), it speaks them. */
+const OPENING = [
+  "From the stillness of the heart,",
+  "in the within of noise and the silence,",
+  "the soul seeks to rediscover itself,",
+  "experiencing creation,",
+  "and the creator,",
+  "all there is.",
+];
+const OPENING_AFTER = [
+  "This is a world of night and light to wander, with nothing to win and nowhere you must be.",
+  "Touch what calls you. Rest where it is quiet. Listen.",
+];
 let loadingEnded = false;
+let opening: "loading" | "ready" | "playing" | "done" = "loading";
+const openingTimers: number[] = [];
+let openingVoice: HTMLAudioElement | null = null;
 window.setTimeout(endLoading, Math.max(0, 14000 - performance.now()));
+/** The world is ready: the light waits to be touched. */
 function endLoading(): void {
   if (loadingEnded) return;
   loadingEnded = true;
-  const wait = Math.max(0, 5200 - performance.now());
+  const wait = Math.max(0, 2500 - performance.now());
   window.setTimeout(() => {
+    opening = "ready";
     const el = $("#loading");
-    el.classList.add("done");
-    document.body.classList.remove("loading");
-    window.setTimeout(() => {
-      el.remove();
-      clearInterval((window as unknown as { __loadingLines?: number }).__loadingLines);
-    }, 1800);
+    el.classList.add("ready");
+    openingLine("Touch the light to begin");
+    el.addEventListener("click", startOpening);
   }, wait);
+}
+function openingLine(text: string, after = false): void {
+  const line = $("#loading-line");
+  line.classList.remove("on");
+  openingTimers.push(window.setTimeout(() => {
+    line.textContent = text;
+    line.classList.toggle("after", after);
+    line.classList.add("on");
+  }, line.textContent ? 1300 : 0));
+}
+function startOpening(): void {
+  if (opening !== "ready") return;
+  opening = "playing";
+  audio.start(); // inside the touch (iOS)
+  audio.bell(293.66, 0.04, 9);
+  const el = $("#loading");
+  el.classList.remove("ready");
+  el.classList.add("opening");
+  $("#loading-line").classList.remove("on");
+  const skip = $("#opening-skip");
+  skip.hidden = false;
+  skip.addEventListener("click", (e) => {
+    e.stopPropagation();
+    finishOpening();
+  }, { once: true });
+  // his recorded voice, if it is there: unlocked inside this touch, spoken a moment later
+  const v = new Audio("audio/opening-intro.mp3");
+  v.preload = "auto";
+  v.volume = 0;
+  void v.play().then(() => {
+    v.pause();
+    v.currentTime = 0;
+    v.volume = 1;
+    openingVoice = v;
+  }).catch(() => (openingVoice = null));
+  const t0 = 3000, per = 4200;
+  openingTimers.push(window.setTimeout(() => void openingVoice?.play().catch(() => undefined), t0 - 400));
+  OPENING.forEach((line, i) => openingTimers.push(window.setTimeout(() => openingLine(line), t0 + i * per)));
+  const t1 = t0 + OPENING.length * per + 1200;
+  OPENING_AFTER.forEach((line, i) => openingTimers.push(window.setTimeout(() => openingLine(line, true), t1 + i * 6000)));
+  openingTimers.push(window.setTimeout(finishOpening, t1 + OPENING_AFTER.length * 6000 + 1500));
+}
+/** The dark lifts onto the night water; the title rises. */
+function finishOpening(): void {
+  if (opening === "done") return;
+  opening = "done";
+  for (const t of openingTimers) clearTimeout(t);
+  const v = openingVoice;
+  if (v && !v.paused) {
+    const fade = window.setInterval(() => {
+      v.volume = Math.max(0, v.volume - 0.05);
+      if (v.volume <= 0) {
+        v.pause();
+        clearInterval(fade);
+      }
+    }, 80);
+  }
+  $("#opening-skip").hidden = true;
+  const el = $("#loading");
+  el.classList.add("dawn", "done");
+  document.body.classList.remove("loading");
+  audio.bell(440, 0.03, 7);
+  window.setTimeout(() => el.remove(), 4200);
 }
 
 Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, touch, beginTouch, depths, setDeep, crossDeep } });

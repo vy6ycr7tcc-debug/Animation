@@ -41,10 +41,10 @@ const STATUE_SCALE = 1.3;
 export const inTempleRegion = (x: number) => x > TEMPLE_ORIGIN.x - 500;
 
 /* ---------- photo-scanned stone (Poly Haven, CC0; see CREDITS.md) ---------- */
-type ScanName = "sandstone_blocks_08" | "sandstone_blocks_05" | "sandstone_cracks" | "red_sandstone_pavement";
+export type ScanName = "sandstone_blocks_08" | "sandstone_blocks_05" | "sandstone_cracks" | "red_sandstone_pavement";
 const scans = new Map<ScanName, { diff: THREE.Texture; nor: THREE.Texture; arm: THREE.Texture }>();
 const loader = new THREE.TextureLoader();
-function scan(name: ScanName): { diff: THREE.Texture; nor: THREE.Texture; arm: THREE.Texture } {
+export function scan(name: ScanName): { diff: THREE.Texture; nor: THREE.Texture; arm: THREE.Texture } {
   let s = scans.get(name);
   if (!s) {
     const load = (k: string, colour: boolean) => {
@@ -322,7 +322,7 @@ function merged(list: THREE.BufferGeometry[]): THREE.BufferGeometry {
 
 /** A papyrus-bundle column: eight stems bound together, swelling at the foot, bound at the neck,
     opening into a bud capital; painted in faded bands near the top. */
-function columnGeometry(): THREE.BufferGeometry {
+export function columnGeometry(): THREE.BufferGeometry {
   const pts: THREE.Vector2[] = [];
   const H = 10.5;
   for (let i = 0; i <= 40; i++) {
