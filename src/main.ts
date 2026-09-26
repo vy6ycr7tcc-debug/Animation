@@ -124,7 +124,7 @@ sky.layers.set(NO_MIRROR_LAYER); // the lakes mirror the world; the sky they dra
 scene.add(sky);
 /** The sky as light for glossy things (after the renderer is ready; again as the mood changes). */
 const envScene = new THREE.Scene();
-envScene.add(buildSky());
+envScene.add(buildSky(true)); // the reflection: the sky's light only, no stars or nebulae
 let envBakedAt = -99;
 function bakeEnvironment(): void {
   const pmrem = new THREE.PMREMGenerator(renderer);

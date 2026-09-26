@@ -496,7 +496,8 @@ export class Wanderer {
 
     // Ribbons trail from the hands and the crown, stronger in motion.
     const cam = this.tmp.cam.copy(this.camera.position);
-    const strength = Math.min(1, 0.25 + this.flow * 0.4 + reach * 0.5) * f * (1 - water);
+    // in flight they rest: climbing, they trailed straight down from the hands like stilts
+    const strength = Math.min(1, 0.25 + this.flow * 0.4 + reach * 0.5) * f * (1 - water) * (1 - 0.9 * this.k.fly);
     if (this.ready) {
       this.ribbons[0].update(dt, this.bonePos("DEF-hand.L", this.tmp.a, 0.12), cam, strength);
       this.ribbons[1].update(dt, this.bonePos("DEF-hand.R", this.tmp.a, 0.12), cam, strength);

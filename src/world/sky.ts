@@ -107,7 +107,7 @@ function meteor(d: N, t: N, period: number, seed: number): N {
 
 /** The colour of the sky in direction `d` (normalized). `detail` adds the finest work (nebulae,
     dust, galaxies); the water's reflection leaves it out. */
-function skyColorImpl(d: N, detail: boolean): N {
+function skyColorImpl(d: N, detail: boolean, plain = false): N {
   const U = skyUniforms;
   const y = d.y;
   const hy = max(y, 0);
@@ -121,6 +121,24 @@ function skyColorImpl(d: N, detail: boolean): N {
   c.addAssign(
     U.uSunCol.mul(pow(sd, 5).mul(0.5).add(pow(sd, 48).mul(0.9)).add(pow(sd, 1600).mul(9)).add(exp(hy.mul(-7)).mul(side).mul(side).mul(0.45))).mul(U.uSunK),
   );
+  if (!plain) addNight(c, d, y, hy, above, detail);
+  const ss = max(dot(d, U.uStar), 0);
+  // the moon's glow in the haze, matching the fog's light toward it
+  c.assign(mix(c, vec3(0.55, 0.42, 0.34), pow(ss, 5).mul(0.7).mul(float(1).sub(smoothstep(0, 0.35, hy))).mul(U.uMoonK)));
+  c.addAssign(vec3(0.35, 0.28, 0.3).mul(pow(ss, 24)).mul(0.35).mul(U.uMoonK));
+  // below the horizon the sky is the far air itself, the same colour as the haze the far land
+  // and water melt into: flying high, the edge of the world never shows as a line across the view
+  const haze = mix(fogUniforms.color, fogUniforms.glow, pow(max(dot(d, fogUniforms.glowDir), 0), 5).mul(0.7)).mul(1.1);
+  c.assign(mix(c, haze, smoothstep(0.015, -0.06, y)));
+  void abs;
+  return c;
+}
+
+/** The night's lights: the galaxy's band, nebulae, far galaxies, shooting stars, the stars and
+    the bright star. */
+function addNight(c: N, d: N, y: N, hy: N, above: N, detail: boolean): void {
+  const U = skyUniforms;
+  void y, hy;
   // the Milky Way: a band of light with lanes of dust through it
   const bdot = dot(d, normalize(vec3(0.5, 0.35, 0.8)));
   const band = exp(bdot.mul(bdot).mul(-18));
@@ -159,31 +177,26 @@ function skyColorImpl(d: N, detail: boolean): N {
   const ss = max(dot(d, U.uStar), 0);
   c.addAssign(vec3(1.0, 0.8, 0.5).mul(pow(ss, 4000)).mul(14).mul(U.uStars.mul(0.7).add(0.3)).mul(float(1).sub(U.uDeep.mul(0.65))));
   c.addAssign(vec3(1.0, 0.72, 0.42).mul(pow(ss, 300)).mul(0.3).mul(U.uStars).mul(float(1).sub(U.uDeep.mul(0.7))));
-  // the moon's glow in the haze, matching the fog's light toward it
-  c.assign(mix(c, vec3(0.55, 0.42, 0.34), pow(ss, 5).mul(0.7).mul(float(1).sub(smoothstep(0, 0.35, hy))).mul(U.uMoonK)));
-  c.addAssign(vec3(0.35, 0.28, 0.3).mul(pow(ss, 24)).mul(0.35).mul(U.uMoonK));
-  // below the horizon the sky is the far air itself, the same colour as the haze the far land
-  // and water melt into: flying high, the edge of the world never shows as a line across the view
-  const haze = mix(fogUniforms.color, fogUniforms.glow, pow(max(dot(d, fogUniforms.glowDir), 0), 5).mul(0.7)).mul(1.1);
-  c.assign(mix(c, haze, smoothstep(0.015, -0.06, y)));
-  void abs;
-  return c;
 }
 
 /** The colour of the sky in direction `d`, as the water mirrors it. */
 export const skyColor = Fn(([d]: N[]) => skyColorImpl(d, false));
 /** The sky itself, with its nebulae, dust and galaxies. */
 export const skyColorFull = Fn(([d]: N[]) => skyColorImpl(d, true));
+/** Only the sky's light (its colours, the low sun, the moon's glow), without stars, nebulae or
+    galaxies: what glossy things reflect. Blurred for them, the night's points of light became
+    soft coloured blobs sliding over the land. */
+export const skyColorPlain = Fn(([d]: N[]) => skyColorImpl(d, false, true));
 
 export { starDirection } from "./fog";
 
-export function buildSky(): THREE.Mesh {
+export function buildSky(plain = false): THREE.Mesh {
   const mat = new THREE.MeshBasicNodeMaterial({ side: THREE.BackSide, depthWrite: false, fog: false });
   const dir = varying(positionLocal);
   // always at the far plane
   const clip = cameraProjectionMatrix.mul(modelViewMatrix).mul(vec4(positionLocal, 1));
   mat.vertexNode = vec4(clip.x, clip.y, clip.w, clip.w);
-  mat.colorNode = skyColorFull(normalize(dir));
+  mat.colorNode = (plain ? skyColorPlain : skyColorFull)(normalize(dir));
   const m = new THREE.Mesh(new THREE.SphereGeometry(1000, 48, 24), mat);
   m.frustumCulled = false;
   m.renderOrder = -1;
