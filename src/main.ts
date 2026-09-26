@@ -463,7 +463,7 @@ function crossTemple(inside: boolean): void {
   audio.bell(inside ? 330 : 396, 0.12, 6);
   window.setTimeout(() => {
     setInside(inside);
-    if (inside) whisper("The temple. The Mind on your left, the Body on your right; the Spirit beyond the gateway.", 7000);
+    if (inside) whisper("The temple. The Mind on your left, the Body on your right; the Spirit beyond the gateway. The door behind you leads out.", 8000);
     window.setTimeout(() => {
       fadeEl.classList.remove("on");
       crossing = false;
@@ -1652,6 +1652,26 @@ renderer
   .finally(() => {
     shadersReady = true;
     quality.hold(3);
+    endLoading();
   });
+
+/** The loading veil (index.html) lifts once the world is ready, and not before its first line was
+    read; if the shaders are slow it lifts anyway by ~14 s (they finish behind the title). */
+let loadingEnded = false;
+window.setTimeout(endLoading, Math.max(0, 14000 - performance.now()));
+function endLoading(): void {
+  if (loadingEnded) return;
+  loadingEnded = true;
+  const wait = Math.max(0, 5200 - performance.now());
+  window.setTimeout(() => {
+    const el = $("#loading");
+    el.classList.add("done");
+    document.body.classList.remove("loading");
+    window.setTimeout(() => {
+      el.remove();
+      clearInterval((window as unknown as { __loadingLines?: number }).__loadingLines);
+    }, 1800);
+  }, wait);
+}
 
 Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard } });

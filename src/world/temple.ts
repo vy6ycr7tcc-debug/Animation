@@ -1109,13 +1109,15 @@ export class Temple {
   /** Keep the wanderer within the walls (and under the ceiling); true if they walked out the door. */
   confine(p: THREE.Vector3): boolean {
     const l = this.local.copy(p).sub(TEMPLE_ORIGIN);
-    if (l.z > HALL_Z0 + 0.3 && Math.abs(l.x) < 2.4) return true;
+    // the door: within its opening you may walk on through the wall, and out
+    const inDoor = Math.abs(l.x) < 2.2;
+    if (l.z > HALL_Z0 + 0.4 && inDoor) return true;
     const inSanct = l.z < HALL_Z1 + 0.6;
     const xMax = inSanct ? SANCT_X - 0.6 : HALL_X - 0.6;
     // the gateway: pass only through its door
     if (Math.abs(l.z - HALL_Z1) < 1.4 && Math.abs(l.x) > 2.6) l.z = l.z > HALL_Z1 ? HALL_Z1 + 1.4 : HALL_Z1 - 1.4;
     l.x = THREE.MathUtils.clamp(l.x, -xMax, xMax);
-    l.z = THREE.MathUtils.clamp(l.z, SANCT_Z1 + 0.6, HALL_Z0 - 0.4);
+    l.z = THREE.MathUtils.clamp(l.z, SANCT_Z1 + 0.6, inDoor ? HALL_Z0 + 1.5 : HALL_Z0 - 0.4);
     l.y = Math.min(l.y, (inSanct ? WALL_H + 1 : WALL_H - 2) - 1);
     p.copy(l).add(TEMPLE_ORIGIN);
     return false;

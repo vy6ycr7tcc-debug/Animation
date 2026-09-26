@@ -46,6 +46,41 @@ button:focus-visible, input:focus-visible { outline: 1px solid var(--gold); outl
 #title.gone { opacity: 0; }
 #begin { position: fixed; inset: 0; width: 100%; height: 100%; }
 #begin[hidden] { display: none; }
+/* ---- loading: a seed of light drawing itself, and a line to sit with ---- */
+#loading {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2.2rem;
+  padding: 0 28px; text-align: center;
+  background: radial-gradient(ellipse at 50% 42%, #17143a 0%, var(--night) 62%);
+  transition: opacity 1.6s ease;
+}
+#loading.done { opacity: 0; pointer-events: none; }
+#loading .seed { width: min(34vw, 150px); height: auto; overflow: visible; }
+#loading .seed .turn { animation: seed-turn 60s linear infinite; transform-origin: 0 0; }
+#loading .seed circle:not(.heart), #loading .seed polygon {
+  fill: none; stroke: var(--gold); stroke-width: 0.5; stroke-linecap: round;
+  stroke-dasharray: 100; stroke-dashoffset: 100;
+  animation: seed-draw 9s ease-in-out infinite;
+}
+#loading .seed .ring { stroke-opacity: 0.45; animation-delay: 0s; }
+#loading .seed .hex { stroke: #a9c4e8; stroke-opacity: 0.5; animation-delay: 0.6s; }
+#loading .seed .petal { stroke-opacity: 0.75; animation-delay: calc(1.2s + var(--i) * 0.35s); }
+#loading .seed .heart { fill: #fff3d6; animation: seed-breathe 5s ease-in-out infinite; transform-origin: 0 0; }
+#loading-line {
+  margin: 0; max-width: 26em; min-height: 3em;
+  font-style: italic; font-size: clamp(16px, 2.4vw, 19px); line-height: 1.55; color: var(--dim);
+  opacity: 0; transition: opacity 1.4s ease; text-wrap: balance;
+}
+#loading-line.on { opacity: 1; }
+body.loading #title h1, body.loading #title p { animation-play-state: paused; }
+@keyframes seed-draw { 0% { stroke-dashoffset: 100; } 40%, 70% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -100; } }
+@keyframes seed-turn { to { transform: rotate(360deg); } }
+@keyframes seed-breathe { 0%, 100% { opacity: 0.55; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.25); } }
+@media (prefers-reduced-motion: reduce) {
+  #loading .seed .turn, #loading .seed .heart { animation: none; }
+  #loading .seed circle:not(.heart), #loading .seed polygon { animation: none; stroke-dashoffset: 0; }
+}
+
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 
