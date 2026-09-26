@@ -11,6 +11,8 @@ export class Awake {
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") void this.acquire();
     });
+    // iOS may refuse the request made on returning to the page (it wants a tap): try again on the next touch
+    addEventListener("pointerup", () => !this.lock && void this.acquire(), { passive: true });
   }
 
   /** Playing: keep the screen on (call from a tap the first time, as iOS prefers). */

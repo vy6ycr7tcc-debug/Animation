@@ -26,7 +26,8 @@ A stick in the bottom-left corner and one round button in the bottom-right, as i
 | Sit with an archetype, stand up | Tap "Sit with…" | E |
 | Hear an orb or a fruit | Tap it | Click it, or Enter when near |
 | Turn inward | Stand still for a moment | Stand still |
-| Settings, Map, About | ⋮ top right | Esc |
+| Settings, Map, Guide, About | ⋮ top right | Esc |
+| Ask the guide | ⋮ → Guide, or "Ask the guide" on the map | ⋮ → Guide |
 
 The screen stays awake while you play (⋮ → Keep the screen awake). Your journey is kept on this device: where you are, and every voice you've heard, so nothing repeats.
 
@@ -97,7 +98,9 @@ There is no island and no path. After "Touch the water to begin", a map unfolds:
 - **The archive's orbs and groves:** small glowing planets float through the world: in the sky (fly), deep in the lakes (dive), and over the land. Great trees stand in groves, each bearing glowing fruits.
   - Come near and a quiet label shows the title, the entity and the date.
   - Tap an orb or a fruit to hear its narration. A small player appears top-left with pause, source and close, and you keep exploring.
+  - While it plays, the voice it comes from (Ra, Q'uo, Hatonn, Latwii and others) stands beside you as a figure of light in its own colour and form, and fades when it ends.
   - When a narration ends, choose "Continue with background narration" or "Just the music".
+- **The guide:** ⋮ → Guide (or "Ask the guide" on the map). Choose somewhere new, an archetype, a grove or an orb, then "Walk with the guide" (a warm light goes ahead and waits for you) or "Take me there".
   - 86 narrations in all: 8 orbs (episodes 1–8) and 18 groves holding episodes 9–86.
 - **The whole creation:**
   - **Trees of light,** grown in smooth curves, with twigs that curl into spirals. Pulses of light run down from the crown through the trunk. Under the ground you can see the roots as fine lines of light going deep, brightest near you.

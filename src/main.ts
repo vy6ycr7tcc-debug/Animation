@@ -37,6 +37,9 @@ import { Motes } from "./world/motes";
 import { Creation, creationUniforms, Spirits } from "./world/creation";
 import { Beings } from "./world/beings";
 import { SeaFauna, SeaLife, UnderwaterEffect } from "./world/underwater";
+import { Presences } from "./world/presences";
+import { Guide, type Destination } from "./world/guide";
+import { GROVE_SITES, ORB_SITES } from "./world/sites";
 import { Communion } from "./world/communion";
 import { Creatures } from "./world/creatures";
 import { Vessels } from "./world/vessels";
@@ -202,6 +205,10 @@ const landmarks = new Landmarks(scene, audio, wanderer);
 const beings = new Beings(landmarks.list, sparks);
 scene.add(beings.group);
 void beings.load("models/wanderer.glb");
+// the voices of the archive, present while they speak
+const presences = new Presences();
+scene.add(presences.group);
+void presences.load("models/wanderer.glb");
 scene.add(sparks.points, grass.mesh, flowers.mesh, lanterns.points, butterflies.points, gliders.group);
 // The whole creation: trees and their roots, rocks, crystals, spirits, and the light through them.
 creationUniforms.uFogC.value.copy(FOG_COLOR);
@@ -392,6 +399,8 @@ function begin(e?: Event): void {
   $("#begin").hidden = true;
   // Then the map: where to begin decides whose voice comes first.
   awake.want();
+  // ask the phone to keep the saved journey safe (granted quietly, most readily on the Home Screen)
+  void navigator.storage?.persist?.().catch(() => false);
   const you = saved ? { x: saved.pos[0], z: saved.pos[2], heading: saved.heading } : null;
   void startMap.open(places(), you, false, !!you).then((c) => c && arrive(c, true));
 }
@@ -724,6 +733,9 @@ function playArchive(n: Parameters<TranscriptPlayer["play"]>[0]): void {
 tp.onChange = (id) => {
   vessels.setPlaying(id);
   if (id) archiveHeard.add(id);
+  const who = id ? tp.current?.sources[0]?.entity ?? null : null;
+  presences.show(who && !/^unknown/i.test(who) ? who : null);
+  if (who && presences.entity) whisper(who, 3500);
 };
 tp.onChoose = (background) => {
   playlist.setOn(background);
@@ -740,6 +752,112 @@ $("#about-open").addEventListener("click", () => {
   $<HTMLButtonElement>("#about-close").focus();
 });
 $("#about-close").addEventListener("click", () => ($("#about").hidden = true));
+
+/* ---- The guide: tell it where you'd like to go, and it leads the way ---- */
+const guide = new Guide();
+scene.add(guide.group);
+const guidePanel = $("#guide"), guideList = $("#guide-list"), guidePick = $("#guide-pick");
+let guideChoice: Destination | null = null;
+guide.onArrive = (d) => {
+  whisper(d.label, 4000);
+  say(`You have arrived: ${d.label}.`);
+};
+function guideDestinations(): { group: string; items: (Destination & { note?: string })[] }[] {
+  const p = player.pos;
+  const byDist = <T extends { x: number; z: number }>(a: T[]) => [...a].sort((u, v) => Math.hypot(u.x - p.x, u.z - p.z) - Math.hypot(v.x - p.x, v.z - p.z));
+  const being = (b: (typeof beings.list)[number]): Destination & { note?: string } => ({
+    label: `${b.spec.numeral} · ${b.spec.name}`,
+    x: b.root.position.x,
+    y: b.root.position.y,
+    z: b.root.position.z,
+    note: b.spec.under ? "in the deep" : b.walked ? "visited" : undefined,
+  });
+  // somewhere new: the nearest archetype you haven't sat or walked with, and the nearest archive voice you haven't heard
+  const newBeing = byDist(beings.list.filter((b) => !b.walked).map((b) => ({ b, x: b.root.position.x, z: b.root.position.z })))[0];
+  const newOrb = byDist(ORB_SITES.filter((o) => !archiveHeard.has(o.orb.id)).map((o) => ({ ...o })))[0];
+  const fresh: (Destination & { note?: string })[] = [];
+  if (newBeing) fresh.push({ ...being(newBeing.b), note: "an archetype you haven't met yet" });
+  if (newOrb) fresh.push({ label: newOrb.orb.title, x: newOrb.x, y: newOrb.y, z: newOrb.z, note: `an orb you haven't heard${newOrb.realm === "sky" ? ", in the sky" : newOrb.realm === "water" ? ", in the deep" : ""}` });
+  const realm = (r: string) => beings.list.filter((b) => b.spec.realm === r).map(being);
+  return [
+    { group: "Somewhere new", items: fresh },
+    { group: "The Mind", items: realm("Mind") },
+    { group: "The Body", items: realm("Body") },
+    { group: "The Spirit", items: realm("Spirit") },
+    { group: "The Choice", items: realm("Choice") },
+    { group: "The groves of the archive", items: byDist(GROVE_SITES.map((g) => ({ label: g.grove.name, x: g.x, y: g.y, z: g.z }))) },
+    {
+      group: "The orbs of the archive",
+      items: byDist(ORB_SITES.map((o) => ({ label: o.orb.title, x: o.x, y: o.y, z: o.z, note: [o.realm === "sky" ? "in the sky" : o.realm === "water" ? "in the deep" : "", archiveHeard.has(o.orb.id) ? "heard" : ""].filter(Boolean).join(", ") || undefined }))),
+    },
+  ];
+}
+const far = (d: Destination) => {
+  const m = Math.hypot(d.x - player.pos.x, d.z - player.pos.z);
+  return m > 950 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m / 10) * 10} m`;
+};
+function openGuide(): void {
+  setMenu(false);
+  guideList.replaceChildren();
+  guidePick.hidden = true;
+  if (guide.target) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = `Stop guiding (to ${guide.target.label})`;
+    b.addEventListener("click", () => (guide.stop(), (guidePanel.hidden = true)));
+    guideList.append(b);
+  }
+  for (const g of guideDestinations()) {
+    if (!g.items.length) continue;
+    const h = document.createElement("p");
+    h.className = "gg";
+    h.textContent = g.group;
+    guideList.append(h);
+    for (const d of g.items) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = d.label;
+      const s = document.createElement("span");
+      s.textContent = [far(d), d.note].filter(Boolean).join(" · ");
+      b.append(s);
+      b.addEventListener("click", () => {
+        guideChoice = d;
+        $("#guide-name").textContent = `${d.label} · ${far(d)} away`;
+        guidePick.hidden = false;
+        guidePick.scrollIntoView({ block: "nearest" });
+        $<HTMLButtonElement>("#guide-walk").focus();
+      });
+      guideList.append(b);
+    }
+  }
+  guidePanel.hidden = false;
+  input.enabled = false;
+}
+function closeGuide(): void {
+  guidePanel.hidden = true;
+  input.enabled = S.mode === "play";
+}
+$("#guide-open").addEventListener("click", openGuide);
+$("#guide-close").addEventListener("click", closeGuide);
+$("#guide-walk").addEventListener("click", () => {
+  if (!guideChoice) return;
+  guide.lead(guideChoice, player.pos);
+  whisper(`Follow the light · ${guideChoice.label}`, 5000);
+  closeGuide();
+});
+$("#guide-go").addEventListener("click", () => {
+  const d = guideChoice;
+  if (!d) return;
+  closeGuide();
+  const pl = places();
+  let best = pl[0];
+  for (const q of pl) if (Math.hypot(q.x - d.x, q.z - d.z) < Math.hypot(best.x - d.x, best.z - d.z)) best = q;
+  // wake a few steps away from it, facing it (on the water above, if it's in the deep)
+  const x = d.x, z = d.z + 6;
+  arrive({ place: best, x, z, heading: 0 }, false);
+  guide.lead(d, player.pos);
+});
+startMap.onGuide = openGuide;
 
 $("#map-open").addEventListener("click", () => {
   setMenu(false);
@@ -1015,6 +1133,9 @@ function update(dt: number): void {
   const inWater = player.swimming || camUnder;
   seaLife.update(wt, dt, player.pos, inWater, orbAt, camera.position, (innerHeight * dpr) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
   fauna.update(wt, dt, player.pos, inWater, orbAt, S.reduced);
+  guide.update(wt, dt, player.pos);
+  presences.speaking = tp.playing ? 1 : 0;
+  presences.update(wt, dt, player.pos, follow.yaw, follow.underwater);
   if (player.swimming && !wasSwimming) seaLife.bubbles(player.pos, 18); // into the water
   if (player.diving && Math.random() < dt * 0.6) seaLife.bubbles(player.pos, 1);
   wasSwimming = player.swimming;
@@ -1076,4 +1197,4 @@ function frame(now: number): void {
 }
 requestAnimationFrame(frame);
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, aoPass, composer, underwaterPass, fauna, reflection, terrain, water, grass, seaLife, raysPass } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, aoPass, composer, underwaterPass, fauna, presences, guide, reflection, terrain, water, grass, seaLife, raysPass } });

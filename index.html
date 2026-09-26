@@ -34,7 +34,17 @@
   <div id="map-pick" hidden aria-live="polite"><p id="map-pick-name"></p><button id="map-go" type="button">Wake here</button></div>
   <div id="map-places"></div>
   <p class="note">Drag to move, pinch to come closer. Tap a place, or anywhere on the land, to go there.</p>
+  <button id="map-guide" type="button" hidden>Ask the guide</button>
   <button id="map-close" type="button" hidden>Stay where I am</button>
+</div>
+
+<div id="guide" role="dialog" aria-labelledby="guide-title" hidden>
+  <div id="guide-head"><p id="guide-title">Where would you like to go?</p><button id="guide-close" type="button" aria-label="Close">×</button></div>
+  <div id="guide-list"></div>
+  <div id="guide-pick" hidden>
+    <p id="guide-name"></p>
+    <div class="row"><button id="guide-walk" type="button">Walk with the guide</button><button id="guide-go" type="button">Take me there</button></div>
+  </div>
 </div>
 
 <button id="sit-offer" type="button" hidden></button>
@@ -102,6 +112,7 @@
   <label class="check"><input id="awake" type="checkbox" checked> Keep the screen awake</label>
   <label class="check"><input id="reduced" type="checkbox"> Reduce motion</label>
   <button id="map-open" type="button">Map</button>
+  <button id="guide-open" type="button">Guide</button>
   <button id="about-open" type="button">About</button>
   <button id="leave" type="button">Leave</button>
   <button id="restart" type="button">Begin again</button>

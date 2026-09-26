@@ -59,6 +59,9 @@ export class StartMap {
   private pickName = document.getElementById("map-pick-name") as HTMLParagraphElement;
   private goBtn = document.getElementById("map-go") as HTMLButtonElement;
   private continueBtn = document.getElementById("map-continue") as HTMLButtonElement;
+  private guideBtn = document.getElementById("map-guide") as HTMLButtonElement;
+  /** "Ask the guide" (while travelling): the map closes and the guide asks where to go. */
+  onGuide: (() => void) | null = null;
   private places: Place[] = [];
   private you: { x: number; z: number; heading?: number } | null = null;
   private view: View = { cx: 0, cz: 0, size: 1000 };
@@ -120,6 +123,10 @@ export class StartMap {
       this.finish({ place: p, x: y.x, z: y.z, heading: y.heading ?? Math.atan2(-(p.x - y.x), -(p.z - y.z)) });
     });
     this.closeBtn.addEventListener("click", () => this.finish(null));
+    this.guideBtn.addEventListener("click", () => {
+      this.finish(null);
+      this.onGuide?.();
+    });
     addEventListener("resize", () => !this.el.hidden && this.layout());
     addEventListener("keydown", (e) => {
       if (this.el.hidden) return;
@@ -138,6 +145,7 @@ export class StartMap {
     this.places = places;
     this.you = you;
     this.closeBtn.hidden = !closable;
+    this.guideBtn.hidden = !closable;
     this.continueBtn.hidden = !(resume && you);
     this.selected = null;
     this.showPick();
