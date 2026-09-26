@@ -5,9 +5,10 @@
      peach along the horizon;
    - west, where the Spirit's live: a winter sunset, violet above and rose and amber below;
    - north, toward the Choice's island: the deep night, nearly black, full of stars, the band of
-     the galaxy with its dust, nebulae and far galaxies.
+     the galaxy with its dust, nebulae and far galaxies;
+   - south: the cold blue hour before a winter dawn.
    Each mood sets the sky, the air (fog), the light on the land and the sky's reflection in
-   glossy things, blended smoothly over a kilometre or so. */
+   glossy things, already turning a short walk from the shore (~80 m) and full by ~450 m. */
 import * as THREE from "three/webgpu";
 import { fogUniforms } from "../gpu/tsl";
 import { cloudUniforms } from "./atmosphere";
@@ -72,6 +73,16 @@ const DEEP: Mood = {
   density: 0.0042, cloudShade: C(0.012, 0.012, 0.025), cloudLight: C(0.06, 0.06, 0.09),
 };
 
+const TWILIGHT: Mood = {
+  // south: the cold blue hour before a winter dawn, a pale teal band over the horizon
+  zen: C(0.01, 0.025, 0.09), mid: C(0.03, 0.08, 0.2), hor: C(0.2, 0.36, 0.45),
+  fog: C(0.1, 0.16, 0.26), glow: C(0.55, 0.62, 0.75),
+  sun: V(0.1, -0.04, 1), sunCol: C(0.45, 0.62, 0.8), sunK: 0.45,
+  stars: 0.55, deep: 0.1, moonK: 0.5,
+  light: C(1.3, 1.45, 1.7), hemiSky: C(0.42, 0.55, 0.8), hemiGround: C(0.1, 0.1, 0.16), hemi: 0.85, env: 1.3,
+  density: 0.0036, cloudShade: C(0.07, 0.1, 0.2), cloudLight: C(0.5, 0.6, 0.75),
+};
+
 export interface MoodTargets {
   hemi: THREE.HemisphereLight;
   star: THREE.DirectionalLight;
@@ -81,12 +92,12 @@ export interface MoodTargets {
 }
 
 export class Moods {
-  /** The blend now: night, sunrise, sunset, deep (they sum to 1). */
-  weights = [1, 0, 0, 0];
+  /** The blend now: night, sunrise, sunset, deep, twilight (they sum to 1). */
+  weights = [1, 0, 0, 0, 0];
   /** Changes since the sky's reflection in glossy things was last baked (0 → none). */
   drift = 0;
   private cur: Mood = structuredCloneMood(NIGHT);
-  private w = [1, 0, 0, 0];
+  private w = [1, 0, 0, 0, 0];
 
   constructor(private t: MoodTargets) {}
 
@@ -94,14 +105,15 @@ export class Moods {
   update(pos: THREE.Vector3, dt: number): void {
     const dx = pos.x - SPAWN.x, dz = pos.z - SPAWN.z;
     const dist = Math.hypot(dx, dz) || 1;
-    const away = THREE.MathUtils.smoothstep(dist, 250, 1100); // home keeps its night
-    const lobe = (c: number) => THREE.MathUtils.smoothstep(c, 0.2, 0.85);
-    let e = lobe(dx / dist) * away, wst = lobe(-dx / dist) * away, n = lobe(-dz / dist) * away;
-    const sum = e + wst + n;
-    if (sum > 1) (e /= sum), (wst /= sum), (n /= sum);
-    const want = [Math.max(0, 1 - e - wst - n), e, wst, n];
+    // the shore keeps its moonlit night; a short walk out, the sky already turns
+    const away = THREE.MathUtils.smoothstep(dist, 80, 450);
+    const lobe = (c: number) => THREE.MathUtils.smoothstep(c, 0.15, 0.8);
+    let e = lobe(dx / dist) * away, wst = lobe(-dx / dist) * away, n = lobe(-dz / dist) * away, so = lobe(dz / dist) * away;
+    const sum = e + wst + n + so;
+    if (sum > 1) (e /= sum), (wst /= sum), (n /= sum), (so /= sum);
+    const want = [Math.max(0, 1 - e - wst - n - so), e, wst, n, so];
     const k = Math.min(1, dt * 0.6);
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 5; i++) {
       const before = this.w[i];
       this.w[i] += (want[i] - this.w[i]) * k;
       this.drift += Math.abs(this.w[i] - before);
@@ -112,7 +124,7 @@ export class Moods {
   }
 
   private blend(): void {
-    const ms = [NIGHT, SUNRISE, SUNSET, DEEP], w = this.w, m = this.cur;
+    const ms = [NIGHT, SUNRISE, SUNSET, DEEP, TWILIGHT], w = this.w, m = this.cur;
     const colours: (keyof Mood)[] = ["zen", "mid", "hor", "fog", "glow", "sunCol", "light", "hemiSky", "hemiGround", "cloudShade", "cloudLight"];
     for (const key of colours) {
       const out = m[key] as THREE.Color;
@@ -121,7 +133,7 @@ export class Moods {
     }
     for (const key of ["sunK", "stars", "deep", "moonK", "hemi", "env", "density"] as const) m[key] = ms.reduce((s, x, i) => s + x[key] * w[i], 0);
     // the low sun stands where the dawn or the dusk is strongest
-    m.sun.set(0, 0, 0).addScaledVector(SUNRISE.sun, w[1] + 1e-3).addScaledVector(SUNSET.sun, w[2]).normalize();
+    m.sun.set(0, 0, 0).addScaledVector(SUNRISE.sun, w[1] + 1e-3).addScaledVector(SUNSET.sun, w[2]).addScaledVector(TWILIGHT.sun, w[4]).normalize();
   }
 
   private apply(): void {

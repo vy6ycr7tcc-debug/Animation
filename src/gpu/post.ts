@@ -151,8 +151,9 @@ export class Post {
     // AgX (the renderer's tone mapping), to sRGB, smoothed edges, then a faint vignette as before
     let out: N = renderOutput(c);
     if (o.aa === "smaa") out = smaa(out);
+    // a faint vignette that only darkens (mixing toward grey lifted the dark corners into a haze)
     const q = uv().sub(0.5).mul(0.35);
-    out = vec4(mix(out.rgb, vec3(0.5), dot(q, q)), 1);
+    out = vec4(out.rgb.mul(float(1).sub(dot(q, q).mul(1.2))), 1);
     this.pipeline.outputNode = out;
     this.pipeline.needsUpdate = true;
   }

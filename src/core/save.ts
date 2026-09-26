@@ -11,7 +11,7 @@ export interface SaveData {
   visited: number[]; // stations visited, 1–7
   rideDone?: boolean; // the Chariot has carried the wanderer to the shore
   ended?: boolean; // home again: the journey is complete
-  settings: { volume: number; reduced: boolean | null; subtitles: boolean; narration?: boolean; awake?: boolean };
+  settings: { volume: number; reduced: boolean | null; subtitles: boolean; narration?: boolean; voices?: boolean; awake?: boolean };
   /** The journey so far, so coming back continues it rather than repeating it. */
   journey?: {
     heard: string[]; // every voice heard (journey narrations, answers, teachings, passages)

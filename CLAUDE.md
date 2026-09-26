@@ -202,6 +202,14 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - Light on the land (`lightfield.ts`): lanterns, beings, crystals, spirits, flowers and the wanderer splat their glow into a 160 m top-down texture that follows you; the ground and etched stone add it as light.
   - Grass: 7 × 7 tiles of 360 blades (fades out at 32–50 m).
   - Forests beyond (`forest.ts`): past ~96 m, each tree the world would grow (same cells as `creation.ts`) is a camera-facing likeness of its own kind, drawn once from its grown limbs; out to ~480 m.
+- 2026-09-26: Samuel, after playing the WebGPU build: stillness should "remove the cloudy glass, just make the heart shine a bit"; the right button and ⋮ "don't respond"; "no narration anymore"; "where are the planets and narrations"; the sunset colours and changing sky weren't there; "many comments… were not really respected".
+  - Stillness: the gas aura is gone; a small warm light breathes at the heart (`communion.ts` `heart`). The streams stay.
+  - Narration never goes silent: once the journey's voices are heard, the nearest unheard archive narration plays (`playlist.onRunOut`), 35–60 s of quiet between. "Just the music" rests the narrator for 15 minutes, not for good; the player's end card clears itself after 15 s. The narrator setting is saved (`settings.voices`).
+  - The sky moods start turning ~80 m from the shore and are full by ~450 m (east sunrise, west sunset, north deep night, south the blue hour before dawn).
+  - Sky planets and stars hang lower (planets 70–120 m over the ground, stars 150–240 m); the map marks every grove, planet and star; their names show from farther away.
+  - The milky "too diffused" look had one cause, a port bug: outside `positionNode` (in colour and varyings) `positionLocal` is the already moved position. The flowers' brightness grew with distance from the world's centre (~80× at 400 m, which bloom smeared into a haze), grass fogged as if far away, the crystals' shafts vanished, kelp misjudged distance. Rule: read `positionGeometry` in colour and varyings; keep `positionLocal` inside `positionNode` (there it carries an InstancedMesh's transform).
+  - The vignette only darkens (mixing toward grey lifted the night's corners into haze).
+  - The button and ⋮ worked in iPhone emulation; errors now show on screen ("Problem: …") so a phone-only failure can be read from a screenshot.
 - 2026-09-26: Samuel, from his iPhone (underwater screenshot): "everything is too diffused now"; flying still looked like swimming and didn't glide (he was on the old live build); "the experience to go deeper underwater is awful"; "controls aren't great".
   - Crisp over soft: SMAA is the default (TRAA softened the whole image and left ghost trails behind moving motes); bloom radius 0.45; the home night's haze a little thinner (0.0044).
   - Clearer water: absorption about halved (forms read to ~30 m), brighter moonlight shafts.

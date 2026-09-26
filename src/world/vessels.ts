@@ -171,7 +171,7 @@ export class Vessels {
     if (site.realm === "star") return this.buildStar(site, i);
     const a = colourFor(i * 5 + 2), b = colourFor(i * 5 + 5).offsetHSL(0.08, 0, -0.1);
     // a planet in the sky is large, a world of its own seen from the ground; the others are small
-    const r = site.realm === "sky" ? 26 + (i % 3) * 8 : 0.7;
+    const r = site.realm === "sky" ? 12 + (i % 3) * 4 : 0.7;
     const group = new THREE.Group();
     group.position.set(site.x, site.y, site.z);
     const mat = planetMaterial(a, b, (i * 0.137) % 1);
@@ -370,17 +370,17 @@ export class Vessels {
     for (const st of this.stars) {
       const d = player.distanceTo(st.vessel.pos);
       const el = this.label(st, line(st.vessel.narration), "orb");
-      this.place(el, this.v.copy(st.vessel.pos).add(new THREE.Vector3(0, 6, 0)), camera, fade(d, 40, 90));
+      this.place(el, this.v.copy(st.vessel.pos).add(new THREE.Vector3(0, 6, 0)), camera, fade(d, 80, 180));
     }
     for (const o of this.orbs) {
       const d = Math.max(0, player.distanceTo(o.vessel.pos) - o.vessel.radius);
       const el = this.label(o, line(o.vessel.narration), "orb");
-      this.place(el, this.v.copy(o.vessel.pos).add(new THREE.Vector3(0, o.vessel.radius + 0.5, 0)), camera, fade(d, 10, 26));
+      this.place(el, this.v.copy(o.vessel.pos).add(new THREE.Vector3(0, o.vessel.radius + 0.5, 0)), camera, o.vessel.radius > 2 ? fade(d, 60, 140) : fade(d, 18, 40));
     }
     for (const g of this.groves) {
       const d = Math.hypot(player.x - g.site.x, player.z - g.site.z);
       const el = this.label(g, `<b>${esc(g.site.grove.name)}</b>`, "grove");
-      this.place(el, g.labelAt, camera, fade(d, 40, 75) * (1 - 0.6 * fade(d, 8, 14)));
+      this.place(el, g.labelAt, camera, fade(d, 70, 130) * (1 - 0.6 * fade(d, 8, 14)));
       for (const f of g.fruits) {
         const df = player.distanceTo(f.vessel.pos);
         const fe = this.label(f, line(f.vessel.narration), "fruit");

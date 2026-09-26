@@ -5,8 +5,8 @@
    - Tap a place (or its name below the map) and you go there. Tapping open land takes you to
      that spot, and the nearest archetype's voice comes first.
    - Each group has its own mark, so nothing depends on colour alone: the Mind a circle, the
-     Body a diamond, the Spirit a triangle, the Choice a star. The archive's planets and stars in the
-   sky are pale: a ringed disc, a small four-pointed sparkle. A wave beneath a mark means its
+     Body a diamond, the Spirit a triangle, the Choice a star. The archive's vessels have small pale
+   marks: a round tree for a grove, a ringed disc for a planet, a four-pointed sparkle for a star. A wave beneath a mark means its
      home is in the deep: you wake on the water above it. */
 import { heightAt, WATER_Y } from "../world/terrain";
 
@@ -52,8 +52,8 @@ interface View {
 }
 
 export class StartMap {
-  /** The archive's planets and stars in the sky: marked, not places to wake. */
-  sky: { x: number; z: number; kind: "planet" | "star"; label: string }[] = [];
+  /** The archive's vessels (groves, planets, stars): marked, not places to wake. */
+  sky: { x: number; z: number; kind: "planet" | "star" | "grove"; label: string }[] = [];
   private el = document.getElementById("map") as HTMLDivElement;
   private canvas = document.getElementById("map-canvas") as HTMLCanvasElement;
   private list = document.getElementById("map-places") as HTMLDivElement;
@@ -452,7 +452,18 @@ export class StartMap {
       g.lineWidth = 1.1 * k;
       g.shadowColor = "rgba(180,200,255,0.9)";
       g.shadowBlur = 6 * k;
-      if (m.kind === "planet") {
+      if (m.kind === "grove") {
+        // a small round tree: a trunk and a crown
+        g.strokeStyle = g.fillStyle = "rgba(255,226,170,0.9)";
+        g.shadowColor = "rgba(255,200,140,0.9)";
+        g.beginPath();
+        g.moveTo(x, y + 6 * k);
+        g.lineTo(x, y);
+        g.stroke();
+        g.beginPath();
+        g.arc(x, y - 2.5 * k, 4.2 * k, 0, Math.PI * 2);
+        g.fill();
+      } else if (m.kind === "planet") {
         g.beginPath();
         g.arc(x, y, 4 * k, 0, Math.PI * 2);
         g.fill();
@@ -472,7 +483,7 @@ export class StartMap {
         g.shadowColor = "rgba(0,0,0,0.9)";
         g.font = `italic ${10.5 * k}px ${SERIF}`;
         g.textAlign = "left";
-        g.fillStyle = "rgba(220,228,255,0.85)";
+        g.fillStyle = m.kind === "grove" ? "rgba(255,236,200,0.9)" : "rgba(220,228,255,0.85)";
         g.fillText(m.label, x + 11 * k, y + 3 * k);
       }
       g.restore();

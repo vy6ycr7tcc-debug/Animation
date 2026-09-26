@@ -86,9 +86,9 @@ function placeOrbs(orbs: Narration[]): OrbSite[] {
     const cx = Math.cos(a) * r, cz = Math.sin(a) * r;
     const taken = (x: number, z: number) => out.every((o) => Math.hypot(o.x - x, o.z - z) > 120);
     if (realm === "star") {
-      // a star of the night sky, far overhead: up to a kilometre above the land
+      // a star of the night sky, overhead: 150–240 m above the land, a short flight up
       const p = spiral(cx * 1.2, cz * 1.2, (x, z) => taken(x, z), 23) ?? [cx, cz];
-      out.push({ orb, realm, x: p[0], y: 620 + ((i * 131) % 380), z: p[1] });
+      out.push({ orb, realm, x: p[0], y: Math.max(heightAt(p[0], p[1]), WATER_Y) + 150 + ((i * 131) % 90), z: p[1] });
       return;
     }
     if (realm === "water") {
@@ -104,7 +104,7 @@ function placeOrbs(orbs: Narration[]): OrbSite[] {
       const p = spiral(cx, cz, (x, z) => taken(x, z) && awayFromLandmarks(x, z, 60), 17) ?? [cx, cz];
       const ground = Math.max(heightAt(p[0], p[1]), WATER_Y);
       // a planet hanging in the sky, large enough to be seen from the ground
-      out.push({ orb, realm, x: p[0], y: ground + 260 + ((i * 53) % 160), z: p[1] });
+      out.push({ orb, realm, x: p[0], y: ground + 70 + ((i * 53) % 50), z: p[1] });
       return;
     }
     // land (or water, if no deep water was found): floating a little above dry, open ground

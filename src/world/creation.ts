@@ -653,7 +653,7 @@ export class Creation {
     const right = normalize(vec3(toCam.z, 0, toCam.x.negate()).add(1e-4));
     // it widens a little toward the sky
     mat.positionNode = base.add(right.mul(P.x).mul(wd).mul(P.y.mul(2).add(1))).add(vec3(0, P.y.mul(h), 0));
-    const vUv = varying(vec2(P.x.mul(2), P.y)), vA = varying(attribute("aA", "float")), vD = varying(length(base.sub(cameraPosition)));
+    const vUv = varying(vec2(positionGeometry.x.mul(2), positionGeometry.y)), vA = varying(attribute("aA", "float")), vD = varying(length(base.sub(cameraPosition)));
     const across = exp(vUv.x.mul(vUv.x).mul(-4));
     const up = smoothstep(0, 0.04, vUv.y).mul(float(1).sub(smoothstep(0.35, 1, vUv.y)));
     // bands of light descending the shaft

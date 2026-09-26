@@ -1,8 +1,8 @@
 /* Narration in the background: sparing, and never repeating.
    - Each of the journey's voices is heard once per journey. What you've heard is kept on this
      device, so coming back you hear what you haven't yet. When all have been heard, the narrator
-     rests, and there is only the water and the music (Samuel: the narrator "is repeating the same
-     thing over and over… that's really not the intention").
+     goes on with the archive's narrations you haven't heard, nearest first (Samuel: the narrator
+     "is repeating the same thing over and over", and later: "there is no narration anymore").
    - A long quiet stretch between voices (a minute or two), so the world can speak for itself.
    - Where you choose to begin decides which voice comes first; the rest follow in order.
    - The archetypes' own voices (arriving, stepping close, sitting with them, the passages on the
@@ -14,8 +14,8 @@ import type { Narration } from "./narration";
 
 export const ORDER = ["J01", "J02", "J03", "J04", "J05", "J06", "J07", "J08", "J09", "J10", "J11"];
 
-/** The quiet after a voice: a minute or two, a little different every time. */
-const gap = () => 70 + Math.random() * 60;
+/** The quiet after a voice: under a minute, a little different every time. */
+const gap = () => 35 + Math.random() * 25;
 
 export class Playlist {
   on = true;
@@ -24,7 +24,7 @@ export class Playlist {
   /** While the wanderer sits with an archetype, only the archetype speaks. */
   quiet = false;
   private i = 0;
-  private wait = 6; // seconds until the first voice
+  private wait = 4; // seconds until the first voice
   private starting = false;
   private heard = new Set<string>();
   private first: string | null = null;
@@ -52,6 +52,15 @@ export class Playlist {
   }
   has(id: string): boolean {
     return this.heard.has(id);
+  }
+
+  /** When the journey's own voices have all been heard: offer something else to hear (the
+      archive's narrations); true if something began. */
+  onRunOut: (() => boolean) | null = null;
+
+  /** Quiet for a while ("Just the music"), then the voices return. */
+  rest(seconds: number): void {
+    this.wait = Math.max(this.wait, seconds);
   }
 
   setOn(on: boolean): void {
@@ -120,8 +129,9 @@ export class Playlist {
         break;
       }
     }
-    // after a voice, a long quiet; when every voice has been heard, the narrator rests
-    this.wait = spoke ? gap() : 240;
+    // every journey voice heard: the archive's narrations carry on, nearest first
+    if (!spoke && this.on && !this.held && !this.quiet && !this.narration.current) spoke = this.onRunOut?.() ?? false;
+    this.wait = spoke ? gap() : 60;
     this.starting = false;
   }
 }
