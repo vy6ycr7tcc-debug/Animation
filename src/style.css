@@ -317,39 +317,37 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 .vlabel span { display: block; font-size: 11.5px; color: var(--dim); }
 .vlabel.grove b { font-size: 16px; letter-spacing: 0.06em; color: var(--gold); }
 #tp {
-  position: fixed; left: calc(12px + env(safe-area-inset-left, 0px)); top: calc(12px + env(safe-area-inset-top, 0px)); z-index: 7;
+  position: fixed; right: calc(10px + env(safe-area-inset-right, 0px)); top: calc(58px + env(safe-area-inset-top, 0px)); z-index: 7;
   width: min(80vw, 22em); padding: 8px 10px 6px 12px; border-radius: 14px;
   background: rgba(14, 12, 34, 0.62); border: 1px solid var(--line);
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); animation: rise 0.8s ease;
 }
-#tp[hidden], #tp-end[hidden], #tp-source[hidden], #about[hidden], #tp-pause[hidden] { display: none; }
+#tp[hidden], #tp-source[hidden], #about[hidden] { display: none; }
 #tp-head { display: flex; align-items: flex-start; gap: 6px; }
 #tp-title { flex: 1; margin: 2px 0 0; font-size: 14px; font-style: italic; }
 #tp-close, #tp-fold { width: 32px; height: 32px; margin: -4px -4px 0 0; font-size: 20px; color: var(--dim); }
-#tp-fold { font-size: 24px; line-height: 1; }
-/* folded away: a half-moon on the left edge, play/pause in the middle, the arc its progress */
+#tp-caption p { margin: 3px 0 0; font-size: 11.5px; color: var(--dim); line-height: 1.35; }
+#tp-row { display: flex; gap: 12px; margin-top: 4px; flex-wrap: wrap; }
+#tp-row button { padding: 6px 0; min-height: 36px; font-size: 13px; color: var(--gold); font-style: italic; }
+/* folded away: a half-moon hanging from the top edge beside ⋮, play/pause in the middle, back
+   and next on either side, the card below, the curve filling with the progress */
 #tp-mini {
-  position: fixed; left: 0; top: calc(64px + env(safe-area-inset-top, 0px)); z-index: 7;
-  width: calc(76px + env(safe-area-inset-left, 0px)); height: 152px; padding-left: env(safe-area-inset-left, 0px);
-  border-radius: 0 76px 76px 0; border: 1px solid var(--line); border-left: none;
+  position: fixed; top: env(safe-area-inset-top, 0px); right: calc(58px + env(safe-area-inset-right, 0px)); z-index: 7;
+  width: 152px; height: 76px; border-radius: 0 0 76px 76px; border: 1px solid var(--line); border-top: none;
   background: rgba(14, 12, 34, 0.55); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); animation: rise 0.6s ease;
 }
 #tp-mini[hidden] { display: none; }
-#tp-mini svg { position: absolute; top: 0; left: env(safe-area-inset-left, 0px); width: 76px; height: 152px; overflow: visible; pointer-events: none; }
+#tp-mini svg { position: absolute; left: 0; top: 0; width: 152px; height: 76px; overflow: visible; pointer-events: none; }
 #tp-mini path { fill: none; stroke-width: 2; }
 #tp-arc-bg { stroke: rgba(244, 239, 230, 0.14); }
 #tp-arc { stroke: var(--gold); stroke-linecap: round; stroke-dasharray: 232.5; stroke-dashoffset: 232.5; }
-#tp-mini button { position: absolute; left: calc(8px + env(safe-area-inset-left, 0px)); display: grid; place-items: center; }
-#tp-mini-play { top: 52px; width: 48px; height: 48px; border-radius: 50%; border: 1px solid rgba(244, 239, 230, 0.45); }
+#tp-mini button { position: absolute; display: grid; place-items: center; }
+#tp-mini-play { left: 52px; top: 5px; width: 48px; height: 48px; border-radius: 50%; border: 1px solid rgba(244, 239, 230, 0.45); }
 #tp-mini-play span { width: 14px; height: 16px; border-left: 4px solid var(--pearl); border-right: 4px solid var(--pearl); }
 #tp-mini-play.paused span { width: 0; height: 0; border-top: 9px solid transparent; border-bottom: 9px solid transparent; border-left: 14px solid var(--pearl); border-right: 0; margin-left: 4px; }
-#tp-mini-back { top: 8px; width: 40px; height: 40px; font-size: 19px; color: var(--dim); }
-#tp-mini-open { bottom: 6px; width: 40px; height: 40px; font-size: 24px; color: var(--gold); }
-#tp-caption p { margin: 3px 0 0; font-size: 11.5px; color: var(--dim); line-height: 1.35; }
-#tp-row, #tp-end { display: flex; gap: 12px; margin-top: 4px; }
-#tp-row button, #tp-end button { padding: 6px 0; min-height: 36px; font-size: 13px; color: var(--gold); font-style: italic; }
-#tp-end { flex-direction: column; gap: 0; }
-#tp-end button { text-align: left; }
+#tp-mini-back { left: 10px; top: 4px; width: 40px; height: 40px; font-size: 18px; color: var(--dim); }
+#tp-mini-next { right: 10px; top: 4px; width: 40px; height: 40px; font-size: 20px; color: var(--dim); }
+#tp-mini-open { left: 60px; top: 53px; width: 32px; height: 22px; font-size: 15px; line-height: 1; color: var(--gold); }
 #tp-source, #about {
   position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 30;
   width: min(92vw, 30em); max-height: 78vh; overflow-y: auto; padding: 18px 20px 14px; border-radius: 18px;

@@ -6,7 +6,7 @@
      that spot, and the nearest archetype's voice comes first.
    - Each group has its own mark, so nothing depends on colour alone: the Mind a circle, the
      Body a diamond, the Spirit a triangle, the Choice a star. The archive's vessels have small pale
-   marks: a round tree for a grove, a ringed disc for a planet, a four-pointed sparkle for a star. A wave beneath a mark means its
+   marks: a round tree for a grove, a tall diamond for a crystal garden, a ringed disc for a planet, a four-pointed sparkle for a star. A wave beneath a mark means its
      home is in the deep: you wake on the water above it. */
 import { heightAt, WATER_Y } from "../world/terrain";
 
@@ -52,8 +52,8 @@ interface View {
 }
 
 export class StartMap {
-  /** The archive's vessels (groves, planets, stars): marked, not places to wake. */
-  sky: { x: number; z: number; kind: "planet" | "star" | "grove"; label: string }[] = [];
+  /** The archive's vessels (groves, crystal gardens, planets, stars): marked, not places to wake. */
+  sky: { x: number; z: number; kind: "planet" | "star" | "grove" | "crystal"; label: string }[] = [];
   private el = document.getElementById("map") as HTMLDivElement;
   private canvas = document.getElementById("map-canvas") as HTMLCanvasElement;
   private list = document.getElementById("map-places") as HTMLDivElement;
@@ -462,6 +462,17 @@ export class StartMap {
         g.stroke();
         g.beginPath();
         g.arc(x, y - 2.5 * k, 4.2 * k, 0, Math.PI * 2);
+        g.fill();
+      } else if (m.kind === "crystal") {
+        // a small crystal: a tall diamond
+        g.strokeStyle = g.fillStyle = "rgba(210,190,255,0.9)";
+        g.shadowColor = "rgba(190,170,255,0.9)";
+        g.beginPath();
+        g.moveTo(x, y - 7 * k);
+        g.lineTo(x + 3.2 * k, y);
+        g.lineTo(x, y + 5 * k);
+        g.lineTo(x - 3.2 * k, y);
+        g.closePath();
         g.fill();
       } else if (m.kind === "planet") {
         g.beginPath();

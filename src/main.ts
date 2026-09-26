@@ -30,7 +30,7 @@ import { Post } from "./gpu/post";
 import { gpuUniforms, ijFogNode } from "./gpu/tsl";
 import { Presences } from "./world/presences";
 import { Guide, type Destination } from "./world/guide";
-import { GROVE_SITES, ORB_SITES } from "./world/sites";
+import { ARCHIVE, GROVE_SITES, ORB_SITES } from "./world/sites";
 import { Communion } from "./world/communion";
 import { Creatures } from "./world/creatures";
 import { Vessels } from "./world/vessels";
@@ -44,6 +44,7 @@ import { MOOD_NAMES, Moods } from "./world/moods";
 import { lightField } from "./world/lightfield";
 import { Forest } from "./world/forest";
 import { RisingFlowers } from "./world/blooms";
+import { Wilds } from "./world/wilds";
 
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
 
@@ -194,6 +195,7 @@ const grass = new LightGrass();
 const flowers = new Flowers(sparks, audio);
 const lanterns = new Lanterns(sparks);
 const blooms = new RisingFlowers();
+const wilds = new Wilds();
 const butterflies = new Butterflies(flowers);
 const gliders = new Gliders();
 const landmarks = new Landmarks(scene, audio, wanderer);
@@ -205,7 +207,7 @@ void beings.load("models/wanderer.glb");
 const presences = new Presences();
 scene.add(presences.group);
 void presences.load("models/wanderer.glb");
-scene.add(sparks.points, grass.mesh, flowers.mesh, blooms.mesh, lanterns.points, butterflies.points, gliders.group);
+scene.add(sparks.points, grass.mesh, flowers.mesh, blooms.mesh, wilds.group, lanterns.points, butterflies.points, gliders.group);
 // The whole creation: trees and their roots, rocks, crystals, spirits, and the light through them.
 creationUniforms.uFogC.value.copy(FOG_COLOR);
 creationUniforms.uFogD.value = FOG.density * 0.9;
@@ -410,10 +412,10 @@ function begin(e?: Event): void {
 
 /** Every vessel of the archive's narrations, marked on the map in its own way: the groves'
     great trees, the planets (over the land, in the deep, in the sky) and the stars. */
-function skyMarks(): { x: number; z: number; kind: "planet" | "star" | "grove"; label: string }[] {
+function skyMarks(): { x: number; z: number; kind: "planet" | "star" | "grove" | "crystal"; label: string }[] {
   return [
     ...ORB_SITES.map((o) => ({ x: o.x, z: o.z, kind: (o.realm === "star" ? "star" : "planet") as "star" | "planet", label: o.orb.title })),
-    ...GROVE_SITES.map((g) => ({ x: g.x, z: g.z, kind: "grove" as const, label: g.grove.name })),
+    ...GROVE_SITES.map((g) => ({ x: g.x, z: g.z, kind: g.crystal ? ("crystal" as const) : ("grove" as const), label: g.grove.name })),
   ];
 }
 
@@ -735,24 +737,32 @@ function updateSitting(dt: number): void {
   beings.list.forEach((b) => (b.speaking = cur.startsWith(`A-${b.spec.numeral}-`) || cur === walkId(b.spec.numeral) || cur === heartId(b.spec.numeral) ? 1 : 0));
 }
 
-/* ---- The archive's narrations: started only by the player, one quiet bar, never a modal ---- */
+/* ---- The archive's narrations: started only by the player, one quiet card, never a modal ---- */
 const tp = new TranscriptPlayer(audio);
 function playArchive(n: Parameters<TranscriptPlayer["play"]>[0]): void {
   narration.stop(1.5); // the journey's voice or an archetype's answer makes way
   playlist.held = true;
-  void tp.play(n);
+  tp.play(n);
   say(`Playing: ${n.title}. ${TranscriptPlayer.caption(n).join(". ")}.`);
 }
 tp.onChange = (id) => {
   vessels.setPlaying(id);
   if (id) archiveHeard.add(id);
+  else playlist.held = false; // closed: the journey's own voices may speak again
   const who = id ? tp.current?.sources[0]?.entity ?? null : null;
   presences.show(who && !/^unknown/i.test(who) ? who : null);
   if (who && presences.entity) whisper(who, 3500);
 };
-tp.onChoose = (background) => {
-  // "Just the music" is a rest, not a switch: the narrator comes back in a quarter of an hour
-  if (!background) playlist.rest(900);
+// when one ends, the next follows by itself (the phone may be locked in a pocket by now): the
+// archive in its own order, episodes 1 to 86, those not yet heard first
+const ARCHIVE_ORDER = [...ARCHIVE.orbs, ...ARCHIVE.trees.flatMap((t) => t.episodes)];
+tp.next = (n) => {
+  const i = ARCHIVE_ORDER.findIndex((x) => x.id === n.id);
+  for (let k = 1; k < ARCHIVE_ORDER.length; k++) {
+    const c = ARCHIVE_ORDER[(i + k) % ARCHIVE_ORDER.length];
+    if (!archiveHeard.has(c.id)) return c;
+  }
+  return ARCHIVE_ORDER[(i + 1) % ARCHIVE_ORDER.length] ?? null;
 };
 // once the journey's voices are all heard, the archive never speaks by itself (it starts only on a
 // tap): now and then a quiet word points out where a voice not yet heard is waiting
@@ -768,18 +778,9 @@ playlist.onRunOut = () => {
   if (!best) return false;
   lastHint = S.t;
   const high = best.pos.y - Math.max(heightAt(best.pos.x, best.pos.z), WATER_Y) > 30;
-  whisper(best.kind === "fruit" ? "A great tree nearby bears voices: tap a fruit to listen" : high && best.radius < 5 ? "A star overhead carries a voice: fly up and tap it" : "A planet in the sky carries a voice: tap it to listen", 6000);
+  whisper(best.kind === "fruit" ? "A great tree nearby bears voices: tap a fruit to listen" : best.kind === "crystal" ? "Crystals nearby hold voices: tap one to listen" : high && best.radius < 5 ? "A star overhead carries a voice: fly up and tap it" : "A planet in the sky carries a voice: tap it to listen", 6000);
   return false;
 };
-// left unanswered, the end of an archive narration lets the background voices go on
-tp.onEndIdle = () => {
-  tp.dismiss();
-  playlist.held = false;
-};
-const releaseHold = () => {
-  if (!tp.active) playlist.held = false;
-};
-for (const id of ["#tp-close", "#tp-more", "#tp-music"]) $(id).addEventListener("click", () => window.setTimeout(releaseHold, 0));
 $("#about-open").addEventListener("click", () => {
   setMenu(false);
   $("#about").hidden = false;
@@ -1002,6 +1003,7 @@ $("#leave").addEventListener("click", () => {
   S.mode = "rest";
   input.enabled = false;
   narration.stop(2);
+  if (tp.active) tp.close();
   audio.fade(false);
   $("#rest").hidden = false;
   for (const id of ["#act", "#ctx", "#joy"]) $(id).hidden = true;
@@ -1185,6 +1187,7 @@ function update(dt: number): void {
     grass.update(life);
     flowers.update(life);
     blooms.update(life);
+    wilds.update(life);
     lanterns.update(life);
     butterflies.update(life);
   }
@@ -1289,6 +1292,7 @@ function fillLightField(): void {
   lanterns.lights(add);
   flowers.lights(add);
   blooms.lights(add);
+  wilds.lights(add, player.pos);
   creation.lights(add);
   spirits.lights(add);
   for (const b of beings.list) {
@@ -1339,4 +1343,4 @@ renderer
     quality.hold(3);
   });
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds } });

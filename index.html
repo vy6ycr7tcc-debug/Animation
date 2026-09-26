@@ -70,25 +70,23 @@
 <div id="tp" role="region" aria-label="Narration player" hidden>
   <div id="tp-head">
     <p id="tp-title"></p>
-    <button id="tp-fold" type="button" aria-label="Fold the player away">‹</button>
+    <button id="tp-fold" type="button" aria-label="Fold the player away">–</button>
     <button id="tp-close" type="button" aria-label="Close the narration">×</button>
   </div>
   <div id="tp-caption"></div>
   <div id="tp-row">
     <button id="tp-pause" type="button">Pause</button>
     <button id="tp-back" type="button" aria-label="Back fifteen seconds">Back 15 s</button>
+    <button id="tp-next" type="button" aria-label="The next narration">Next</button>
     <button id="tp-src" type="button">Source</button>
-  </div>
-  <div id="tp-end" hidden>
-    <button id="tp-more" type="button">Continue with background narration</button>
-    <button id="tp-music" type="button">Just the music</button>
   </div>
 </div>
 <div id="tp-mini" role="group" aria-label="Narration" hidden>
-  <svg viewBox="0 0 76 152" aria-hidden="true"><path id="tp-arc-bg" d="M0 2 A74 74 0 0 1 0 150"/><path id="tp-arc" d="M0 2 A74 74 0 0 1 0 150"/></svg>
+  <svg viewBox="0 0 152 76" aria-hidden="true"><path id="tp-arc-bg" d="M2 0 A74 74 0 0 0 150 0"/><path id="tp-arc" d="M2 0 A74 74 0 0 0 150 0"/></svg>
   <button id="tp-mini-back" type="button" aria-label="Back fifteen seconds">↺</button>
   <button id="tp-mini-play" type="button" aria-label="Pause the narration"><span></span></button>
-  <button id="tp-mini-open" type="button" aria-label="Show the narration's details">›</button>
+  <button id="tp-mini-next" type="button" aria-label="The next narration">»</button>
+  <button id="tp-mini-open" type="button" aria-label="Show the narration's details">⌄</button>
 </div>
 <div id="tp-source" role="dialog" aria-labelledby="tp-source-title" hidden>
   <p id="tp-source-title"></p>

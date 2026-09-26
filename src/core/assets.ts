@@ -5,6 +5,12 @@ import * as THREE from "three/webgpu";
 
 type AssetWindow = Window & { __IJ_ASSETS?: Record<string, string> };
 
+/** A URL to stream an asset from (media elements play it as it downloads). */
+export function assetUrl(path: string, type = "audio/mpeg"): string {
+  const inline = (window as AssetWindow).__IJ_ASSETS?.[path];
+  return inline ? `data:${type};base64,${inline}` : `./${path}`;
+}
+
 export async function loadBytes(path: string): Promise<ArrayBuffer | null> {
   const inline = (window as AssetWindow).__IJ_ASSETS?.[path];
   if (inline) {

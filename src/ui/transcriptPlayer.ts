@@ -1,57 +1,64 @@
-/* The quiet player for the archive's narrations (orbs and grove fruits).
-   - It starts only when the player taps a vessel; nothing here ever autoplays.
-   - A small card, never a modal: the title, the source caption, pause/resume, back 15 s, a
-     "source" link to the full record, fold and close. Movement is never locked.
-   - Folded (by its ‹, or by itself after a few seconds), it becomes a half-moon on the left
-     edge (Samuel: "a semi circle top left with play pause in the middle"): play/pause in the
-     middle, back 15 s above, the card again below, and its curve filling with the progress.
-   - Tapping another vessel switches to it. When a narration ends, two quiet choices:
-     continue with the background narration (the journey's own voices), or just the music.
+/* The player for the archive's narrations (planets, stars, crystals and grove fruits).
+   - It starts only when the player taps a vessel; nothing here begins by itself.
+   - Streamed, never decoded whole: a media element plays each recording as it downloads, so a
+     long narration starts at once and costs little memory. Being media (not Web Audio), it goes
+     on playing when the phone locks or the game is hidden (Samuel: "walk away and listen to it
+     even if the screen locks and auto load next one"), and the lock screen shows it with
+     play/pause, back 15 s and next (Media Session).
+   - When one ends, the next follows by itself (`next`, chosen by the game), until closed.
+   - A small card, never a modal, in the top right: the title, the source caption, pause/resume,
+     back 15 s, next, a "source" link to the full record, fold and close. Folded (by its ‹, or by
+     itself after a few seconds), it becomes a half-moon hanging from the top edge beside ⋮
+     (Samuel: "a semi circle… with play pause in the middle", "top right corner"): back 15 s,
+     play/pause in the middle, next, the card again below, its curve filling with the progress.
+     Movement is never locked.
    - Attribution: interpretive narrations say "An interpretive narration after {entity} ·
      {date}"; direct quotations say "Quoting {entity} · {session} · {date}"; each source on its
      own line. */
 import type { AudioEngine } from "../core/audio";
-import { loadBytes } from "../core/assets";
+import { assetUrl } from "../core/assets";
 import type { Narration } from "../world/sites";
+
+const ARC = 232.5; // the half-moon's curve, in its own units
 
 export class TranscriptPlayer {
   current: Narration | null = null;
-  /** The player is showing (playing, paused, or offering the choices at the end). */
+  /** The player is showing (playing or paused). */
   get active(): boolean {
-    return this.current !== null || !this.ended.hidden;
+    return this.current !== null;
   }
   get playing(): boolean {
-    return this.src !== null;
+    return this.current !== null && !this.media.paused;
   }
-  onChoose: ((backgroundNarration: boolean) => void) | null = null;
   onChange: ((id: string | null) => void) | null = null;
-  /** Nobody answered the end's question for a while. */
-  onEndIdle: (() => void) | null = null;
-  private idleTimer = 0;
+  /** The narration to follow `n` when it ends (or when "next" is asked for); null stops. */
+  next: ((n: Narration) => Narration | null) | null = null;
   subtitlesOn = true;
 
+  private media = new Audio();
   private el = document.getElementById("tp") as HTMLDivElement;
   private titleEl = document.getElementById("tp-title") as HTMLParagraphElement;
   private captionEl = document.getElementById("tp-caption") as HTMLDivElement;
   private pauseBtn = document.getElementById("tp-pause") as HTMLButtonElement;
-  private ended = document.getElementById("tp-end") as HTMLDivElement;
   private sourceDlg = document.getElementById("tp-source") as HTMLDivElement;
   private sub = document.getElementById("sub") as HTMLElement;
   private mini = document.getElementById("tp-mini") as HTMLDivElement;
   private miniPlay = document.getElementById("tp-mini-play") as HTMLButtonElement;
   private arc = document.getElementById("tp-arc") as unknown as SVGPathElement;
   private foldTimer = 0;
-  private buffers = new Map<string, Promise<AudioBuffer | null>>();
-  private src: AudioBufferSourceNode | null = null;
-  private gain: GainNode | null = null;
-  private startedAt = 0;
-  private offset = 0;
-  private buffer: AudioBuffer | null = null;
-  private token = 0;
+  private nextTimer = 0;
   private cues: { t: number; text: string }[] = [];
   private cueIndex = -1;
 
   constructor(private audio: AudioEngine) {
+    this.media.preload = "none";
+    this.media.addEventListener("play", () => this.showPlaying(true));
+    this.media.addEventListener("pause", () => this.showPlaying(false));
+    this.media.addEventListener("ended", () => this.ended());
+    this.media.addEventListener("loadedmetadata", () => this.timeCues());
+    this.media.addEventListener("error", () => {
+      if (this.current && this.media.error) this.titleEl.textContent = `${this.current.title} (the recording can't be played)`;
+    });
     // on the touch itself, so they answer while the other thumb walks (a second finger's tap
     // makes no click on a phone); the click stays for the keyboard
     const tap = (id: string, fn: () => void) => {
@@ -63,17 +70,34 @@ export class TranscriptPlayer {
       el.addEventListener("click", (e) => e.detail === 0 && fn());
     };
     const toggle = () => (this.playing ? this.pause() : this.resume());
-    this.pauseBtn.addEventListener("click", toggle);
+    tap("tp-pause", toggle);
+    tap("tp-back", () => this.back(15));
+    tap("tp-next", () => this.skip());
+    tap("tp-fold", () => this.fold());
     tap("tp-mini-play", toggle);
     tap("tp-mini-back", () => this.back(15));
+    tap("tp-mini-next", () => this.skip());
     tap("tp-mini-open", () => this.unfold());
-    tap("tp-fold", () => this.fold());
-    document.getElementById("tp-back")!.addEventListener("click", () => this.back(15));
     document.getElementById("tp-close")!.addEventListener("click", () => this.close());
     document.getElementById("tp-src")!.addEventListener("click", () => this.showSource(true));
     document.getElementById("tp-source-close")!.addEventListener("click", () => this.showSource(false));
-    document.getElementById("tp-more")!.addEventListener("click", () => this.choose(true));
-    document.getElementById("tp-music")!.addEventListener("click", () => this.choose(false));
+    // the lock screen and the headphones
+    const ms = navigator.mediaSession;
+    if (ms) {
+      const on = (a: MediaSessionAction, fn: MediaSessionActionHandler) => {
+        try {
+          ms.setActionHandler(a, fn);
+        } catch {
+          /* not offered here */
+        }
+      };
+      on("play", () => this.resume());
+      on("pause", () => this.pause());
+      on("seekbackward", (d) => this.back(d.seekOffset ?? 15));
+      on("seekforward", (d) => this.forward(d.seekOffset ?? 15));
+      on("nexttrack", () => this.skip());
+      on("stop", () => this.close());
+    }
   }
 
   /** The source caption lines for a narration. */
@@ -81,96 +105,79 @@ export class TranscriptPlayer {
     return n.sources.map((s) => (n.interpretive ? `An interpretive narration after ${s.entity} · ${s.date}` : `Quoting ${s.entity} · ${s.session_label} · ${s.date}`));
   }
 
-  private load(n: Narration): Promise<AudioBuffer | null> {
-    let p = this.buffers.get(n.audio);
-    const ctx = this.audio.ctx;
-    // a long narration decodes to a hundred megabytes: keep only the one playing and the last
-    for (const k of [...this.buffers.keys()]) if (k !== n.audio && this.buffers.size > 1) this.buffers.delete(k);
-    if (!p && ctx) {
-      p = loadBytes(n.audio).then(async (b) => {
-        if (!b) return null;
-        try {
-          return await ctx.decodeAudioData(b.slice(0));
-        } catch {
-          return null;
-        }
-      });
-      this.buffers.set(n.audio, p);
-    }
-    return p ?? Promise.resolve(null);
-  }
-
-  async play(n: Narration): Promise<void> {
-    const token = ++this.token;
-    this.stopSource(0.8);
+  /** Begin a narration. Call inside the tap (a phone lets media start only from a gesture; the
+      same element then carries on from one narration to the next by itself). */
+  play(n: Narration): void {
+    window.clearTimeout(this.nextTimer);
     this.current = n;
-    this.offset = 0;
-    this.buffer = null;
-    this.ended.hidden = true;
     this.render(n);
-    this.onChange?.(n.id);
-    const buf = await this.load(n);
-    if (token !== this.token) return;
-    this.buffer = buf;
-    if (!buf) {
-      this.titleEl.textContent = `${n.title} (the recording is missing)`;
-      return;
-    }
-    // subtitles, one sentence at a time, spread over the recording by length
-    const parts = n.transcript.split(/(?<=[.!?…])\s+/).filter(Boolean);
-    const total = parts.reduce((a, p) => a + p.length, 0) || 1;
-    let t = 0;
-    this.cues = parts.map((p) => {
-      const c = { t, text: p };
-      t += (p.length / total) * buf.duration;
-      return c;
-    });
-    this.start();
-  }
-
-  private start(): void {
-    const ctx = this.audio.ctx, buf = this.buffer;
-    if (!ctx || !buf) return;
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    const gain = ctx.createGain();
-    gain.gain.value = 0;
-    gain.gain.linearRampToValueAtTime(1, ctx.currentTime + 0.5);
-    src.connect(gain).connect(this.audio.voice);
-    src.start(0, this.offset);
-    this.src = src;
-    this.gain = gain;
-    this.startedAt = ctx.currentTime - this.offset;
+    this.cues = [];
     this.cueIndex = -1;
-    this.audio.duck(true);
-    this.showPlaying(true);
-    src.onended = () => {
-      if (this.src !== src) return; // paused, switched or closed
-      this.src = null;
-      this.finish();
-    };
-  }
-
-  private stopSource(fade = 0.4): void {
-    const ctx = this.audio.ctx, src = this.src, gain = this.gain;
-    this.src = null;
-    if (ctx && src && gain) {
-      const t = ctx.currentTime;
-      gain.gain.cancelScheduledValues(t);
-      gain.gain.setValueAtTime(gain.gain.value, t);
-      gain.gain.linearRampToValueAtTime(0, t + fade);
-      src.stop(t + fade + 0.05);
-    }
-    this.audio.duck(false);
     this.sub.classList.remove("on");
+    this.media.preload = "auto";
+    this.media.src = assetUrl(n.audio);
+    this.media.volume = Math.min(1, this.audio.volume / 0.8);
+    void this.media.play().catch(() => this.showPlaying(false));
+    this.audio.duck(true);
+    const ms = navigator.mediaSession;
+    if (ms && "MediaMetadata" in window) {
+      ms.metadata = new MediaMetadata({ title: n.title, artist: n.sources.map((s) => s.entity).filter((e, i, a) => a.indexOf(e) === i).join(", "), album: "Inward Journey" });
+    }
+    this.onChange?.(n.id);
   }
 
   pause(): void {
-    const ctx = this.audio.ctx;
-    if (!this.src || !ctx) return;
-    this.offset = Math.min(ctx.currentTime - this.startedAt, (this.buffer?.duration ?? 0) - 0.05);
-    this.stopSource(0.25);
-    this.showPlaying(false);
+    this.media.pause();
+  }
+
+  resume(): void {
+    if (this.current) void this.media.play().catch(() => this.showPlaying(false));
+  }
+
+  /** Go back a little (to hear a passage again), playing or paused. */
+  back(seconds: number): void {
+    if (this.current) this.media.currentTime = Math.max(0, this.media.currentTime - seconds);
+  }
+
+  forward(seconds: number): void {
+    if (this.current && isFinite(this.media.duration)) this.media.currentTime = Math.min(this.media.duration - 0.5, this.media.currentTime + seconds);
+  }
+
+  /** On to the next narration now. */
+  skip(): void {
+    const n = this.current && this.next?.(this.current);
+    if (n) this.play(n);
+  }
+
+  close(): void {
+    window.clearTimeout(this.nextTimer);
+    window.clearTimeout(this.foldTimer);
+    this.media.pause();
+    this.media.removeAttribute("src");
+    this.media.load();
+    this.current = null;
+    this.el.hidden = true;
+    this.mini.hidden = true;
+    this.sub.classList.remove("on");
+    this.audio.duck(false);
+    this.showSource(false);
+    if (navigator.mediaSession) navigator.mediaSession.metadata = null;
+    this.onChange?.(null);
+  }
+
+  /** Put the player away (the same as closing). */
+  dismiss(): void {
+    this.close();
+  }
+
+  private ended(): void {
+    const n = this.current && this.next?.(this.current);
+    this.sub.classList.remove("on");
+    if (!n) return this.close();
+    // hidden (the phone locked), at once: timers sleep there, and the next must follow the last
+    // straight away to be allowed to play; on screen, a breath of quiet between them
+    if (document.hidden) this.play(n);
+    else this.nextTimer = window.setTimeout(() => this.current && this.play(n), 2500);
   }
 
   private showPlaying(on: boolean): void {
@@ -178,21 +185,11 @@ export class TranscriptPlayer {
     this.pauseBtn.setAttribute("aria-label", on ? "Pause the narration" : "Resume the narration");
     this.miniPlay.classList.toggle("paused", !on);
     this.miniPlay.setAttribute("aria-label", on ? "Pause the narration" : "Resume the narration");
+    if (navigator.mediaSession) navigator.mediaSession.playbackState = on ? "playing" : "paused";
+    if (this.current) this.audio.duck(on);
   }
 
-  /** Go back a little (to hear a passage again), playing or paused. */
-  back(seconds: number): void {
-    const ctx = this.audio.ctx;
-    if (!this.buffer || !ctx) return;
-    const at = this.src ? ctx.currentTime - this.startedAt : this.offset;
-    this.offset = Math.max(0, at - seconds);
-    if (this.src) {
-      this.stopSource(0.12);
-      this.start();
-    }
-  }
-
-  /** Fold the card away into the half-moon on the left edge. */
+  /** Fold the card away into the half-moon. */
   fold(): void {
     window.clearTimeout(this.foldTimer);
     if (!this.current) return;
@@ -206,52 +203,17 @@ export class TranscriptPlayer {
     this.mini.hidden = true;
   }
 
-  resume(): void {
-    if (this.src || !this.buffer) return;
-    this.start();
-  }
-
-  close(): void {
-    this.token++;
-    this.stopSource(0.8);
-    this.current = null;
-    window.clearTimeout(this.foldTimer);
-    this.el.hidden = true;
-    this.mini.hidden = true;
-    this.ended.hidden = true;
-    this.showSource(false);
-    this.onChange?.(null);
-  }
-
-  private finish(): void {
-    this.audio.duck(false);
-    this.sub.classList.remove("on");
-    this.current = null;
-    this.onChange?.(null);
-    this.pauseBtn.hidden = true;
-    this.ended.hidden = false;
-    this.unfold(); // the end's two choices
-    window.clearTimeout(this.idleTimer);
-    this.idleTimer = window.setTimeout(() => !this.ended.hidden && this.onEndIdle?.(), 15000);
-  }
-
-  /** Put the bar away without a choice. */
-  dismiss(): void {
-    this.close();
-  }
-
-  private choose(background: boolean): void {
-    this.onChoose?.(background);
-    this.close();
-  }
-
   private render(n: Narration): void {
-    this.unfold();
-    // the card folds itself away after a moment, so the view stays open
-    this.foldTimer = window.setTimeout(() => this.fold(), 10000);
-    this.pauseBtn.hidden = false;
+    // a narration that follows another keeps the player as it was (folded or open)
+    const folded = !this.mini.hidden;
+    if (folded) this.el.hidden = true;
+    else {
+      this.unfold();
+      // the card folds itself away after a moment, so the view stays open
+      this.foldTimer = window.setTimeout(() => this.fold(), 10000);
+    }
     this.showPlaying(true);
-    this.arc.style.strokeDashoffset = "232.5";
+    this.arc.style.strokeDashoffset = String(ARC);
     this.titleEl.textContent = n.title;
     this.captionEl.replaceChildren(
       ...TranscriptPlayer.caption(n).map((l) => {
@@ -260,6 +222,21 @@ export class TranscriptPlayer {
         return p;
       }),
     );
+  }
+
+  /** Subtitles, one sentence at a time, spread over the recording by length. */
+  private timeCues(): void {
+    const n = this.current, dur = this.media.duration;
+    if (!n || !isFinite(dur)) return;
+    const parts = n.transcript.split(/(?<=[.!?…])\s+/).filter(Boolean);
+    const total = parts.reduce((a, p) => a + p.length, 0) || 1;
+    let t = 0;
+    this.cues = parts.map((p) => {
+      const c = { t, text: p };
+      t += (p.length / total) * dur;
+      return c;
+    });
+    this.cueIndex = -1;
   }
 
   private showSource(on: boolean): void {
@@ -283,15 +260,20 @@ export class TranscriptPlayer {
     if (on) (document.getElementById("tp-source-close") as HTMLButtonElement).focus();
   }
 
-  /** Each frame: subtitles in step with the voice, and the half-moon's progress. */
+  /** Each frame: subtitles in step with the voice, the half-moon's progress, the lock screen's. */
   update(): void {
-    const ctx = this.audio.ctx;
-    if (ctx && this.buffer && !this.mini.hidden) {
-      const at = this.src ? ctx.currentTime - this.startedAt : this.offset;
-      this.arc.style.strokeDashoffset = String(232.5 * (1 - Math.min(1, at / this.buffer.duration)));
+    if (!this.current) return;
+    const t = this.media.currentTime, dur = this.media.duration;
+    if (isFinite(dur) && dur > 0) {
+      if (!this.mini.hidden) this.arc.style.strokeDashoffset = String(ARC * (1 - Math.min(1, t / dur)));
+      try {
+        navigator.mediaSession?.setPositionState?.({ duration: dur, position: Math.min(t, dur), playbackRate: 1 });
+      } catch {
+        /* not offered */
+      }
     }
-    if (!this.src || !ctx || !this.subtitlesOn) return;
-    const t = ctx.currentTime - this.startedAt;
+    this.media.volume = Math.min(1, this.audio.volume / 0.8);
+    if (!this.playing || !this.subtitlesOn) return;
     let k = -1;
     for (let i = 0; i < this.cues.length; i++) if (this.cues[i].t <= t + 0.05) k = i;
     if (k !== this.cueIndex && k >= 0) {

@@ -9,7 +9,7 @@
    - south: the cold blue hour before a winter dawn;
    and between them (Samuel: "I would add some like these too: dusk, haze, sunset…"):
    - north-east: a pale morning haze, pearl and peach, the sun a soft disc;
-   - north-west: dusk, the afterglow sinking into violet and the first stars;
+   - north-west: dusk, reds and blues together: deep blue above, the sun's last red below;
    - south-west: an ember sunset, crimson and gold;
    - south-east: a pink dawn, rose and lilac.
    Each mood sets the sky, the air (fog), the light on the land and the sky's reflection in
@@ -99,13 +99,14 @@ const HAZE: Mood = {
   density: 0.003, cloudShade: C(0.3, 0.27, 0.4), cloudLight: C(1.0, 0.84, 0.74),
 };
 const DUSK: Mood = {
-  // north-west: after the sun has gone, violet deepening overhead, a rose afterglow low down
-  zen: C(0.018, 0.022, 0.09), mid: C(0.09, 0.07, 0.22), hor: C(0.44, 0.26, 0.42),
-  fog: C(0.14, 0.11, 0.24), glow: C(0.55, 0.36, 0.46),
-  sun: V(-0.7, -0.03, -0.7), sunCol: C(0.75, 0.36, 0.48), sunK: 0.5,
-  stars: 0.7, deep: 0.2, moonK: 0.4,
-  light: C(1.3, 1.15, 1.38), hemiSky: C(0.4, 0.38, 0.7), hemiGround: C(0.12, 0.08, 0.18), hemi: 0.8, env: 1.3,
-  density: 0.0036, cloudShade: C(0.12, 0.09, 0.22), cloudLight: C(0.72, 0.46, 0.6),
+  // north-west: dusk, reds and blues together (Samuel): a deep blue sky overhead, the last red
+  // of the sun burning low along the horizon, violet where they meet, the first stars out
+  zen: C(0.01, 0.025, 0.13), mid: C(0.04, 0.07, 0.3), hor: C(0.72, 0.13, 0.12),
+  fog: C(0.12, 0.08, 0.22), glow: C(0.6, 0.16, 0.16),
+  sun: V(-0.7, -0.02, -0.7), sunCol: C(1.0, 0.2, 0.12), sunK: 0.35, // gone below: only its red remains, low down
+  stars: 0.75, deep: 0.2, moonK: 0.12,
+  light: C(1.35, 1.0, 1.25), hemiSky: C(0.3, 0.38, 0.78), hemiGround: C(0.16, 0.06, 0.12), hemi: 0.8, env: 1.3,
+  density: 0.0036, cloudShade: C(0.06, 0.07, 0.24), cloudLight: C(0.8, 0.22, 0.22),
 };
 const EMBER: Mood = {
   // south-west: a deep red sunset, crimson and gold, the sun a red disc on the horizon
