@@ -10,12 +10,12 @@ A stick in the bottom-left corner and one round button in the bottom-right, as i
 
 | | Phone | Keyboard + mouse |
 |---|---|---|
-| Walk to a spot | (the stick) | Click it |
+| Set course for a place | Tap it: the wanderer walks there (runs if it's far), or flies there in the air. Push the stick to take over | Click it |
 | Walk freely | The stick, bottom left (or wherever your thumb lands in the lower left): push it any way, 360°, gently to stroll | W A S D or arrow keys |
 | Run | Push the stick further: past its inner half the walk rises smoothly into a run (its ring turns gold) | Hold Shift |
 | Glide | Run off a slope | Run off a slope |
 | Jump | Tap the round button | Tap Space |
-| Fly | Tap it again in the air, or hold it: you become a flame, take off and keep rising, faster the longer you hold. Flying, a tap is a wingbeat. Let go and you glide on, sinking gently. Land and your body forms again. | Space again in the air, or hold it |
+| Fly | Tap it again in the air, or hold it: you become a shifting geometric being (a faceted core inside turning solids), take off and keep rising, faster the longer you hold. Flying, a tap is a wingbeat. Let go and you glide on, sinking gently. Land and your body forms again. | Space again in the air, or hold it |
 | Land | Tap **Land** (shows only while you're flying) | C or L |
 | Dive | On the water, tap the round button (or **Dive**): a small leap and a plunge | Tap Space, or L |
 | Swim under the water | The stick swims where you look: look down to go deeper, up to rise. Tap the round button for a stroke; hold it to rise; let go to hover | W A S D and the mouse; Space (tap: stroke, hold: rise); hold C to sink |
@@ -23,6 +23,7 @@ A stick in the bottom-left corner and one round button in the bottom-right, as i
 | Fly out of the water | On the water, hold the round button | Hold Space |
 | Look around | Drag anywhere off the stick | Drag with the mouse |
 | Zoom | Pinch | Scroll wheel |
+| Genesis | Touch and hold the wanderer's heart (about a second): the world goes dark, lines of light grow from the heart to all of creation, then creation rebuilds itself (~30 s). Not while flying or under water | H |
 | Sit with an archetype, stand up | Tap "Sit with…" | E |
 | Hear an orb or a fruit | Tap it | Click it, or Enter when near |
 | Turn inward | Stand still for a moment | Stand still |

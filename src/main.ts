@@ -27,7 +27,7 @@ import { Creation, creationUniforms, Spirits } from "./world/creation";
 import { Beings } from "./world/beings";
 import { SeaFauna, SeaLife, UnderwaterEffect } from "./world/underwater";
 import { Post } from "./gpu/post";
-import { gpuUniforms, ijFogNode } from "./gpu/tsl";
+import { fogUniforms, gpuUniforms, ijFogNode } from "./gpu/tsl";
 import { Presences } from "./world/presences";
 import { Guide, type Destination } from "./world/guide";
 import { ARCHIVE, GROVE_SITES, ORB_SITES } from "./world/sites";
@@ -37,7 +37,9 @@ import { Vessels } from "./world/vessels";
 import { TranscriptPlayer } from "./ui/transcriptPlayer";
 import { StartMap, type Choice, type Place } from "./ui/map";
 import { buildSky, skyUniforms, starDirection } from "./world/sky";
-import { groundUniforms, heightAt, SPAWN, Terrain, WATER_Y } from "./world/terrain";
+import { groundUniforms, heightAt, LANDMARK_SITES, PEAKS, SPAWN, Terrain, WATER_Y } from "./world/terrain";
+import { Genesis } from "./world/genesis";
+import { cloudUniforms } from "./world/atmosphere";
 import { NO_MIRROR_LAYER, Water } from "./world/water";
 import { FOG } from "./world/fog";
 import { MOOD_NAMES, Moods } from "./world/moods";
@@ -353,6 +355,7 @@ input.onLand = () => {
   else if (player.swimming) player.dive();
 };
 input.onAction = () => {
+  if (genesis.active) return;
   if (wanderer.gesture !== "none") wanderer.setGesture("none");
   if (player.swimming) {
     player.stroke();
@@ -360,22 +363,80 @@ input.onAction = () => {
   } else player.jump();
 };
 input.onTap = (x, y, touch) => {
-  if (S.mode !== "play") return;
+  if (S.mode !== "play" || genesis.active) return;
   // an orb or a fruit under the tap: its narration begins (never by itself)
   const v = vessels.pick(x, y, camera);
   if (v) {
     playArchive(v.narration);
     return;
   }
-  // a finger's tap never sends the wanderer walking (as in Sky: the stick walks, a tap on the
-  // right side was only ever a glance around); a mouse click still does
-  if (sitting.phase === "seated" || touch) return;
+  // a tap on the land sets course for it: walking, or flying there if in the air (Samuel)
+  void touch;
+  if (sitting.phase === "seated") return;
   const p = groundPoint(x, y);
   if (!p) return;
   player.target = new THREE.Vector2(p.x, p.z);
   if (p.y <= WATER_Y + 0.05) water.ripple(p.x, p.z, 0.6, S.t);
   else footprints.place(p.x, p.y, p.z, player.heading, S.t);
 };
+// Genesis: a long press on the wanderer's heart (or H). The world goes dark, lines of light
+// grow from the heart to all of creation, and creation rebuilds itself (world/genesis.ts).
+const genesis = new Genesis();
+scene.add(genesis.group);
+const heartScreen = new THREE.Vector3();
+let genesisBells = 0;
+function heartAt(out: THREE.Vector3): THREE.Vector3 {
+  return out.copy(player.pos).add(new THREE.Vector3(0, 1.15, 0));
+}
+function beginGenesis(): void {
+  if (S.mode !== "play" || genesis.active || sitting.phase === "seated" || player.flying || player.diving) return;
+  const targets = [
+    ...creation.standing(),
+    ...lanterns.standing().map((p) => ({ p, great: false })),
+    ...flowers.standing(player.pos, 45, 40).map((p) => ({ p, great: false })),
+    ...beings.list.map((b) => ({ p: b.root.position.clone().add(new THREE.Vector3(0, 1.2, 0)), great: true })),
+    ...ORB_SITES.map((o) => ({ p: new THREE.Vector3(o.x, o.y, o.z), great: true })),
+    ...GROVE_SITES.map((g) => ({ p: new THREE.Vector3(g.x, g.y + 4, g.z), great: false })),
+    ...LANDMARK_SITES.map(([x, z]) => ({ p: new THREE.Vector3(x, heightAt(x, z) + 2, z), great: false })),
+    ...PEAKS.map((k) => ({ p: new THREE.Vector3(k.x, heightAt(k.x, k.z) + 4, k.z), great: true })),
+  ];
+  player.target = null;
+  genesis.start(heartAt(new THREE.Vector3()), targets);
+  genesisBells = 0;
+  audio.duck(true);
+  quality.hold(4);
+}
+input.onHold = (x, y) => {
+  heartAt(heartScreen).project(camera);
+  const sx = (heartScreen.x * 0.5 + 0.5) * innerWidth, sy = (-heartScreen.y * 0.5 + 0.5) * innerHeight;
+  if (heartScreen.z < 1 && Math.hypot(x - sx, y - sy) < Math.max(70, innerHeight * 0.09)) beginGenesis();
+};
+input.onHeart = beginGenesis;
+function genesisFrame(dt: number): void {
+  const g = genesis.update(dt, camera, innerHeight);
+  // the bells: one as the dark falls, two as creation comes back (all above ~200 Hz)
+  const bells = [[0.2, 264], [18.5, 396], [21, 528]];
+  while (genesisBells < bells.length && genesis.t >= bells[genesisBells][0]) audio.bell(bells[genesisBells++][1], 0.16, 7);
+  // the air: black and thick at the start, thinning again from the heart outward
+  const air = g.air;
+  fogUniforms.color.value.multiplyScalar(1 - air);
+  fogUniforms.glow.value.multiplyScalar(1 - air);
+  fogUniforms.density.value = fogUniforms.density.value * Math.pow(0.6 / fogUniforms.density.value, air);
+  const k = g.sky;
+  skyUniforms.uZen.value.multiplyScalar(k);
+  skyUniforms.uMid.value.multiplyScalar(k);
+  skyUniforms.uHor.value.multiplyScalar(k);
+  skyUniforms.uStars.value *= k;
+  skyUniforms.uSunK.value *= k;
+  skyUniforms.uMoonK.value *= k;
+  cloudUniforms.shade.value.multiplyScalar(k);
+  cloudUniforms.light.value.multiplyScalar(k);
+  post.starVis.value *= k; // the moon's rays
+  follow.lift = genesis.active ? g.lift : 0;
+  const lit = !g.lightsHidden;
+  vessels.group.visible = lanterns.points.visible = butterflies.points.visible = gliders.group.visible = lit;
+  if (!genesis.active) audio.duck(false);
+}
 player.onLand = () => {
   if (!player.swimming) wanderer.land();
   const y = Math.max(heightAt(player.pos.x, player.pos.z), WATER_Y);
@@ -1134,7 +1195,8 @@ function update(dt: number): void {
 
   if (S.mode === "play") {
     if (wanderer.gesture !== "none" && Math.hypot(input.move.x, input.move.y) > 0.2 && wanderer.gesture === "sit") wanderer.setGesture("none");
-    player.update(dt, { ...input.move, glide: input.boost, run: input.run, hold: input.hold, down: input.descend, pitch: follow.pitch }, follow.yaw);
+    if (genesis.active) player.update(dt, { x: 0, y: 0, glide: false, run: 0, hold: false, down: false, pitch: follow.pitch }, follow.yaw);
+    else player.update(dt, { ...input.move, glide: input.boost, run: input.run, hold: input.hold, down: input.descend, pitch: follow.pitch }, follow.yaw);
     // the one context word: "Land" high in the air, "Dive" on the water, "Surface" under it
     const ctx = $("#ctx");
     const high = player.flying && !player.landing && player.pos.y - Math.max(heightAt(player.pos.x, player.pos.z), WATER_Y) > 2.5;
@@ -1252,6 +1314,7 @@ function update(dt: number): void {
   water.update(camera.position.x, camera.position.z, glow);
   skyUniforms.uT.value = wt;
   moods.update(player.pos, dt);
+  if (genesis.active) genesisFrame(dt);
   // the sky's reflection is baked once: baking it again as the moods drifted (every few seconds
   // while travelling) hitched the frame on a phone and made the ground's sheen jump; the moods'
   // own lights (the hemisphere, the moon or sun, the fog) carry the change of colour
@@ -1328,4 +1391,4 @@ renderer
     quality.hold(3);
   });
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis } });

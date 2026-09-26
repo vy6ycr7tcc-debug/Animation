@@ -37,6 +37,11 @@ export class Input {
   /** The context word ("Land" in the air, "Dive" on the water, "Surface" under it): tapping it,
       or pressing L (or C in the air). */
   onLand: (() => void) | null = null;
+  /** A finger (or the mouse) held still in one place for a moment. */
+  /** The keyboard's way to press the heart (H). */
+  onHeart: (() => void) | null = null;
+  onHold: ((x: number, y: number) => void) | null = null;
+  private holdTimer = 0;
   /** A short tap or click without dragging (`touch` for a finger). */
   onTap: ((x: number, y: number, touch: boolean) => void) | null = null;
   private downAt = new Map<number, { x: number; y: number; t: number }>();
@@ -78,6 +83,7 @@ export class Input {
       const k = e.key.toLowerCase();
       if ([" ", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) e.preventDefault();
       if (k === " " && !e.repeat) this.onAction?.();
+      if (k === "h" && !e.repeat) this.onHeart?.();
       if ((k === "l" || (k === "c" && !this.inWater)) && !e.repeat) this.onLand?.();
       this.keys.add(k);
     });
@@ -110,6 +116,12 @@ export class Input {
     if (!this.enabled) return;
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     this.downAt.set(e.pointerId, { x: e.clientX, y: e.clientY, t: performance.now() });
+    window.clearTimeout(this.holdTimer);
+    const hx = e.clientX, hy = e.clientY, id = e.pointerId;
+    // held still (not on the stick, not a pinch): a long press
+    this.holdTimer = window.setTimeout(() => {
+      if (this.pointers.size === 1 && this.pointers.has(id) && id !== this.joyId) this.onHold?.(hx, hy);
+    }, 750);
     this.surface.setPointerCapture?.(e.pointerId);
     if (e.pointerType === "touch") {
       this.touchUsed = true;
@@ -164,6 +176,8 @@ export class Input {
   private moveP(e: PointerEvent): void {
     if (!this.pointers.has(e.pointerId)) return;
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const d0 = this.downAt.get(e.pointerId);
+    if (d0 && Math.hypot(e.clientX - d0.x, e.clientY - d0.y) > 12) window.clearTimeout(this.holdTimer);
     if (this.pinch) {
       const d = this.pinchDist();
       this.zoom *= this.pinch.d / Math.max(1, d);
@@ -203,6 +217,7 @@ export class Input {
   }
 
   private up(e: PointerEvent): void {
+    window.clearTimeout(this.holdTimer);
     const d = this.downAt.get(e.pointerId);
     this.downAt.delete(e.pointerId);
     if (d && this.enabled && !this.pinch && e.type === "pointerup" && this.pointers.size <= 1 && e.pointerId !== this.joyId &&
