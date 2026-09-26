@@ -473,7 +473,7 @@ export class Wanderer {
     this.orb.position.y = 1.22 + (reduced ? 0 : Math.sin(t * 1.3) * 0.04);
     this.orbCore.opacity = orbK;
     this.motes.points.visible = water < 0.5;
-    this.light.intensity = 2.2 + glide * 0.6 + reach * 1;
+    this.light.intensity = 1.1 + glide * 0.3 + reach * 0.6; // a timid light: it no longer floods the ground around
 
     // Place the fluid body along the skeleton.
     this.root.updateMatrixWorld(true);

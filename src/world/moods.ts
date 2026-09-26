@@ -222,7 +222,7 @@ export class Moods {
     H.color.copy(m.hemiSky);
     H.groundColor.copy(m.hemiGround);
     H.intensity = m.hemi;
-    this.t.scene.environmentIntensity = m.env;
+    this.t.scene.environmentIntensity = m.env * 0.7; // a quieter sheen of sky on the land
   }
 }
 

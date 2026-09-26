@@ -125,14 +125,12 @@ scene.add(sky);
 /** The sky as light for glossy things (after the renderer is ready; again as the mood changes). */
 const envScene = new THREE.Scene();
 envScene.add(buildSky(true)); // the reflection: the sky's light only, no stars or nebulae
-let envBakedAt = -99;
 function bakeEnvironment(): void {
   const pmrem = new THREE.PMREMGenerator(renderer);
   const old = scene.environment;
   scene.environment = pmrem.fromScene(envScene, 0, 0.1, 1100).texture;
   old?.dispose();
   pmrem.dispose();
-  envBakedAt = performance.now();
 }
 
 const hemi = new THREE.HemisphereLight(0x7a86d0, 0x221a36, 0.85);
@@ -1251,11 +1249,10 @@ function update(dt: number): void {
   water.update(camera.position.x, camera.position.z, glow);
   skyUniforms.uT.value = wt;
   moods.update(player.pos, dt);
-  // glossy things reflect the sky: bake it again when the mood has moved on
-  if (moods.drift > 0.12 && performance.now() - envBakedAt > 4000 && shadersReady) {
-    moods.drift = 0;
-    bakeEnvironment();
-  }
+  // the sky's reflection is baked once: baking it again as the moods drifted (every few seconds
+  // while travelling) hitched the frame on a phone and made the ground's sheen jump; the moods'
+  // own lights (the hemisphere, the moon or sun, the fog) carry the change of colour
+  moods.drift = 0;
   etchUniforms.uEtchT.value = wt;
   mandala.rotation.y = S.reduced ? 0 : wt * 0.01;
   center.set(camera.position.x, 0, camera.position.z);
@@ -1288,7 +1285,7 @@ const WANDERER_LIGHT = new THREE.Color(1.0, 0.82, 0.6);
 function fillLightField(): void {
   const add = (x: number, z: number, r: number, c: THREE.Color, k: number) => lightField.add(x, z, r, c, k);
   lightField.begin();
-  if (S.mode !== "intro" && !player.swimming) add(player.pos.x, player.pos.z, 6, WANDERER_LIGHT, 0.4 / (1 + Math.max(0, player.pos.y - heightAt(player.pos.x, player.pos.z) - 1.5) * 0.3));
+  if (S.mode !== "intro" && !player.swimming) add(player.pos.x, player.pos.z, 3.5, WANDERER_LIGHT, 0.18 / (1 + Math.max(0, player.pos.y - heightAt(player.pos.x, player.pos.z) - 1.5) * 0.3));
   lanterns.lights(add);
   flowers.lights(add);
   blooms.lights(add);
