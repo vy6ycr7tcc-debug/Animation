@@ -97,6 +97,8 @@ export function groundLight(p: ReturnType<typeof T.vec3>): ReturnType<typeof T.v
   const U = lightFieldUniforms;
   const q = T.vec2(p.x.sub(U.centre.x), U.centre.y.sub(p.z)).div(U.span).add(0.5);
   const edge = T.smoothstep(0.5, 0.38, T.max(T.abs(q.x.sub(0.5)), T.abs(q.y.sub(0.5))));
-  // light falls on the ground below it: lights far above (over water, in the air) reach less
-  return T.texture(lightField.target.texture, q).rgb.mul(edge);
+  // pools of light on the ground are left out (Samuel saw them as soft blobs over the land); the
+  // lights themselves still glow
+  void q, edge;
+  return T.vec3(0);
 }
