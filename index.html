@@ -117,6 +117,7 @@
   <label class="check"><input id="voice" type="checkbox" checked> Narration</label>
   <label class="check"><input id="awake" type="checkbox" checked> Keep the screen awake</label>
   <label class="check"><input id="reduced" type="checkbox"> Reduce motion</label>
+  <label class="check"><input id="freefly" type="checkbox"> Free flight: fly where you look</label>
   <button id="map-open" type="button">Map</button>
   <button id="guide-open" type="button">Guide</button>
   <button id="autofly" type="button" aria-pressed="false">Autofly</button>
@@ -131,6 +132,7 @@
   <button id="return" type="button">Touch the water to return</button>
 </div>
 
+<div id="fade" aria-hidden="true"></div>
 <section id="stats" aria-label="Frame readings" hidden><pre id="stats-text">measuring…</pre></section>
 <div id="live" class="sr" aria-live="polite"></div>
 <script type="module" src="./src/main.ts"></script>

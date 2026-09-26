@@ -7,6 +7,8 @@ export class FollowCamera {
   yaw = 0;
   pitch = 0.36; // slightly high
   dist = 7;
+  /** Free flight while flying: the view may look well up, to climb where you look. */
+  freeLook = false;
   /** 0..1: drawn back and up to take in the land (genesis). */
   lift = 0;
   private target = new THREE.Vector3();
@@ -27,7 +29,7 @@ export class FollowCamera {
   look(dYaw: number, dPitch: number): void {
     this.yaw += dYaw;
     // under the water you may look up at the surface and the moon beyond it
-    this.pitch = THREE.MathUtils.clamp(this.pitch + dPitch, this.underwater ? -1.05 : -0.15, 1.15);
+    this.pitch = THREE.MathUtils.clamp(this.pitch + dPitch, this.underwater ? -1.05 : this.freeLook ? -0.95 : -0.15, 1.15);
     this.sinceLook = 0;
   }
   zoom(f: number): void {
@@ -45,7 +47,7 @@ export class FollowCamera {
     this.sinceLook += dt;
     this.follow += (this.followGoal - this.follow) * Math.min(1, dt * 0.7);
     // back above the water, the view settles to its usual range
-    if (!this.underwater && this.pitch < -0.15) this.pitch += (-0.15 - this.pitch) * Math.min(1, dt * 2);
+    if (!this.underwater && !this.freeLook && this.pitch < -0.15) this.pitch += (-0.15 - this.pitch) * Math.min(1, dt * 2);
     // Ease behind the wanderer while they move, unless the viewer is looking around; in flight
     // sooner and more firmly, so steering with the stick turns the view with you (as in Sky).
     if (moving && this.sinceLook > (flying ? 0.8 : 1.2)) {

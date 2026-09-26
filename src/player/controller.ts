@@ -42,6 +42,8 @@ export interface MoveInput {
   down?: boolean;
   /** The camera's pitch (positive looking down): under the water you swim where you look. */
   pitch?: number;
+  /** Free flight: in the air the stick flies where you look (up or down), and let go you hover. */
+  free?: boolean;
 }
 
 export class Controller {
@@ -145,7 +147,7 @@ export class Controller {
       }
     }
     // In the air with the stick let go, the wanderer glides on ahead (as in Sky), sinking gently.
-    const glideOn = this.flying && mag < 0.05 && !this.landing;
+    const glideOn = this.flying && mag < 0.05 && !this.landing && !input.free;
     if (glideOn) {
       dx = -Math.sin(this.heading);
       dz = -Math.cos(this.heading);
@@ -195,11 +197,15 @@ export class Controller {
       if (input.hold) this.landing = false;
       this.climbHeld = input.hold ? this.climbHeld + dt : 0;
       const surge = 1 + Math.min(8, this.climbHeld * this.climbHeld * 0.35); // up to ~40 m/s after a few seconds
+      // free flight: forward on the stick climbs or dives with the view; let go, you hover
+      const look = input.free && !this.landing ? -Math.sin(input.pitch ?? 0) * Math.max(0, input.y) * top * 1.2 : 0;
       const wantVy = input.hold
         ? CLIMB * surge * (1 + 0.8 * run)
         : this.landing
           ? -Math.min(14, 3 + (this.pos.y - ground) * 0.25)
-          : -GLIDE_SINK; // not rising: always a glide, sinking gently
+          : input.free
+            ? look
+            : -GLIDE_SINK; // not rising: always a glide, sinking gently
       this.vy += (wantVy - this.vy) * Math.min(1, dt * (input.hold ? 2.5 : 1.8));
       this.pos.y = Math.min(CEILING, this.pos.y + this.vy * dt);
       const floor = Math.max(ground, WATER_Y - SWIM_DEPTH);

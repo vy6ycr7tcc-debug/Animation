@@ -172,7 +172,11 @@ const PADS = LANDMARK_SITES.map(([x, z], i) => {
 });
 
 /** Ground height at (x, z). Below WATER_Y means water. */
+/** A place apart, beyond the world's edge (the temple): its own floor. */
+export const floorHook: { fn: ((x: number, z: number) => number) | null } = { fn: null };
+
 export function heightAt(x: number, z: number): number {
+  if (x > 20000 && floorHook.fn) return floorHook.fn(x, z);
   let h = rawHeight(x, z);
   for (const p of PADS) {
     if (Math.abs(x - p.x) > p.outer || Math.abs(z - p.z) > p.outer) continue;
