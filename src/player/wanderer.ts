@@ -10,7 +10,7 @@ import * as THREE from "three/webgpu";
 import { softPoints, spriteCloud, T, type SpriteCloud } from "../gpu/tsl";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
-import { loadBytes } from "../core/assets";
+import { floatAttributes, loadBytes } from "../core/assets";
 import { FluidBody, SEGMENTS } from "./fluidBody";
 import { lightBodyMaterial, tickLightBody } from "./lightBody";
 
@@ -327,6 +327,7 @@ export class Wanderer {
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
     const gltf = await loader.parseAsync(bytes, "");
+    floatAttributes(gltf.scene);
     const model = gltf.scene;
     model.traverse((o) => {
       // the mesh itself is never drawn: only its skeleton, which moves the fluid body

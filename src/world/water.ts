@@ -37,8 +37,7 @@ export class Water {
     this.mirror = reflector({ resolutionScale: 0.5 });
     // the mirror plane is the water surface: its local +z faces up
     this.mirror.target.rotation.x = -Math.PI / 2;
-    // rendered by renderMirror() before the frame, never nested inside the post-processing pass
-    // (nested there, it stopped the moon's shadows from updating)
+    // rendered by renderMirror() before the frame, rather than nested inside the scene pass
     this.mirror.reflector.updateBeforeType = "none";
 
     const build = (withWorld: boolean) =>

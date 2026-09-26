@@ -22,7 +22,7 @@ import { surface } from "./textures";
 import { GROVE_SITES } from "./sites";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
-import { loadBytes } from "../core/assets";
+import { floatAttributes, loadBytes } from "../core/assets";
 import { colliders, fbm, groundKind, heightAt, LANDMARK_SITES, SPAWN, smooth, WATER_Y, type Collider } from "./terrain";
 
 /** Shared by every shader here; main.ts copies the scene's fog in. */
@@ -569,6 +569,7 @@ export class Creation {
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
     const gltf = await loader.parseAsync(bytes, "");
+    floatAttributes(gltf.scene);
     const meshes: THREE.Mesh[] = [];
     gltf.scene.traverse((o) => (o as THREE.Mesh).isMesh && meshes.push(o as THREE.Mesh));
     meshes.slice(0, this.rockMeshes.length).forEach((src, k) => {

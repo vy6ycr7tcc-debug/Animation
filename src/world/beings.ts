@@ -23,7 +23,7 @@ import { T, worldPoints } from "../gpu/tsl";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { loadBytes } from "../core/assets";
+import { floatAttributes, loadBytes } from "../core/assets";
 import { lightBodyMaterial, tickLightBody } from "../player/lightBody";
 import { HEIGHT, key } from "../player/wanderer";
 import type { Sparks } from "./life";
@@ -996,6 +996,7 @@ export class Beings {
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
     const gltf = await loader.parseAsync(bytes, "");
+    floatAttributes(gltf.scene);
     const model = gltf.scene;
     model.rotation.y = Math.PI;
     model.updateMatrixWorld(true);

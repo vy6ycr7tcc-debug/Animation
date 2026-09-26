@@ -72,7 +72,7 @@ export class Post {
   private wanted: PostOptions | null = null;
   private ready = false;
 
-  /** Build the chain once the renderer is ready (a pass made before that drew no shadows). */
+  /** Build the chain once the renderer is ready. */
   start(): void {
     this.ready = true;
     if (this.wanted) this.configure(this.wanted);

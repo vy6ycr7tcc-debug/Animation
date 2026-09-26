@@ -69,7 +69,7 @@ const renderer = new THREE.WebGPURenderer({
   forceWebGL: /[?&]webgl\b/.test(location.search),
 });
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFShadowMap; // soft by its radius (PCFSoft is gone from WebGPU three, and swapping it mid-frame lost the shadows)
+renderer.shadowMap.type = THREE.PCFShadowMap; // soft by its radius (WebGPU three has no PCFSoft)
 renderer.toneMapping = THREE.AgXToneMapping;
 renderer.setClearColor(0x000000, 0); // the lakes' mirror reads alpha 0 as "sky"
 renderer.info.autoReset = false;
@@ -226,8 +226,6 @@ function resize(): void {
 }
 /** What the quality tier allows; under the water, ambient occlusion and god rays rest. */
 const tierFx = { rays: true, ao: true };
-/** Set once the first frame is drawn. */
-let rendering = false;
 /** Anti-aliasing: temporal (TRAA) by default; `?aa=smaa` or `?aa=none` to compare. */
 const AA = (new URLSearchParams(location.search).get("aa") ?? "traa") as "smaa" | "traa" | "none";
 function applyTier(t: Tier, i: number = quality.tier): void {
@@ -235,9 +233,8 @@ function applyTier(t: Tier, i: number = quality.tier): void {
   tierFx.ao = t.ao;
   post.configure({ ao: t.ao, rays: t.rays, bloom: t.bloom, aa: AA });
   water.setReflection(t.reflection); // mirrored world in the lakes
-  // The shadow map keeps one size: resizing it while running left the shaders reading the old
-  // map (no shadows) until something rebuilt them. It is sized once, before the first frame.
-  if (!rendering) star.shadow.mapSize.set(t.shadow, t.shadow);
+  // the shadow map follows mapSize by itself (no dispose, as WebGL needed)
+  star.shadow.mapSize.set(t.shadow, t.shadow);
   motes.setCount(Math.round(t.particles / 2));
   creation.setQuality(Math.max(0, i - 1));
   resize();
@@ -1211,7 +1208,6 @@ renderer
     nameRenderer();
     bakeEnvironment();
     post.start();
-    rendering = true;
     requestAnimationFrame(frame);
     return renderer.compileAsync(scene, camera);
   })
@@ -1221,4 +1217,4 @@ renderer
     quality.hold(3);
   });
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, fauna, presences, guide, terrain, water, grass, seaLife } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, fauna, presences, guide, terrain, water, grass, seaLife } });
