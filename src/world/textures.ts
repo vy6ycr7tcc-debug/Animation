@@ -17,7 +17,7 @@ function tex(path: string, colour: boolean): THREE.Texture {
   return t;
 }
 
-export type SurfaceName = "sand" | "meadow" | "rock" | "bark";
+export type SurfaceName = "sand" | "meadow" | "rock" | "bark" | "cliff";
 /** A surface's colour map and normal map. */
 export function surface(name: SurfaceName): { diff: THREE.Texture; nor: THREE.Texture } {
   return { diff: tex(`textures/${name}_diff.jpg`, true), nor: tex(`textures/${name}_nor.jpg`, false) };
