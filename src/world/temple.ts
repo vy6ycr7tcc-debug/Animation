@@ -37,6 +37,26 @@ const STATUE_SCALE = 1.3;
 /** Is this point inside the temple's place apart? */
 export const inTempleRegion = (x: number) => x > TEMPLE_ORIGIN.x - 500;
 
+/* ---------- photo-scanned stone (Poly Haven, CC0; see CREDITS.md) ---------- */
+type ScanName = "sandstone_blocks_08" | "sandstone_blocks_05" | "sandstone_cracks" | "red_sandstone_pavement";
+const scans = new Map<ScanName, { diff: THREE.Texture; nor: THREE.Texture; arm: THREE.Texture }>();
+const loader = new THREE.TextureLoader();
+function scan(name: ScanName): { diff: THREE.Texture; nor: THREE.Texture; arm: THREE.Texture } {
+  let s = scans.get(name);
+  if (!s) {
+    const load = (k: string, colour: boolean) => {
+      const t = loader.load(`textures/temple/${name}_${k}.jpg`);
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.anisotropy = 8;
+      t.colorSpace = colour ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+      return t;
+    };
+    s = { diff: load("diff", true), nor: load("nor", false), arm: load("arm", false) };
+    scans.set(name, s);
+  }
+  return s;
+}
+
 /* ---------- surfaces drawn on canvases ---------- */
 
 function canvas(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
@@ -45,9 +65,9 @@ function canvas(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContex
   c.height = h;
   return [c, c.getContext("2d")!];
 }
-function canvasTexture(c: HTMLCanvasElement, repeat = true): THREE.CanvasTexture {
+function canvasTexture(c: HTMLCanvasElement, repeat = true, data = false): THREE.CanvasTexture {
   const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
+  t.colorSpace = data ? THREE.NoColorSpace : THREE.SRGBColorSpace; // data: read as numbers (the relief's overlay)
   if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.anisotropy = 4;
   return t;
@@ -65,29 +85,10 @@ function reliefTexture(): THREE.CanvasTexture {
   const PX = 128, W = 8 * PX, H = WALL_H * PX;
   const [c, g] = canvas(W, H);
   const r = rng(7);
-  // the stone, with a little variation
-  g.fillStyle = "#c7a577";
+  // an overlay on the real stone beneath (the scan): mid grey changes nothing, darker is the cut,
+  // lighter the lit lip, colour the paint left in the cuts
+  g.fillStyle = "#808080";
   g.fillRect(0, 0, W, H);
-  for (let i = 0; i < 2600; i++) {
-    g.fillStyle = `rgba(${r() < 0.5 ? "90,64,40" : "236,214,176"},${0.03 + r() * 0.05})`;
-    g.fillRect(r() * W, r() * H, 2 + r() * 16, 1 + r() * 5);
-  }
-  // courses of masonry
-  g.strokeStyle = "rgba(80,58,36,0.35)";
-  g.lineWidth = 2;
-  for (let y = 0; y < H; y += PX * 1.1) {
-    g.beginPath();
-    g.moveTo(0, y);
-    g.lineTo(W, y);
-    g.stroke();
-    const off = (y / (PX * 1.1)) % 2 ? PX * 1.6 : 0;
-    for (let x = off; x < W; x += PX * 3.2) {
-      g.beginPath();
-      g.moveTo(x, y);
-      g.lineTo(x, y + PX * 1.1);
-      g.stroke();
-    }
-  }
   const Y = (m: number) => H - m * PX; // metres from the floor to canvas y
   const cut = (draw: () => void, pigment?: string) => {
     // each pass builds the path, then strokes it: the lit lip, the shadowed cut, the paint in it
@@ -236,7 +237,7 @@ function reliefTexture(): THREE.CanvasTexture {
   }
   band(12.35, "rgba(40,70,110,0.45)", 0.1);
   band(12.5, "rgba(170,120,40,0.45)", 0.08);
-  return canvasTexture(c);
+  return canvasTexture(c, true, true);
 }
 
 /** The ceiling: deep blue, with rows of five-pointed gold stars (as on temple ceilings). */
@@ -261,24 +262,6 @@ function starTexture(): THREE.CanvasTexture {
       g.closePath();
       g.fill();
     }
-  return canvasTexture(c);
-}
-
-/** The floor: large worn slabs, darker between. */
-function floorTexture(): THREE.CanvasTexture {
-  const [c, g] = canvas(512, 512);
-  g.fillStyle = "#9b8062";
-  g.fillRect(0, 0, 512, 512);
-  const r = rng(11);
-  for (let i = 0; i < 1500; i++) {
-    g.fillStyle = `rgba(${r() < 0.5 ? "60,44,30" : "200,176,140"},${0.03 + r() * 0.05})`;
-    g.fillRect(r() * 512, r() * 512, 3 + r() * 30, 2 + r() * 12);
-  }
-  g.strokeStyle = "rgba(40,28,18,0.55)";
-  g.lineWidth = 3;
-  g.strokeRect(0, 0, 512, 256);
-  g.strokeRect(0, 256, 256, 256);
-  g.strokeRect(256, 256, 256, 256);
   return canvasTexture(c);
 }
 
@@ -360,7 +343,7 @@ function columnGeometry(): THREE.BufferGeometry {
     const tie = y > 8.1 && y < 8.7 ? 1.06 : 1; // the binding at the neck
     p.setXYZ(i, (x / (rr || 1)) * rr * lobes * tie, y, (z / (rr || 1)) * rr * lobes * tie);
     // faded paint: bands at the neck, the capital's green-blue and ochre
-    c.set(0xc4a272);
+    c.copy(COLUMN_STONE);
     if (y > 7.6 && y < 8.9) c.set(Math.floor(y * 5) % 2 ? 0x8a3a28 : 0x2d4d78);
     else if (y > 8.9) c.set(Math.floor(a * 8 + 20) % 2 ? 0x3f6a5a : 0xb68a3e);
     col.set([c.r, c.g, c.b], i * 3);
@@ -369,6 +352,9 @@ function columnGeometry(): THREE.BufferGeometry {
   g.computeVertexNormals();
   return g;
 }
+
+/** The columns' unpainted stone (their vertex colour where no band is painted; as stored, linear). */
+const COLUMN_STONE = new THREE.Color(0xc4a272);
 
 /* ---------- the temple ---------- */
 
@@ -405,43 +391,50 @@ export class Temple {
   }
 
   /** Stone that feels real (Samuel: "more real life, more texture… Assassin's Creed Origins"):
-      the painted or plain surface `map` (its uv spanning `du` × `dv` metres), carrying the
-      scanned rock's grain at two scales, its relief in the normals, and weathering: darker grime
-      toward the floor, faint streaks run down by old water, broad uneven patches. `base` (a
-      colour node) replaces the map, as for the painted columns. */
-  private stoneMaterial(map: THREE.Texture | null, du: number, dv: number, rough = 0.92, base?: N): THREE.MeshStandardNodeMaterial {
-    const m = new THREE.MeshStandardNodeMaterial({ roughness: rough, metalness: 0 });
-    const rockC = surface("rock").diff, rockN = surface("rock").nor.clone();
-    rockN.wrapS = rockN.wrapT = THREE.RepeatWrapping; // (shares the scan's image: it uploads when that loads)
-    rockN.repeat.set(du / 1.7, dv / 1.7);
-    m.normalMap = rockN;
-    m.normalScale = new THREE.Vector2(0.85, 0.85);
-    const U = uv(), metres = vec2(U.x.mul(du), U.y.mul(dv));
-    const lum = (c: N) => dot(c.rgb, vec3(0.3, 0.5, 0.2));
-    const grain = lum(texture(rockC, metres.div(1.7))).mul(0.6).add(lum(texture(rockC, metres.div(6.1))).mul(0.4));
-    const detail = clamp(grain.div(0.36), 0.62, 1.35);
+      a photo-scanned sandstone set (Poly Haven, CC0; colour, normals, and occlusion and roughness
+      packed in `arm`), laid in metres on the surface (its uv spans `du` × `dv` metres, the scan
+      `tile` metres a repeat), with weathering over it: darker grime toward the floor, faint
+      streaks run down by old water, broad uneven patches. `overlay` (a data texture spanning the
+      uv, mid grey = no change) carries the carvings and their paint; `tint` recolours the stone
+      (the painted bands of the columns, the blue and gold of the ceiling). */
+  private stoneMaterial(set: ScanName, du: number, dv: number, tile: number, opts: { overlay?: THREE.Texture; tint?: N; paint?: THREE.Texture; rough?: number } = {}): THREE.MeshStandardNodeMaterial {
+    const m = new THREE.MeshStandardNodeMaterial({ metalness: 0 });
+    const S = scan(set);
+    const U = uv(), st = vec2(U.x.mul(du / tile), U.y.mul(dv / tile));
+    const arm = texture(S.arm, st);
+    let c: N = texture(S.diff, st).rgb;
+    if (opts.overlay) c = c.mul(texture(opts.overlay, U).rgb.mul(2));
+    if (opts.tint) c = c.mul(opts.tint);
+    if (opts.paint) {
+      // a painted surface worn through to the stone where the grain stands proud
+      const p = texture(opts.paint, U);
+      const wear = smoothstep(0.35, 0.75, dot(c, vec3(0.3, 0.5, 0.2)).mul(1.8).add(vnoise(U.mul(40)).mul(0.4)));
+      c = mix(p.rgb.mul(dot(c, vec3(0.3, 0.5, 0.2)).mul(2.2)), c, wear.mul(0.55));
+    }
     const pw = positionWorld;
     const hy = pw.y.sub(TEMPLE_ORIGIN.y);
-    const grime = mix(float(0.6), float(1), smoothstep(0, 1.8, hy));
-    const streak = mix(float(0.82), float(1), vnoise(vec2(pw.x.add(pw.z).mul(1.3), hy.mul(0.09))));
-    const patch = mix(float(0.84), float(1.08), vnoise(pw.xz.add(vec2(pw.y, pw.y)).mul(0.22)));
-    const surfaceC = base ?? texture(map!, U).rgb;
-    m.colorNode = vec4(surfaceC.mul(detail).mul(grime).mul(streak).mul(patch), 1);
-    m.roughnessNode = clamp(float(rough).add(float(1).sub(detail).mul(0.25)), 0.3, 1);
+    const grime = mix(float(0.62), float(1), smoothstep(0, 1.8, hy));
+    const streak = mix(float(0.84), float(1), vnoise(vec2(pw.x.add(pw.z).mul(1.3), hy.mul(0.09))));
+    const patch = mix(float(0.86), float(1.08), vnoise(pw.xz.add(vec2(pw.y, pw.y)).mul(0.22)));
+    // the scan's own occlusion deepens its cracks and joints
+    const ao = mix(float(0.45), float(1), arm.r);
+    m.colorNode = vec4(c.mul(ao).mul(grime).mul(streak).mul(patch), 1);
+    m.normalNode = T.normalMap(texture(S.nor, st), vec2(1.15, 1.15));
+    m.roughnessNode = clamp(arm.g.mul(opts.rough ?? 1), 0.25, 1);
     return m;
   }
 
   /** The floor: worn slabs, polished smoother down the aisle, with sand blown in along the walls
       and drifted in hollows. */
   private floorMaterial(): THREE.MeshStandardNodeMaterial {
-    const m = this.stoneMaterial(floorTexture(), 4, 4, 0.8);
+    const m = this.stoneMaterial("red_sandstone_pavement", 4, 4, 2.4);
     const pw = positionWorld, lx = pw.x.sub(TEMPLE_ORIGIN.x).abs();
     const sand = surface("sand").diff;
     const drift = smoothstep(0.52, 0.78, vnoise(pw.xz.mul(0.16)).mul(0.7).add(smoothstep(7, 11.5, lx).mul(0.45)).add(vnoise(pw.xz.mul(0.9)).mul(0.15)));
     const sandC = texture(sand, pw.xz.div(2.5)).rgb.mul(vec3(1.25, 1.05, 0.82));
     m.colorNode = vec4(mix((m.colorNode as N).rgb, sandC, drift.mul(0.85)), 1);
     // the aisle, walked for centuries: smoother and a little glossy
-    m.roughnessNode = mix(mix(float(0.42), float(0.85), smoothstep(1.5, 4.5, lx)), float(1), drift);
+    m.roughnessNode = mix(mix(float(0.4), float(0.8), smoothstep(1.5, 4.5, lx)), float(1), drift);
     return m;
   }
 
@@ -529,10 +522,10 @@ export class Temple {
     const wallGeo = merged(walls);
     worldUV(wallGeo, 8, true);
     const relief = reliefTexture();
-    const wallMat = this.stoneMaterial(relief, 8, WALL_H);
+    const wallMat = this.stoneMaterial("sandstone_blocks_08", 8, WALL_H, 3.2, { overlay: relief });
     const floorMat = this.floorMaterial();
-    const stoneMat = this.stoneMaterial(null, 3, 3, 0.9, vec3(0.74, 0.6, 0.44));
-    const ceilMat = this.stoneMaterial(starTexture(), 4, 4, 0.95);
+    const stoneMat = this.stoneMaterial("sandstone_cracks", 3, 3, 2.2);
+    const ceilMat = this.stoneMaterial("sandstone_cracks", 4, 4, 2.2, { paint: starTexture() });
     const add = (g: THREE.BufferGeometry, m: THREE.Material, shadow = true) => {
       const mesh = new THREE.Mesh(g, m);
       mesh.receiveShadow = true;
@@ -547,7 +540,8 @@ export class Temple {
 
     // the columns: one form, fourteen places (two rows), and two more at the gateway
     const cg = columnGeometry();
-    const cm = this.stoneMaterial(null, 3, 3, 0.9, T.vertexColor().rgb);
+    // the columns' faded paint (their vertex colours, against the plain stone's own colour)
+    const cm = this.stoneMaterial("sandstone_cracks", 3, 3, 2.2, { tint: T.vertexColor().rgb.div(vec3(COLUMN_STONE.r, COLUMN_STONE.g, COLUMN_STONE.b)) });
     cm.vertexColors = true;
     const spots: [number, number][] = [];
     for (const z of COL_Z) spots.push([-5.5, z], [5.5, z]);
@@ -802,9 +796,9 @@ export class Temple {
 
   private buildLight(): void {
     // the stone's own warm bounce, dim; the sky's light from the clerestory and the opening above
-    const hemi = new THREE.HemisphereLight(0xa88e6e, 0x3a2818, 0.62);
+    const hemi = new THREE.HemisphereLight(0xb09678, 0x3a2818, 0.8);
     this.group.add(hemi);
-    const sun = new THREE.DirectionalLight(0xffdca0, 3.2);
+    const sun = new THREE.DirectionalLight(0xffdca0, 3.8);
     sun.position.set(-18, 40, 10);
     sun.target.position.set(0, 0, -10);
     sun.castShadow = true;
@@ -949,7 +943,7 @@ export class Temple {
     walls.push(l);
     for (const g of walls) worldUV(g, 8, true);
     const geo = merged(walls);
-    const mat = this.stoneMaterial(reliefTexture(), 8, WALL_H);
+    const mat = this.stoneMaterial("sandstone_blocks_05", 8, WALL_H, 3.2, { overlay: reliefTexture() });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.castShadow = mesh.receiveShadow = true;
     this.gate.add(mesh);
