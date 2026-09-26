@@ -8,7 +8,8 @@
      the galaxy with its dust, nebulae and far galaxies;
    - south: the cold blue hour before a winter dawn;
    and between them (Samuel: "I would add some like these too: dusk, haze, sunset…"):
-   - north-east: a pale morning haze, pearl and peach, the sun a soft disc;
+   - north-east: golden hour over a lake (Samuel's photo): dusky blue sky, a peach-rose band low down,
+     brown-gold light on the land;
    - north-west: dusk, reds and blues together: deep blue above, the sun's last red below;
    - south-west: an ember sunset, crimson and gold;
    - south-east: a pink dawn, rose and lilac.
@@ -93,14 +94,16 @@ const TWILIGHT: Mood = {
   density: 0.0036, cloudShade: C(0.07, 0.1, 0.2), cloudLight: C(0.5, 0.6, 0.75),
 };
 
-const HAZE: Mood = {
-  // north-east: a soft morning haze, pale and luminous, the sun a diffuse disc
-  zen: C(0.05, 0.07, 0.19), mid: C(0.19, 0.18, 0.33), hor: C(0.74, 0.55, 0.5),
-  fog: C(0.25, 0.22, 0.33), glow: C(0.85, 0.66, 0.52),
-  sun: V(0.7, 0.14, -0.7), sunCol: C(1.0, 0.74, 0.58), sunK: 0.42,
-  stars: 0, deep: 0, moonK: 0.05,
-  light: C(1.85, 1.62, 1.45), hemiSky: C(0.56, 0.56, 0.76), hemiGround: C(0.18, 0.14, 0.18), hemi: 0.9, env: 1.4,
-  density: 0.003, cloudShade: C(0.3, 0.27, 0.4), cloudLight: C(1.0, 0.84, 0.74),
+const GOLDEN: Mood = {
+  // north-east: Samuel's lake photo: a dusky blue sky, cool and still, a peach-rose band low over
+  // the horizon with a little red in it, and the low sun behind you laying brown-gold light on
+  // the land (the colour he loves, kept to the land so the sky's cool restraint holds)
+  zen: H("#46648C", 0.55), mid: H("#7F97B2", 0.55), hor: H("#E5B7A0", 0.75),
+  fog: H("#6E7D96", 0.45), glow: H("#C9786A", 0.9),
+  sun: V(-0.7, 0.1, 0.7), sunCol: H("#FFB36B", 0.6), sunK: 0.4,
+  stars: 0.1, deep: 0, moonK: 0.05,
+  light: C(2.4, 1.75, 1.0), hemiSky: H("#7F97B2", 1.0), hemiGround: H("#8A6A3E", 0.45), hemi: 0.9, env: 1.4,
+  density: 0.0026, cloudShade: H("#6E7D96", 0.6), cloudLight: H("#F0C2A8", 1.0),
 };
 const DUSK: Mood = {
   // north-west: dusk, reds and blues together, in Samuel's dusk palette: navy overhead,
@@ -142,12 +145,12 @@ const MOODS: { mood: Mood; dir: [number, number] | null }[] = [
   { mood: SUNSET, dir: [-1, 0] },
   { mood: DEEP, dir: [0, -1] },
   { mood: TWILIGHT, dir: [0, 1] },
-  { mood: HAZE, dir: [Math.SQRT1_2, -Math.SQRT1_2] },
+  { mood: GOLDEN, dir: [Math.SQRT1_2, -Math.SQRT1_2] },
   { mood: DUSK, dir: [-Math.SQRT1_2, -Math.SQRT1_2] },
   { mood: EMBER, dir: [-Math.SQRT1_2, Math.SQRT1_2] },
   { mood: DAWN, dir: [Math.SQRT1_2, Math.SQRT1_2] },
 ];
-export const MOOD_NAMES = ["night", "sunrise", "sunset", "deep", "twilight", "haze", "dusk", "ember", "dawn"];
+export const MOOD_NAMES = ["night", "sunrise", "sunset", "deep", "twilight", "golden", "dusk", "ember", "dawn"];
 
 export interface MoodTargets {
   hemi: THREE.HemisphereLight;

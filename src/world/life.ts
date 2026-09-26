@@ -262,13 +262,6 @@ export class Flowers {
   private aState: THREE.InstancedBufferAttribute;
   private uT = uniform(0);
   private tmp = new THREE.Vector3();
-  /** The flowers standing near `p` (for the genesis web). */
-  standing(p: THREE.Vector3, r: number, max: number): THREE.Vector3[] {
-    return this.list
-      .filter((f) => (f.x - p.x) ** 2 + (f.z - p.z) ** 2 < r * r)
-      .slice(0, max)
-      .map((f) => new THREE.Vector3(f.x, f.y + 0.3, f.z));
-  }
   constructor(private sparks: Sparks, private audio: AudioEngine) {
     // Six petals, each a flattened ellipsoid lying along +y from the centre.
     const petal = new THREE.SphereGeometry(0.5, 10, 6);
@@ -420,10 +413,6 @@ export class Lanterns {
   private cloud: SpriteCloud;
   private uDpr = uniform(1);
   onKindle: ((x: number, z: number) => void) | null = null;
-  /** The lantern orbs standing now (for the genesis web). */
-  standing(): THREE.Vector3[] {
-    return this.active.flatMap((c) => c.orbs.map((o) => o.clone()));
-  }
   constructor(private sparks: Sparks) {
     let saved: string[] = [];
     try {
