@@ -41,6 +41,7 @@ import { groundUniforms, heightAt, SPAWN, Terrain, WATER_Y } from "./world/terra
 import { NO_MIRROR_LAYER, Water } from "./world/water";
 import { FOG } from "./world/fog";
 import { Moods } from "./world/moods";
+import { lightField } from "./world/lightfield";
 
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
 
@@ -1204,6 +1205,25 @@ function update(dt: number): void {
 let shadersReady = false;
 quality.hold(12);
 
+/** Everything that glows lights the ground around it (world/lightfield.ts). */
+const lfTint = new THREE.Color();
+const WANDERER_LIGHT = new THREE.Color(1.0, 0.82, 0.6);
+function fillLightField(): void {
+  const add = (x: number, z: number, r: number, c: THREE.Color, k: number) => lightField.add(x, z, r, c, k);
+  lightField.begin();
+  if (S.mode !== "intro" && !player.swimming) add(player.pos.x, player.pos.z, 6, WANDERER_LIGHT, 0.4 / (1 + Math.max(0, player.pos.y - heightAt(player.pos.x, player.pos.z) - 1.5) * 0.3));
+  lanterns.lights(add);
+  flowers.lights(add);
+  creation.lights(add);
+  spirits.lights(add);
+  for (const b of beings.list) {
+    const p = b.root.position;
+    if (Math.hypot(p.x - player.pos.x, p.z - player.pos.z) > 90) continue;
+    lfTint.setRGB(...b.spec.tint);
+    add(p.x, p.z, 7, lfTint, 0.25 + b.wake * 0.45);
+  }
+}
+
 let last = performance.now();
 function frame(now: number): void {
   requestAnimationFrame(frame);
@@ -1217,6 +1237,8 @@ function frame(now: number): void {
   }
   update(dt);
   renderer.info.reset();
+  fillLightField();
+  lightField.render(renderer, player.pos);
   water.renderMirror(renderer, scene, camera);
   post.render();
 }

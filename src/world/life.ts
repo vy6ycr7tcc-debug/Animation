@@ -88,8 +88,8 @@ export class Sparks {
 
 /* ---------------------------------------------------------------- grass of light */
 const TILE = 16;
-const BLADES_PER_TILE = 240;
-const GRASS_RING = 2; // 5 × 5 tiles around the wanderer
+const BLADES_PER_TILE = 360;
+const GRASS_RING = 3; // 7 × 7 tiles around the wanderer
 const TRAIL = 20;
 
 export class LightGrass {
@@ -154,7 +154,7 @@ export class LightGrass {
       return min(g, 1.5);
     })());
     const camD = length(w.sub(cameraPosition));
-    const fadeV = varying(float(1).sub(smoothstep(22, 34, length(aBase.xz.sub(cameraPosition.xz)))).mul(smoothstep(1.2, 4, camD))); // never a blade in your face
+    const fadeV = varying(float(1).sub(smoothstep(32, 50, length(aBase.xz.sub(cameraPosition.xz)))).mul(smoothstep(1.2, 4, camD))); // never a blade in your face
     const wV = varying(w);
     const vY = tuv().y;
     mat.colorNode = Fn(() => {
@@ -243,6 +243,7 @@ interface Flower {
   openedAt: number;
 }
 
+const FLOWER_GOLD = new THREE.Color(1.0, 0.78, 0.55), FLOWER_BLUE = new THREE.Color(0.75, 0.85, 1.0), FLOWER_ROSE = new THREE.Color(1.0, 0.65, 0.85);
 export class Flowers {
   mesh: THREE.Mesh;
   private list: Flower[] = [];
@@ -360,6 +361,11 @@ export class Flowers {
     this.aState.needsUpdate = true;
   }
 
+  /** Each light this casts on the ground: (x, z, reach in metres, colour, strength). */
+  lights(add: (x: number, z: number, r: number, c: THREE.Color, k: number) => void): void {
+    for (const fl of this.list) if (fl.open > 0.05) add(fl.x, fl.z, 2.2, fl.hue > 0.8 ? FLOWER_ROSE : fl.hue > 0.5 ? FLOWER_BLUE : FLOWER_GOLD, fl.open * 0.3);
+  }
+
   /** Where the nearest flowers are (for the butterflies). */
   near(p: THREE.Vector3, out: THREE.Vector3): boolean {
     let best = 1e9;
@@ -385,6 +391,7 @@ interface Cluster {
   lit: number;
   target: number;
 }
+const LANTERN_LIGHT = new THREE.Color(1.0, 0.72, 0.42);
 export class Lanterns {
   points: THREE.Sprite;
   private clusters = new Map<string, Cluster | null>();
@@ -482,6 +489,11 @@ export class Lanterns {
     }
     this.cloud.setCount(n);
     this.cloud.attrs.position.needsUpdate = this.cloud.attrs.aGlow.needsUpdate = true;
+  }
+
+  /** Each light this casts on the ground: (x, z, reach in metres, colour, strength). */
+  lights(add: (x: number, z: number, r: number, c: THREE.Color, k: number) => void): void {
+    for (const c of this.active) if (c.lit > 0.02) for (const o of c.orbs) add(o.x, o.z, 7, LANTERN_LIGHT, c.lit * 0.55);
   }
 
   get litCount(): number {

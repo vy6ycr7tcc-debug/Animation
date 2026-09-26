@@ -1045,6 +1045,15 @@ export class Creation {
     return best;
   }
 
+  /** Each light this casts on the ground: (x, z, reach in metres, colour, strength). */
+  lights(add: (x: number, z: number, r: number, c: THREE.Color, k: number) => void): void {
+    for (const c of this.activeClusters) {
+      this.lightCol.setHSL((c.prisms[0].hue * 0.4 + 0.55) % 1, 0.55, 0.62);
+      add(c.x, c.z, c.great ? 9 : 5, this.lightCol, (c.great ? 0.35 : 0.2) + c.glow * 0.6);
+    }
+  }
+  private lightCol = new THREE.Color();
+
   anchors(): THREE.Vector3[] {
     return [
       ...this.activeTrees.map((t) => new V(t.x, t.y + SHAPES[t.kind].height * t.scale * 0.8, t.z)),
@@ -1080,6 +1089,7 @@ interface Spirit {
   lastHist: number;
 }
 
+const SPIRIT_BLUE = new THREE.Color(0.8, 0.9, 1.0), SPIRIT_GOLD = new THREE.Color(1.0, 0.86, 0.66), SPIRIT_ROSE = new THREE.Color(1.0, 0.8, 1.0);
 /** Wisps of light with flowing veils. They drift among trees and crystals, and now and then
     one comes to keep the wanderer company. */
 export class Spirits {
@@ -1155,6 +1165,15 @@ export class Spirits {
       mat.colorNode = vec4(vC.mul(a).mul(float(1).sub(fogF(vD))), 1);
     }
     this.group.add(this.veil, this.heads.sprite);
+  }
+
+  /** Each light this casts on the ground: (x, z, reach in metres, colour, strength). */
+  lights(add: (x: number, z: number, r: number, c: THREE.Color, k: number) => void): void {
+    for (const s of this.list) {
+      const ground = Math.max(heightAt(s.p.x, s.p.z), WATER_Y);
+      const k = 0.4 / (1 + Math.max(0, s.p.y - ground - 1) * 0.4); // high in the air, it lights less
+      add(s.p.x, s.p.z, 3 + s.size * 2, s.hue > 0.75 ? SPIRIT_ROSE : s.hue > 0.4 ? SPIRIT_GOLD : SPIRIT_BLUE, k);
+    }
   }
 
   /** Stillness calls the spirits: those nearby come to circle the wanderer. */

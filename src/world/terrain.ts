@@ -7,6 +7,7 @@
 import * as THREE from "three/webgpu";
 import { T, type N } from "../gpu/tsl";
 import { starDirection } from "./fog";
+import { groundLight } from "./lightfield";
 import { surface } from "./textures";
 
 export const WATER_Y = 0;
@@ -277,6 +278,8 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
     const k = exp(dep.mul(-0.08)).mul(smoothstep(0.3, 1.5, dep)).mul(float(1).sub(smoothstep(12, 40, camD)));
     e.addAssign(vGW.y.lessThan(-0.3).select(vec3(0.45, 0.75, 0.95).mul(cau).mul(k).mul(0.3), vec3(0)));
     // a soft sheen where the ground faces away toward the moon (light through the haze)
+    // the lights of the world, pooling on the ground (lanterns, beings, crystals, your own)
+    e.addAssign(groundLight(vGW).mul(T.vertexColor().rgb.mul(1.6).add(0.12)).mul(gr.x));
     const back = pow(max(dot(gv.negate(), moon), 0), 3);
     e.addAssign(vec3(0.32, 0.26, 0.24).mul(back).mul(gr.y.mul(0.7).add(0.3)).mul(0.18));
     return e;

@@ -3,6 +3,7 @@
    - buildMandala: hand-drawn line geometry on the central platform (seven-fold, one ring per island). */
 import * as THREE from "three/webgpu";
 import { T, type N } from "../gpu/tsl";
+import { groundLight } from "./lightfield";
 import { surface } from "./textures";
 
 const {
@@ -174,6 +175,8 @@ export function etchedStone(
     const fade = float(1).sub(smoothstep(25, 70, camD));
     // the drawings' lattice survives only as a faint trace in the stone
     const e = uLine.mul(l).mul(fade).mul(0.06).mul(E.uEtchGain).mul(sin(E.uEtchT.mul(0.6).add(vEW.y)).mul(0.15).add(0.85)).toVar();
+    // the lights nearby fall on the stone too
+    e.addAssign(groundLight(vEW).mul(T.materialColor.rgb.mul(1.4).add(0.08)).mul(T.smoothstep(-0.3, 0.6, vEN.y).mul(0.6).add(0.4)));
     // vibrating: rings of light race outward over the stone, and its lattice wakes
     const vd = distance(vEW, V.uVibePos);
     const on = float(1).sub(smoothstep(V.uVibeR.mul(1.1), V.uVibeR.mul(1.6).add(0.6), vd));
