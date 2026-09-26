@@ -87,6 +87,24 @@ function galaxy(d: N, g: (typeof GALAXIES)[number]): N {
   return vec3(...g.col).mul(b).mul(facing);
 }
 
+/** A shooting star: every `period` seconds (offset by `seed`) a short streak crosses a random
+    part of the sky above the horizon, bright at its head, fading behind. */
+function meteor(d: N, t: N, period: number, seed: number): N {
+  const k = floor(t.div(period).add(seed));
+  const u = fract(t.div(period).add(seed)).div(0.13); // the streak lasts 13% of the period
+  const r = (o: number) => fract(sin(k.mul(12.9898).add(seed * 78.233 + o)).mul(43758.5453));
+  const s0 = normalize(vec3(r(1).mul(2).sub(1), r(2).mul(0.5).add(0.3), r(3).mul(2).sub(1)));
+  const dir = normalize(vec3(r(4).sub(0.5), r(5).mul(-0.6).sub(0.2), r(6).sub(0.5)));
+  const head = s0.add(dir.mul(u.min(1).mul(0.35)));
+  const tail = s0.add(dir.mul(max(u.sub(0.35), 0).min(1).mul(0.35)));
+  // the distance from d to the streak (a short chord), in radians
+  const ab = head.sub(tail), ap = d.sub(tail);
+  const h = dot(ap, ab).div(max(dot(ab, ab), 1e-6)).clamp(0, 1);
+  const dist = length(ap.sub(ab.mul(h)));
+  const on = step(u, 1.35).mul(smoothstep(0, 0.15, u));
+  return vec3(0.9, 0.95, 1.0).mul(exp(dist.mul(dist).mul(-1.8e6))).mul(h.mul(h)).mul(on).mul(2.2);
+}
+
 /** The colour of the sky in direction `d` (normalized). `detail` adds the finest work (nebulae,
     dust, galaxies); the water's reflection leaves it out. */
 function skyColorImpl(d: N, detail: boolean): N {
@@ -122,6 +140,9 @@ function skyColorImpl(d: N, detail: boolean): N {
     const gal = vec3(0).toVar();
     for (const g of GALAXIES) gal.addAssign(galaxy(d, g));
     c.addAssign(gal.mul(U.uDeep.mul(0.5).add(0.06)).mul(nightK));
+    // shooting stars, now and then; in the deep night, often
+    const m = meteor(d, U.uT, 9, 0.0).add(meteor(d, U.uT, 13, 0.37).mul(U.uDeep.mul(0.7).add(0.3))).add(meteor(d, U.uT, 5.5, 0.71).mul(U.uDeep));
+    c.addAssign(m.mul(nightK));
   } else {
     c.addAssign(vec3(0.05, 0.045, 0.09).mul(band).mul(U.uDeep.mul(2.2).add(0.7)).mul(nightK));
   }

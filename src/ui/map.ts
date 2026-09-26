@@ -5,7 +5,8 @@
    - Tap a place (or its name below the map) and you go there. Tapping open land takes you to
      that spot, and the nearest archetype's voice comes first.
    - Each group has its own mark, so nothing depends on colour alone: the Mind a circle, the
-     Body a diamond, the Spirit a triangle, the Choice a star. A wave beneath a mark means its
+     Body a diamond, the Spirit a triangle, the Choice a star. The archive's planets and stars in the
+   sky are pale: a ringed disc, a small four-pointed sparkle. A wave beneath a mark means its
      home is in the deep: you wake on the water above it. */
 import { heightAt, WATER_Y } from "../world/terrain";
 
@@ -51,6 +52,8 @@ interface View {
 }
 
 export class StartMap {
+  /** The archive's planets and stars in the sky: marked, not places to wake. */
+  sky: { x: number; z: number; kind: "planet" | "star"; label: string }[] = [];
   private el = document.getElementById("map") as HTMLDivElement;
   private canvas = document.getElementById("map-canvas") as HTMLCanvasElement;
   private list = document.getElementById("map-places") as HTMLDivElement;
@@ -439,6 +442,41 @@ export class StartMap {
       g.fillText(this.continueBtn.hidden ? "you" : "where you were", x + 11 * k, y);
     }
     const close = this.view.size < 1300;
+    // the planets and stars overhead: a ringed disc, a four-pointed sparkle
+    for (const m of this.sky) {
+      const x = this.toMapX(m.x), y = this.toMapY(m.z);
+      if (x < -40 || y < -40 || x > W + 40 || y > H + 40) continue;
+      g.save();
+      g.strokeStyle = "rgba(200,215,255,0.85)";
+      g.fillStyle = "rgba(200,215,255,0.85)";
+      g.lineWidth = 1.1 * k;
+      g.shadowColor = "rgba(180,200,255,0.9)";
+      g.shadowBlur = 6 * k;
+      if (m.kind === "planet") {
+        g.beginPath();
+        g.arc(x, y, 4 * k, 0, Math.PI * 2);
+        g.fill();
+        g.beginPath();
+        g.ellipse(x, y, 8 * k, 2.6 * k, -0.35, 0, Math.PI * 2);
+        g.stroke();
+      } else {
+        g.beginPath();
+        for (let s2 = 0; s2 < 8; s2++) {
+          const a2 = (s2 / 8) * Math.PI * 2, rr = (s2 % 2 ? 1.6 : 7) * k;
+          g.lineTo(x + Math.cos(a2) * rr, y + Math.sin(a2) * rr);
+        }
+        g.closePath();
+        g.fill();
+      }
+      if (close) {
+        g.shadowColor = "rgba(0,0,0,0.9)";
+        g.font = `italic ${10.5 * k}px ${SERIF}`;
+        g.textAlign = "left";
+        g.fillStyle = "rgba(220,228,255,0.85)";
+        g.fillText(m.label, x + 11 * k, y + 3 * k);
+      }
+      g.restore();
+    }
     for (const p of this.places) {
       const x = this.toMapX(p.x), y = this.toMapY(p.z);
       if (x < -40 || y < -40 || x > W + 40 || y > H + 40) continue;

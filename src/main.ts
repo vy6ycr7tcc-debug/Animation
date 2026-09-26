@@ -369,6 +369,11 @@ function begin(e?: Event): void {
   void startMap.open(places(), you, false, !!you).then((c) => c && arrive(c, true));
 }
 
+/** The archive's planets and stars in the sky, marked on the map in their own way. */
+function skyMarks(): { x: number; z: number; kind: "planet" | "star"; label: string }[] {
+  return ORB_SITES.filter((o) => o.realm === "star" || o.realm === "sky").map((o) => ({ x: o.x, z: o.z, kind: o.realm === "star" ? "star" : "planet", label: o.orb.title }));
+}
+
 /** The places on the map: the shore, and the seven archetypes' homes. */
 function places(): Place[] {
   return [
@@ -418,6 +423,7 @@ function arrive(c: Choice, first: boolean): void {
 }
 $("#begin").addEventListener("click", begin);
 const startMap = new StartMap();
+startMap.sky = skyMarks();
 // Meeting an archetype: it greets you, and its voice begins (the Threshold).
 beings.onMeet = (a) => {
   playlist.meet(a.narration);
@@ -741,7 +747,7 @@ function guideDestinations(): { group: string; items: (Destination & { note?: st
   const newOrb = byDist(ORB_SITES.filter((o) => !archiveHeard.has(o.orb.id)).map((o) => ({ ...o })))[0];
   const fresh: (Destination & { note?: string })[] = [];
   if (newBeing) fresh.push({ ...being(newBeing.b), note: "an archetype you haven't met yet" });
-  if (newOrb) fresh.push({ label: newOrb.orb.title, x: newOrb.x, y: newOrb.y, z: newOrb.z, note: `an orb you haven't heard${newOrb.realm === "sky" ? ", in the sky" : newOrb.realm === "water" ? ", in the deep" : ""}` });
+  if (newOrb) fresh.push({ label: newOrb.orb.title, x: newOrb.x, y: newOrb.y, z: newOrb.z, note: `${newOrb.realm === "star" ? "a star you haven't heard, high overhead" : `an orb you haven't heard${newOrb.realm === "sky" ? ", a planet in the sky" : newOrb.realm === "water" ? ", in the deep" : ""}`}` });
   const realm = (r: string) => beings.list.filter((b) => b.spec.realm === r).map(being);
   return [
     { group: "Somewhere new", items: fresh },
@@ -752,7 +758,7 @@ function guideDestinations(): { group: string; items: (Destination & { note?: st
     { group: "The groves of the archive", items: byDist(GROVE_SITES.map((g) => ({ label: g.grove.name, x: g.x, y: g.y, z: g.z }))) },
     {
       group: "The orbs of the archive",
-      items: byDist(ORB_SITES.map((o) => ({ label: o.orb.title, x: o.x, y: o.y, z: o.z, note: [o.realm === "sky" ? "in the sky" : o.realm === "water" ? "in the deep" : "", archiveHeard.has(o.orb.id) ? "heard" : ""].filter(Boolean).join(", ") || undefined }))),
+      items: byDist(ORB_SITES.map((o) => ({ label: o.orb.title, x: o.x, y: o.y, z: o.z, note: [o.realm === "star" ? "a star, high overhead" : o.realm === "sky" ? "a planet in the sky" : o.realm === "water" ? "in the deep" : "", archiveHeard.has(o.orb.id) ? "heard" : ""].filter(Boolean).join(", ") || undefined }))),
     },
   ];
 }

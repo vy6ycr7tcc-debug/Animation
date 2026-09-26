@@ -21,6 +21,27 @@ export interface Vessel {
   grove?: GroveSite;
 }
 
+/** Four long, soft rays crossing at the centre: a star's sparkle. */
+function raysTexture(): THREE.Texture {
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const g = c.getContext("2d")!;
+  g.translate(64, 64);
+  for (let k = 0; k < 4; k++) {
+    g.rotate(Math.PI / 4 + (k % 2 ? 0.0 : 0));
+    const grd = g.createLinearGradient(-64, 0, 64, 0);
+    grd.addColorStop(0, "rgba(255,255,255,0)");
+    grd.addColorStop(0.5, k % 2 ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.8)");
+    grd.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = grd;
+    g.fillRect(-64, -1.2, 128, 2.4);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const RAYS = raysTexture();
+
 function halo(color: THREE.Color, size: number): THREE.Sprite {
   const c = document.createElement("canvas");
   c.width = c.height = 64;
@@ -134,6 +155,7 @@ export class Vessels {
   group = new THREE.Group();
   vessels: Vessel[] = [];
   private orbs: OrbView[] = [];
+  private stars: { site: OrbSite; group: THREE.Group; glow: THREE.Sprite; rays: THREE.Sprite; vessel: Vessel; phase: number }[] = [];
   private groves: GroveView[] = [];
   private labels = document.getElementById("labels") as HTMLDivElement;
   private labelEls = new Map<object, HTMLDivElement>();
@@ -146,16 +168,18 @@ export class Vessels {
   }
 
   private buildOrb(site: OrbSite, i: number): void {
+    if (site.realm === "star") return this.buildStar(site, i);
     const a = colourFor(i * 5 + 2), b = colourFor(i * 5 + 5).offsetHSL(0.08, 0, -0.1);
-    const r = site.realm === "sky" ? 1.1 : 0.7;
+    // a planet in the sky is large, a world of its own seen from the ground; the others are small
+    const r = site.realm === "sky" ? 26 + (i % 3) * 8 : 0.7;
     const group = new THREE.Group();
     group.position.set(site.x, site.y, site.z);
     const mat = planetMaterial(a, b, (i * 0.137) % 1);
     const planet = new THREE.Mesh(new THREE.SphereGeometry(r, 40, 28), mat);
     const moon = new THREE.Mesh(new THREE.SphereGeometry(r * 0.16, 16, 12), new THREE.MeshBasicMaterial({ color: a.clone().lerp(new THREE.Color(1, 1, 1), 0.6) }));
-    const glow = halo(a.clone().lerp(new THREE.Color(1, 1, 1), 0.3), r * 7);
+    const glow = halo(a.clone().lerp(new THREE.Color(1, 1, 1), 0.3), r * (site.realm === "sky" ? 3.2 : 7));
     group.add(planet, moon, glow);
-    if (i % 3 === 1) {
+    if (i % 3 === 1 || site.realm === "sky") {
       // a few carry a faint ring
       const ring = new THREE.Mesh(
         new THREE.RingGeometry(r * 1.45, r * 1.75, 64).rotateX(-Math.PI / 2 + 0.35),
@@ -167,6 +191,23 @@ export class Vessels {
     const vessel: Vessel = { kind: "orb", narration: site.orb, pos: group.position.clone(), radius: r };
     this.vessels.push(vessel);
     this.orbs.push({ site, group, planet, mat, moon, glow, vessel, phase: i * 1.3 });
+  }
+
+  /** A star of the night sky that carries a narration: a bright core, a soft halo and four
+      slow-turning rays, far overhead. Fly up to it to listen. */
+  private buildStar(site: OrbSite, i: number): void {
+    const col = colourFor(i * 7 + 3).lerp(new THREE.Color(1, 0.95, 0.85), 0.55);
+    const group = new THREE.Group();
+    group.position.set(site.x, site.y, site.z);
+    const core = new THREE.Mesh(new THREE.SphereGeometry(2.4, 24, 16), new THREE.MeshBasicMaterial({ color: col.clone().multiplyScalar(2.2), fog: false }));
+    const glow = halo(col, 70);
+    const rays = new THREE.Sprite(new THREE.SpriteMaterial({ map: RAYS, color: col, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
+    rays.scale.setScalar(120);
+    group.add(core, glow, rays);
+    this.group.add(group);
+    const vessel: Vessel = { kind: "orb", narration: site.orb, pos: group.position.clone(), radius: 3 };
+    this.vessels.push(vessel);
+    this.stars.push({ site, group, glow, rays, vessel, phase: i * 1.7 });
   }
 
   private buildGrove(site: GroveSite): void {
@@ -222,7 +263,7 @@ export class Vessels {
     const w = innerWidth, h = innerHeight;
     for (const vs of this.vessels) {
       const d = vs.pos.distanceTo(camera.position);
-      if (d > 160) continue;
+      if (d - vs.radius > 160) continue;
       this.v.copy(vs.pos).project(camera);
       if (this.v.z > 1) continue;
       const sx = (this.v.x * 0.5 + 0.5) * w, sy = (-this.v.y * 0.5 + 0.5) * h;
@@ -241,7 +282,7 @@ export class Vessels {
   nearest(p: THREE.Vector3, within = 9): Vessel | null {
     let best: Vessel | null = null, bd = within;
     for (const vs of this.vessels) {
-      const d = vs.pos.distanceTo(p);
+      const d = vs.pos.distanceTo(p) - Math.max(0, vs.radius - 1);
       if (d < bd) {
         bd = d;
         best = vs;
@@ -255,7 +296,7 @@ export class Vessels {
       const bob = reduced ? 0 : Math.sin(t * 0.5 + o.phase) * 0.3;
       o.group.position.set(o.site.x, o.site.y + bob, o.site.z);
       o.vessel.pos.copy(o.group.position);
-      const d = player.distanceTo(o.group.position);
+      const d = Math.max(0, player.distanceTo(o.group.position) - o.vessel.radius);
       const playing = this.playingId === o.vessel.narration.id ? 1 : 0;
       o.mat.uniforms.uT.value = t;
       o.mat.uniforms.uNear.value = fade(d, 6, 30);
@@ -266,6 +307,17 @@ export class Vessels {
       // the halo is for finding it from afar; close up it steps back so the planet itself shows
       o.glow.material.opacity = (0.5 - 0.35 * o.mat.uniforms.uNear.value) + playing * 0.15;
       o.glow.scale.setScalar(r * (5 + (reduced ? 0 : Math.sin(t * 0.9 + o.phase)) * 0.4 + playing * 1.5));
+    }
+    for (const st of this.stars) {
+      const playing = this.playingId === st.vessel.narration.id ? 1 : 0;
+      const tw = reduced ? 1 : 0.85 + 0.15 * Math.sin(t * 1.7 + st.phase);
+      st.rays.material.rotation = reduced ? 0 : t * 0.03 + st.phase;
+      st.rays.material.opacity = (0.55 + playing * 0.35) * tw;
+      st.glow.material.opacity = (0.45 + playing * 0.3) * tw;
+      // up close it steps back, so the core itself shows
+      const near = fade(player.distanceTo(st.group.position), 30, 160);
+      st.glow.scale.setScalar(70 - near * 45);
+      st.rays.scale.setScalar(120 - near * 70);
     }
     for (const g of this.groves) {
       for (const f of g.fruits) {
@@ -315,8 +367,13 @@ export class Vessels {
       const s = n.sources[0];
       return `<b>${esc(n.title)}</b>${s ? `<span>${esc(s.entity)} · ${esc(s.date)}</span>` : ""}`;
     };
+    for (const st of this.stars) {
+      const d = player.distanceTo(st.vessel.pos);
+      const el = this.label(st, line(st.vessel.narration), "orb");
+      this.place(el, this.v.copy(st.vessel.pos).add(new THREE.Vector3(0, 6, 0)), camera, fade(d, 40, 90));
+    }
     for (const o of this.orbs) {
-      const d = player.distanceTo(o.vessel.pos);
+      const d = Math.max(0, player.distanceTo(o.vessel.pos) - o.vessel.radius);
       const el = this.label(o, line(o.vessel.narration), "orb");
       this.place(el, this.v.copy(o.vessel.pos).add(new THREE.Vector3(0, o.vessel.radius + 0.5, 0)), camera, fade(d, 10, 26));
     }
