@@ -125,7 +125,7 @@ export class Genesis {
       const s = SHAPES[i % SHAPES.length];
       const k = uniform(0);
       const c = HUES[i % HUES.length];
-      const mesh = new THREE.Mesh(ribbonGeometry(s.pairs), ribbonMaterial(vec3(c.r, c.g, c.b).mul(k), 1.3, false));
+      const mesh = new THREE.Mesh(ribbonGeometry(s.pairs), ribbonMaterial(vec3(c.r, c.g, c.b).mul(k), 0.5, false));
       mesh.renderOrder = 9002;
       mesh.frustumCulled = false;
       mesh.visible = false;

@@ -969,6 +969,29 @@ function buildMoreProps(b: Being, world: THREE.Group, stone: THREE.Material): vo
   }
 }
 
+export interface BeingModel {
+  model: THREE.Object3D;
+  clips: THREE.AnimationClip[];
+  scale: number;
+}
+
+/** The recorded figure the beings are made of, scaled to a being's height. */
+export async function loadBeingModel(path: string): Promise<BeingModel | null> {
+  const bytes = await loadBytes(path);
+  if (!bytes) return null;
+  const loader = new GLTFLoader();
+  loader.setMeshoptDecoder(MeshoptDecoder);
+  const gltf = await loader.parseAsync(bytes, "");
+  floatAttributes(gltf.scene);
+  const model = gltf.scene;
+  model.rotation.y = Math.PI;
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model, true);
+  const scale = HEIGHT / (box.max.y - box.min.y || 1.8);
+  model.rotation.y = 0;
+  return { model, clips: gltf.animations, scale };
+}
+
 /* ---------------------------------------------------------------- all twenty-two */
 export class Beings {
   group = new THREE.Group();
@@ -990,20 +1013,15 @@ export class Beings {
     });
   }
 
-  async load(path: string): Promise<void> {
-    const bytes = await loadBytes(path);
-    if (!bytes) return;
-    const loader = new GLTFLoader();
-    loader.setMeshoptDecoder(MeshoptDecoder);
-    const gltf = await loader.parseAsync(bytes, "");
-    floatAttributes(gltf.scene);
-    const model = gltf.scene;
-    model.rotation.y = Math.PI;
-    model.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(model, true);
-    const scale = HEIGHT / (box.max.y - box.min.y || 1.8);
-    model.rotation.y = 0;
-    for (const b of this.list) b.attach(model, gltf.animations, scale);
+  /** Load the figure and give it to every being; resolves with it, for others to share. */
+  async load(path: string): Promise<BeingModel | null> {
+    const m = await loadBeingModel(path);
+    if (m) this.attach(m);
+    return m;
+  }
+
+  attach(m: BeingModel): void {
+    for (const b of this.list) b.attach(m.model, m.clips, m.scale);
   }
 
   /** Where to sit with a being: in front of it, facing it. `stone`: a seat rises from the

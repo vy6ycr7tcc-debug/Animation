@@ -38,7 +38,8 @@ import { Vessels } from "./world/vessels";
 import { TranscriptPlayer } from "./ui/transcriptPlayer";
 import { StartMap, type Choice, type Place } from "./ui/map";
 import { buildSky, skyUniforms, starDirection } from "./world/sky";
-import { groundUniforms, heightAt, LANDMARK_SITES, SPAWN, Terrain, WATER_Y } from "./world/terrain";
+import { floorHook, groundUniforms, heightAt, LANDMARK_SITES, SPAWN, Terrain, WATER_Y } from "./world/terrain";
+import { Temple } from "./world/temple";
 import { Autofly } from "./player/autofly";
 import { Genesis } from "./world/genesis";
 import { cloudUniforms } from "./world/atmosphere";
@@ -196,7 +197,16 @@ const landmarks = new Landmarks(scene, audio, wanderer);
 // The archetypes themselves, each at home in its landmark.
 const beings = new Beings(landmarks.list, sparks);
 scene.add(beings.group);
-void beings.load("models/wanderer.glb");
+// The temple: a pylon near the shore, and through its door a place apart (world/temple.ts)
+const temple = new Temple(sparks, {
+  onMeet: (numeral, name) => {
+    whisper(`${numeral} · ${name}`, 4000);
+    if (playlist.on && !narration.current && !tp.playing) void narration.play(trackId(numeral, "who"));
+  },
+});
+scene.add(temple.group, temple.gate);
+floorHook.fn = (x, z) => temple.floorAt(x, z);
+void beings.load("models/wanderer.glb").then((m) => m && temple.attach(m));
 // the voices of the archive, present while they speak
 const presences = new Presences();
 scene.add(presences.group);
@@ -308,8 +318,8 @@ function persist(): void {
   if (S.mode === "intro" || resetting) return;
   const d: SaveData = {
     v: 1,
-    pos: [player.pos.x, player.pos.y, player.pos.z],
-    heading: player.heading,
+    pos: temple.inside ? templeReturnPos() : [player.pos.x, player.pos.y, player.pos.z],
+    heading: temple.inside ? temple.outside().heading : player.heading,
     heard: [],
     visited: [],
     settings: { volume: audio.volume, reduced: S.reducedPref, subtitles: narration.subtitlesOn, voices: playlist.on, awake: awake.on },
@@ -402,6 +412,83 @@ input.onTap = (x, y, touch) => {
   if (p.y <= WATER_Y + 0.05) water.ripple(p.x, p.z, 0.6, S.t);
   else footprints.place(p.x, p.y, p.z, player.heading, S.t);
 };
+// Into the temple and out again. Inside, the open world rests: hidden, and not streamed.
+const fadeEl = $("#fade");
+fadeEl.style.transitionDuration = "0.6s";
+fadeEl.style.zIndex = "40";
+let hiddenWorld: [THREE.Object3D, boolean][] = [];
+let crossing = false;
+let toldGate = false;
+function templeReturnPos(): [number, number, number] {
+  const o = temple.outside();
+  return [o.x, heightAt(o.x, o.z), o.z];
+}
+/** Switch between the world and the temple at once (no fade). */
+function setInside(inside: boolean): void {
+  if (inside === temple.inside) return;
+  if (inside) {
+    const keep = new Set<THREE.Object3D>([temple.group, wanderer.root, wanderer.fx, camera]);
+    hiddenWorld = scene.children.filter((o) => !keep.has(o)).map((o) => [o, o.visible]);
+    for (const [o] of hiddenWorld) o.visible = false;
+    temple.show(true);
+    temple.reset();
+    const e = temple.entry();
+    player.pos.set(e.x, temple.floorAt(e.x, e.z), e.z);
+    player.heading = e.heading;
+    follow.yaw = e.heading;
+    follow.pitch = 0.12;
+  } else {
+    for (const [o, v] of hiddenWorld) o.visible = v;
+    hiddenWorld = [];
+    temple.show(false);
+    const o = temple.outside();
+    player.pos.set(o.x, heightAt(o.x, o.z), o.z);
+    player.heading = o.heading;
+    follow.yaw = o.heading;
+    terrain.update(o.x, o.z, true);
+  }
+  Object.assign(player, { flying: false, landing: false, grounded: true, swimming: false, vy: 0, target: null });
+  player.vel.set(0, 0, 0);
+  follow.snapTo(player.pos);
+  quality.hold(3);
+}
+function crossTemple(inside: boolean): void {
+  if (crossing) return;
+  crossing = true;
+  if (autofly.active) setAutofly(false);
+  fadeEl.classList.add("on");
+  audio.bell(inside ? 330 : 396, 0.12, 6);
+  window.setTimeout(() => {
+    setInside(inside);
+    if (inside) whisper("The temple. The Mind on your left, the Body on your right; the Spirit beyond the gateway.", 7000);
+    window.setTimeout(() => {
+      fadeEl.classList.remove("on");
+      crossing = false;
+    }, 250);
+  }, 650);
+}
+/** Each frame: through the pylon's door, in; out through the temple's door, out; the air inside. */
+function templeFrame(dt: number): void {
+  temple.update(S.wt, dt, player.pos, S.reduced);
+  if (S.mode !== "play") return;
+  if (temple.inside) {
+    if (temple.confine(player.pos) && !crossing) crossTemple(false);
+    // the air inside: warm, dim, a little dust in the light
+    fogUniforms.color.value.setRGB(0.09, 0.065, 0.045);
+    fogUniforms.glow.value.setRGB(0.3, 0.22, 0.15);
+    fogUniforms.density.value = 0.006;
+    post.starVis.value = 0;
+    post.raysOn.value = 0;
+    return;
+  }
+  const d = player.pos.distanceTo(temple.gateAt);
+  if (!toldGate && d < 30) {
+    toldGate = true;
+    whisper("A temple. Walk through its door.", 5000);
+  }
+  if (d < 6 && !crossing && !autofly.active && !genesis.active && sitting.phase !== "seated" && temple.atGateDoor(player.pos)) crossTemple(true);
+}
+
 // Autofly (⋮ → Autofly, or P): the wanderer flies by itself, low over the land from place to
 // place, then up among the planets and stars, and down again (player/autofly.ts).
 const autofly = new Autofly(
@@ -411,7 +498,7 @@ const autofly = new Autofly(
 function setAutofly(on: boolean): void {
   if (on === autofly.active) return;
   if (on) {
-    if (S.mode !== "play" || sitting.phase === "seated" || player.diving || genesis.active) return;
+    if (S.mode !== "play" || sitting.phase === "seated" || player.diving || genesis.active || temple.inside) return;
     player.target = null;
     autofly.start(player.pos, player.heading);
     say("Autofly: the stick or the button takes you back.");
@@ -439,7 +526,7 @@ function heartAt(out: THREE.Vector3): THREE.Vector3 {
   return out.copy(player.pos).add(new THREE.Vector3(0, 1.15, 0));
 }
 function beginGenesis(): void {
-  if (S.mode !== "play" || genesis.active || sitting.phase === "seated" || player.flying || player.diving) return;
+  if (S.mode !== "play" || genesis.active || sitting.phase === "seated" || player.flying || player.diving || temple.inside) return;
   // the forms whose geometry lights up: the land gold, living things rose, the sky's vessels pale blue
   const layers = [
     { root: terrain.group, color: new THREE.Color(0.75, 0.58, 0.32) },
@@ -525,6 +612,7 @@ function skyMarks(): { x: number; z: number; kind: "planet" | "star" | "grove" |
 function places(): Place[] {
   return [
     { numeral: "", label: "The shore", group: "Shore", x: SPAWN.x, z: SPAWN.z, narration: "J01", start: { x: SPAWN.x, z: SPAWN.z, heading: SPAWN.heading } },
+    { numeral: "", label: "The temple", group: "Shore", x: temple.gateAt.x, z: temple.gateAt.z, narration: "J01", start: { ...temple.outside(), heading: temple.gateHeading } },
     ...beings.list.map((b, i) => ({
       numeral: b.spec.numeral,
       label: b.spec.name,
@@ -540,6 +628,7 @@ function places(): Place[] {
 
 /** Wake at the chosen place. */
 function arrive(c: Choice, first: boolean): void {
+  if (temple.inside) setInside(false);
   standUp();
   player.pos.set(c.x, Math.max(heightAt(c.x, c.z), WATER_Y - 1), c.z);
   player.vel.set(0, 0, 0);
@@ -1087,6 +1176,23 @@ awakeBox.addEventListener("change", () => {
   awake.set(awakeBox.checked);
   persist();
 });
+// Free flight (⋮): the stick flies where you look, and let go you hover (remembered on the device)
+let freeFly = false;
+try {
+  freeFly = localStorage.getItem("inward-journey:freefly") === "1";
+} catch {
+  /* no storage: off */
+}
+const freeBox = $<HTMLInputElement>("#freefly");
+freeBox.checked = freeFly;
+freeBox.addEventListener("change", () => {
+  freeFly = freeBox.checked;
+  try {
+    localStorage.setItem("inward-journey:freefly", freeFly ? "1" : "0");
+  } catch {
+    /* fine */
+  }
+});
 const reducedBox = $<HTMLInputElement>("#reduced");
 reducedBox.checked = S.reduced;
 reducedBox.addEventListener("change", () => {
@@ -1250,7 +1356,8 @@ function update(dt: number): void {
       Object.assign(player, { heading: r.heading, speed: r.speed, vy: r.vy, flying: true, landing: false, grounded: false, swimming: false, gliding: false, pose: "fly", target: null });
       player.vel.set(-Math.sin(r.heading), 0, -Math.cos(r.heading)).multiplyScalar(r.speed);
       follow.pitch += (autofly.pitch - follow.pitch) * Math.min(1, dt * 0.6);
-    } else player.update(dt, { ...input.move, glide: input.boost, run: input.run, hold: input.hold, down: input.descend, pitch: follow.pitch }, follow.yaw);
+    } else player.update(dt, { ...input.move, glide: input.boost, run: input.run, hold: input.hold, down: input.descend, pitch: follow.pitch, free: freeFly }, follow.yaw);
+    follow.freeLook = freeFly && player.flying;
     // the one context word: "Land" high in the air, "Dive" on the water, "Surface" under it
     const ctx = $("#ctx");
     const high = player.flying && !player.landing && player.pos.y - Math.max(heightAt(player.pos.x, player.pos.z), WATER_Y) > 2.5;
@@ -1294,13 +1401,14 @@ function update(dt: number): void {
   narration.update();
 
   // The world streams around the wanderer and answers them.
-  terrain.update(player.pos.x, player.pos.z);
+  const world = !temple.inside; // inside the temple, the open world rests
+  if (world) terrain.update(player.pos.x, player.pos.z);
   life.t = wt;
   life.dt = dt;
   life.speed = player.speed;
   life.reduced = S.reduced;
   life.dpr = dpr;
-  if (S.mode !== "intro") {
+  if (S.mode !== "intro" && world) {
     grass.update(life);
     flowers.update(life);
     blooms.update(life);
@@ -1308,20 +1416,21 @@ function update(dt: number): void {
     lanterns.update(life);
     butterflies.update(life);
   }
-  gliders.update(life);
-  forest.update(player.pos);
-  creation.update(life, (innerHeight * dpr) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
-  spirits.update(life, camera);
+  if (world) gliders.update(life);
+  if (world) forest.update(player.pos);
+  if (world) creation.update(life, (innerHeight * dpr) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
+  if (world) spirits.update(life, camera);
   sparks.update(dt, dpr);
-  landmarks.update(wt, dt, player.pos, S.mode === "play" ? player.speed : 1, S.reduced);
-  if (S.mode === "play") beings.update(wt, dt, player.pos, S.reduced);
+  if (world) landmarks.update(wt, dt, player.pos, S.mode === "play" ? player.speed : 1, S.reduced);
+  if (S.mode === "play" && world) beings.update(wt, dt, player.pos, S.reduced);
   updateSitting(dt);
-  updateTunnel();
-  vessels.update(wt, player.pos, camera, S.reduced, S.mode === "play" && !startMap.isOpen);
+  if (world) updateTunnel();
+  $("#labels").style.visibility = world ? "" : "hidden";
+  if (world) vessels.update(wt, player.pos, camera, S.reduced, S.mode === "play" && !startMap.isOpen);
   tp.subtitlesOn = narration.subtitlesOn;
   tp.update();
-  updateStillness(dt, wt);
-  if (S.mode !== "intro") creatures.update(wt, dt, player.pos, medK, player.speed > 3 || player.gliding, S.reduced);
+  if (world) updateStillness(dt, wt);
+  if (S.mode !== "intro" && world) creatures.update(wt, dt, player.pos, medK, player.speed > 3 || player.gliding, S.reduced);
   const camUnder = camera.position.y < WATER_Y - 0.05;
   post.under.value = camUnder ? 1 : 0;
   post.raysOn.value = camUnder ? 0 : 1 - 0.7 * moods.weights[3]; // the deep night keeps the star's glow small
@@ -1334,11 +1443,11 @@ function update(dt: number): void {
   input.inWater = player.swimming;
   const orbAt = orbPos.set(player.pos.x, player.pos.y + 1.22, player.pos.z);
   const inWater = player.swimming || camUnder;
-  seaLife.update(wt, dt, player.pos, inWater, orbAt, camera.position, (innerHeight * dpr) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
-  fauna.update(wt, dt, player.pos, inWater, orbAt, S.reduced);
-  guide.update(wt, dt, player.pos);
+  if (world) seaLife.update(wt, dt, player.pos, inWater, orbAt, camera.position, (innerHeight * dpr) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
+  if (world) fauna.update(wt, dt, player.pos, inWater, orbAt, S.reduced);
+  if (world) guide.update(wt, dt, player.pos);
   presences.speaking = tp.playing ? 1 : 0;
-  presences.update(wt, dt, player.pos, follow.yaw, follow.underwater);
+  if (world) presences.update(wt, dt, player.pos, follow.yaw, follow.underwater);
   if (player.swimming && !wasSwimming) seaLife.bubbles(player.pos, 18); // into the water
   if (player.diving && Math.random() < dt * 0.6) seaLife.bubbles(player.pos, 1);
   wasSwimming = player.swimming;
@@ -1368,7 +1477,8 @@ function update(dt: number): void {
   glow.set(player.pos.x, S.mode === "intro" ? 0 : 1, player.pos.z);
   water.update(camera.position.x, camera.position.z, glow);
   skyUniforms.uT.value = wt;
-  moods.update(player.pos, dt);
+  if (!temple.inside) moods.update(player.pos, dt);
+  templeFrame(dt);
   if (genesis.active) genesisFrame(dt);
   // the sky's reflection is baked once: baking it again as the moods drifted (every few seconds
   // while travelling) hitched the frame on a phone and made the ground's sheen jump; the moods'
@@ -1448,4 +1558,4 @@ renderer
     quality.hold(3);
   });
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple } });

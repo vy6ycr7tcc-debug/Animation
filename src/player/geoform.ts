@@ -17,7 +17,7 @@ const { abs, cameraPosition, dot, float, mix, normalize, normalWorld, positionGe
     a 3x phone screen and only the core showed, a white ball). */
 function edges(g: THREE.BufferGeometry, color: THREE.Color, uK: ReturnType<typeof uniform>, px: number): THREE.Mesh {
   const e = new THREE.EdgesGeometry(g).attributes.position.array as Float32Array;
-  const mesh = new THREE.Mesh(ribbonGeometry(e), ribbonMaterial(vec3(color.r, color.g, color.b).mul(uK).mul(0.55), px));
+  const mesh = new THREE.Mesh(ribbonGeometry(e), ribbonMaterial(vec3(color.r, color.g, color.b).mul(uK), px));
   mesh.frustumCulled = false;
   return mesh;
 }
@@ -50,9 +50,9 @@ export class GeoForm {
     m.colorNode = vec4(hue.mul(rim.mul(0.5).add(0.03)).mul(this.uK), rim.mul(0.5).add(0.06).mul(this.uK));
     this.core = new THREE.Mesh(g, m);
     this.core.scale.setScalar(0.3);
-    this.inner = edges(new THREE.OctahedronGeometry(1, 0), new THREE.Color(1.0, 0.8, 0.5), this.uK, 1.3);
-    this.outer = edges(new THREE.DodecahedronGeometry(1, 0), new THREE.Color(0.55, 0.78, 1.0), this.uK, 1.1);
-    this.heartEdges = edges(new THREE.TetrahedronGeometry(1, 0), new THREE.Color(1.0, 0.6, 0.75), this.uK, 1.1);
+    this.inner = edges(new THREE.OctahedronGeometry(1, 0), new THREE.Color(1.0, 0.8, 0.5), this.uK, 0.5);
+    this.outer = edges(new THREE.DodecahedronGeometry(1, 0), new THREE.Color(0.55, 0.78, 1.0), this.uK, 0.45);
+    this.heartEdges = edges(new THREE.TetrahedronGeometry(1, 0), new THREE.Color(1.0, 0.6, 0.75), this.uK, 0.45);
     this.group.add(this.core, this.inner, this.outer, this.heartEdges);
     this.group.visible = false;
   }
