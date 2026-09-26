@@ -11,6 +11,7 @@ import { softPoints, spriteCloud, T, type SpriteCloud } from "../gpu/tsl";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { floatAttributes, loadBytes } from "../core/assets";
+import { Flame } from "./flame";
 import { FluidBody, SEGMENTS } from "./fluidBody";
 import { lightBodyMaterial, tickLightBody } from "./lightBody";
 
@@ -293,13 +294,14 @@ export class Wanderer {
   private orb = new THREE.Group();
   private orbCore: THREE.MeshBasicMaterial;
   private ribbons = [new Ribbon(30, 0.035), new Ribbon(30, 0.035), new Ribbon(22, 0.05)];
+  private flame = new Flame();
   private halo: THREE.Sprite;
   private light: THREE.PointLight;
   private k = { swim: 0, water: 0, glide: 0, move: 0, air: 0, sit: 0, reach: 0, fly: 0, soar: 0 };
   private form = 0;
   private flow = 0;
   private landT = 9;
-  private tmp = { a: new THREE.Vector3(), cam: new THREE.Vector3(), off: new THREE.Vector3() };
+  private tmp = { a: new THREE.Vector3(), b: new THREE.Vector3(), cam: new THREE.Vector3(), off: new THREE.Vector3() };
 
   constructor(private camera: THREE.Camera) {
     this.root.add(this.body);
@@ -326,7 +328,7 @@ export class Wanderer {
     this.root.add(this.orb);
     // the fluid body is no longer drawn; its capsules still guide the motes over the figure
     this.fluid.mesh.visible = false;
-    this.fx.add(this.motes.points, ...this.ribbons.map((r) => r.mesh));
+    this.fx.add(this.motes.points, ...this.ribbons.map((r) => r.mesh), this.flame.points, this.flame.core);
   }
 
   /** Ray-march budget for the body (lower on slow devices). */
@@ -465,15 +467,19 @@ export class Wanderer {
     this.halo.position.y = 1.1 + swim * 0.2 - sit * 0.4;
     this.halo.scale.multiplyScalar(1 - swim * 0.4);
     this.halo.material.opacity *= 1 - water; // the water would slice it into a box
+    // in flight the body becomes a flame (Samuel), as in the water it becomes an orb
+    const flameK = THREE.MathUtils.smoothstep(fly, 0.15, 0.85) * (1 - water);
+    this.halo.material.opacity *= 1 - flameK;
+    this.flame.update(dt, this.tmp.a.copy(this.root.position).add(this.tmp.b.set(0, 1.05, 0)), flameK, t, dpr, reduced);
     // the body fades into an orb in the water, and forms again on the shore
-    this.skin.opacity = (1 - water) * f;
+    this.skin.opacity = (1 - water) * (1 - flameK) * f;
     for (const m of this.skinMeshes) m.visible = this.skin.opacity > 0.01;
     tickLightBody(this.skin, t);
     const orbK = THREE.MathUtils.smoothstep(water, 0.2, 1);
     this.orb.scale.setScalar(Math.max(0.001, orbK * (1 + (reduced ? 0 : Math.sin(t * 2.2) * 0.05))));
     this.orb.position.y = 1.22 + (reduced ? 0 : Math.sin(t * 1.3) * 0.04);
     this.orbCore.opacity = orbK;
-    this.motes.points.visible = water < 0.5;
+    this.motes.points.visible = water < 0.5 && flameK < 0.5;
     this.light.intensity = 0;
 
     // Place the fluid body along the skeleton.
