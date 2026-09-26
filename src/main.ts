@@ -926,7 +926,12 @@ function setMenu(open: boolean): void {
   menuBtn.setAttribute("aria-expanded", String(open));
   if (open) $<HTMLInputElement>("#vol").focus();
 }
-menuBtn.addEventListener("click", () => setMenu(menu.hidden));
+// on the touch itself: a phone makes no click of a tap while the other thumb is on the stick
+menuBtn.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  setMenu(menu.hidden);
+});
+menuBtn.addEventListener("click", (e) => e.detail === 0 && setMenu(menu.hidden)); // the keyboard
 addEventListener("keydown", (e) => {
   if (e.key === "Escape" && S.mode === "play") setMenu(menu.hidden);
   if ((e.key === "e" || e.key === "E") && S.mode === "play") (sitting.phase === "none" ? offerSit() : standUp());
