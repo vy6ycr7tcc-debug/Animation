@@ -48,6 +48,16 @@
 </div>
 
 <button id="sit-offer" type="button" hidden></button>
+<button id="cards-offer" type="button" hidden>The cards</button>
+<div id="cards" role="dialog" aria-labelledby="cards-title" hidden>
+  <div id="cards-head">
+    <button id="cards-prev" type="button" aria-label="Previous card">‹</button>
+    <div><p id="cards-title"></p><p id="cards-sub"></p></div>
+    <button id="cards-next" type="button" aria-label="Next card">›</button>
+  </div>
+  <div id="cards-strip"></div>
+  <button id="cards-close" type="button">Leave the cards</button>
+</div>
 <div id="sit-panel" role="dialog" aria-labelledby="sit-title" hidden>
   <p id="sit-title"></p>
   <div id="sit-prompts"></div>

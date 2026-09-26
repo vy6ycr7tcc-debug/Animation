@@ -376,16 +376,19 @@ export class Temple {
   gateAt = new THREE.Vector3();
   gateHeading = 0;
   private shrines: { beings: Beings; pivot: THREE.Group; numeral: string; name: string }[] = [];
+  private centreShaft: THREE.Mesh[] = [];
   private flames: { light: THREE.PointLight; sprite: THREE.Sprite; base: number; phase: number }[] = [];
   private shafts: THREE.MeshBasicNodeMaterial[] = [];
   private uT = uniform(0);
   private local = new THREE.Vector3();
   private myColliders: Collider[] = [];
 
-  constructor(sparks: Sparks, private hooks: TempleHooks) {
+  constructor(private sparks: Sparks, private hooks: TempleHooks) {
     this.group.position.copy(TEMPLE_ORIGIN);
     this.buildHall();
     this.buildShrines(sparks);
+    this.buildStage(sparks);
+    this.showCard(0);
     this.buildLight();
     this.group.visible = false;
     this.buildGate();
@@ -463,6 +466,15 @@ export class Temple {
       worldUV(d, 2);
       stone.push(d);
     }
+    // the Choice's platform at the back of the sanctuary, raised above the ring, with steps
+    block(stone, 9, 1.8, 5, CENTRE.x, 0.9, SANCT_Z1 + 2.6);
+    block(stone, 5, 0.6, 1.2, CENTRE.x, 0.3, SANCT_Z1 + 5.6);
+    block(stone, 5, 1.2, 1.0, CENTRE.x, 0.6, SANCT_Z1 + 5.0);
+    // the altar at the centre, where the cards appear
+    const alt = new THREE.CylinderGeometry(1.0, 1.15, 0.9, 48).toNonIndexed();
+    alt.translate(CENTRE.x, 1.2 + 0.45, CENTRE.z);
+    worldUV(alt, 2);
+    stone.push(alt);
     // plinths for the Spirit's seven, in a ring
     this.ringSpots().forEach(({ x, z }) => {
       const p = new THREE.CylinderGeometry(1.6, 1.8, 0.6, 32).toNonIndexed();
@@ -512,7 +524,7 @@ export class Temple {
     const out: { x: number; z: number; face: number }[] = [];
     for (let i = 0; i < 7; i++) {
       const a = Math.PI * (0.18 + (i / 6) * 0.64) + Math.PI; // from the left, round behind, to the right
-      const x = CENTRE.x + Math.cos(a) * 11.5, z = CENTRE.z + Math.sin(a) * 10.5;
+      const x = CENTRE.x + Math.cos(a) * 11.5, z = CENTRE.z + Math.sin(a) * 9;
       out.push({ x, z, face: Math.atan2(CENTRE.x - x, CENTRE.z - z) });
     }
     return out;
@@ -569,16 +581,182 @@ export class Temple {
       this.group.add(label);
       this.collide(x, z, 1.9);
     });
-    const { label } = place(21, CENTRE.x, 1.35, CENTRE.z, 0);
+    const { label } = place(21, CENTRE.x, 1.8, SANCT_Z1 + 2.6, 0);
     label.scale.setScalar(0.6);
-    label.position.set(CENTRE.x, 1.35, CENTRE.z + 4.6);
-    label.rotation.set(-0.5, 0, 0, "YXZ");
+    label.position.set(CENTRE.x, 2.6, SANCT_Z1 + 5.15);
     this.group.add(label);
-    this.collide(CENTRE.x, CENTRE.z, 2.4);
+    this.collide(CENTRE.x, SANCT_Z1 + 2.6, 4.2);
+    this.collide(CENTRE.x, CENTRE.z, 1.5); // the altar
   }
 
   attach(m: BeingModel): void {
+    this.model = m;
     for (const s of this.shrines) s.beings.attach(m);
+    for (const c of this.cardBeings.values()) c.beings.attach(m);
+  }
+
+  /* ---------- the cards, at the centre of the sanctuary ----------
+     Each card, reimagined: a tall gilded frame standing on the altar, the archetype within it
+     in three dimensions (the being and the objects it holds, as in its shrine), a veil of its
+     own colour behind, its numeral above and its name below. It turns slowly, so its depth shows. */
+  private model: BeingModel | null = null;
+  private stage = new THREE.Group();
+  private cardBeings = new Map<number, { beings: Beings; pivot: THREE.Group }>();
+  private cardShown = -1;
+  /** Each being stood off-centre in its landmark: on the card it stands in the middle. */
+  private cardOffset = new Map<number, THREE.Vector3>();
+  private cardK = 0;
+  private cardPrev: THREE.Group | null = null;
+  private cardPrevK = 0;
+  private veilColor = uniform(new THREE.Color(1, 1, 1));
+  private plateTop!: THREE.Mesh;
+  private plateBottom!: THREE.Mesh;
+  cardsOpen = false;
+
+  private buildStage(sparks: Sparks): void {
+    this.stage.position.set(CENTRE.x, 2.1, CENTRE.z);
+    this.group.add(this.stage);
+    const W = 2.7, H = 4.3;
+    // the frame: thin gilded bars, a double border like a card's
+    const gold = new THREE.MeshStandardNodeMaterial({ color: 0xc9a050, roughness: 0.35, metalness: 0.85 });
+    const bars: THREE.BufferGeometry[] = [];
+    for (const inset of [0, 0.16]) {
+      const w = W - inset * 2, h = H - inset * 2, t = inset ? 0.035 : 0.07;
+      for (const [x, y, bw, bh] of [[0, h / 2, w, t], [0, -h / 2, w, t], [-w / 2, 0, t, h], [w / 2, 0, t, h]]) {
+        const b = new THREE.BoxGeometry(bw, bh, t).toNonIndexed();
+        b.translate(x, y + H / 2, -0.9);
+        bars.push(b);
+      }
+    }
+    const frame = new THREE.Mesh(merged(bars), gold);
+    this.stage.add(frame);
+    // the veil behind the figure: its colour, deepening toward the edges, a few stars
+    // opaque: the card is a world of its own, the sanctuary behind it hidden
+    const vm = new THREE.MeshBasicNodeMaterial({ side: THREE.DoubleSide, fog: false });
+    const q = uv().sub(0.5);
+    const glowV = exp(length(q.mul(vec3(1.5, 1.0, 0).xy)).mul(-2.6));
+    const cell = T.floor(uv().mul(vec3(40, 64, 0).xy));
+    const star = T.step(0.975, T.fract(T.sin(T.dot(cell, vec3(12.9898, 78.233, 0).xy)).mul(43758.5)));
+    const night = vec3(0.025, 0.03, 0.07);
+    vm.colorNode = vec4(night.add(this.veilColor.mul(glowV.mul(0.1))).add(vec3(1, 0.95, 0.85).mul(star.mul(0.3))), 1);
+    const veil = new THREE.Mesh(new THREE.PlaneGeometry(W - 0.34, H - 0.34), vm);
+    veil.position.set(0, H / 2, -0.95);
+    this.stage.add(veil);
+    // plates for the numeral (above) and the name (below)
+    const plate = (y: number, w: number, h: number) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicNodeMaterial({ transparent: true, fog: false }));
+      m.position.set(0, y, -0.86);
+      this.stage.add(m);
+      return m;
+    };
+    this.plateTop = plate(H + 0.45, 1.6, 0.6);
+    this.plateBottom = plate(-0.35, 3.0, 0.55);
+    void sparks;
+  }
+
+  private plateTexture(text: string, italic: boolean): THREE.CanvasTexture {
+    const [c, g] = canvas(512, 112);
+    g.fillStyle = "rgba(20,14,8,0.0)";
+    g.fillRect(0, 0, 512, 112);
+    g.fillStyle = "#e6c06a";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.font = italic ? "italic 46px Georgia, 'Times New Roman', serif" : "600 72px Georgia, 'Times New Roman', serif";
+    g.fillText(text, 256, 58);
+    return canvasTexture(c, false);
+  }
+
+  /** Where the cards are (world), and where to look at them from. */
+  cardView(out: { pos: THREE.Vector3; target: THREE.Vector3 }): void {
+    // the card stands above the panel of controls, which covers the lower part of the view
+    out.target.set(CENTRE.x, 3.35, CENTRE.z).add(TEMPLE_ORIGIN);
+    out.pos.set(CENTRE.x, 3.3, CENTRE.z + 6.6).add(TEMPLE_ORIGIN);
+  }
+
+  /** Near enough the altar to take up the cards. */
+  nearCards(p: THREE.Vector3): boolean {
+    return Math.hypot(p.x - TEMPLE_ORIGIN.x - CENTRE.x, p.z - TEMPLE_ORIGIN.z - CENTRE.z) < 6.5;
+  }
+
+  /** The archetype of card `i` (0–21): numeral, name, realm, place. */
+  cardInfo(i: number): { numeral: string; name: string; realm: string; place: string } {
+    const s = this.shrines[i];
+    const POS = ["Matrix", "Potentiator", "Catalyst", "Experience", "Significator", "Transformation", "Great Way"];
+    const b = s.beings.list[0];
+    return { numeral: s.numeral, name: s.name, realm: i === 21 ? "" : b.spec.realm, place: i === 21 ? "The Choice" : POS[i % 7] };
+  }
+
+  showCard(i: number): void {
+    if (i === this.cardShown) return;
+    const old = this.cardBeings.get(this.cardShown);
+    if (old) {
+      this.cardPrev = old.pivot;
+      this.cardPrevK = this.cardK;
+    }
+    this.cardShown = i;
+    this.cardK = 0;
+    let c = this.cardBeings.get(i);
+    if (!c) {
+      const pivot = new THREE.Group();
+      const stations: Station[] = [];
+      stations[i] = { center: new THREE.Vector3(0, 0, 0) } as unknown as Station;
+      const beings = new Beings(stations, this.sparks);
+      for (const b of beings.list) b.spec.under = false;
+      if (this.model) beings.attach(this.model);
+      pivot.add(beings.group);
+      pivot.position.set(0, 0.3, -0.2);
+      pivot.scale.setScalar(1.3);
+      this.stage.add(pivot);
+      c = { beings, pivot };
+      this.cardBeings.set(i, c);
+      this.cardOffset.set(i, new THREE.Vector3(...beings.list[0].spec.at));
+    }
+    c.pivot.visible = true;
+    const b = c.beings.list[0];
+    this.veilColor.value.setRGB(...b.spec.tint).multiplyScalar(0.8);
+    for (const [plate, text, italic] of [[this.plateTop, b.spec.numeral, false], [this.plateBottom, b.spec.name, true]] as [THREE.Mesh, string, boolean][]) {
+      const m = plate.material as THREE.MeshBasicNodeMaterial;
+      m.map?.dispose();
+      m.map = this.plateTexture(text, italic);
+    }
+    (this.plateTop.material as THREE.Material).needsUpdate = true;
+    (this.plateBottom.material as THREE.Material).needsUpdate = true;
+  }
+
+  private updateStage(t: number, dt: number, player: THREE.Vector3, reduced: boolean): void {
+    this.stage.visible = this.cardShown >= 0;
+    for (const m of this.centreShaft) m.visible = !this.cardsOpen; // it fell straight through the card
+    if (!this.stage.visible) return;
+    this.stage.rotation.y = reduced ? 0 : Math.sin(t * 0.25) * 0.38;
+    this.cardK = Math.min(1, this.cardK + dt / 0.8);
+    const ease = (k: number) => k * k * (3 - 2 * k);
+    const cur = this.cardBeings.get(this.cardShown);
+    if (cur) {
+      const k = ease(this.cardK);
+      const off = this.cardOffset.get(this.cardShown)!;
+      const sc = 1.3 * (0.4 + 0.6 * k);
+      cur.pivot.scale.setScalar(sc);
+      cur.pivot.position.set(-off.x * sc, 0.3 - off.y * sc - (1 - k) * 0.6, -0.2 - off.z * sc);
+      cur.pivot.worldToLocal(this.local.copy(player));
+      cur.beings.update(t, dt, this.local, reduced);
+      // on the card, no halo or greeting ring: a haze over the whole picture
+      for (const b of cur.beings.list) {
+        const bb = b as unknown as { halo: THREE.Object3D; ring: THREE.Object3D };
+        bb.halo.visible = false;
+        bb.ring.visible = false;
+      }
+    }
+    if (this.cardPrev) {
+      this.cardPrevK -= dt / 0.5;
+      if (this.cardPrevK <= 0) {
+        this.cardPrev.visible = false;
+        this.cardPrev = null;
+      } else {
+        const k = ease(this.cardPrevK);
+        this.cardPrev.scale.setScalar(1.3 * (0.4 + 0.6 * k));
+        this.cardPrev.position.y += dt * 1.5;
+      }
+    }
   }
 
   private buildLight(): void {
@@ -638,13 +816,16 @@ export class Temple {
       const shimmer = float(0.85).add(T.sin(this.uT.mul(0.3).add(u.y.mul(4)).add(x)).mul(0.15));
       m.colorNode = vec4(vec3(1.0, 0.88, 0.66).mul(across.mul(along).mul(shimmer).mul(k)), 1);
       this.shafts.push(m);
+      const out: THREE.Mesh[] = [];
       for (const ry of [0, Math.PI / 2]) {
         const q = new THREE.Mesh(new THREE.PlaneGeometry(w, h), m);
         q.position.set(x, y, z);
         q.rotation.set(0, ry, tilt, "YXZ");
         q.renderOrder = 5;
         this.group.add(q);
+        out.push(q);
       }
+      return out;
     };
     // daylight beyond: behind the clerestory's grilles, in the door, above the opening
     const day = new THREE.MeshBasicNodeMaterial({ color: new THREE.Color(1.0, 0.86, 0.62), fog: false, side: THREE.DoubleSide });
@@ -663,7 +844,7 @@ export class Temple {
     sky.rotation.x = Math.PI / 2;
     this.group.add(sky);
     for (let z = HALL_Z0 - 6; z > HALL_Z1 + 3; z -= 12) shaft(1.4, 16, 1.6, 7.5, z - 0.8, 0.42, 0.05);
-    shaft(5, 15, CENTRE.x, 8.5, CENTRE.z, 0, 0.07);
+    this.centreShaft = shaft(5, 15, CENTRE.x, 8.5, CENTRE.z, 0, 0.07);
   }
 
   /** The pylon in the open world: two battered towers and a door between them, glowing within. */
@@ -795,6 +976,7 @@ export class Temple {
       const k = reduced ? 1 : 0.85 + 0.1 * Math.sin(t * 11 + f.phase) + 0.06 * Math.sin(t * 23 + f.phase * 2);
       f.light.intensity = f.base * k;
     }
+    this.updateStage(t, dt, player, reduced);
     for (const s of this.shrines) {
       s.pivot.worldToLocal(this.local.copy(player));
       const wasMet = s.beings.list[0]?.met;
