@@ -13,8 +13,9 @@
      alcoves, one for each archetype (those you have met hold their light, and a touch lets them
      speak again). At its centre, a ring of stillness. Swim back out through the way you came. */
 import * as THREE from "three/webgpu";
-import { T, worldPoints } from "../gpu/tsl";
+import { T, worldPoints, type N } from "../gpu/tsl";
 import { etchedStone } from "./etching";
+import { columnGeometry, scan, type ScanName } from "./temple";
 import { heightAt, LANDMARK_KINDS, LANDMARK_SITES, SPAWN, WATER_Y } from "./terrain";
 
 const { abs, atan, cos, float, fract, length, max, mix, positionGeometry, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
@@ -141,38 +142,113 @@ class Ring {
   }
 }
 
-/* ---------------------------------------------------------------- stone, instanced */
+/* ---------------------------------------------------------------- stone: Egypt and Atlantis */
+const film = (h: N): N => cos(vec3(h).add(vec3(0, 0.33, 0.67)).mul(6.28318)).mul(0.5).add(0.5);
+
+/** Scanned sandstone (the temple's own, Poly Haven CC0) laid in the world from three sides, so no
+    scaled block stretches it; worn by the water. Over it, Atlantis (Samuel: "Egyptian rock made
+    and Atlantean iridescent style"): a thin-film sheen like mother-of-pearl where the stone turns
+    from you, and fine inlaid channels of the same shifting colour (bands at the drums' joints, a
+    lattice of glyph-lines on the blocks), glowing enough to read through the water. */
+function ruinStone(set: ScanName, inlay: "bands" | "grid" | "none", uT: N, painted = false): THREE.MeshStandardNodeMaterial {
+  const m = new THREE.MeshStandardNodeMaterial({ metalness: 0, roughness: 0.85 });
+  if (painted) m.vertexColors = true;
+  const S = scan(set);
+  const pw = T.positionWorld, n = T.normalWorldGeometry;
+  const wp = T.pow(abs(n), vec3(4));
+  const w = wp.div(wp.x.add(wp.y).add(wp.z));
+  const tile = 2.6;
+  const tri = (t: THREE.Texture) =>
+    T.texture(t, pw.zy.div(tile)).mul(w.x).add(T.texture(t, pw.xz.div(tile)).mul(w.y)).add(T.texture(t, pw.xy.div(tile)).mul(w.z));
+  const arm = tri(S.arm);
+  let c: N = tri(S.diff).rgb.mul(T.mix(float(0.5), float(1), arm.r));
+  if (painted) c = c.mul(T.vertexColor().rgb.div(vec3(0.77, 0.64, 0.45)).mix(vec3(1), 0.45));
+  m.colorNode = vec4(c.mul(1.15), 1);
+  m.roughnessNode = T.clamp(arm.g, 0.4, 1);
+  const V = T.normalize(T.cameraPosition.sub(pw));
+  const ndv = T.max(T.dot(T.normalWorld, V), 0);
+  const drift = sin(pw.x.mul(0.21).add(sin(pw.z.mul(0.17)).mul(2))).mul(0.5).add(sin(pw.y.mul(0.4).add(pw.z.mul(0.13))).mul(0.5));
+  const f = film(ndv.mul(1.3).add(drift.mul(0.35)).add(uT.mul(0.015)));
+  // the pearl: strongest at grazing angles, faint face-on
+  const pearl = f.mul(T.pow(float(1).sub(ndv), 3).mul(0.3).add(0.025)).mul(float(1).sub(w.y.mul(0.85))); // on the sides, not across a floor
+  let lines: N = float(0);
+  if (inlay === "bands") {
+    const y = fract(pw.y.div(1.1).add(0.5)).sub(0.5).abs();
+    lines = smoothstep(0.03, 0.0, y).mul(float(1).sub(w.y)); // on the sides only, never a whole top
+  } else if (inlay === "grid") {
+    const g = (a: N) => smoothstep(0.018, 0.0, fract(a.div(0.9)).sub(0.5).abs().sub(0.48).abs());
+    const gx = g(pw.x).max(g(pw.z)).mul(float(1).sub(w.y)).add(g(pw.x).max(g(pw.z)).mul(w.y));
+    const gy = g(pw.y).mul(float(1).sub(w.y));
+    // only some channels are lit: the glyph-lines of a script no one reads now
+    const lit = smoothstep(0.8, 0.95, sin(T.floor(pw.x.div(0.9)).mul(12.9).add(T.floor(pw.y.div(0.9)).mul(7.1)).add(T.floor(pw.z.div(0.9)).mul(4.3))).mul(0.5).add(0.5));
+    lines = gx.max(gy).mul(lit);
+  }
+  const breath = sin(uT.mul(0.5).add(pw.x.mul(0.05))).mul(0.2).add(0.8);
+  m.emissiveNode = pearl.add(f.mul(lines).mul(inlay === "grid" ? 0.4 : 0.6).mul(breath)).add(c.mul(0.12));
+  return m;
+}
+
+/** Electrum capstones and crystals: all colour, shifting with the angle. */
+function iridescent(uT: N, k = 1): THREE.MeshBasicNodeMaterial {
+  const m = new THREE.MeshBasicNodeMaterial({ fog: false });
+  const V = T.normalize(T.cameraPosition.sub(T.positionWorld));
+  const ndv = T.max(T.dot(T.normalWorld, V), 0);
+  const f = film(ndv.mul(1.8).add(uT.mul(0.03)).add(T.positionWorld.y.mul(0.08)));
+  m.colorNode = vec4(f.mul(float(0.25).add(T.pow(float(1).sub(ndv), 1.5).mul(0.9))).mul(k), 1);
+  return m;
+}
+
+type Kind = "drum" | "block" | "column" | "shaft" | "tower" | "cap" | "crystal";
 class Stones {
-  drums: THREE.InstancedMesh;
-  blocks: THREE.InstancedMesh;
-  private nd = 0;
-  private nb = 0;
+  meshes: Record<Kind, THREE.InstancedMesh>;
+  private n: Record<Kind, number> = { drum: 0, block: 0, column: 0, shaft: 0, tower: 0, cap: 0, crystal: 0 };
   private m = new THREE.Matrix4();
   private q = new THREE.Quaternion();
-  constructor(max: number, mat: THREE.Material) {
-    this.drums = new THREE.InstancedMesh(new THREE.CylinderGeometry(1, 1, 1, 20), mat, max);
-    this.blocks = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), mat, max);
-    this.drums.count = this.blocks.count = 0;
-    for (const m of [this.drums, this.blocks]) {
-      m.castShadow = false;
-      m.receiveShadow = true;
-      m.frustumCulled = false;
-    }
+  constructor(uT: N) {
+    const col = columnGeometry();
+    col.scale(0.5, 0.5, 0.5); // the temple's papyrus column at half its size: 5.25 m
+    const shaft = new THREE.CylinderGeometry(0.62 * Math.SQRT1_2, Math.SQRT1_2, 1, 4, 1).rotateY(Math.PI / 4);
+    shaft.computeVertexNormals();
+    const tower = new THREE.CylinderGeometry(0.78 * Math.SQRT1_2, Math.SQRT1_2, 1, 4, 1).rotateY(Math.PI / 4);
+    const cap = new THREE.ConeGeometry(Math.SQRT1_2, 1, 4, 1).rotateY(Math.PI / 4);
+    const crystal = new THREE.OctahedronGeometry(1, 0);
+    const blocks = ruinStone("sandstone_blocks_05", "grid", uT), drums = ruinStone("sandstone_cracks", "bands", uT);
+    const columns = ruinStone("sandstone_cracks", "none", uT, true), walls = ruinStone("sandstone_blocks_08", "grid", uT);
+    const mk = (g: THREE.BufferGeometry, mat: THREE.Material, max: number) => {
+      const im = new THREE.InstancedMesh(g, mat, max);
+      im.count = 0;
+      im.frustumCulled = false;
+      im.receiveShadow = true;
+      return im;
+    };
+    this.meshes = {
+      drum: mk(new THREE.CylinderGeometry(1, 1.02, 1, 24), drums, 400),
+      block: mk(new THREE.BoxGeometry(1, 1, 1), blocks, 300),
+      column: mk(col, columns, 80),
+      shaft: mk(shaft, blocks, 20),
+      tower: mk(tower, walls, 20),
+      cap: mk(cap, iridescent(uT, 1.2), 20),
+      crystal: mk(crystal, iridescent(uT, 1.6), 40),
+    };
+  }
+  put(kind: Kind, x: number, y: number, z: number, sx: number, sy: number, sz: number, rx = 0, ry = 0, rz = 0): void {
+    this.q.setFromEuler(new THREE.Euler(rx, ry, rz));
+    const im = this.meshes[kind];
+    if (this.n[kind] >= im.instanceMatrix.count) return;
+    im.setMatrixAt(this.n[kind]++, this.m.compose(new V(x, y, z), this.q, new V(sx, sy, sz)));
+    im.count = this.n[kind];
   }
   drum(x: number, y: number, z: number, r: number, h: number, rx = 0, ry = 0, rz = 0): void {
-    this.q.setFromEuler(new THREE.Euler(rx, ry, rz));
-    this.drums.setMatrixAt(this.nd++, this.m.compose(new V(x, y, z), this.q, new V(r, h, r)));
-    this.drums.count = this.nd;
+    this.put("drum", x, y, z, r, h, r, rx, ry, rz);
   }
   block(x: number, y: number, z: number, sx: number, sy: number, sz: number, ry = 0, rx = 0, rz = 0): void {
-    this.q.setFromEuler(new THREE.Euler(rx, ry, rz));
-    this.blocks.setMatrixAt(this.nb++, this.m.compose(new V(x, y, z), this.q, new V(sx, sy, sz)));
-    this.blocks.count = this.nb;
+    this.put("block", x, y, z, sx, sy, sz, rx, ry, rz);
   }
   done(): void {
-    this.drums.instanceMatrix.needsUpdate = this.blocks.instanceMatrix.needsUpdate = true;
-    this.drums.computeBoundingSphere();
-    this.blocks.computeBoundingSphere();
+    for (const im of Object.values(this.meshes)) {
+      im.instanceMatrix.needsUpdate = true;
+      im.computeBoundingSphere();
+    }
   }
 }
 
@@ -183,8 +259,23 @@ function buildRuin(s: Stones, site: RuinSite, lights: number[]): void {
   const at = (lx: number, lz: number) => [site.x + lx * cs - lz * sn, site.z + lx * sn + lz * cs] as const;
   const floor = (x: number, z: number) => heightAt(x, z);
   const light = (x: number, y: number, z: number) => lights.push(x, y, z);
+  /** An obelisk: standing, leaning, or fallen along the floor; its pyramidion of electrum. */
+  const obelisk = (x: number, z: number, h: number, fate: number, dir: number) => {
+    const fy = floor(x, z);
+    if (fate < 0.5) {
+      const lean = fate < 0.25 ? 0 : 0.14;
+      s.put("shaft", x, fy + h / 2 - 0.3, z, 1.1, h, 1.1, lean, dir, 0);
+      s.put("cap", x + Math.sin(lean) * h * Math.sin(dir), fy + h - 0.3 + 0.45, z + Math.sin(lean) * h * Math.cos(dir), 0.7, 0.9, 0.7, lean, dir, 0);
+      light(x, fy + h + 1.2, z);
+    } else {
+      const cx = x + Math.cos(dir) * h * 0.5, cz = z + Math.sin(dir) * h * 0.5;
+      s.put("shaft", cx, floor(cx, cz) + 0.5, cz, 1.1, h, 1.1, Math.PI / 2 - 0.05, 0, -dir + Math.PI / 2);
+      const tx = x + Math.cos(dir) * (h + 0.4), tz = z + Math.sin(dir) * (h + 0.4);
+      s.put("cap", tx, floor(tx, tz) + 0.4, tz, 0.7, 0.9, 0.7, 0.3, dir, 1.2);
+    }
+  };
   if (site.kind === "ring") {
-    // a stepped round floor, and ten columns around it: some standing whole, some broken, some fallen
+    // a stepped round floor; papyrus columns around it: some standing whole, some broken, some fallen
     const [cx, cz] = at(0, 0);
     const fy = floor(cx, cz);
     s.drum(cx, fy + 0.1, cz, 9.2, 0.6);
@@ -196,85 +287,83 @@ function buildRuin(s: Stones, site: RuinSite, lights: number[]): void {
       const [x, z] = at(Math.cos(a) * R0, Math.sin(a) * R0);
       const base = fy + 0.7;
       const fate = R();
-      if (fate < 0.45) {
-        // standing whole: five drums and a capital
-        for (let k = 0; k < 5; k++) s.drum(x + (R() - 0.5) * 0.05, base + 0.55 + k * 1.1, z + (R() - 0.5) * 0.05, 0.55, 1.08, 0, R() * 3, (R() - 0.5) * 0.02);
-        s.block(x, base + 5.65, z, 1.5, 0.35, 1.5, a);
+      if (fate < 0.5) {
+        s.put("column", x, base, z, 1, 1, 1, 0, R() * 6, 0);
         whole.push(true);
-        if (R() < 0.5) light(x, base + 6.1, z);
-      } else if (fate < 0.75) {
-        // broken: a stump of one to three drums, the rest fallen outward
-        const k0 = 1 + Math.floor(R() * 3);
-        for (let k = 0; k < k0; k++) s.drum(x, base + 0.55 + k * 1.1, z, 0.55, 1.08, 0, R() * 3, 0);
+        if (R() < 0.35) s.put("crystal", x, base + 6.3, z, 0.35, 0.6, 0.35, 0, R() * 3, 0); // a crystal left on the capital
+      } else if (fate < 0.8) {
+        const k0 = 1 + Math.floor(R() * 2);
+        for (let k = 0; k < k0; k++) s.drum(x, base + 0.5 + k * 1.02, z, 0.6, 1.0, 0, R() * 3, 0);
         const out = a + (R() - 0.5) * 0.8;
-        for (let k = 0; k < 5 - k0; k++) {
-          const d = 1.6 + k * 1.15 + R() * 0.3;
+        for (let k = 0; k < 4 - k0; k++) {
+          const d = 1.6 + k * 1.05 + R() * 0.3;
           const fx = x + Math.cos(out) * d, fz = z + Math.sin(out) * d;
-          s.drum(fx, floor(fx, fz) + 0.45, fz, 0.55, 1.08, Math.PI / 2, 0, -out + (R() - 0.5) * 0.3);
+          s.drum(fx, floor(fx, fz) + 0.5, fz, 0.6, 1.0, Math.PI / 2, 0, -out + (R() - 0.5) * 0.3);
         }
         whole.push(false);
       } else {
-        // fallen whole, lying across the floor
+        // fallen whole across the floor
         const out = a + Math.PI / 2 + (R() - 0.5);
-        for (let k = 0; k < 4; k++) {
-          const d = 0.6 + k * 1.12;
-          const fx = x + Math.cos(out) * d, fz = z + Math.sin(out) * d;
-          s.drum(fx, Math.max(floor(fx, fz), base - 0.5) + 0.5, fz, 0.55, 1.08, Math.PI / 2, 0, -out);
-        }
+        const cxx = x + Math.cos(out) * 2.6, czz = z + Math.sin(out) * 2.6;
+        s.put("column", cxx - Math.cos(out) * 2.6, Math.max(floor(cxx, czz), base - 0.4) + 0.55, czz - Math.sin(out) * 2.6, 1, 1, 1, 0, 0, 0);
+        const im = s.meshes.column;
+        // lay the one just placed on its side, pointing along `out`
+        const m4 = new THREE.Matrix4().compose(new V(x, Math.max(floor(cxx, czz), base - 0.4) + 0.55, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -out, -Math.PI / 2 + 0.04, "YXZ")), new V(1, 1, 1));
+        im.setMatrixAt(im.count - 1, m4);
         whole.push(false);
       }
     }
-    // lintels where two neighbours still stand
     for (let i = 0; i < n; i++) {
       if (!whole[i] || !whole[(i + 1) % n]) continue;
       const a = ((i + 0.5) / n) * Math.PI * 2;
       const [x, z] = at(Math.cos(a) * R0, Math.sin(a) * R0);
-      s.block(x, fy + 0.7 + 6.05, z, 4.7, 0.7, 1.1, -a + Math.PI / 2);
+      s.block(x, fy + 0.7 + 5.6, z, 4.6, 0.7, 1.2, -a + Math.PI / 2);
     }
+    light(cx, fy + 7, cz);
   } else if (site.kind === "gate") {
-    // two pillars of great blocks and the lintel across them, a threshold, stones scattered
+    // a pylon gateway: two battered towers (one broken lower), the lintel between, a threshold;
+    // an obelisk fallen before it and an electrum crystal hanging in the doorway
     for (const side of [-1, 1]) {
-      const [x, z] = at(side * 2.6, 0);
+      const [x, z] = at(side * 4.4, 0);
       const fy = floor(x, z);
-      for (let k = 0; k < 5; k++) s.block(x + (R() - 0.5) * 0.08, fy + 0.8 + k * 1.55, z, 1.5, 1.52, 1.5, site.rot + (R() - 0.5) * 0.05);
-      light(x, fy + 8.6, z);
+      const h = side < 0 ? 10 : 6.5 + R() * 1.5;
+      s.put("tower", x, fy + h / 2 - 0.4, z, 4.6, h, 2.8, 0, -site.rot, 0);
+      light(x, fy + h + 0.6, z);
     }
     const [gx, gz] = at(0, 0);
     const gy = floor(gx, gz);
-    s.block(gx, gy + 8.4, gz, 7.4, 1.2, 1.8, -site.rot);
-    s.block(gx, gy + 0.15, gz, 3.8, 0.3, 1.6, -site.rot);
-    for (let k = 0; k < 7; k++) {
-      const [x, z] = at((R() - 0.5) * 14, (R() - 0.5) * 12);
+    s.block(gx, gy + 6.6, gz, 4.8, 1.2, 2.2, -site.rot);
+    s.block(gx, gy + 0.15, gz, 3.6, 0.3, 2.2, -site.rot);
+    s.put("crystal", gx, gy + 3.6, gz, 0.6, 1.1, 0.6, 0, R() * 3, 0);
+    const [ox, oz] = at(-3, 7);
+    obelisk(ox, oz, 9, 0.8, site.rot + 0.4);
+    for (let k = 0; k < 6; k++) {
+      const [x, z] = at((R() - 0.5) * 16, (R() - 0.5) * 12);
       s.block(x, floor(x, z) + 0.4, z, 1.2 + R(), 0.8 + R() * 0.4, 1.0 + R() * 0.6, R() * 3, (R() - 0.5) * 0.4, (R() - 0.5) * 0.4);
     }
   } else {
-    // a stair climbing to a platform with two broken columns
+    // a stair up to a platform where an obelisk still stands, capped in electrum; papyrus
+    // column stumps at its corners
     const [px, pz] = at(0, -4.5);
     const py = floor(px, pz);
     s.block(px, py + 2.6, pz, 7, 0.5, 6, -site.rot);
     s.block(px, py + 1.2, pz, 6.6, 2.4, 5.6, -site.rot);
     for (let k = 0; k < 7; k++) {
       const [x, z] = at(0, -1.2 + k * 0.75);
-      s.block(x, py + 2.4 - k * 0.36 - 0.18, z, 4.2, 0.36 + (6 - k) * 0.0, 0.75, -site.rot);
+      s.block(x, py + 2.4 - k * 0.36 - 0.18, z, 4.2, 0.36, 0.75, -site.rot);
     }
-    for (const side of [-1, 1]) {
-      const [x, z] = at(side * 2.4, -6);
-      const h = 1 + Math.floor(R() * 3);
-      for (let k = 0; k < h; k++) s.drum(x, py + 2.85 + 0.55 + k * 1.1, z, 0.5, 1.08, 0, R() * 3, 0);
-      light(x, py + 2.85 + h * 1.1 + 0.3, z);
+    const [ox, oz] = at(0, -5.2);
+    s.put("shaft", ox, py + 2.85 + 4.5, oz, 1.2, 9, 1.2, 0, -site.rot, 0);
+    s.put("cap", ox, py + 2.85 + 9 + 0.45, oz, 0.84, 0.9, 0.84, 0, -site.rot, 0);
+    light(ox, py + 13.6, oz);
+    for (const [sx, sz] of [[-2.8, -2.2], [2.8, -2.2], [-2.8, -6.8], [2.8, -6.8]]) {
+      const [x, z] = at(sx, sz);
+      const h = 1 + Math.floor(R() * 2);
+      for (let k = 0; k < h; k++) s.drum(x, py + 2.85 + 0.5 + k * 1.0, z, 0.5, 1.0, 0, R() * 3, 0);
     }
+    const [fx, fz] = at(5, 3);
+    obelisk(fx, fz, 7, 0.9, site.rot - 0.8);
   }
-}
-
-/** Stone that has lain long in the deep: its etched lattice faint, and a soft glow of settled
-    life on its upper faces, so its forms read through the water (as the fish's glass light does). */
-function settled(m: THREE.MeshStandardNodeMaterial): THREE.MeshStandardNodeMaterial {
-  const up = smoothstep(0.2, 0.9, T.normalWorld.y);
-  const p = T.positionWorld;
-  const patch = sin(p.x.mul(0.9).add(sin(p.z.mul(0.7)).mul(2))).mul(sin(p.z.mul(1.1).add(p.y.mul(0.8)))).mul(0.5).add(0.5);
-  const moss = vec3(0.05, 0.16, 0.14).mul(up.mul(patch.mul(0.7).add(0.3))).add(vec3(0.03, 0.06, 0.08));
-  m.emissiveNode = (m.emissiveNode as ReturnType<typeof vec3>).mul(0.35).add(moss);
-  return m;
 }
 
 /* ---------------------------------------------------------------- cave mouths */
@@ -337,14 +426,14 @@ export class Depths {
   private col = new THREE.Color();
   private ray = new THREE.Raycaster();
   private lastReflection = -1;
+  private uT = uniform(0);
 
   constructor(items: ArchiveItem[], beings: Being[]) {
-    const stone = settled(etchedStone("#8c887f", "#e9c37d", 2.6));
-    const s = new Stones(700, stone);
+    const s = new Stones(this.uT);
     const lights: number[] = [];
     for (const r of RUIN_SITES) buildRuin(s, r, lights);
     s.done();
-    this.group.add(s.drums, s.blocks);
+    this.group.add(...Object.values(s.meshes));
     // soft lights settled on the stones
     if (lights.length) {
       const pts = worldPoints(new Float32Array(lights), { color: new THREE.Color(0.75, 0.95, 1.0), size: 1.1, opacity: 0.55 });
@@ -355,7 +444,7 @@ export class Depths {
       this.rings.push(ring);
       this.group.add(ring.mesh);
     }
-    const mouthStone = settled(etchedStone("#6f6c68", "#e9c37d", 2.2));
+    const mouthStone = ruinStone("sandstone_blocks_08", "grid", this.uT);
     for (const m of MOUTH_SITES) {
       const b = buildMouth(m, mouthStone);
       this.group.add(b.group);
@@ -553,6 +642,7 @@ export class Depths {
   /** Each frame. Returns the ring of stillness the wanderer rests in, if any. */
   update(t: number, player: THREE.Vector3, inWater: boolean, near: boolean): Ring | null {
     this.group.visible = !this.inside && (inWater || near);
+    this.uT.value = t;
     for (const m of this.mouths) (m.door as unknown as { timeU: { value: number } }).timeU.value = t;
     let inRing: Ring | null = null;
     const rings = this.inside ? [this.centreRing] : this.group.visible ? this.rings : [];

@@ -671,13 +671,23 @@ export class Wanderer {
       const chest = this.bonePos("DEF-spine.003", new THREE.Vector3());
       if (T.pose === "ground") {
         // the right palm on the earth ahead; the left hand rests on the right knee
-        const c = T.contact.clone();
-        const off = c.clone().sub(chest).setY(0);
-        const d = THREE.MathUtils.clamp(off.length(), 0.18, 0.34);
-        off.normalize().multiplyScalar(d);
-        const palm = chest.clone().add(off).addScaledVector(right, 0.12).setY(c.y + 0.1 + 0.015 * breath);
-        this.reachTo("R", palm, right.clone().addScaledVector(fwd, -0.4), k);
-        this.aimBone("DEF-hand.R", fwd.clone().addScaledVector(up, -0.25), k);
+        // the palm flat on the soil, just ahead and outside the front foot
+        void chest;
+        const palm = this.root.position.clone().addScaledVector(fwd, 0.5).addScaledVector(right, 0.2).setY(T.contact.y + 0.05 + 0.012 * breath);
+        // bow as deep as it takes for the hand to reach the earth (the arms are short)
+        const sh = new THREE.Vector3(), el = new THREE.Vector3(), wr = new THREE.Vector3();
+        this.bonePos("DEF-upper_arm.R", sh);
+        this.bonePos("DEF-forearm.R", el);
+        this.bonePos("DEF-hand.R", wr);
+        const reach = sh.distanceTo(el) + el.distanceTo(wr) - 0.015;
+        for (let i = 0; i < 5; i++) {
+          this.bonePos("DEF-upper_arm.R", sh);
+          const gap = sh.distanceTo(palm) - reach;
+          if (gap <= 0) break;
+          bend("DEF-spine.002", -Math.min(0.3, gap * 1.6 + 0.02));
+        }
+        this.reachTo("R", palm, right.clone().addScaledVector(fwd, -0.3).addScaledVector(up, 0.2), k);
+        this.aimBone("DEF-hand.R", fwd.clone().addScaledVector(up, -0.12), k);
         const knee = this.bonePos("DEF-shin.R", new THREE.Vector3()).addScaledVector(up, 0.1).addScaledVector(right, -0.03);
         this.reachTo("L", knee, right.clone().multiplyScalar(-1).addScaledVector(up, -0.5), k);
       } else {

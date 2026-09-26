@@ -11,8 +11,8 @@
 <link rel="stylesheet" href="./src/style.css">
 </head>
 <body class="loading">
-<!-- While the world is built and its shaders compile: a seed of light drawing itself, and a
-     quiet line to sit with (written for the game; not quotations). -->
+<!-- While the world is built and its shaders compile: a seed of light drawing itself in the
+     dark. Then the opening (main.ts): touch the light, and the words come out of the dark. -->
 <div id="loading" role="status" aria-live="polite">
   <svg class="seed" viewBox="-64 -64 128 128" aria-hidden="true">
     <g class="turn">
@@ -29,41 +29,8 @@
     <circle class="heart" r="3"/>
   </svg>
   <p id="loading-line"></p>
+  <button id="opening-skip" type="button" hidden>Skip</button>
 </div>
-<script>
-  (function () {
-    var lines = [
-      "Walk slowly. The world is listening.",
-      "Every light you meet is the one light, wearing another face.",
-      "Stillness is not the absence of movement. It is the presence of attention.",
-      "The dark is not empty. It is where the stars are kept.",
-      "Nothing here needs to be won. Only noticed.",
-      "Each step inward is also a step toward everything.",
-      "Breathe in the night. Breathe out whatever you carried here.",
-      "The mind is a garden. Tend what you would see grow.",
-      "You are not late. You arrived exactly when you arrived.",
-      "Every difficulty is a door. How you walk through it is yours.",
-      "A question is already a small light, looking for its way.",
-      "The water remembers the sky, even at night.",
-      "Let the heart be the lantern; the path will show itself.",
-      "Touch one thread, and the whole web answers.",
-      "Rest a moment. The resting is also the journey.",
-      "What you are looking for is looking through your eyes."
-    ];
-    var el = document.getElementById("loading-line");
-    var i = Math.floor(Math.random() * lines.length);
-    function show() {
-      el.classList.remove("on");
-      setTimeout(function () {
-        el.textContent = lines[i];
-        i = (i + 1) % lines.length;
-        el.classList.add("on");
-      }, el.textContent ? 1400 : 0);
-    }
-    show();
-    window.__loadingLines = setInterval(show, 7500);
-  })();
-</script>
 <canvas id="gl" aria-hidden="true"></canvas>
 <div id="surface" aria-hidden="true"></div>
 
