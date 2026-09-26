@@ -1082,7 +1082,7 @@ function readings(): string {
     `fps ${stats.fps.toFixed(1)} · avg ${stats.avgMs.toFixed(1)} ms · worst ${stats.worstMs.toFixed(0)} ms`,
     `tier ${quality.current.name} · dpr ${dpr.toFixed(2)} of ${devicePixelRatio} · scale ${quality.scale.toFixed(1)} · ${px}`,
     `${quality.reason} · ${shadersReady ? "shaders ready" : "compiling shaders…"}`,
-    `${ri.calls} draws · ${(ri.triangles / 1000).toFixed(0)}k tris`,
+    `${ri.drawCalls} draws · ${(ri.triangles / 1000).toFixed(0)}k tris`, // this frame's (calls counts since the start)
     `audio ${audio.ctx?.state ?? "off"} · session ${audio.sessionType} · voice ${narration.current ?? "-"}`,
     `sky ${MOOD_NAMES.map((n, i) => `${n} ${(moods.weights[i] * 100).toFixed(0)}`).filter((x) => !x.endsWith(" 0")).join(" · ")}`,
     `pos ${player.pos.x.toFixed(1)}, ${player.pos.y.toFixed(1)}, ${player.pos.z.toFixed(1)} · ${player.pose} · lanterns ${lanterns.litCount}`,
