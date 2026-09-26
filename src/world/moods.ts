@@ -45,6 +45,8 @@ interface Mood {
 
 const C = (r: number, g: number, b: number) => new THREE.Color(r, g, b);
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z).normalize();
+/** A colour from Samuel's palettes (sRGB hex), at a brightness `k` for the night's scale. */
+const H = (hex: string, k = 1) => new THREE.Color(hex).multiplyScalar(k);
 
 const NIGHT: Mood = {
   zen: C(0.016, 0.022, 0.072), mid: C(0.038, 0.043, 0.12), hor: C(0.105, 0.1, 0.22),
@@ -63,12 +65,14 @@ const SUNRISE: Mood = {
   density: 0.0028, cloudShade: C(0.24, 0.26, 0.45), cloudLight: C(1.0, 0.66, 0.58),
 };
 const SUNSET: Mood = {
-  zen: C(0.025, 0.018, 0.09), mid: C(0.18, 0.055, 0.22), hor: C(0.95, 0.34, 0.13),
-  fog: C(0.27, 0.13, 0.22), glow: C(0.9, 0.38, 0.17),
-  sun: V(-1, 0.03, -0.15), sunCol: C(1.0, 0.42, 0.17), sunK: 1,
-  stars: 0.35, deep: 0, moonK: 0.15,
-  light: C(2.1, 1.3, 0.95), hemiSky: C(0.55, 0.36, 0.66), hemiGround: C(0.18, 0.08, 0.13), hemi: 0.9, env: 1.6,
-  density: 0.0038, cloudShade: C(0.2, 0.1, 0.22), cloudLight: C(1.0, 0.5, 0.3),
+  // west: Samuel's palette of clouds catching the sunset: blue-grey above, mauve, then orange
+  // and burnt orange low down (#737597, #785566, #D97D4A, #D15C26)
+  zen: H("#737597", 0.4), mid: H("#785566", 0.55), hor: H("#D97D4A", 1.05),
+  fog: H("#785566", 0.32), glow: H("#D97D4A", 0.85),
+  sun: V(-1, 0.03, -0.15), sunCol: H("#D15C26", 0.6), sunK: 1,
+  stars: 0.3, deep: 0, moonK: 0.12,
+  light: C(2.1, 1.35, 1.0), hemiSky: H("#737597", 0.9), hemiGround: H("#785566", 0.3), hemi: 0.9, env: 1.6,
+  density: 0.0036, cloudShade: H("#785566", 0.55), cloudLight: H("#D97D4A", 1.2),
 };
 const DEEP: Mood = {
   zen: C(0.0015, 0.002, 0.007), mid: C(0.004, 0.006, 0.017), hor: C(0.018, 0.02, 0.04),
@@ -99,32 +103,36 @@ const HAZE: Mood = {
   density: 0.003, cloudShade: C(0.3, 0.27, 0.4), cloudLight: C(1.0, 0.84, 0.74),
 };
 const DUSK: Mood = {
-  // north-west: dusk, reds and blues together (Samuel): a deep blue sky overhead, the last red
-  // of the sun burning low along the horizon, violet where they meet, the first stars out
-  zen: C(0.01, 0.025, 0.13), mid: C(0.04, 0.07, 0.3), hor: C(0.72, 0.13, 0.12),
-  fog: C(0.12, 0.08, 0.22), glow: C(0.6, 0.16, 0.16),
-  sun: V(-0.7, -0.02, -0.7), sunCol: C(1.0, 0.2, 0.12), sunK: 0.35, // gone below: only its red remains, low down
+  // north-west: dusk, reds and blues together, in Samuel's dusk palette: navy overhead,
+  // teal-grey below it, the last maroon and burnt orange along the horizon (#25283A, #5E8590,
+  // #6B2F33, #D35A15, #545152)
+  zen: H("#25283A", 0.45), mid: H("#5E8590", 0.32), hor: H("#D35A15", 0.8),
+  fog: H("#25283A", 0.55), glow: H("#6B2F33", 1.1),
+  sun: V(-0.7, -0.02, -0.7), sunCol: H("#D35A15", 0.9), sunK: 0.35, // gone below: only its red remains, low down
   stars: 0.75, deep: 0.2, moonK: 0.12,
-  light: C(1.35, 1.0, 1.25), hemiSky: C(0.3, 0.38, 0.78), hemiGround: C(0.16, 0.06, 0.12), hemi: 0.8, env: 1.3,
-  density: 0.0036, cloudShade: C(0.06, 0.07, 0.24), cloudLight: C(0.8, 0.22, 0.22),
+  light: C(1.35, 1.05, 1.2), hemiSky: H("#5E8590", 0.8), hemiGround: H("#6B2F33", 0.35), hemi: 0.8, env: 1.3,
+  density: 0.0036, cloudShade: H("#25283A", 0.6), cloudLight: H("#6B2F33", 1.3),
 };
 const EMBER: Mood = {
-  // south-west: a deep red sunset, crimson and gold, the sun a red disc on the horizon
-  zen: C(0.03, 0.02, 0.07), mid: C(0.28, 0.08, 0.12), hor: C(1.0, 0.36, 0.1),
-  fog: C(0.3, 0.12, 0.14), glow: C(1.0, 0.4, 0.15),
-  sun: V(-0.7, 0.02, 0.7), sunCol: C(1.0, 0.35, 0.08), sunK: 1,
-  stars: 0.2, deep: 0, moonK: 0.1,
-  light: C(2.2, 1.2, 0.8), hemiSky: C(0.6, 0.32, 0.45), hemiGround: C(0.2, 0.08, 0.1), hemi: 0.9, env: 1.6,
-  density: 0.0036, cloudShade: C(0.22, 0.07, 0.12), cloudLight: C(1.0, 0.45, 0.2),
+  // south-west: Samuel's sunset over the sea: a teal-sage sky, a molten gold-orange sun on the
+  // horizon, dark clouds lit rust from below, the land nearly black (#AE3B13, #846146,
+  // #3B4840, #2F2E2C, #17191B)
+  zen: H("#3B4840", 0.8), mid: H("#6f9a95", 0.55), hor: H("#F09A2A", 0.9),
+  fog: H("#2F2E2C", 0.6), glow: H("#AE3B13", 0.8),
+  sun: V(-0.7, 0.02, 0.7), sunCol: H("#FFB030", 0.55), sunK: 1,
+  stars: 0.15, deep: 0, moonK: 0.08,
+  light: C(2.2, 1.3, 0.8), hemiSky: H("#3B4840", 1.2), hemiGround: H("#846146", 0.3), hemi: 0.85, env: 1.6,
+  density: 0.0036, cloudShade: H("#17191B", 0.9), cloudLight: H("#AE3B13", 1.4),
 };
 const DAWN: Mood = {
-  // south-east: a pink dawn, rose along the horizon, lilac above
-  zen: C(0.03, 0.04, 0.15), mid: C(0.22, 0.13, 0.33), hor: C(0.95, 0.48, 0.58),
-  fog: C(0.24, 0.17, 0.31), glow: C(0.92, 0.55, 0.6),
-  sun: V(0.7, 0.0, 0.7), sunCol: C(1.0, 0.6, 0.62), sunK: 0.7,
-  stars: 0.3, deep: 0, moonK: 0.2,
-  light: C(1.8, 1.45, 1.5), hemiSky: C(0.52, 0.5, 0.8), hemiGround: C(0.18, 0.12, 0.18), hemi: 0.9, env: 1.4,
-  density: 0.003, cloudShade: C(0.26, 0.2, 0.36), cloudLight: C(1.0, 0.7, 0.72),
+  // south-east: Samuel's cyan-to-coral sky: clear cyan above, soft steel blue, a blush of pink,
+  // salmon, and coral red on the horizon (#00B4D8, #9DB9CE, #E2C4CE, #F99B9B, #F1525E)
+  zen: H("#00B4D8", 0.42), mid: H("#9DB9CE", 0.5), hor: H("#F1525E", 0.95),
+  fog: H("#9DB9CE", 0.3), glow: H("#F99B9B", 0.85),
+  sun: V(0.7, 0.0, 0.7), sunCol: H("#F99B9B", 0.6), sunK: 0.6,
+  stars: 0.25, deep: 0, moonK: 0.15,
+  light: C(1.85, 1.45, 1.55), hemiSky: H("#9DB9CE", 0.9), hemiGround: H("#F99B9B", 0.25), hemi: 0.9, env: 1.4,
+  density: 0.003, cloudShade: H("#9DB9CE", 0.45), cloudLight: H("#F99B9B", 1.1),
 };
 
 /** Every mood, and the direction from the shore where it is full (x east, z south). */
