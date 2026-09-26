@@ -252,7 +252,7 @@ let dpr = 1;
 const quality: AdaptiveQuality = new AdaptiveQuality(applyTier);
 function resize(): void {
   const w = innerWidth, h = innerHeight;
-  dpr = Math.min(devicePixelRatio || 1, quality.current.dpr);
+  dpr = quality.dpr;
   renderer.setPixelRatio(dpr);
   composer.setSize(w, h);
   reflection.setSize(w * Math.min(dpr, 1.5), h * Math.min(dpr, 1.5)); // the lakes' mirror needn't be as sharp as the world
@@ -1002,15 +1002,47 @@ $("#return").addEventListener("click", () => {
   if (MOBILE || input.touchUsed) $("#act").hidden = $("#joy").hidden = false;
 });
 
-/* ============ READINGS (#stats) ============ */
+/* ============ READINGS (#stats, or tap ⋮ five times quickly) ============ */
 const stats = new FrameStats();
-const showStats = location.hash === "#stats";
+let showStats = location.hash === "#stats";
+try {
+  showStats ||= localStorage.getItem("inward-journey:stats") === "1";
+} catch {
+  /* no storage */
+}
 $("#stats").hidden = !showStats;
+{
+  let taps: number[] = [];
+  $("#menu-btn").addEventListener("pointerdown", () => {
+    const now = performance.now();
+    taps = [...taps.filter((t) => now - t < 1500), now];
+    if (taps.length < 5) return;
+    taps = [];
+    showStats = !showStats;
+    $("#stats").hidden = !showStats;
+    try {
+      localStorage.setItem("inward-journey:stats", showStats ? "1" : "0");
+    } catch {
+      /* no storage */
+    }
+  });
+}
+window.setInterval(() => showStats && ($("#stats-text").textContent = readings()), 1000);
+const rendererName = (() => {
+  const gl = renderer.getContext();
+  const ext = gl.getExtension("WEBGL_debug_renderer_info");
+  const gpu = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : "";
+  return `WebGL${renderer.capabilities.isWebGL2 ? "2" : "1"}${gpu ? ` · ${gpu}` : ""}`;
+})();
 function readings(): string {
   const ri = renderer.info.render;
+  const px = Math.round(innerWidth * dpr) + "×" + Math.round(innerHeight * dpr);
   return [
+    `${rendererName}`,
     `fps ${stats.fps.toFixed(1)} · avg ${stats.avgMs.toFixed(1)} ms · worst ${stats.worstMs.toFixed(0)} ms`,
-    `${quality.current.name} · dpr ${dpr}/${devicePixelRatio} · ${ri.calls} draws · ${(ri.triangles / 1000).toFixed(0)}k tris`,
+    `tier ${quality.current.name} · dpr ${dpr.toFixed(2)} of ${devicePixelRatio} · scale ${quality.scale.toFixed(1)} · ${px}`,
+    `${quality.reason} · ${shadersReady ? "shaders ready" : "compiling shaders…"}`,
+    `${ri.calls} draws · ${(ri.triangles / 1000).toFixed(0)}k tris`,
     `audio ${audio.ctx?.state ?? "off"} · session ${audio.sessionType} · voice ${narration.current ?? "-"}`,
     `pos ${player.pos.x.toFixed(1)}, ${player.pos.y.toFixed(1)}, ${player.pos.z.toFixed(1)} · ${player.pose} · lanterns ${lanterns.litCount}`,
   ].join("\n");
@@ -1177,6 +1209,18 @@ function update(dt: number): void {
     persist();
   }
 }
+
+// Compile every shader before the first frame, behind the title, so the start isn't taken
+// for slowness (and the first look at the world doesn't stutter).
+let shadersReady = false;
+quality.hold(12);
+renderer
+  .compileAsync(scene, camera)
+  .catch(() => {})
+  .finally(() => {
+    shadersReady = true;
+    quality.hold(3);
+  });
 
 let last = performance.now();
 function frame(now: number): void {

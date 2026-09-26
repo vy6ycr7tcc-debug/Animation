@@ -3,7 +3,7 @@
 ## How to run
 - **Online:** https://vy6ycr7tcc-debug.github.io/Animation/ (updates about a minute after each merge into `main`).
 - **Locally:** `npm install`, then `npm run dev`. Open the "Network" URL on your phone (same Wi-Fi).
-- Add `#stats` to the URL to see frame-rate readings.
+- To see what your phone chose (renderer, fps, quality tier, resolution, render scale), tap ⋮ five times quickly, or add `#stats` to the URL. Tap five times again to hide it.
 
 ## Controls
 A stick in the bottom-left corner and one round button in the bottom-right, as in Sky. One small word appears beside the button only when it helps.

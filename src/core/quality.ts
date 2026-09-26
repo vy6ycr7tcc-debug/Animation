@@ -57,8 +57,13 @@ export class FrameStats {
 
 export class AdaptiveQuality {
   tier = 0;
+  /** Render scale on top of the tier's pixel ratio: lowered in small steps before any effect is
+      given up, and never below the sharpness floor (2x on a phone). The browser upscales. */
+  scale = 1;
   /** Keep the top tier whatever happens (a setting). */
   pinned = false;
+  /** Why the last change happened, for the readout. */
+  reason = "start";
   private good = 0;
   private bad = 0;
   private settle = 8; // ignore the first seconds (shader compile, audio start, the world streaming in)
@@ -71,12 +76,19 @@ export class AdaptiveQuality {
     return TIERS[this.tier];
   }
 
+  /** The pixel ratio to render at: the tier's cap, times the render scale, above the floor. */
+  get dpr(): number {
+    const device = devicePixelRatio || 1;
+    const floor = Math.min(device, MOBILE ? 2 : 1);
+    return Math.max(floor, Math.min(device, this.current.dpr) * this.scale);
+  }
+
   /** A burst of new work is coming (arriving somewhere, streaming ground): don't judge it. */
   hold(windows = 3): void {
     this.settle = Math.max(this.settle, windows);
   }
 
-  /** Feed once per stats window. */
+  /** Feed once per stats window (about a second). */
   window(stats: FrameStats): void {
     this.windows++;
     if (this.pinned) return;
@@ -84,22 +96,41 @@ export class AdaptiveQuality {
       this.settle--;
       return;
     }
-    // a steady 30 fps (Low Power Mode caps Safari there) is a cap, not a struggle
+    // Low Power Mode caps Safari at a steady 30 fps: that is a power setting, not a slow phone
     const capped30 = stats.fps > 27 && stats.fps < 32 && stats.worstMs < 45;
+    const canScaleDown = Math.min(devicePixelRatio || 1, this.current.dpr) * (this.scale - 0.1) >= Math.min(devicePixelRatio || 1, MOBILE ? 2 : 1) - 1e-3;
     if (stats.fps < 45 && !capped30) {
       this.good = 0;
-      if (++this.bad >= 3 && this.tier < TIERS.length - 1) {
-        this.failedAt.set(this.tier, this.windows);
-        this.set(this.tier + 1);
+      if (++this.bad >= 3) {
+        if (canScaleDown && this.scale > 0.7) this.setScale(this.scale - 0.1, "slow: render scale down");
+        else if (this.tier < TIERS.length - 1) {
+          this.failedAt.set(this.tier, this.windows);
+          this.reason = "slow: effects down";
+          this.set(this.tier + 1);
+        }
       }
     } else if (stats.fps > 56 || capped30) {
       this.bad = 0;
-      // climb back after a good run; a tier that ran slow is tried again only after a long while
-      const above = this.tier - 1, failed = this.failedAt.get(above);
-      if (++this.good >= 10 && above >= 0 && (failed === undefined || this.windows - failed > 90)) this.set(above);
+      if (++this.good >= 10) {
+        // climb back: sharpness first, then the tier above (a tier that ran slow is retried after ~30 s)
+        const above = this.tier - 1, failed = this.failedAt.get(above);
+        if (this.scale < 1) this.setScale(this.scale + 0.1, "good: render scale up");
+        else if (above >= 0 && (failed === undefined || this.windows - failed > 30)) {
+          this.reason = "good: effects up";
+          this.set(above);
+        } else this.good = 0;
+      }
     } else {
       this.good = this.bad = 0;
     }
+  }
+
+  private setScale(v: number, reason: string): void {
+    this.scale = Math.round(Math.min(1, Math.max(0.5, v)) * 10) / 10;
+    this.reason = reason;
+    this.good = this.bad = 0;
+    this.settle = 2;
+    this.apply(this.current, this.tier);
   }
 
   set(i: number): void {
