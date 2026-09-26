@@ -5,10 +5,10 @@
      its narrations. Fruits pulse gently and can be tapped one by one.
    Approach shows quiet labels (they fade with distance); tapping one plays its narration
    (see ui/transcriptPlayer.ts). Nothing here ever plays by itself. */
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
+import { T, withFog, worldPoints, type N } from "../gpu/tsl";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { barkMaterial, grow, tubes, type TreeShape } from "./creation";
-import { IJ_FOG_GLSL } from "./fog";
 import { GROVE_SITES, ORB_SITES, type GroveSite, type Narration, type OrbSite } from "./sites";
 import { colliders } from "./terrain";
 
@@ -46,39 +46,49 @@ const fade = (d: number, full: number, gone: number) => 1 - THREE.MathUtils.smoo
 const colourFor = (i: number) => new THREE.Color().setHSL(...(PALETTE[i % PALETTE.length] as [number, number, number]));
 
 /* ---------------------------------------------------------------- orbs */
-function planetMaterial(a: THREE.Color, b: THREE.Color, seed: number): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
-    uniforms: { uA: { value: a }, uB: { value: b }, uSeed: { value: seed }, uT: { value: 0 }, uNear: { value: 0 }, uPlaying: { value: 0 } },
-    vertexShader: /* glsl */ `varying vec3 vN;varying vec3 vP;varying vec3 vW;void main(){vP=position;vec4 w=modelMatrix*vec4(position,1.0);vW=w.xyz;
-      vN=normalize(mat3(modelMatrix)*normal);gl_Position=projectionMatrix*viewMatrix*w;}`,
-    fragmentShader: /* glsl */ `varying vec3 vN;varying vec3 vP;varying vec3 vW;uniform vec3 uA,uB;uniform float uSeed,uT,uNear,uPlaying;
-      ${IJ_FOG_GLSL}
-      float h3(vec3 p){p=fract(p*0.3183+uSeed);p*=17.0;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}
-      float n3(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.0-2.0*f);
-        return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x),mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),
-                   mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x),mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y),f.z);}
-      void main(){
-        vec3 p=normalize(vP);
-        // slowly turning seas and bands of soft colour
-        float c=cos(uT*0.08),s=sin(uT*0.08);p=vec3(p.x*c-p.z*s,p.y,p.x*s+p.z*c);
-        float land=n3(p*2.2+uSeed*7.0)*0.6+n3(p*5.0)*0.3+n3(p*11.0)*0.1;
-        float bands=0.5+0.5*sin(p.y*9.0+land*4.0);
-        vec3 col=mix(uA,uB,smoothstep(0.42,0.6,land))*(0.55+0.45*bands);
-        vec3 n=normalize(vN);vec3 v=normalize(cameraPosition-vW);
-        float rim=pow(1.0-abs(dot(n,v)),2.4);
-        float lit=0.55+0.45*max(0.0,dot(n,normalize(vec3(0.3,0.8,0.2))));
-        vec3 c3=col*lit*(0.5+uNear*0.2+uPlaying*0.25)+mix(uA,vec3(1.0),0.3)*rim*(0.7+uNear*0.3);
-        vec4 fg=ijFog(vW);
-        gl_FragColor=vec4(mix(c3,fg.rgb,fg.a*0.8),1.0);
-      }`,
+type PlanetMaterial = THREE.MeshBasicNodeMaterial & { uniforms: { uT: { value: number }; uNear: { value: number }; uPlaying: { value: number } } };
+function planetMaterial(a: THREE.Color, b: THREE.Color, seed: number): PlanetMaterial {
+  const { abs, cameraPosition, cos, dot, float, floor, Fn, fract, max, mix, normalize, normalWorldGeometry, positionGeometry, positionWorld, pow, sin, smoothstep, uniform, vec3, vec4 } = T;
+  const uA = vec3(a.r, a.g, a.b), uB = vec3(b.r, b.g, b.b);
+  const uT = uniform(0), uNear = uniform(0), uPlaying = uniform(0);
+  const h3 = (p0: N): N => {
+    const p = fract(p0.mul(0.3183).add(seed)).mul(17);
+    return fract(p.x.mul(p.y).mul(p.z).mul(p.x.add(p.y).add(p.z)));
+  };
+  const n3 = Fn(([x]: N[]) => {
+    const i = floor(x), f0 = fract(x), f = f0.mul(f0).mul(float(3).sub(f0.mul(2)));
+    const h = (dx: number, dy: number, dz: number) => h3(i.add(vec3(dx, dy, dz)));
+    return mix(
+      mix(mix(h(0, 0, 0), h(1, 0, 0), f.x), mix(h(0, 1, 0), h(1, 1, 0), f.x), f.y),
+      mix(mix(h(0, 0, 1), h(1, 0, 1), f.x), mix(h(0, 1, 1), h(1, 1, 1), f.x), f.y),
+      f.z,
+    );
   });
+  const m = new THREE.MeshBasicNodeMaterial({ fog: false });
+  m.colorNode = Fn(() => {
+    const p0 = normalize(positionGeometry);
+    // slowly turning seas and bands of soft colour
+    const c = cos(uT.mul(0.08)), s = sin(uT.mul(0.08));
+    const p = vec3(p0.x.mul(c).sub(p0.z.mul(s)), p0.y, p0.x.mul(s).add(p0.z.mul(c)));
+    const land = n3(p.mul(2.2).add(seed * 7)).mul(0.6).add(n3(p.mul(5)).mul(0.3)).add(n3(p.mul(11)).mul(0.1));
+    const bands = sin(p.y.mul(9).add(land.mul(4))).mul(0.5).add(0.5);
+    const col = mix(uA, uB, smoothstep(0.42, 0.6, land)).mul(bands.mul(0.45).add(0.55));
+    const vW = positionWorld;
+    const n = normalize(normalWorldGeometry), v = normalize(cameraPosition.sub(vW));
+    const rim = pow(float(1).sub(abs(dot(n, v))), 2.4);
+    const lit = max(0, dot(n, normalize(vec3(0.3, 0.8, 0.2)))).mul(0.45).add(0.55);
+    const c3 = col.mul(lit).mul(uNear.mul(0.2).add(0.5).add(uPlaying.mul(0.25))).add(mix(uA, vec3(1), 0.3).mul(rim).mul(uNear.mul(0.3).add(0.7)));
+    // the air in front of it, a little lighter than for the land
+    return vec4(mix(c3, withFog(c3, vW), 0.8), 1);
+  })();
+  return Object.assign(m, { uniforms: { uT, uNear, uPlaying } });
 }
 
 interface OrbView {
   site: OrbSite;
   group: THREE.Group;
   planet: THREE.Mesh;
-  mat: THREE.ShaderMaterial;
+  mat: PlanetMaterial;
   moon: THREE.Mesh;
   glow: THREE.Sprite;
   vessel: Vessel;
@@ -168,7 +178,7 @@ export class Vessels {
     group.rotation.y = site.index * 1.7;
     const scale = 1.15;
     group.scale.setScalar(scale);
-    const trunk = new THREE.Mesh(mergeGeometries([tubes(limbs), tubes(roots, -0.2)]), barkMaterial(accent.clone().lerp(new THREE.Color(1, 1, 1), 0.25)));
+    const trunk = new THREE.Mesh(mergeGeometries([tubes(limbs), tubes(roots, -0.2)]), barkMaterial(accent.clone().lerp(new THREE.Color(1, 1, 1), 0.25), (site.index * 0.618) % 1));
     trunk.castShadow = true;
     group.add(trunk);
     // a canopy of soft glints in the grove's own colour
@@ -176,13 +186,8 @@ export class Vessels {
     let s = site.index * 977 + 1;
     const R = () => ((s = (s * 16807) % 2147483647) / 2147483647);
     for (const tp of tips) for (let k = 0; k < 10; k++) pts.push(tp.x + (R() - 0.5) * 2.6, tp.y + (R() - 0.3) * 1.8, tp.z + (R() - 0.5) * 2.6);
-    const cg = new THREE.BufferGeometry();
-    cg.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
-    const canopy = new THREE.Points(
-      cg,
-      new THREE.PointsMaterial({ color: accent.clone().lerp(new THREE.Color(1, 1, 1), 0.35), size: 0.22, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }),
-    );
-    group.add(canopy);
+    const canopy = worldPoints(new Float32Array(pts), { color: accent.clone().lerp(new THREE.Color(1, 1, 1), 0.35), size: 0.22, opacity: 0.8 });
+    group.add(canopy.sprite);
     this.group.add(group);
     group.updateMatrixWorld(true);
     colliders.push({ x: site.x, z: site.z, r: shape.radius * scale * 1.3, top: site.y + shape.height * scale });

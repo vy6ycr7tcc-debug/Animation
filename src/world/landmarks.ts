@@ -3,7 +3,7 @@
    archetype's being (beings.ts). Each responds to the wanderer's presence as they pass;
    the quiet ones (veil, throne) open further when the wanderer is still nearby. Nothing waits
    to be used, and nothing needs to be finished. */
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 import type { AudioEngine } from "../core/audio";
 import type { Wanderer } from "../player/wanderer";
 import { skyUniforms } from "./sky";

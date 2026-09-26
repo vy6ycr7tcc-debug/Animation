@@ -5,7 +5,7 @@
    water you swim where you look, in three dimensions: look down to go deeper, up to rise. Tap
    for a stroke (a burst that eases off; taps in rhythm keep the glide going); hold to rise; let
    go and you hover, weightless. No breath, no current, nothing to fear. */
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 import { colliders, heightAt, WATER_Y } from "../world/terrain";
 import type { Pose } from "./wanderer";
 

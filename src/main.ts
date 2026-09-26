@@ -4,19 +4,8 @@
    forms (beam, veil, garden, throne, arch, rings) stand as landmarks to wander toward.
    Narration plays in the background the whole time, one recording after another.
    States: intro (title over the night water) → play → rest (after Leave) → play … */
-import * as THREE from "three";
-import {
-  BloomEffect,
-  EffectComposer,
-  EffectPass,
-  GodRaysEffect,
-  RenderPass,
-  SMAAEffect,
-  SMAAPreset,
-  ToneMappingEffect,
-  ToneMappingMode,
-  VignetteEffect,
-} from "postprocessing";
+import "./gpu/compat";
+import * as THREE from "three/webgpu";
 import { AudioEngine } from "./core/audio";
 import { Input } from "./core/input";
 import { Narration } from "./core/narration";
@@ -37,6 +26,8 @@ import { Motes } from "./world/motes";
 import { Creation, creationUniforms, Spirits } from "./world/creation";
 import { Beings } from "./world/beings";
 import { SeaFauna, SeaLife, UnderwaterEffect } from "./world/underwater";
+import { Post } from "./gpu/post";
+import { gpuUniforms, ijFogNode } from "./gpu/tsl";
 import { Presences } from "./world/presences";
 import { Guide, type Destination } from "./world/guide";
 import { GROVE_SITES, ORB_SITES } from "./world/sites";
@@ -45,14 +36,10 @@ import { Creatures } from "./world/creatures";
 import { Vessels } from "./world/vessels";
 import { TranscriptPlayer } from "./ui/transcriptPlayer";
 import { StartMap, type Choice, type Place } from "./ui/map";
-import { Reflection } from "./world/reflection";
 import { buildSky, skyUniforms, starDirection } from "./world/sky";
 import { groundUniforms, heightAt, SPAWN, Terrain, WATER_Y } from "./world/terrain";
-import { Water } from "./world/water";
-import { FOG, installFog } from "./world/fog";
-import { N8AOPostPass } from "n8ao";
-
-installFog(); // before any material is compiled
+import { NO_MIRROR_LAYER, Water } from "./world/water";
+import { FOG } from "./world/fog";
 
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
 
@@ -71,63 +58,41 @@ const S = {
 };
 
 /* ============ RENDERER ============ */
+// WebGPU where the browser has it (Safari 26+, Chrome); otherwise three falls back to WebGL2 by
+// itself. `?webgl` in the URL forces the fallback, for comparing the two.
 const canvas = $<HTMLCanvasElement>("#gl");
-const renderer = new THREE.WebGLRenderer({ canvas, powerPreference: "high-performance", antialias: false, stencil: false, depth: false });
+const renderer = new THREE.WebGPURenderer({
+  canvas,
+  powerPreference: "high-performance",
+  antialias: false,
+  stencil: false,
+  forceWebGL: /[?&]webgl\b/.test(location.search),
+});
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFShadowMap; // soft in this three.js (radius below)
-renderer.toneMapping = THREE.NoToneMapping;
+renderer.shadowMap.type = THREE.PCFShadowMap; // soft by its radius (PCFSoft is gone from WebGPU three, and swapping it mid-frame lost the shadows)
+renderer.toneMapping = THREE.AgXToneMapping;
+renderer.setClearColor(0x000000, 0); // the lakes' mirror reads alpha 0 as "sky"
 renderer.info.autoReset = false;
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(58, 1, 0.15, 6000);
 const FOG_COLOR = FOG.color;
-scene.fog = new THREE.FogExp2(FOG_COLOR, FOG.density);
+scene.fogNode = ijFogNode(); // height fog with moonlit in-scattering, for every standard material
 
-const composer = new EffectComposer(renderer, { frameBufferType: THREE.HalfFloatType });
-composer.addPass(new RenderPass(scene, camera));
-// Ambient occlusion: soft shadow where things meet (feet on the ground, rocks, trunks, steps),
-// the cue that makes forms sit in the world. On the two higher quality levels.
-const aoPass = new N8AOPostPass(scene, camera, innerWidth, innerHeight);
-aoPass.configuration.halfRes = true;
-aoPass.configuration.aoRadius = 1.6;
-aoPass.configuration.distanceFalloff = 1.0;
-aoPass.configuration.intensity = 2.4;
-aoPass.configuration.color = new THREE.Color("#0b0a1c");
-aoPass.configuration.gammaCorrection = false;
-aoPass.configuration.transparencyAware = false; // glows and glass stay out of it (and it stays cheap)
-aoPass.setQualityMode(MOBILE ? "Performance" : "Low");
-composer.addPass(aoPass);
 // Under the surface: deep teal haze and wavering shafts of moonlight (only while the camera is under).
 const underwater = new UnderwaterEffect();
-const underwaterPass = new EffectPass(camera, underwater);
-underwaterPass.enabled = false;
-composer.addPass(underwaterPass);
-// bloom with restraint: only what is truly bright glows (threshold near 1, gentle strength)
-const bloom = new BloomEffect({ mipmapBlur: true, luminanceThreshold: 0.88, luminanceSmoothing: 0.3, intensity: 0.7, radius: 0.7 });
-const bloomPass = new EffectPass(camera, bloom, new ToneMappingEffect({ mode: ToneMappingMode.AGX }));
-const plainPass = new EffectPass(camera, new ToneMappingEffect({ mode: ToneMappingMode.AGX }));
-const finalPass = new EffectPass(camera, new SMAAEffect({ preset: SMAAPreset.MEDIUM }), new VignetteEffect({ offset: 0.35, darkness: 0.5 }));
-// The bright star, as a light source for god rays.
-const starSource = new THREE.Mesh(
-  new THREE.SphereGeometry(9, 16, 12),
-  new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.8, 0.5), transparent: true, fog: false, depthWrite: false }),
-);
-starSource.frustumCulled = false;
-const godRays = new GodRaysEffect(camera, starSource, {
-  resolutionScale: 0.5, density: 0.9, decay: 0.95, weight: 0.35, exposure: 0.45, samples: 48, clampMax: 1.0, blur: true,
-});
-const raysPass = new EffectPass(camera, godRays);
-composer.addPass(raysPass);
-composer.addPass(bloomPass);
-composer.addPass(plainPass);
-composer.addPass(finalPass);
+const post = new Post(renderer, scene, camera, underwater);
+// The bright star, as a light source for god rays (where it is on screen).
+const starSource = new THREE.Object3D();
 
 /* ============ WORLD ============ */
 const starDir = starDirection();
 skyUniforms.uStar.value.copy(starDir);
 const sky = buildSky();
+sky.layers.set(NO_MIRROR_LAYER); // the lakes mirror the world; the sky they draw themselves
 scene.add(sky);
-{
+/** The sky as light for glossy things (after the renderer is ready). */
+function bakeEnvironment(): void {
   const pmrem = new THREE.PMREMGenerator(renderer);
   const envScene = new THREE.Scene();
   envScene.add(buildSky());
@@ -151,16 +116,12 @@ star.shadow.radius = 3;
 scene.add(star, star.target, starSource);
 
 const water = new Water();
-water.uniforms.uFogColor.value.copy(FOG_COLOR);
-water.uniforms.uFogDensity.value = (scene.fog as THREE.FogExp2).density;
-scene.add(water.mesh);
+scene.add(water.mesh, water.mirror.target);
+water.excludeFromMirror(camera);
 const terrain = new Terrain();
 scene.add(terrain.group);
 const clouds = new Clouds(MOBILE ? 60 : 80);
 scene.add(clouds.mesh);
-const reflection = new Reflection();
-water.uniforms.uRefl.value = reflection.target.texture;
-water.uniforms.uReflMat.value = reflection.textureMatrix;
 
 // A flat stone where the wanderer wakes, etched with the seven-fold figure.
 const spawnY = heightAt(SPAWN.x, SPAWN.z);
@@ -212,7 +173,7 @@ void presences.load("models/wanderer.glb");
 scene.add(sparks.points, grass.mesh, flowers.mesh, lanterns.points, butterflies.points, gliders.group);
 // The whole creation: trees and their roots, rocks, crystals, spirits, and the light through them.
 creationUniforms.uFogC.value.copy(FOG_COLOR);
-creationUniforms.uFogD.value = (scene.fog as THREE.FogExp2).density;
+creationUniforms.uFogD.value = FOG.density;
 creationUniforms.uStar.value.copy(starDir);
 const creation = new Creation(sparks);
 const spirits = new Spirits(creation, MOBILE ? 10 : 14);
@@ -246,6 +207,8 @@ function additiveKeepsAlpha(root: THREE.Object3D): void {
   });
 }
 additiveKeepsAlpha(scene);
+// what the lakes don't mirror: the grass's blades and the lights seen through the ground
+for (const o of [grass.mesh, ...creation.noReflect]) o.layers.set(NO_MIRROR_LAYER);
 
 /* ============ QUALITY ============ */
 let dpr = 1;
@@ -254,30 +217,27 @@ function resize(): void {
   const w = innerWidth, h = innerHeight;
   dpr = quality.dpr;
   renderer.setPixelRatio(dpr);
-  composer.setSize(w, h);
-  reflection.setSize(w * Math.min(dpr, 1.5), h * Math.min(dpr, 1.5)); // the lakes' mirror needn't be as sharp as the world
+  renderer.setSize(w, h);
+  // the lakes' mirror: half the drawing buffer (its long side stays above 1024 on a phone)
+  water.mirror.reflector.resolutionScale = Math.max(0.5, Math.min(1, 1100 / (Math.max(w, h) * dpr)));
   camera.aspect = w / h;
   camera.fov = h > w ? 66 : 55;
   camera.updateProjectionMatrix();
 }
 /** What the quality tier allows; under the water, ambient occlusion and god rays rest. */
 const tierFx = { rays: true, ao: true };
+/** Set once the first frame is drawn. */
+let rendering = false;
+/** Anti-aliasing: temporal (TRAA) by default; `?aa=smaa` or `?aa=none` to compare. */
+const AA = (new URLSearchParams(location.search).get("aa") ?? "traa") as "smaa" | "traa" | "none";
 function applyTier(t: Tier, i: number = quality.tier): void {
   tierFx.rays = t.rays;
   tierFx.ao = t.ao;
-  raysPass.enabled = tierFx.rays;
-  aoPass.enabled = tierFx.ao;
-  reflection.enabled = t.reflection; // mirrored world in the lakes
-  water.uniforms.uReflOn.value = reflection.enabled ? 1 : 0;
-  wanderer.setQuality([48, 48, 40, 32, 24][i] ?? 32); // ray-march steps for the fluid body
-  bloomPass.enabled = t.bloom;
-  plainPass.enabled = !t.bloom;
-  const sh = star.shadow;
-  if (sh.mapSize.x !== t.shadow) {
-    sh.mapSize.set(t.shadow, t.shadow);
-    sh.map?.dispose();
-    sh.map = null;
-  }
+  post.configure({ ao: t.ao, rays: t.rays, bloom: t.bloom, aa: AA });
+  water.setReflection(t.reflection); // mirrored world in the lakes
+  // The shadow map keeps one size: resizing it while running left the shaders reading the old
+  // map (no shadows) until something rebuilt them. It is sized once, before the first frame.
+  if (!rendering) star.shadow.mapSize.set(t.shadow, t.shadow);
   motes.setCount(Math.round(t.particles / 2));
   creation.setQuality(Math.max(0, i - 1));
   resize();
@@ -1028,12 +988,21 @@ $("#stats").hidden = !showStats;
   });
 }
 window.setInterval(() => showStats && ($("#stats-text").textContent = readings()), 1000);
-const rendererName = (() => {
-  const gl = renderer.getContext();
-  const ext = gl.getExtension("WEBGL_debug_renderer_info");
-  const gpu = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : "";
-  return `WebGL${renderer.capabilities.isWebGL2 ? "2" : "1"}${gpu ? ` · ${gpu}` : ""}`;
-})();
+let rendererName = "starting…";
+function nameRenderer(): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const be = renderer.backend as any;
+  if (be.isWebGPUBackend) {
+    const info = be.adapter?.info ?? {};
+    const gpu = [info.vendor, info.architecture, info.description].filter(Boolean).join(" ");
+    rendererName = `WebGPU${gpu ? ` · ${gpu}` : ""}`;
+  } else {
+    const gl = be.gl as WebGL2RenderingContext | undefined;
+    const ext = gl?.getExtension("WEBGL_debug_renderer_info");
+    const gpu = gl && ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : "";
+    rendererName = `WebGL2 (fallback)${gpu ? ` · ${gpu}` : ""}`;
+  }
+}
 function readings(): string {
   const ri = renderer.info.render;
   const px = Math.round(innerWidth * dpr) + "×" + Math.round(innerHeight * dpr);
@@ -1152,9 +1121,9 @@ function update(dt: number): void {
   updateStillness(dt, wt);
   if (S.mode !== "intro") creatures.update(wt, dt, player.pos, medK, player.speed > 3 || player.gliding, S.reduced);
   const camUnder = camera.position.y < WATER_Y - 0.05;
-  underwaterPass.enabled = camUnder;
-  raysPass.enabled = tierFx.rays && !camUnder;
-  aoPass.enabled = tierFx.ao && !camUnder;
+  post.under.value = camUnder ? 1 : 0;
+  post.raysOn.value = camUnder ? 0 : 1;
+  post.aoOn.value = camUnder ? 0 : 1;
   audio.underwater(camUnder);
   groundUniforms.uT.value = wt;
   // the camera goes under with you once you are properly down, and comes up as you surface
@@ -1189,6 +1158,10 @@ function update(dt: number): void {
   }
   sky.position.copy(camera.position);
   starSource.position.copy(camera.position).addScaledVector(starDir, 900);
+  camera.updateMatrixWorld();
+  post.follow(starSource.position, innerWidth, innerHeight);
+  gpuUniforms.player.value.copy(player.pos);
+  gpuUniforms.dpr.value = dpr;
   glow.set(player.pos.x, S.mode === "intro" ? 0 : 1, player.pos.z);
   water.update(camera.position.x, camera.position.z, glow);
   skyUniforms.uT.value = wt;
@@ -1214,13 +1187,6 @@ function update(dt: number): void {
 // for slowness (and the first look at the world doesn't stutter).
 let shadersReady = false;
 quality.hold(12);
-renderer
-  .compileAsync(scene, camera)
-  .catch(() => {})
-  .finally(() => {
-    shadersReady = true;
-    quality.hold(3);
-  });
 
 let last = performance.now();
 function frame(now: number): void {
@@ -1235,10 +1201,24 @@ function frame(now: number): void {
   }
   update(dt);
   renderer.info.reset();
-  // (The shadow map must exist first: it is created by the main render.)
-  if (star.shadow.map && camera.position.y > WATER_Y) reflection.render(renderer, scene, camera, [water.mesh, sky, starSource, grass.mesh, ...creation.noReflect]);
-  composer.render(dt);
+  water.renderMirror(renderer, scene, camera);
+  post.render();
 }
-requestAnimationFrame(frame);
+// WebGPU starts asynchronously (it asks the browser for the GPU); the world is built meanwhile.
+renderer
+  .init()
+  .then(() => {
+    nameRenderer();
+    bakeEnvironment();
+    post.start();
+    rendering = true;
+    requestAnimationFrame(frame);
+    return renderer.compileAsync(scene, camera);
+  })
+  .catch((e) => console.error(e))
+  .finally(() => {
+    shadersReady = true;
+    quality.hold(3);
+  });
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, aoPass, composer, underwaterPass, fauna, presences, guide, reflection, terrain, water, grass, seaLife, raysPass } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, fauna, presences, guide, terrain, water, grass, seaLife } });

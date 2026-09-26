@@ -1,101 +1,139 @@
 /* Night water: dark, calm, and safe. It mirrors the sky (stars and the bright star) with
    pale cyan light on the ripples. Small waves near the viewer calm to a mirror far away.
-   Ripples (footsteps, strokes, the first touch) are rings added to the surface normal. */
-import * as THREE from "three";
-import { IJ_FOG_GLSL } from "./fog";
-import { SKY_GLSL, skyUniforms } from "./sky";
+   Ripples (footsteps, strokes, the first touch) are rings added to the surface normal.
+   The world above (the land, the beings, the wanderer, the lights) is mirrored by three's
+   reflector node, bent by the same ripples. */
+import * as THREE from "three/webgpu";
+import { T, withFog, type N } from "../gpu/tsl";
+import { skyColor, skyUniforms } from "./sky";
+
+const {
+  abs, cameraPosition, clamp, cos, dot, exp, float, Fn, length, Loop, max, mix, normalize, positionWorld, pow, reflect, reflector,
+  sin, smoothstep, uniform, uniformArray, vec2, vec3, vec4,
+} = T;
 
 const MAX_RIPPLES = 10;
+/** Objects on this layer (the sky) are seen by the camera but never mirrored. */
+export const NO_MIRROR_LAYER = 1;
 
 export class Water {
   mesh: THREE.Mesh;
+  /** The reflector's plane (add it to the scene) and its render settings. */
+  readonly mirror: N;
   private ripples: THREE.Vector4[] = [];
   private next = 0;
+  private matOn: THREE.MeshBasicNodeMaterial;
+  private matOff: THREE.MeshBasicNodeMaterial;
   readonly uniforms = {
-    uCalm: { value: 1 },
-    uFogColor: { value: new THREE.Color() },
-    uFogDensity: { value: 0 },
-    uRip: { value: [] as THREE.Vector4[] },
-    uGlow: { value: new THREE.Vector3() }, // the wanderer's light, reflected
-    uRefl: { value: null as THREE.Texture | null }, // mirrored world above the water
-    uReflMat: { value: new THREE.Matrix4() },
-    uReflOn: { value: 0 },
+    uCalm: uniform(1),
+    uGlow: uniform(new THREE.Vector3()), // the wanderer's light, reflected
+    uReflOn: { value: 0 }, // 1 draws the mirrored world (costly), 0 only the sky
   };
 
   constructor() {
     for (let i = 0; i < MAX_RIPPLES; i++) this.ripples.push(new THREE.Vector4(0, 0, -100, 0));
-    this.uniforms.uRip.value = this.ripples;
-    const mat = new THREE.ShaderMaterial({
-      side: THREE.DoubleSide, // seen from beneath when diving
-      uniforms: { ...skyUniforms, ...this.uniforms },
-      vertexShader: /* glsl */ `varying vec3 vW;void main(){vec4 w=modelMatrix*vec4(position,1.0);vW=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`,
-      fragmentShader: /* glsl */ `precision highp float;
-        varying vec3 vW;
-        uniform float uCalm,uFogDensity;
-        uniform vec3 uFogColor,uGlow;
-        uniform sampler2D uRefl;uniform mat4 uReflMat;uniform float uReflOn;
-        uniform vec4 uRip[${MAX_RIPPLES}];
-        ${SKY_GLSL}
-        ${IJ_FOG_GLSL}
-        void main(){
-          if(cameraPosition.y<vW.y-0.001){
-            // from below: the sky seen through a bright window straight up, and elsewhere the
-            // surface a dim teal mirror, shimmering with the ripples
-            vec3 up=normalize(vW-cameraPosition);
-            float wob=sin(vW.x*1.3+uT*0.9)*sin(vW.z*1.1-uT*0.7)*0.5+0.5;
-            float window_=smoothstep(0.62,0.9,up.y+wob*0.05);
-            vec3 below=vec3(0.02,0.1,0.13)*(0.7+wob*0.6);
-            vec3 sky=skyColor(normalize(vec3(up.x,up.y*1.4,up.z)))*1.6+vec3(0.05,0.12,0.14);
-            float moon=pow(max(dot(normalize(vec3(up.x,up.y*1.4,up.z)),uStar),0.0),30.0);
-            gl_FragColor=vec4(mix(below,sky,window_)+vec3(0.9,0.85,0.7)*moon*window_,1.0);
-            return;
-          }
-          vec3 toEye=cameraPosition-vW;
-          float dist=length(toEye);
-          vec3 v=toEye/dist;
-          vec2 p=vW.xz;
-          float t=uT*uCalm;
-          vec2 g=vec2(0.0);
-          vec2 dirs[5];dirs[0]=vec2(0.8,0.6);dirs[1]=vec2(-0.6,0.8);dirs[2]=vec2(0.2,-1.0);dirs[3]=vec2(-0.9,-0.3);dirs[4]=vec2(0.5,0.85);
-          float fr[5];fr[0]=0.7;fr[1]=1.3;fr[2]=2.3;fr[3]=3.7;fr[4]=5.9;
-          for(int i=0;i<5;i++){float ph=dot(dirs[i],p)*fr[i]+t*(0.5+fr[i]*0.3);g+=dirs[i]*fr[i]*cos(ph)*(0.016/fr[i]);}
-          g*=exp(-dist*0.015);
-          for(int i=0;i<${MAX_RIPPLES};i++){
-            vec4 r=uRip[i];float age=uT-r.z;if(age<0.0||age>7.0)continue;
-            vec2 dp=p-r.xy;float rr=length(dp)+1e-4;float front=age*1.3;
-            float env=exp(-pow((rr-front)*2.2,2.0))*exp(-age*0.7)*r.w;
-            g+=dp/rr*env*sin((rr-front)*9.0)*0.35;
-          }
-          vec3 n=normalize(vec3(-g.x,1.0,-g.y));
-          float cosT=max(dot(n,v),0.0);
-          float fres=0.04+0.96*pow(1.0-cosT,5.0);
-          vec3 R=reflect(-v,n);R.y=abs(R.y);
-          vec3 refl=skyColor(R);
-          if(uReflOn>0.5){
-            // the island, the stations and the wanderer, mirrored and bent by the ripples
-            vec4 rc=uReflMat*vec4(vW,1.0);
-            vec2 ruv=rc.xy/rc.w+g*vec2(0.9,0.6);
-            vec4 rt=texture2D(uRefl,clamp(ruv,0.001,0.999));
-            refl=refl*(1.0-clamp(rt.a,0.0,1.0))+rt.rgb; // solid things cover the sky; glows add their light
-          }
-          // pale cyan catches on the ripple slopes
-          float slope=length(g);
-          refl+=vec3(0.30,0.60,0.70)*smoothstep(0.02,0.25,slope)*0.10;
-          vec3 deep=vec3(0.012,0.024,0.055);
-          vec3 c=mix(deep,refl,clamp(fres*1.25,0.0,1.0));
-          // the bright star's path of light across the water
-          float sp=pow(max(dot(R,uStar),0.0),220.0);
-          c+=vec3(1.0,0.78,0.48)*sp*2.2;
-          // the wanderer's own light, reflected nearby
-          float gd=length(vW.xz-uGlow.xz);
-          c+=vec3(1.0,0.82,0.58)*exp(-gd*gd*0.35)*0.07*uGlow.y;
-          vec4 fg=ijFog(vW);
-          c=mix(c,fg.rgb,fg.a);
-          gl_FragColor=vec4(c,1.0);
-        }`,
-    });
-    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(14000, 14000, 1, 1).rotateX(-Math.PI / 2), mat);
+    const rip = uniformArray(this.ripples, "vec4");
+    const U = this.uniforms, S = skyUniforms;
+    this.mirror = reflector({ resolutionScale: 0.5 });
+    // the mirror plane is the water surface: its local +z faces up
+    this.mirror.target.rotation.x = -Math.PI / 2;
+    // rendered by renderMirror() before the frame, never nested inside the post-processing pass
+    // (nested there, it stopped the moon's shadows from updating)
+    this.mirror.reflector.updateBeforeType = "none";
+
+    const build = (withWorld: boolean) =>
+      Fn(() => {
+        const vW = positionWorld;
+        /* ---- from below: the sky through a bright window straight up, elsewhere a dim teal
+           mirror shimmering with the ripples */
+        const up = normalize(vW.sub(cameraPosition));
+        const wob = sin(vW.x.mul(1.3).add(S.uT.mul(0.9))).mul(sin(vW.z.mul(1.1).sub(S.uT.mul(0.7)))).mul(0.5).add(0.5);
+        const window_ = smoothstep(0.62, 0.9, up.y.add(wob.mul(0.05)));
+        const below = vec3(0.02, 0.1, 0.13).mul(wob.mul(0.6).add(0.7));
+        const upS = normalize(vec3(up.x, up.y.mul(1.4), up.z));
+        const skyB = skyColor(upS).mul(1.6).add(vec3(0.05, 0.12, 0.14));
+        const moonB = pow(max(dot(upS, S.uStar), 0), 30);
+        const fromBelow = mix(below, skyB, window_).add(vec3(0.9, 0.85, 0.7).mul(moonB).mul(window_));
+
+        /* ---- from above */
+        const toEye = cameraPosition.sub(vW);
+        const dist = length(toEye);
+        const v = toEye.div(dist);
+        const p = vW.xz;
+        const t = S.uT.mul(U.uCalm);
+        const g = vec2(0).toVar();
+        const dirs = [[0.8, 0.6], [-0.6, 0.8], [0.2, -1.0], [-0.9, -0.3], [0.5, 0.85]];
+        const fr = [0.7, 1.3, 2.3, 3.7, 5.9];
+        for (let i = 0; i < 5; i++) {
+          const d = vec2(dirs[i][0], dirs[i][1]);
+          const ph = dot(d, p).mul(fr[i]).add(t.mul(0.5 + fr[i] * 0.3));
+          g.addAssign(d.mul(cos(ph)).mul(0.016));
+        }
+        g.mulAssign(exp(dist.mul(-0.015)));
+        Loop(MAX_RIPPLES, ({ i }: N) => {
+          const r = rip.element(i);
+          const age = S.uT.sub(r.z);
+          const live = age.greaterThanEqual(0).and(age.lessThanEqual(7));
+          const dp = p.sub(r.xy);
+          const rr = length(dp).add(1e-4);
+          const front = age.mul(1.3);
+          const k = rr.sub(front);
+          const env = exp(k.mul(2.2).mul(k.mul(2.2)).negate()).mul(exp(age.mul(-0.7))).mul(r.w);
+          g.addAssign(live.select(dp.div(rr).mul(env).mul(sin(k.mul(9))).mul(0.35), vec2(0)));
+        });
+        const n = normalize(vec3(g.x.negate(), 1, g.y.negate()));
+        const cosT = max(dot(n, v), 0);
+        const fres = float(0.04).add(pow(float(1).sub(cosT), 5).mul(0.96));
+        const R0 = reflect(v.negate(), n);
+        const R = vec3(R0.x, abs(R0.y), R0.z);
+        const refl = skyColor(R).toVar();
+        if (withWorld) {
+          // the land, the beings and the wanderer, mirrored and bent by the ripples
+          const m = this.mirror;
+          m.uvNode = m.uvNode.add(g.mul(vec2(0.9, 0.6)));
+          const rt = m;
+          refl.assign(refl.mul(float(1).sub(clamp(rt.a, 0, 1))).add(rt.rgb)); // solid things cover the sky; glows add their light
+        }
+        // pale cyan catches on the ripple slopes
+        refl.addAssign(vec3(0.3, 0.6, 0.7).mul(smoothstep(0.02, 0.25, length(g))).mul(0.1));
+        const c = mix(vec3(0.012, 0.024, 0.055), refl, clamp(fres.mul(1.25), 0, 1)).toVar();
+        // the bright star's path of light across the water
+        c.addAssign(vec3(1.0, 0.78, 0.48).mul(pow(max(dot(R, S.uStar), 0), 220)).mul(2.2));
+        // the wanderer's own light, reflected nearby
+        const gd = length(vW.xz.sub(U.uGlow.xz));
+        c.addAssign(vec3(1.0, 0.82, 0.58).mul(exp(gd.mul(gd).mul(-0.35))).mul(0.07).mul(U.uGlow.y));
+        const fromAbove = withFog(c, vW);
+        return vec4(cameraPosition.y.lessThan(vW.y.sub(0.001)).select(fromBelow, fromAbove), 1);
+      })();
+
+    const make = (withWorld: boolean) => {
+      const m = new THREE.MeshBasicNodeMaterial({ side: THREE.DoubleSide, fog: false }); // seen from beneath when diving
+      m.colorNode = build(withWorld);
+      return m;
+    };
+    this.matOff = make(false);
+    this.matOn = make(true);
+    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(14000, 14000, 1, 1).rotateX(-Math.PI / 2), this.matOff);
     this.mesh.frustumCulled = false;
+  }
+
+  /** Call once with the main camera (which must see NO_MIRROR_LAYER): the mirror's camera then
+      leaves that layer out, so the sky shows through where nothing stands (alpha 0). */
+  excludeFromMirror(camera: THREE.Camera): void {
+    camera.layers.enable(NO_MIRROR_LAYER);
+    this.mirror.reflector.getVirtualCamera(camera).layers.disable(NO_MIRROR_LAYER);
+  }
+
+  /** Mirror the world above (true) or only the sky (false). */
+  setReflection(on: boolean): void {
+    this.uniforms.uReflOn.value = on ? 1 : 0;
+    this.mesh.material = on ? this.matOn : this.matOff;
+  }
+
+  /** Draw the mirrored world for this frame (before the scene itself is drawn). */
+  renderMirror(renderer: THREE.WebGPURenderer, scene: THREE.Scene, camera: THREE.Camera): void {
+    if (!this.uniforms.uReflOn.value) return;
+    this.mirror.reflector.updateBefore({ renderer, scene, camera, material: this.mesh.material });
   }
 
   ripple(x: number, z: number, strength: number, time: number): void {

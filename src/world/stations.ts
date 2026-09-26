@@ -5,10 +5,17 @@
    - a beacon above it that draws the eye from afar;
    - its own form that responds while its narration plays;
    - one simple, wordless interaction, offered by a single fading word. */
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
+import { glowShader, T, worldPoints, type N } from "../gpu/tsl";
 import catalogue from "../../content/stations.json";
 import type { AudioEngine } from "../core/audio";
 import { etchedStone } from "./etching";
+const { abs, dot, exp, float, floor, fract, mix, pow, sin, smoothstep, vec2, vec3 } = T;
+const h2 = (p: N): N => fract(sin(dot(p, vec2(127.1, 311.7))).mul(43758.5453));
+const n2 = (p: N): N => {
+  const i = floor(p), f0 = fract(p), f = f0.mul(f0).mul(float(3).sub(f0.mul(2)));
+  return mix(mix(h2(i), h2(i.add(vec2(1, 0))), f.x), mix(h2(i.add(vec2(0, 1))), h2(i.add(vec2(1, 1))), f.x), f.y);
+};
 import { heightAt, LANDMARK_KINDS, LANDMARK_SITES, type SiteKind, WATER_Y } from "./terrain";
 
 export interface StationData {
@@ -165,27 +172,21 @@ export abstract class Station {
 
 /* ---------------------------------------------------------------- I. The Magician */
 class Magician extends Station {
-  private beam: THREE.ShaderMaterial;
+  private beam;
   private ring: THREE.Mesh;
   private ringMat: THREE.MeshStandardMaterial;
-  private sparks: THREE.Points;
-  private sparkMat: THREE.PointsMaterial;
+  private sparks: THREE.Sprite;
+  private sparkMat: THREE.PointsNodeMaterial;
+  private sparkPos: THREE.InstancedBufferAttribute;
   private inside = 0;
   constructor(d: StationData) {
     super(d);
-    this.beam = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
-      uniforms: { uT: { value: 0 }, uI: { value: 0.4 } },
-      vertexShader: `varying vec2 vU;void main(){vU=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
-      fragmentShader: `varying vec2 vU;uniform float uT,uI;void main(){
-        float edge=pow(sin(vU.x*3.14159),3.0);
-        float flow=0.7+0.3*sin(vU.y*80.0-uT*3.0);
-        float fade=smoothstep(0.0,0.03,vU.y)*(1.0-smoothstep(0.35,1.0,vU.y));
-        gl_FragColor=vec4(vec3(1.0,0.86,0.6)*edge*flow*fade*uI,1.0);}`,
-    });
+    this.beam = glowShader({ uT: 0, uI: 0.4 }, (u, vU) => {
+      const edge = pow(sin(vU.x.mul(3.14159)), 3);
+      const flow = sin(vU.y.mul(80).sub(u.uT.mul(3))).mul(0.3).add(0.7);
+      const fade = smoothstep(0, 0.03, vU.y).mul(float(1).sub(smoothstep(0.35, 1, vU.y)));
+      return vec3(1.0, 0.86, 0.6).mul(edge).mul(flow).mul(fade).mul(u.uI);
+    }, { side: THREE.DoubleSide });
     const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 60, 24, 1, true), this.beam);
     beam.position.y = 30;
     this.group.add(beam);
@@ -199,10 +200,10 @@ class Magician extends Station {
       const a = Math.random() * Math.PI * 2, r = Math.random() * 0.9;
       pos.set([Math.cos(a) * r, Math.random() * 12, Math.sin(a) * r], i * 3);
     }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    this.sparkMat = new THREE.PointsMaterial({ color: GOLD, size: 0.09, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
-    this.sparks = new THREE.Points(g, this.sparkMat);
+    const sp = worldPoints(pos, { color: GOLD, size: 0.09, opacity: 0 });
+    this.sparkMat = sp.material;
+    this.sparkPos = sp.position;
+    this.sparks = sp.sprite;
     this.group.add(this.sparks);
   }
   prompt(f: Frame): string | null {
@@ -223,16 +224,16 @@ class Magician extends Station {
     this.ringMat.emissiveIntensity = 0.4 + this.active * 0.6 + this.inside * 2.5;
     this.ring.position.y = 1.35 + (f.reduced ? 0 : Math.sin(f.t * 0.7) * 0.05);
     this.sparkMat.opacity = this.inside * 0.9 + this.active * 0.15;
-    const p = (this.sparks.geometry.attributes.position as THREE.BufferAttribute).array as Float32Array;
+    const p = this.sparkPos.array as Float32Array;
     const rise = f.dt * (0.6 + this.inside * 1.6);
     for (let i = 1; i < p.length; i += 3) p[i] = (p[i] + rise) % 12;
-    (this.sparks.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+    this.sparkPos.needsUpdate = true;
   }
 }
 
 /* ---------------------------------------------------------------- II. The High Priestess */
 class Priestess extends Station {
-  private veil: THREE.ShaderMaterial;
+  private veil;
   private crescent: THREE.MeshBasicMaterial;
   private seat = new THREE.Vector3();
   private sitting = 0;
@@ -247,24 +248,13 @@ class Priestess extends Station {
       cap.position.set(x, 5.18, -1.2);
       this.group.add(cap);
     }
-    this.veil = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-      uniforms: { uT: { value: 0 }, uPart: { value: 0 } },
-      vertexShader: `varying vec2 vU;void main(){vU=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
-      fragmentShader: `varying vec2 vU;uniform float uT,uPart;
-        float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-        float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
-        void main(){
-          vec2 p=vU*vec2(3.0,5.0);
-          float m=n(p+vec2(uT*0.05,-uT*0.08))*0.6+n(p*2.1-vec2(uT*0.03,uT*0.05))*0.4;
-          float part=smoothstep(0.0,0.5,abs(vU.x-0.5)-uPart*0.35); // the mist draws aside from the middle
-          float edge=smoothstep(0.0,0.1,vU.x)*smoothstep(1.0,0.9,vU.x)*smoothstep(0.0,0.1,vU.y)*smoothstep(1.0,0.75,vU.y);
-          float a=m*edge*mix(1.0,part,uPart)*0.4;
-          gl_FragColor=vec4(vec3(0.78,0.82,0.95)*a,1.0);}`,
-    });
+    this.veil = glowShader({ uT: 0, uPart: 0 }, (u, vU) => {
+      const p = vU.mul(vec2(3, 5));
+      const m = n2(p.add(vec2(u.uT.mul(0.05), u.uT.mul(-0.08)))).mul(0.6).add(n2(p.mul(2.1).sub(vec2(u.uT.mul(0.03), u.uT.mul(0.05)))).mul(0.4));
+      const part = smoothstep(0, 0.5, abs(vU.x.sub(0.5)).sub(u.uPart.mul(0.35))); // the mist draws aside from the middle
+      const edge = smoothstep(0, 0.1, vU.x).mul(smoothstep(1, 0.9, vU.x)).mul(smoothstep(0, 0.1, vU.y)).mul(smoothstep(1, 0.75, vU.y));
+      return vec3(0.78, 0.82, 0.95).mul(m.mul(edge).mul(mix(1, part, u.uPart)).mul(0.4));
+    }, { side: THREE.DoubleSide });
     const veil = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 4.8), this.veil);
     veil.position.set(0, 2.5, -1.2);
     this.group.add(veil);
@@ -388,7 +378,7 @@ class Empress extends Station {
 class Emperor extends Station {
   private square: THREE.MeshBasicMaterial;
   private stars: THREE.Group;
-  private starMat: THREE.PointsMaterial;
+  private starMat: THREE.PointsNodeMaterial;
   private lineMatC: THREE.LineBasicMaterial;
   private seat = new THREE.Vector3();
   private sitting = 0;
@@ -409,7 +399,7 @@ class Emperor extends Station {
     this.group.add(cube, back);
     // Memory stars: faint constellations that gather overhead while you sit.
     this.stars = new THREE.Group();
-    this.starMat = new THREE.PointsMaterial({ color: new THREE.Color(1, 0.95, 0.85), size: 0.5, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+    this.starMat = new THREE.PointsNodeMaterial({ color: new THREE.Color(1, 0.95, 0.85), size: 0.5, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
     this.lineMatC = new THREE.LineBasicMaterial({ color: GOLD, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
     let seed = 4;
     const R = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
@@ -423,7 +413,10 @@ class Emperor extends Station {
         y += (R() - 0.5) * 3;
         z += (R() - 0.5) * 9;
       }
-      this.stars.add(new THREE.Points(new THREE.BufferGeometry().setFromPoints(pts), this.starMat));
+      const sp = worldPoints(new Float32Array(pts.flatMap((p) => [p.x, p.y, p.z])), { color: new THREE.Color(1, 0.95, 0.85), size: 0.5, opacity: 0, fog: false });
+      sp.sprite.material = this.starMat;
+      this.starMat.opacityNode = sp.material.opacityNode;
+      this.stars.add(sp.sprite);
       this.stars.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), this.lineMatC));
     }
     this.group.add(this.stars);
@@ -448,7 +441,7 @@ class Emperor extends Station {
 
 /* ---------------------------------------------------------------- V. The Hierophant */
 class Hierophant extends Station {
-  private shimmer: THREE.ShaderMaterial;
+  private shimmer;
   private ripple: THREE.Mesh;
   private rippleMat: THREE.MeshBasicMaterial;
   private rippleT = 9;
@@ -465,18 +458,11 @@ class Hierophant extends Station {
     lintel.position.set(0, 3.45, 0);
     lintel.castShadow = true;
     this.group.add(lintel);
-    this.shimmer = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-      uniforms: { uT: { value: 0 }, uI: { value: 0.3 } },
-      vertexShader: `varying vec2 vU;void main(){vU=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
-      fragmentShader: `varying vec2 vU;uniform float uT,uI;void main(){
-        float w=sin(vU.y*40.0-uT*2.0+sin(vU.x*9.0+uT)*2.0)*0.5+0.5;
-        float e=smoothstep(0.0,0.15,vU.x)*smoothstep(1.0,0.85,vU.x)*smoothstep(1.0,0.8,vU.y);
-        gl_FragColor=vec4(vec3(0.9,0.85,1.0)*w*e*0.12*uI,1.0);}`,
-    });
+    this.shimmer = glowShader({ uT: 0, uI: 0.3 }, (u, vU) => {
+      const w = sin(vU.y.mul(40).sub(u.uT.mul(2)).add(sin(vU.x.mul(9).add(u.uT)).mul(2))).mul(0.5).add(0.5);
+      const e = smoothstep(0, 0.15, vU.x).mul(smoothstep(1, 0.85, vU.x)).mul(smoothstep(1, 0.8, vU.y));
+      return vec3(0.9, 0.85, 1.0).mul(w).mul(e).mul(0.12).mul(u.uI);
+    }, { side: THREE.DoubleSide });
     const sh = new THREE.Mesh(new THREE.PlaneGeometry(1.85, 3.1), this.shimmer);
     sh.position.set(0, 1.55, 0);
     this.group.add(sh);
@@ -562,7 +548,7 @@ class Lovers extends Station {
 export class Chariot extends Station {
   vessel = new THREE.Group();
   private hullMat: THREE.MeshBasicMaterial;
-  private road: THREE.ShaderMaterial;
+  private road;
   constructor(d: StationData) {
     super(d);
     // A small vessel of light: a shallow crescent hull with a fine gold rim.
@@ -576,18 +562,13 @@ export class Chariot extends Station {
     this.vessel.position.set(0, 0.25, -1.5);
     this.group.add(this.vessel);
     // A long straight road of light running to the horizon.
-    this.road = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      uniforms: { uT: { value: 0 }, uI: { value: 0.3 } },
-      vertexShader: `varying vec2 vU;void main(){vU=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
-      fragmentShader: `varying vec2 vU;uniform float uT,uI;void main(){
-        float edge=smoothstep(0.0,0.08,vU.x)*smoothstep(1.0,0.92,vU.x);
-        float centre=exp(-pow((vU.x-0.5)*9.0,2.0));
-        float dash=0.6+0.4*smoothstep(0.3,0.7,fract(vU.y*120.0-uT*0.3));
-        float far=1.0-smoothstep(0.2,1.0,vU.y);
-        gl_FragColor=vec4(vec3(1.0,0.84,0.58)*(edge*0.25+centre*dash)*far*uI,1.0);}`,
+    this.road = glowShader({ uT: 0, uI: 0.3 }, (u, vU) => {
+      const edge = smoothstep(0, 0.08, vU.x).mul(smoothstep(1, 0.92, vU.x));
+      const cx = vU.x.sub(0.5).mul(9);
+      const centre = exp(cx.mul(cx).negate());
+      const dash = smoothstep(0.3, 0.7, fract(vU.y.mul(120).sub(u.uT.mul(0.3)))).mul(0.4).add(0.6);
+      const far = float(1).sub(smoothstep(0.2, 1, vU.y));
+      return vec3(1.0, 0.84, 0.58).mul(edge.mul(0.25).add(centre.mul(dash))).mul(far).mul(u.uI);
     });
     const road = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 420).rotateX(-Math.PI / 2), this.road);
     road.position.set(0, 0.2, -212);
@@ -618,25 +599,13 @@ export class Chariot extends Station {
     the surface, and a ring of light rests on the water above it, so it can be found from the
     shore or the air. */
 class Home extends Station {
-  private column: THREE.ShaderMaterial | null = null;
+  private column: ReturnType<typeof columnShader> | null = null;
   private surfaceRing: THREE.MeshBasicMaterial | null = null;
   constructor(d: StationData, kind: SiteKind) {
     super(d);
     if (kind !== "deep") return;
     const depth = WATER_Y - this.center.y;
-    this.column = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
-      uniforms: { uT: { value: 0 }, uI: { value: 0.5 } },
-      vertexShader: `varying vec2 vU;void main(){vU=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
-      fragmentShader: `varying vec2 vU;uniform float uT,uI;void main(){
-        float edge=pow(sin(vU.x*3.14159),2.0);
-        float rise=0.65+0.35*sin(vU.y*18.0-uT*1.2);
-        float ends=smoothstep(0.0,0.08,vU.y)*(1.0-smoothstep(0.9,1.0,vU.y));
-        gl_FragColor=vec4(vec3(0.62,0.8,1.0)*edge*rise*ends*uI*0.35,1.0);}`,
-    });
+    this.column = columnShader();
     const col = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.6, depth, 24, 1, true), this.column);
     col.position.y = depth / 2;
     this.surfaceRing = glowMat(new THREE.Color(0.7, 0.85, 1.0), 0.3);
@@ -651,6 +620,15 @@ class Home extends Station {
     }
     if (this.surfaceRing) this.surfaceRing.opacity = f.seen * (0.25 + (f.reduced ? 0 : Math.sin(f.t * 0.7) * 0.08) + this.active * 0.2);
   }
+}
+
+function columnShader() {
+  return glowShader({ uT: 0, uI: 0.5 }, (u, vU) => {
+    const edge = pow(sin(vU.x.mul(3.14159)), 2);
+    const rise = sin(vU.y.mul(18).sub(u.uT.mul(1.2))).mul(0.35).add(0.65);
+    const ends = smoothstep(0, 0.08, vU.y).mul(float(1).sub(smoothstep(0.9, 1, vU.y)));
+    return vec3(0.62, 0.8, 1.0).mul(edge).mul(rise).mul(ends).mul(u.uI).mul(0.35);
+  }, { side: THREE.DoubleSide });
 }
 
 /** The names of all twenty-two, for the homes that carry no station data of their own. */

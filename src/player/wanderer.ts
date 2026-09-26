@@ -6,7 +6,8 @@
    - Motes flow over the body toward the heart and stream behind; ribbons trail from the hands
      and crown.
    - Sitting and reaching gestures are used at the stations. */
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
+import { softPoints, spriteCloud, T, type SpriteCloud } from "../gpu/tsl";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { loadBytes } from "../core/assets";
@@ -23,7 +24,7 @@ const SWIM_NATURAL = 2.4;
 
 const U = {
   uT: { value: 0 },
-  uForm: { value: 0 },
+  uForm: T.uniform(0),
   uPulse: { value: 1 },
 };
 
@@ -70,7 +71,7 @@ export const SEGS: Seg[] = [
 
 /* ---------- motes flowing over the body ---------- */
 class BodyMotes {
-  points: THREE.Points;
+  points: THREE.Sprite;
   private seg: Int16Array;
   private u: Float32Array;
   private ang: Float32Array;
@@ -79,7 +80,8 @@ class BodyMotes {
   private pos: Float32Array;
   private alpha: Float32Array;
   private started = false;
-  private mat: THREE.ShaderMaterial;
+  private cloud: SpriteCloud;
+  private uDpr = T.uniform(1);
   private v = new THREE.Vector3();
   private ax = new THREE.Vector3();
   private p1 = new THREE.Vector3();
@@ -91,10 +93,12 @@ class BodyMotes {
     this.ang = new Float32Array(n);
     this.follow = new Float32Array(n);
     this.speed = new Float32Array(n);
-    this.pos = new Float32Array(n * 3);
-    this.alpha = new Float32Array(n);
-    const size = new Float32Array(n);
-    const tint = new Float32Array(n);
+    const mat = softPoints();
+    this.cloud = spriteCloud(n, { position: 3, aAlpha: 1, aSize: 1, aTint: 1 }, mat);
+    this.pos = this.cloud.attrs.position.array as Float32Array;
+    this.alpha = this.cloud.attrs.aAlpha.array as Float32Array;
+    const size = this.cloud.attrs.aSize.array as Float32Array;
+    const tint = this.cloud.attrs.aTint.array as Float32Array;
     // weight segments by surface area, so the light spreads evenly
     const w = SEGS.map((s) => (s.r[0] + s.r[1]) * (typeof s.to === "string" ? 0.35 : 0.15));
     const total = w.reduce((a, b) => a + b, 0);
@@ -109,30 +113,19 @@ class BodyMotes {
       size[i] = 0.4 + Math.pow(Math.random(), 2) * 1.8;
       tint[i] = Math.random();
     }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
-    g.setAttribute("aAlpha", new THREE.BufferAttribute(this.alpha, 1).setUsage(THREE.DynamicDrawUsage));
-    g.setAttribute("aSize", new THREE.BufferAttribute(size, 1));
-    g.setAttribute("aTint", new THREE.BufferAttribute(tint, 1));
-    this.mat = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      uniforms: { uDpr: { value: 1 }, uForm: U.uForm },
-      vertexShader: /* glsl */ `attribute float aAlpha,aSize,aTint;uniform float uDpr;varying float vA;varying float vT;
-        void main(){vec4 mv=modelViewMatrix*vec4(position,1.0);gl_Position=projectionMatrix*mv;
-          gl_PointSize=clamp(aSize*uDpr*26.0/max(-mv.z,0.5),1.0,8.0*uDpr);vA=aAlpha;vT=aTint;}`,
-      fragmentShader: /* glsl */ `uniform float uForm;varying float vA;varying float vT;
-        void main(){float r=length(gl_PointCoord-0.5);float a=smoothstep(0.5,0.0,r)*vA*uForm;
-          vec3 c=vT<0.65?vec3(1.0,0.88,0.66):vT<0.9?vec3(0.8,0.93,1.0):vec3(1.0,0.7,0.45);
-          gl_FragColor=vec4(c*a*0.55,1.0);}`,
-    });
-    this.points = new THREE.Points(g, this.mat);
-    this.points.frustumCulled = false;
+    {
+      const { clamp, float, length, max, pointUV, smoothstep, vec3, vec4 } = T;
+      const { position, aAlpha, aSize, aTint } = this.cloud.nodes;
+      mat.sizeNode = clamp(aSize.mul(26).div(max(T.cameraViewMatrix.mul(vec4(position, 1)).z.negate(), 0.5)), float(1).div(this.uDpr), 8);
+      const a = smoothstep(0.5, 0, length(pointUV.sub(0.5))).mul(aAlpha).mul(U.uForm);
+      const c = aTint.lessThan(0.65).select(vec3(1.0, 0.88, 0.66), aTint.lessThan(0.9).select(vec3(0.8, 0.93, 1.0), vec3(1.0, 0.7, 0.45)));
+      mat.colorNode = vec4(c.mul(a).mul(0.55), 1);
+    }
+    this.points = this.cloud.sprite;
   }
 
   update(dt: number, dpr: number, flow: number): void {
-    this.mat.uniforms.uDpr.value = dpr;
+    this.uDpr.value = dpr;
     const p = this.pos;
     const { a, b, r } = this.body;
     for (let i = 0; i < this.n; i++) {
@@ -171,9 +164,7 @@ class BodyMotes {
       this.alpha[i] = Math.min(1, e * 6) * Math.min(1, (1 - e) * 3) * (this.follow[i] < 5 ? 0.6 : 0.9) * (this.v.y < 0 ? 0.3 : 1);
     }
     this.started = true;
-    const g = this.points.geometry;
-    (g.attributes.position as THREE.BufferAttribute).needsUpdate = true;
-    (g.attributes.aAlpha as THREE.BufferAttribute).needsUpdate = true;
+    this.cloud.attrs.position.needsUpdate = this.cloud.attrs.aAlpha.needsUpdate = true;
   }
 }
 
@@ -208,17 +199,14 @@ class Ribbon {
     g.setIndex(index);
     this.mesh = new THREE.Mesh(
       g,
-      new THREE.ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-        blending: THREE.AdditiveBlending,
-        uniforms: { uForm: U.uForm },
-        vertexShader: /* glsl */ `attribute float aA,aE;varying float vA;varying float vE;void main(){vA=aA;vE=aE;gl_Position=projectionMatrix*viewMatrix*vec4(position,1.0);}`,
-        fragmentShader: /* glsl */ `uniform float uForm;varying float vA;varying float vE;void main(){
-          float soft=pow(1.0-vE*vE,2.0);  // bright thread in the middle, feathered edges
-          gl_FragColor=vec4(vec3(1.0,0.82,0.52)*vA*vA*soft*0.35*uForm,1.0);}`,
-      }),
+      (() => {
+        const { attribute, pow, varying, vec3, vec4 } = T;
+        const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: false });
+        const vA = varying(attribute("aA", "float")), vE = varying(attribute("aE", "float"));
+        const soft = pow(vE.mul(vE).oneMinus(), 2); // bright thread in the middle, feathered edges
+        m.colorNode = vec4(vec3(1.0, 0.82, 0.52).mul(vA).mul(vA).mul(soft).mul(0.35).mul(U.uForm), 1);
+        return m;
+      })(),
     );
     this.mesh.frustumCulled = false;
   }

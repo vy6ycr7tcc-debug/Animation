@@ -5,9 +5,9 @@
    - Butterflies of light drift near flowers and follow you a while.
    - Great gliders of light pass slowly overhead.
    - Sparks rise whenever something opens. */
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 import type { AudioEngine } from "../core/audio";
-import { IJ_FOG_GLSL } from "./fog";
+import { softPoints, spriteCloud, T, viewDepth, withFog, type N, type SpriteCloud } from "../gpu/tsl";
 import { fbm, groundKind, heightAt, WATER_Y } from "./terrain";
 
 export interface LifeFrame {
@@ -22,6 +22,12 @@ export interface LifeFrame {
 // A gentle pentatonic scale (D major), all above the phone speaker's low end.
 const SCALE = [440, 493.88, 587.33, 659.25, 739.99, 880, 987.77, 1174.66];
 
+const {
+  abs, attribute, cameraPosition, clamp, cos, Discard, dot, exp, float, fract, Fn, If, length, Loop, max, min, mix, pointUV, positionLocal,
+  pow, screenCoordinate, sin, smoothstep, step, uniform, uniformArray, varying, vec2, vec3, vec4,
+} = T;
+const tuv = T.uv;
+
 function cellHash(i: number, j: number, salt: number): number {
   const s = Math.sin(i * 127.1 + j * 311.7 + salt * 74.7) * 43758.5453;
   return s - Math.floor(s);
@@ -29,36 +35,26 @@ function cellHash(i: number, j: number, salt: number): number {
 
 /* ---------------------------------------------------------------- sparks */
 export class Sparks {
-  points: THREE.Points;
+  points: THREE.Sprite;
   private n = 260;
   private pos: Float32Array;
   private vel: Float32Array;
   private life: Float32Array;
   private tint: Float32Array;
   private next = 0;
-  private mat: THREE.ShaderMaterial;
+  private cloud: SpriteCloud;
+  private uDpr = uniform(1);
   constructor() {
-    this.pos = new Float32Array(this.n * 3);
+    const mat = softPoints();
+    this.cloud = spriteCloud(this.n, { position: 3, aLife: 1, aTint: 3 }, mat);
+    const { position, aLife, aTint } = this.cloud.nodes;
+    this.pos = this.cloud.attrs.position.array as Float32Array;
+    this.life = this.cloud.attrs.aLife.array as Float32Array;
+    this.tint = this.cloud.attrs.aTint.array as Float32Array;
     this.vel = new Float32Array(this.n * 3);
-    this.life = new Float32Array(this.n);
-    this.tint = new Float32Array(this.n * 3);
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
-    g.setAttribute("aLife", new THREE.BufferAttribute(this.life, 1).setUsage(THREE.DynamicDrawUsage));
-    g.setAttribute("aTint", new THREE.BufferAttribute(this.tint, 3).setUsage(THREE.DynamicDrawUsage));
-    this.mat = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      uniforms: { uDpr: { value: 1 } },
-      vertexShader: `attribute float aLife;attribute vec3 aTint;uniform float uDpr;varying float vL;varying vec3 vC;
-        void main(){vec4 mv=modelViewMatrix*vec4(position,1.0);gl_Position=projectionMatrix*mv;
-          gl_PointSize=clamp(uDpr*30.0*(0.4+aLife)/max(-mv.z,0.5),1.0,9.0*uDpr);vL=aLife;vC=aTint;}`,
-      fragmentShader: `varying float vL;varying vec3 vC;void main(){float r=length(gl_PointCoord-0.5);
-        gl_FragColor=vec4(vC*smoothstep(0.5,0.0,r)*vL*1.8,1.0);}`,
-    });
-    this.points = new THREE.Points(g, this.mat);
-    this.points.frustumCulled = false;
+    mat.sizeNode = clamp(aLife.add(0.4).mul(30).div(max(viewDepth(position), 0.5)), float(1).div(this.uDpr), 9);
+    mat.colorNode = vec4(aTint.mul(smoothstep(0.5, 0, length(pointUV.sub(0.5)))).mul(aLife).mul(1.8), 1);
+    this.points = this.cloud.sprite;
   }
   emit(at: THREE.Vector3, count: number, color: THREE.Color, spread = 1): void {
     for (let k = 0; k < count; k++) {
@@ -73,7 +69,7 @@ export class Sparks {
     }
   }
   update(dt: number, dpr: number): void {
-    this.mat.uniforms.uDpr.value = dpr;
+    this.uDpr.value = dpr;
     for (let i = 0; i < this.n; i++) {
       if (this.life[i] <= 0) continue;
       this.life[i] = Math.max(0, this.life[i] - dt * 0.7);
@@ -85,10 +81,8 @@ export class Sparks {
       this.pos[j + 1] += this.vel[j + 1] * dt;
       this.pos[j + 2] += this.vel[j + 2] * dt;
     }
-    const g = this.points.geometry;
-    (g.attributes.position as THREE.BufferAttribute).needsUpdate = true;
-    (g.attributes.aLife as THREE.BufferAttribute).needsUpdate = true;
-    (g.attributes.aTint as THREE.BufferAttribute).needsUpdate = true;
+    const A = this.cloud.attrs;
+    A.position.needsUpdate = A.aLife.needsUpdate = A.aTint.needsUpdate = true;
   }
 }
 
@@ -109,15 +103,10 @@ export class LightGrass {
   private trail: THREE.Vector4[] = [];
   private trailNext = 0;
   private lastMark = new THREE.Vector3(1e9, 0, 0);
-  private uniforms = {
-    uT: { value: 0 },
-    uPlayer: { value: new THREE.Vector3() },
-    uTrail: { value: [] as THREE.Vector4[] },
-  };
+  private uniforms = { uT: uniform(0), uPlayer: uniform(new THREE.Vector3()) };
 
   constructor() {
     for (let i = 0; i < TRAIL; i++) this.trail.push(new THREE.Vector4(0, 0, -100, 0));
-    this.uniforms.uTrail.value = this.trail;
     const max = BLADES_PER_TILE * (GRASS_RING * 2 + 1) ** 2;
     this.geo = new THREE.InstancedBufferGeometry();
     // one blade: a thin tapering triangle strip (5 vertices), uv.y = 0 at the root, 1 at the tip
@@ -137,50 +126,46 @@ export class LightGrass {
     this.geo.setAttribute("aParams", this.params);
     this.geo.instanceCount = 0;
     // Solid, softly lit blades (they catch the moon at their tips), not lines of light.
-    const mat = new THREE.ShaderMaterial({
-      side: THREE.DoubleSide,
-      uniforms: this.uniforms,
-      vertexShader: /* glsl */ `
-        attribute vec3 aBase;attribute vec3 aParams; // height, rotation, phase
-        uniform float uT;uniform vec3 uPlayer;uniform vec4 uTrail[${TRAIL}];
-        varying float vY;varying float vGlow;varying float vFade;varying vec3 vGW;
-        void main(){
-          float hgt=aParams.x,rot=aParams.y,ph=aParams.z;
-          vec3 p=position;p.y*=hgt;
-          float c=cos(rot),s=sin(rot);p=vec3(p.x*c-p.z*s,p.y,p.x*s+p.z*c);
-          vec3 w=aBase+p;
-          float y2=uv.y*uv.y;
-          // wind, in slow travelling gusts
-          float gust=sin(uT*0.9+aBase.x*0.15+aBase.z*0.1)*0.5+0.5;
-          w.xz+=vec2(sin(uT*1.7+ph),cos(uT*1.3+ph*1.3))*0.05*y2+vec2(0.12,0.05)*gust*y2;
-          // bend away from the wanderer
-          vec2 d=aBase.xz-uPlayer.xz;float dl=length(d)+1e-3;
-          w.xz+=d/dl*smoothstep(1.5,0.0,dl)*0.45*y2;w.y-=smoothstep(1.2,0.0,dl)*0.15*y2*hgt;
-          // brighten where the wanderer has just walked
-          float g=0.0;
-          for(int i=0;i<${TRAIL};i++){vec4 tr=uTrail[i];float age=uT-tr.z;if(age<0.0)continue;
-            vec2 e=aBase.xz-tr.xy;g+=exp(-dot(e,e)*0.9)*exp(-age*0.28);}
-          vGlow=min(g,1.5);
-          vY=uv.y;
-          vGW=w;
-          vec4 mv=viewMatrix*vec4(w,1.0);
-          float camD=length(w-cameraPosition);
-          vFade=(1.0-smoothstep(22.0,34.0,length(aBase.xz-cameraPosition.xz)))*smoothstep(1.2,4.0,camD); // never a blade in your face
-          gl_Position=projectionMatrix*mv;
-        }`,
-      fragmentShader: /* glsl */ `
-        varying float vY;varying float vGlow;varying float vFade;varying vec3 vGW;
-        ${IJ_FOG_GLSL}
-        void main(){
-          // fade out by dissolving, so the blades stay solid and sort correctly
-          if(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)>vFade)discard;
-          vec3 base=mix(vec3(0.07,0.075,0.14),vec3(0.36,0.4,0.6),vY);
-          base+=vec3(0.35,0.28,0.24)*pow(vY,4.0)*0.35; // moonlight on the tips
-          vec3 glow=vec3(1.0,0.82,0.52)*vGlow*vY*1.2;
-          vec4 fg=ijFog(vGW);
-          gl_FragColor=vec4(mix(base+glow,fg.rgb,fg.a),1.0);
-        }`,
-    });
+    const mat = new THREE.MeshBasicNodeMaterial({ side: THREE.DoubleSide, fog: false });
+    const U = this.uniforms, uTrail = uniformArray(this.trail, "vec4");
+    const aBase = attribute("aBase", "vec3"), aParams = attribute("aParams", "vec3"); // height, rotation, phase
+    const hgt = aParams.x, rot = aParams.y, ph = aParams.z;
+    const p0 = positionLocal.mul(vec3(1, hgt, 1));
+    const c = cos(rot), sn = sin(rot);
+    const w0 = aBase.add(vec3(p0.x.mul(c).sub(p0.z.mul(sn)), p0.y, p0.x.mul(sn).add(p0.z.mul(c))));
+    const y2 = tuv().y.mul(tuv().y);
+    // wind, in slow travelling gusts
+    const gust = sin(U.uT.mul(0.9).add(aBase.x.mul(0.15)).add(aBase.z.mul(0.1))).mul(0.5).add(0.5);
+    const wind = vec2(sin(U.uT.mul(1.7).add(ph)), cos(U.uT.mul(1.3).add(ph.mul(1.3)))).mul(0.05).mul(y2).add(vec2(0.12, 0.05).mul(gust).mul(y2));
+    // bend away from the wanderer
+    const d = aBase.xz.sub(U.uPlayer.xz), dl = length(d).add(1e-3);
+    const bend = d.div(dl).mul(smoothstep(1.5, 0, dl)).mul(0.45).mul(y2);
+    const w = vec3(w0.x.add(wind.x).add(bend.x), w0.y.sub(smoothstep(1.2, 0, dl).mul(0.15).mul(y2).mul(hgt)), w0.z.add(wind.y).add(bend.y));
+    mat.positionNode = w;
+    // brighten where the wanderer has just walked
+    const glowV = varying(Fn(() => {
+      const g = float(0).toVar();
+      Loop(TRAIL, ({ i }: N) => {
+        const tr = uTrail.element(i);
+        const age = U.uT.sub(tr.z);
+        const e = aBase.xz.sub(tr.xy);
+        g.addAssign(age.greaterThanEqual(0).select(exp(dot(e, e).mul(-0.9)).mul(exp(age.mul(-0.28))), 0));
+      });
+      return min(g, 1.5);
+    })());
+    const camD = length(w.sub(cameraPosition));
+    const fadeV = varying(float(1).sub(smoothstep(22, 34, length(aBase.xz.sub(cameraPosition.xz)))).mul(smoothstep(1.2, 4, camD))); // never a blade in your face
+    const wV = varying(w);
+    const vY = tuv().y;
+    mat.colorNode = Fn(() => {
+      // fade out by dissolving, so the blades stay solid and sort correctly
+      If(fract(sin(dot(screenCoordinate.xy, vec2(12.9898, 78.233))).mul(43758.5453)).greaterThan(fadeV), () => {
+        Discard();
+      });
+      const base = mix(vec3(0.07, 0.075, 0.14), vec3(0.36, 0.4, 0.6), vY).add(vec3(0.35, 0.28, 0.24).mul(pow(vY, 4)).mul(0.35)); // moonlight on the tips
+      const glow = vec3(1.0, 0.82, 0.52).mul(glowV).mul(vY).mul(1.2);
+      return vec4(withFog(base.add(glow), wV), 1);
+    })();
     this.mesh = new THREE.Mesh(this.geo, mat);
     this.mesh.frustumCulled = false;
   }
@@ -267,7 +252,7 @@ export class Flowers {
   private geo: THREE.InstancedBufferGeometry;
   private aPos: THREE.InstancedBufferAttribute;
   private aState: THREE.InstancedBufferAttribute;
-  private uT = { value: 0 };
+  private uT = uniform(0);
   private tmp = new THREE.Vector3();
   constructor(private sparks: Sparks, private audio: AudioEngine) {
     // Six petals, each a flattened ellipsoid lying along +y from the centre.
@@ -297,37 +282,26 @@ export class Flowers {
     this.geo.setAttribute("aPos", this.aPos);
     this.geo.setAttribute("aOpen", this.aState);
     this.geo.instanceCount = 0;
-    const mat = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      uniforms: { uT: this.uT },
-      vertexShader: /* glsl */ `
-        attribute float aPetal;attribute vec4 aPos;attribute float aOpen;uniform float uT;
-        varying float vOpen;varying float vHue;varying float vTip;varying float vFade;
-        void main(){
-          float a=aPetal*1.0472+aPos.w*6.0;
-          float tilt=mix(0.18,1.25,aOpen)+sin(uT*1.3+aPos.w*20.0)*0.04; // folded bud → open bloom
-          vec3 p=position*mix(0.55,1.0,aOpen)*0.34;
-          // tilt the petal away from vertical, then turn it around the stem
-          float ct=cos(tilt),st=sin(tilt);
-          p=vec3(p.x,p.y*ct-p.z*st,p.y*st+p.z*ct);
-          float ca=cos(a),sa=sin(a);
-          p=vec3(p.x*ca+p.z*sa,p.y,-p.x*sa+p.z*ca);
-          vec3 w=aPos.xyz+vec3(0.0,0.32+sin(uT*0.8+aPos.w*9.0)*0.02,0.0)+p;
-          vOpen=aOpen;vHue=aPos.w;vTip=length(position.xy)/0.5;
-          vFade=1.0-smoothstep(45.0,62.0,length(aPos.xz-cameraPosition.xz));
-          gl_Position=projectionMatrix*viewMatrix*vec4(w,1.0);
-        }`,
-      fragmentShader: /* glsl */ `
-        varying float vOpen;varying float vHue;varying float vTip;varying float vFade;
-        void main(){
-          vec3 c=mix(vec3(1.0,0.78,0.55),vec3(0.75,0.85,1.0),step(0.5,vHue));
-          c=mix(c,vec3(1.0,0.65,0.85),step(0.8,vHue));
-          float b=0.12+vOpen*0.9;
-          gl_FragColor=vec4(c*b*(0.5+vTip*0.8)*vFade,1.0);
-        }`,
-    });
+    const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
+    {
+      const uT = this.uT;
+      const aPetal = attribute("aPetal", "float"), aPos = attribute("aPos", "vec4"), aOpen = attribute("aOpen", "float");
+      const a = aPetal.mul(1.0472).add(aPos.w.mul(6));
+      const tilt = mix(0.18, 1.25, aOpen).add(sin(uT.mul(1.3).add(aPos.w.mul(20))).mul(0.04)); // folded bud → open bloom
+      const p = positionLocal.mul(mix(0.55, 1, aOpen)).mul(0.34);
+      // tilt the petal away from vertical, then turn it around the stem
+      const ct = cos(tilt), st = sin(tilt);
+      const p1 = vec3(p.x, p.y.mul(ct).sub(p.z.mul(st)), p.y.mul(st).add(p.z.mul(ct)));
+      const ca = cos(a), sa = sin(a);
+      const p2 = vec3(p1.x.mul(ca).add(p1.z.mul(sa)), p1.y, p1.x.negate().mul(sa).add(p1.z.mul(ca)));
+      mat.positionNode = aPos.xyz.add(vec3(0, sin(uT.mul(0.8).add(aPos.w.mul(9))).mul(0.02).add(0.32), 0)).add(p2);
+      const vTip = varying(length(positionLocal.xy).div(0.5));
+      const vFade = varying(float(1).sub(smoothstep(45, 62, length(aPos.xz.sub(cameraPosition.xz)))));
+      const hue = aPos.w;
+      const c = mix(mix(vec3(1.0, 0.78, 0.55), vec3(0.75, 0.85, 1.0), step(0.5, hue)), vec3(1.0, 0.65, 0.85), step(0.8, hue));
+      const b = aOpen.mul(0.9).add(0.12);
+      mat.colorNode = vec4(c.mul(b).mul(vTip.mul(0.8).add(0.5)).mul(vFade), 1);
+    }
     this.mesh = new THREE.Mesh(this.geo, mat);
     this.mesh.frustumCulled = false;
   }
@@ -412,15 +386,16 @@ interface Cluster {
   target: number;
 }
 export class Lanterns {
-  points: THREE.Points;
+  points: THREE.Sprite;
   private clusters = new Map<string, Cluster | null>();
   private active: Cluster[] = [];
   private cx = Infinity;
   private cz = Infinity;
   private litKeys: Set<string>;
-  private pos = new Float32Array(400 * 3);
-  private glow = new Float32Array(400);
-  private mat: THREE.ShaderMaterial;
+  private pos: Float32Array;
+  private glow: Float32Array;
+  private cloud: SpriteCloud;
+  private uDpr = uniform(1);
   onKindle: ((x: number, z: number) => void) | null = null;
   constructor(private sparks: Sparks) {
     let saved: string[] = [];
@@ -430,25 +405,17 @@ export class Lanterns {
       saved = [];
     }
     this.litKeys = new Set(saved);
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
-    g.setAttribute("aGlow", new THREE.BufferAttribute(this.glow, 1).setUsage(THREE.DynamicDrawUsage));
-    g.setDrawRange(0, 0);
-    this.mat = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      uniforms: { uDpr: { value: 1 }, uT: { value: 0 } },
-      vertexShader: `attribute float aGlow;uniform float uDpr,uT;varying float vG;
-        void main(){vec4 mv=modelViewMatrix*vec4(position,1.0);gl_Position=projectionMatrix*mv;
-          gl_PointSize=clamp(uDpr*(26.0+aGlow*80.0)/max(-mv.z,0.5)*6.0,3.0,160.0*uDpr);vG=aGlow;}`,
-      fragmentShader: `varying float vG;void main(){float r=length(gl_PointCoord-0.5)*2.0;
-        float core=smoothstep(0.18,0.0,r);float halo=exp(-r*r*5.0)*0.35;
-        vec3 c=vec3(1.0,0.78,0.48);
-        gl_FragColor=vec4(c*(core*(0.4+vG*2.4)+halo*(0.12+vG*1.3)),1.0);}`,
-    });
-    this.points = new THREE.Points(g, this.mat);
-    this.points.frustumCulled = false;
+    const mat = softPoints();
+    this.cloud = spriteCloud(400, { position: 3, aGlow: 1 }, mat);
+    this.pos = this.cloud.attrs.position.array as Float32Array;
+    this.glow = this.cloud.attrs.aGlow.array as Float32Array;
+    const { position, aGlow } = this.cloud.nodes;
+    mat.sizeNode = clamp(aGlow.mul(80).add(26).div(max(viewDepth(position), 0.5)).mul(6), float(3).div(this.uDpr), 160);
+    const r = length(pointUV.sub(0.5)).mul(2);
+    const core = smoothstep(0.18, 0, r), halo = exp(r.mul(r).mul(-5)).mul(0.35);
+    mat.colorNode = vec4(vec3(1.0, 0.78, 0.48).mul(core.mul(aGlow.mul(2.4).add(0.4)).add(halo.mul(aGlow.mul(1.3).add(0.12)))), 1);
+    this.points = this.cloud.sprite;
+    this.cloud.setCount(0);
   }
 
   private cluster(i: number, j: number): Cluster | null {
@@ -476,8 +443,7 @@ export class Lanterns {
   }
 
   update(f: LifeFrame): void {
-    this.mat.uniforms.uDpr.value = f.dpr;
-    this.mat.uniforms.uT.value = f.t;
+    this.uDpr.value = f.dpr;
     const cx = Math.floor(f.player.x / LCELL), cz = Math.floor(f.player.z / LCELL);
     if (cx !== this.cx || cz !== this.cz) {
       this.cx = cx;
@@ -514,10 +480,8 @@ export class Lanterns {
         n++;
       }
     }
-    const g = this.points.geometry;
-    g.setDrawRange(0, n);
-    (g.attributes.position as THREE.BufferAttribute).needsUpdate = true;
-    (g.attributes.aGlow as THREE.BufferAttribute).needsUpdate = true;
+    this.cloud.setCount(n);
+    this.cloud.attrs.position.needsUpdate = this.cloud.attrs.aGlow.needsUpdate = true;
   }
 
   get litCount(): number {
@@ -527,45 +491,41 @@ export class Lanterns {
 
 /* ---------------------------------------------------------------- butterflies of light */
 export class Butterflies {
-  points: THREE.Points;
+  points: THREE.Sprite;
   private n = 36;
   private pos: Float32Array;
   private vel: Float32Array;
   private follow: Float32Array;
-  private mat: THREE.ShaderMaterial;
+  private cloud: SpriteCloud;
+  private U = { uDpr: uniform(1), uT: uniform(0) };
   private tmp = new THREE.Vector3();
   private target = new THREE.Vector3();
   constructor(private flowers: Flowers) {
-    this.pos = new Float32Array(this.n * 3);
+    const mat = softPoints();
+    this.cloud = spriteCloud(this.n, { position: 3, aK: 1 }, mat);
+    this.pos = this.cloud.attrs.position.array as Float32Array;
     this.vel = new Float32Array(this.n * 3);
     this.follow = new Float32Array(this.n);
-    const k = new Float32Array(this.n);
+    const k = this.cloud.attrs.aK.array as Float32Array;
     for (let i = 0; i < this.n; i++) k[i] = Math.random();
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
-    g.setAttribute("aK", new THREE.BufferAttribute(k, 1));
-    this.mat = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      uniforms: { uDpr: { value: 1 }, uT: { value: 0 } },
-      vertexShader: `attribute float aK;uniform float uDpr,uT;varying float vF;varying float vK;
-        void main(){vec4 mv=modelViewMatrix*vec4(position,1.0);gl_Position=projectionMatrix*mv;
-          vF=abs(sin(uT*(9.0+aK*4.0)+aK*30.0)); // wing beats
-          gl_PointSize=clamp(uDpr*(10.0+vF*8.0)/max(-mv.z,0.5)*3.0,1.5,24.0*uDpr);vK=aK;}`,
-      fragmentShader: `varying float vF;varying float vK;void main(){vec2 q=gl_PointCoord-0.5;
-        // two wings: an ellipse pinched at the middle, opening and closing
-        q.x/=max(0.15,vF);float r=length(q*vec2(1.0,1.6));float wing=smoothstep(0.5,0.1,r)*smoothstep(0.0,0.06,abs(q.x*vF));
-        vec3 c=mix(vec3(0.7,0.9,1.0),vec3(1.0,0.8,0.95),step(0.5,vK));
-        gl_FragColor=vec4(c*(wing*0.9+smoothstep(0.15,0.0,length(gl_PointCoord-0.5))*0.8),1.0);}`,
-    });
-    this.points = new THREE.Points(g, this.mat);
-    this.points.frustumCulled = false;
+    const { position, aK } = this.cloud.nodes, U = this.U;
+    const vF = abs(sin(U.uT.mul(aK.mul(4).add(9)).add(aK.mul(30)))); // wing beats
+    mat.sizeNode = clamp(vF.mul(8).add(10).div(max(viewDepth(position), 0.5)).mul(3), float(1.5).div(U.uDpr), 24);
+    mat.colorNode = Fn(() => {
+      // two wings: an ellipse pinched at the middle, opening and closing
+      const q0 = pointUV.sub(0.5);
+      const q = vec2(q0.x.div(max(0.15, vF)), q0.y);
+      const r = length(q.mul(vec2(1, 1.6)));
+      const wing = smoothstep(0.5, 0.1, r).mul(smoothstep(0, 0.06, abs(q.x.mul(vF))));
+      const c = mix(vec3(0.7, 0.9, 1.0), vec3(1.0, 0.8, 0.95), step(0.5, aK));
+      return vec4(c.mul(wing.mul(0.9).add(smoothstep(0.15, 0, length(q0)).mul(0.8))), 1);
+    })();
+    this.points = this.cloud.sprite;
   }
   private started = false;
   update(f: LifeFrame): void {
-    this.mat.uniforms.uDpr.value = f.dpr;
-    this.mat.uniforms.uT.value = f.t;
+    this.U.uDpr.value = f.dpr;
+    this.U.uT.value = f.t;
     const p = this.pos, v = this.vel;
     if (!this.started) {
       for (let i = 0; i < this.n; i++) p.set([f.player.x + (Math.random() - 0.5) * 30, f.player.y + 1 + Math.random() * 2, f.player.z + (Math.random() - 0.5) * 30], i * 3);
@@ -601,7 +561,7 @@ export class Butterflies {
       p[j + 1] = Math.max(heightAt(p[j], p[j + 2]) + 0.3, p[j + 1] + v[j + 1] * f.dt);
       p[j + 2] += v[j + 2] * f.dt;
     }
-    (this.points.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+    this.cloud.attrs.position.needsUpdate = true;
   }
 }
 
@@ -609,7 +569,7 @@ export class Butterflies {
 export class Gliders {
   group = new THREE.Group();
   private items: { mesh: THREE.Mesh; r: number; h: number; speed: number; phase: number }[] = [];
-  private uT = { value: 0 };
+  private uT = uniform(0);
   constructor() {
     // A broad, soft diamond with long trailing tips: a manta of light.
     const s = new THREE.Shape();
@@ -622,23 +582,18 @@ export class Gliders {
     s.bezierCurveTo(-3.4, 0.2, -1.2, 1.2, 0, 1.6);
     const geo = new THREE.ShapeGeometry(s, 24);
     geo.rotateX(-Math.PI / 2);
-    const mat = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-      fog: false,
-      uniforms: { uT: this.uT },
-      vertexShader: `uniform float uT;varying vec3 vP;void main(){vec3 p=position;
-        p.y+=sin(uT*1.1+abs(p.x)*0.5)*abs(p.x)*0.35; // slow wing strokes
-        p.y+=sin(uT*1.1-p.z*0.6)*0.25*step(p.z,-1.4);  // the tail follows
-        vP=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);}`,
-      fragmentShader: `varying vec3 vP;void main(){
-        float edge=smoothstep(3.6,4.2,abs(vP.x))+smoothstep(-3.5,-4.4,vP.z)*0.5;
-        float body=exp(-vP.x*vP.x*0.6)*0.5;
-        float lines=smoothstep(0.92,1.0,sin(vP.x*6.0+vP.z*2.0)*0.5+0.5)*0.35;
-        gl_FragColor=vec4(vec3(0.7,0.85,1.0)*(0.02+body*0.18+lines*0.12+edge*0.9),1.0);}`,
-    });
+    const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: false });
+    {
+      const uT = this.uT, P = positionLocal;
+      const lift = sin(uT.mul(1.1).add(abs(P.x).mul(0.5))).mul(abs(P.x)).mul(0.35) // slow wing strokes
+        .add(sin(uT.mul(1.1).sub(P.z.mul(0.6))).mul(0.25).mul(step(P.z, -1.4))); // the tail follows
+      mat.positionNode = P.add(vec3(0, lift, 0));
+      const vP = varying(P);
+      const edge = smoothstep(3.6, 4.2, abs(vP.x)).add(smoothstep(-3.5, -4.4, vP.z).mul(0.5));
+      const body = exp(vP.x.mul(vP.x).mul(-0.6)).mul(0.5);
+      const lines = smoothstep(0.92, 1, sin(vP.x.mul(6).add(vP.z.mul(2))).mul(0.5).add(0.5)).mul(0.35);
+      mat.colorNode = vec4(vec3(0.7, 0.85, 1.0).mul(body.mul(0.18).add(0.02).add(lines.mul(0.12)).add(edge.mul(0.9))), 1);
+    }
     for (let i = 0; i < 3; i++) {
       const m = new THREE.Mesh(geo, mat);
       m.frustumCulled = false;

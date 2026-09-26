@@ -13,7 +13,8 @@
      keep you company a while.
    Everything is placed by a hash of its cell, so the world is the same on every visit. Nothing
    here makes a sound. */
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
+import { softPoints, spriteCloud, T, viewDepth, type N, type SpriteCloud } from "../gpu/tsl";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { LifeFrame, Sparks } from "./life";
 import { etchedStone, vibeUniforms } from "./etching";
@@ -26,30 +27,36 @@ import { colliders, fbm, groundKind, heightAt, LANDMARK_SITES, SPAWN, smooth, WA
 
 /** Shared by every shader here; main.ts copies the scene's fog in. */
 export const creationUniforms = {
-  uT: { value: 0 },
-  uPlayer: { value: new THREE.Vector3() },
-  uStar: { value: new THREE.Vector3(0, 1, 0) },
-  uFogC: { value: new THREE.Color() },
-  uFogD: { value: 0.006 },
-  uPx: { value: 600 }, // pixels per unit at distance 1 (for point sizes)
-  uCommune: { value: 0 }, // 0–1: the wanderer's stillness; the whole network of light shows itself
+  uT: T.uniform(0),
+  uPlayer: T.uniform(new THREE.Vector3()),
+  uStar: T.uniform(new THREE.Vector3(0, 1, 0)),
+  uFogC: T.uniform(new THREE.Color()),
+  uFogD: T.uniform(0.006),
+  uPx: T.uniform(600), // pixels per unit at distance 1 (for point sizes)
+  uCommune: T.uniform(0), // 0–1: the wanderer's stillness; the whole network of light shows itself
 };
 const U = creationUniforms;
 
-const GLSL_COMMON = /* glsl */ `
-uniform float uT,uFogD,uPx,uCommune;uniform vec3 uPlayer,uStar,uFogC;
-// 0 where a light would come between the camera and the wanderer, or right up against the
-// lens; 1 anywhere else. Spirits and their veils fade there, so they never cover the view.
-float outOfTheWay(vec3 p){
-  vec3 a=cameraPosition,b=uPlayer+vec3(0.0,1.2,0.0),ab=b-a;
-  float t=clamp(dot(p-a,ab)/max(dot(ab,ab),1e-3),0.0,1.0);
-  float dSeg=distance(p,a+ab*t);
-  return smoothstep(0.5,1.8,dSeg)*smoothstep(2.5,6.0,distance(p,a));
-}
-float fogF(float d){return 1.0-exp(-uFogD*uFogD*d*d);}
-float hash1(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
-vec3 spectrum(float h){return 0.5+0.5*cos(6.28318*(h+vec3(0.0,0.33,0.67)));}
-`;
+const {
+  abs, attribute, cameraPosition, clamp, cos, cross, dFdx, dFdy, Discard, distance, dot, exp, float, Fn, fract, fwidth, If,
+  inverseSqrt, length, max, mix, normalize, normalWorldGeometry, pointUV, positionGeometry, positionLocal, positionWorld, pow, reflect, screenCoordinate,
+  sin, smoothstep, step, texture, varying, vec2, vec3, vec4,
+} = T;
+/** 0 where a light would come between the camera and the wanderer, or right up against the
+    lens; 1 anywhere else. Spirits and their veils fade there, so they never cover the view. */
+const outOfTheWay = (p: N): N => {
+  const a = cameraPosition, b = U.uPlayer.add(vec3(0, 1.2, 0)), ab = b.sub(a);
+  const t = clamp(dot(p.sub(a), ab).div(max(dot(ab, ab), 1e-3)), 0, 1);
+  return smoothstep(0.5, 1.8, distance(p, a.add(ab.mul(t)))).mul(smoothstep(2.5, 6, distance(p, a)));
+};
+const fogF = (d: N): N => float(1).sub(exp(U.uFogD.mul(U.uFogD).mul(d).mul(d).negate()));
+const hash1 = (p: N): N => fract(sin(dot(p, vec2(12.9898, 78.233))).mul(43758.5453));
+const spectrum = (h: N): N => cos(vec3(h).add(vec3(0, 0.33, 0.67)).mul(6.28318)).mul(0.5).add(0.5);
+/** The same hash on the CPU (a tree's seed from where it stands). */
+const hash1js = (x: number, z: number) => {
+  const v = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453;
+  return v - Math.floor(v);
+};
 
 function cellHash(i: number, j: number, salt: number): number {
   const s = Math.sin(i * 127.1 + j * 311.7 + salt * 74.7) * 43758.5453;
@@ -284,67 +291,60 @@ function rootLineSegs(roots: Limb[]): Seg[] {
   return out;
 }
 
-const TREE_VERT = /* glsl */ `
-attribute float aU;attribute float aAng;
-varying vec3 vW;varying vec3 vN;varying float vU;varying float vAng;varying float vSeed;
-${GLSL_COMMON}
-void main(){
-  mat4 im=mat4(1.0);
-  #ifdef USE_INSTANCING
-  im=instanceMatrix;
-  #endif
-  vec4 w=modelMatrix*im*vec4(position,1.0);
-  vSeed=hash1(im[3].xz);
-  // the crown sways; the roots stay still
-  float sway=max(position.y,0.0);sway*=sway*0.002;
-  w.x+=sin(uT*0.55+vSeed*6.28+w.z*0.05)*sway;w.z+=cos(uT*0.43+vSeed*4.0)*sway*0.6;
-  vW=w.xyz;vN=normalize(mat3(modelMatrix*im)*normal);vU=aU;vAng=aAng;
-  gl_Position=projectionMatrix*viewMatrix*w;
-}`;
-
 /** Living bark: willow-bark relief, a thin rim of starlight, fine grain lines of light, and
-    light flowing down from the crown. `accent`: the colour of that light (default: gold/silver). */
-export function barkMaterial(accent?: THREE.Color): THREE.ShaderMaterial {
+    light flowing down from the crown. `accent`: the colour of that light (default: gold/silver).
+    Instanced meshes carry each tree's seed in `aSeed`; a single tree passes its `seed`. */
+export function barkMaterial(accent?: THREE.Color, seed: number | null = null): THREE.MeshBasicNodeMaterial {
   const barkTex = surface("bark");
-  return new THREE.ShaderMaterial({
-    uniforms: { ...U, tBarkD: { value: barkTex.diff }, tBarkN: { value: barkTex.nor }, uAccent: { value: accent ?? new THREE.Color(0, 0, 0) }, uUseAccent: { value: accent ? 1 : 0 } },
-    vertexShader: TREE_VERT,
-    fragmentShader: /* glsl */ `
-      varying vec3 vW;varying vec3 vN;varying float vU;varying float vAng;varying float vSeed;
-      uniform sampler2D tBarkD,tBarkN;uniform vec3 uAccent;uniform float uUseAccent;
-      ${GLSL_COMMON}
-      // the bark's relief, from its normal map, oriented by the surface's own derivatives
-      vec3 barkNormal(vec3 n,vec2 uv,vec3 m){
-        vec3 q0=dFdx(vW),q1=dFdy(vW);vec2 s0=dFdx(uv),s1=dFdy(uv);
-        vec3 q1p=cross(q1,n),q0p=cross(n,q0);
-        vec3 T=q1p*s0.x+q0p*s1.x,B=q1p*s0.y+q0p*s1.y;
-        float d=max(dot(T,T),dot(B,B));float k=d==0.0?0.0:inversesqrt(d);
-        return normalize(T*(m.x*k)+B*(m.y*k)+n*m.z);
-      }
-      void main(){
-        vec2 buv=vec2(vAng*2.0,vU*7.0+vSeed);
-        vec3 n=normalize(vN);vec3 v=normalize(cameraPosition-vW);
-        float dist0=length(vW-cameraPosition);
-        if(dist0<60.0)n=barkNormal(n,buv,mix(vec3(0,0,1),texture2D(tBarkN,buv).xyz*2.0-1.0,1.0-smoothstep(25.0,60.0,dist0)));
-        vec3 bk=texture2D(tBarkD,buv).rgb;
-        float hemi=0.5+0.5*n.y;
-        vec3 c=mix(vec3(0.006,0.005,0.014),vec3(0.03,0.028,0.06),hemi)*(0.4+bk*2.4);
-        c+=vec3(0.09,0.07,0.05)*max(0.0,dot(n,uStar));
-        c+=vec3(0.3,0.38,0.8)*pow(1.0-max(0.0,dot(n,v)),5.0)*0.18; // a thin rim of starlight
-        // the grain spirals up the trunk as fine lines of light
-        float f=vAng*4.0+vU*5.0+vSeed*3.0;float w=fwidth(f);
-        float grain=1.0-smoothstep(w*0.4,w*1.4,abs(fract(f)-0.5));
-        // light pours down from the crown toward the roots
-        float flow=pow(fract(vU*3.0+uT*0.11+vSeed),14.0);
-        float near=smoothstep(12.0,2.0,distance(vW.xz,uPlayer.xz));
-        vec3 gold=mix(mix(vec3(1.0,0.78,0.48),vec3(0.75,0.85,1.0),step(0.5,vSeed)),uAccent,uUseAccent);
-        c+=gold*(grain*(0.05+near*0.12+flow*1.1)+flow*0.08);
-        float d=length(vW-cameraPosition);
-        // never a wall of bark in front of the camera: it dissolves as the camera comes close
-        if(hash1(gl_FragCoord.xy)>smoothstep(0.6,2.2,d))discard;
-        gl_FragColor=vec4(mix(c,uFogC,fogF(d)),1.0);
-      }`,
-  });
+  const m = new THREE.MeshBasicNodeMaterial({ fog: false });
+  const aSeed = seed === null ? attribute("aSeed", "float") : float(seed);
+  // the crown sways; the roots stay still (positionLocal is already in the world here)
+  const sw0 = max(positionGeometry.y, 0), sway = sw0.mul(sw0).mul(0.002);
+  const P = positionLocal;
+  m.positionNode = vec3(
+    P.x.add(sin(U.uT.mul(0.55).add(aSeed.mul(6.28)).add(P.z.mul(0.05))).mul(sway)),
+    P.y,
+    P.z.add(cos(U.uT.mul(0.43).add(aSeed.mul(4))).mul(sway).mul(0.6)),
+  );
+  const vSeed = varying(aSeed), vU = varying(attribute("aU", "float")), vAng = varying(attribute("aAng", "float"));
+  const acc = accent ? vec3(accent.r, accent.g, accent.b) : null;
+  m.colorNode = Fn(() => {
+    const vW = positionWorld;
+    const buv = vec2(vAng.mul(2), vU.mul(7).add(vSeed));
+    const n0 = normalize(normalWorldGeometry);
+    const v = normalize(cameraPosition.sub(vW));
+    const dist0 = length(vW.sub(cameraPosition));
+    // the bark's relief, from its normal map, oriented by the surface's own derivatives
+    const mm = mix(vec3(0, 0, 1), texture(barkTex.nor, buv).xyz.mul(2).sub(1), float(1).sub(smoothstep(25, 60, dist0)));
+    const q0 = dFdx(vW), q1 = dFdy(vW), s0 = dFdx(buv), s1 = dFdy(buv);
+    const q1p = cross(q1, n0), q0p = cross(n0, q0);
+    const Tn = q1p.mul(s0.x).add(q0p.mul(s1.x)), Bn = q1p.mul(s0.y).add(q0p.mul(s1.y));
+    const dd = max(dot(Tn, Tn), dot(Bn, Bn));
+    const k = dd.equal(0).select(float(0), inverseSqrt(dd));
+    const nb = normalize(Tn.mul(mm.x.mul(k)).add(Bn.mul(mm.y.mul(k))).add(n0.mul(mm.z)));
+    const n = dist0.lessThan(60).select(nb, n0);
+    const bk = texture(barkTex.diff, buv).rgb;
+    const hemi = n.y.mul(0.5).add(0.5);
+    const c = mix(vec3(0.006, 0.005, 0.014), vec3(0.03, 0.028, 0.06), hemi).mul(bk.mul(2.4).add(0.4)).toVar();
+    c.addAssign(vec3(0.09, 0.07, 0.05).mul(max(0, dot(n, U.uStar))));
+    c.addAssign(vec3(0.3, 0.38, 0.8).mul(pow(float(1).sub(max(0, dot(n, v))), 5)).mul(0.18)); // a thin rim of starlight
+    // the grain spirals up the trunk as fine lines of light
+    const f = vAng.mul(4).add(vU.mul(5)).add(vSeed.mul(3));
+    const w = fwidth(f);
+    const grain = float(1).sub(smoothstep(w.mul(0.4), w.mul(1.4), abs(fract(f).sub(0.5))));
+    // light pours down from the crown toward the roots
+    const flow = pow(fract(vU.mul(3).add(U.uT.mul(0.11)).add(vSeed)), 14);
+    const near = smoothstep(12, 2, distance(vW.xz, U.uPlayer.xz));
+    const gold0 = mix(vec3(1.0, 0.78, 0.48), vec3(0.75, 0.85, 1.0), step(0.5, vSeed));
+    const gold = acc ?? gold0;
+    c.addAssign(gold.mul(grain.mul(near.mul(0.12).add(0.05).add(flow.mul(1.1))).add(flow.mul(0.08))));
+    // never a wall of bark in front of the camera: it dissolves as the camera comes close
+    If(hash1(screenCoordinate.xy).greaterThan(smoothstep(0.6, 2.2, dist0)), () => {
+      Discard();
+    });
+    return vec4(mix(c, U.uFogC, fogF(dist0)), 1);
+  })();
+  return m;
 }
 
 /* ================================================================ crystals */
@@ -420,12 +420,14 @@ export class Creation {
   private rootSegs: Seg[][] = [];
   private rootLines!: THREE.LineSegments;
   private tipSets: { p: Float32Array; k: Float32Array }[] = [];
-  private leaves: THREE.Points;
+  private leaves: SpriteCloud;
   private rockMeshes: THREE.InstancedMesh[] = [];
   private prisms: THREE.InstancedMesh;
   private prismC: THREE.InstancedBufferAttribute;
-  private beams: THREE.InstancedMesh;
+  private beamGeo!: THREE.InstancedBufferGeometry;
+  private beamBase!: THREE.InstancedBufferAttribute;
   private beamA: THREE.InstancedBufferAttribute;
+  private barkSeeds: THREE.InstancedBufferAttribute[] = [];
   private fans: THREE.Mesh;
   private web: THREE.LineSegments;
   private mine: Collider[] = [];
@@ -444,8 +446,7 @@ export class Creation {
     const [prisms, prismC] = this.buildPrisms();
     this.prisms = prisms;
     this.prismC = prismC;
-    const [beams, beamA] = this.buildBeams();
-    this.beams = beams;
+    const [, beamA] = this.buildBeams();
     this.beamA = beamA;
     this.fans = this.buildFans();
     this.web = this.buildWeb();
@@ -457,36 +458,28 @@ export class Creation {
     const bark = barkMaterial();
     // Roots seen through the ground as fine lines of light: drawn only where something (the
     // earth) is in front of them. Rebuilt for the trees near the wanderer as they stream in.
-    this.rootLines = new THREE.LineSegments(
-      new THREE.BufferGeometry(),
-      new THREE.ShaderMaterial({
-        uniforms: U,
-        transparent: true,
-        depthWrite: false,
-        depthFunc: THREE.GreaterDepth,
-        blending: THREE.AdditiveBlending,
-        vertexShader: /* glsl */ `
-          attribute vec2 aR;varying vec3 vW;varying vec2 vR;
-          void main(){vW=position;vR=aR;gl_Position=projectionMatrix*viewMatrix*vec4(position,1.0);}`,
-        fragmentShader: /* glsl */ `
-          varying vec3 vW;varying vec2 vR; // along (0 at the trunk, -1 at the deepest tip), seed
-          ${GLSL_COMMON}
-          void main(){
-            float flow=pow(fract(vR.x*3.0+uT*0.11+vR.y),10.0);
-            float near=smoothstep(14.0,1.5,distance(vW.xz,uPlayer.xz));
-            float d=length(vW-cameraPosition);
-            float fade=(1.0-smoothstep(mix(5.0,30.0,uCommune),mix(16.0,60.0,uCommune),d))*(1.0-0.5*smoothstep(0.4,1.0,-vR.x));
-            vec3 c=mix(vec3(1.0,0.78,0.5),vec3(0.72,0.82,1.0),step(0.5,vR.y));
-            gl_FragColor=vec4(c*(0.03+near*0.06+flow*(0.35+near*0.5))*fade*(1.0+uCommune*2.5),1.0);
-          }`,
-      }),
-    );
+    {
+      const mat = new THREE.LineBasicNodeMaterial({ transparent: true, depthWrite: false, depthFunc: THREE.GreaterDepth, blending: THREE.AdditiveBlending, fog: false });
+      const vR = attribute("aR", "vec2"); // along (0 at the trunk, -1 at the deepest tip), seed
+      const vW = positionWorld;
+      const flow = pow(fract(vR.x.mul(3).add(U.uT.mul(0.11)).add(vR.y)), 10);
+      const near = smoothstep(14, 1.5, distance(vW.xz, U.uPlayer.xz));
+      const d = length(vW.sub(cameraPosition));
+      const fade = float(1).sub(smoothstep(mix(5, 30, U.uCommune), mix(16, 60, U.uCommune), d)).mul(float(1).sub(smoothstep(0.4, 1, vR.x.negate()).mul(0.5)));
+      const c = mix(vec3(1.0, 0.78, 0.5), vec3(0.72, 0.82, 1.0), step(0.5, vR.y));
+      mat.colorNode = vec4(c.mul(near.mul(0.06).add(0.03).add(flow.mul(near.mul(0.5).add(0.35)))).mul(fade).mul(U.uCommune.mul(2.5).add(1)), 1);
+      this.rootLines = new THREE.LineSegments(new THREE.BufferGeometry(), mat);
+    }
     this.rootLines.frustumCulled = false;
     this.rootLines.renderOrder = 3;
     this.group.add(this.rootLines);
     SHAPES.forEach((shape, kind) => {
       const { limbs, roots, tips } = grow(shape, 0.137 + kind * 0.211);
       const geo = mergeGeometries([tubes(limbs), tubes(roots, -0.2)]);
+      const seeds = new THREE.InstancedBufferAttribute(new Float32Array(MAX_TREES), 1);
+      seeds.setUsage(THREE.DynamicDrawUsage);
+      geo.setAttribute("aSeed", seeds);
+      this.barkSeeds.push(seeds);
       const mesh = new THREE.InstancedMesh(geo, bark, MAX_TREES);
       mesh.count = 0;
       mesh.castShadow = true; // the moon casts the trees' shadows near the wanderer
@@ -512,53 +505,36 @@ export class Creation {
     });
   }
 
-  private buildLeaves(): THREE.Points {
-    const max = MAX_TREES * 420;
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(max * 3), 3));
-    g.setAttribute("aK", new THREE.BufferAttribute(new Float32Array(max), 1));
-    g.setAttribute("aHue", new THREE.BufferAttribute(new Float32Array(max), 1));
-    g.setDrawRange(0, 0);
-    const mat = new THREE.ShaderMaterial({
-      uniforms: U,
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      vertexShader: /* glsl */ `
-        attribute float aK;attribute float aHue;varying float vA;varying float vBig;varying vec3 vC;
-        ${GLSL_COMMON}
-        void main(){
-          vec3 p=position;float big=step(1.0,aK);float k=fract(aK);
-          p.x+=sin(uT*0.7+k*40.0)*0.08;p.y+=sin(uT*0.9+k*23.0)*0.06;
-          // a few glints come loose and drift down: light descending into the world
-          float falling=step(k,0.07)*(1.0-big);
-          float fall=fract(uT*0.035+k*37.0);
-          p.y-=falling*fall*7.0;p.x+=falling*sin(fall*9.0+k*50.0)*0.8;
-          float d=distance(p,cameraPosition);
-          float near=smoothstep(14.0,3.0,distance(p.xz,uPlayer.xz));
-          float tw=0.55+0.45*sin(uT*(1.2+k*2.5)+k*60.0);
-          // the canopy brightens in slow waves, in step with the light flowing down the trunk
-          float wave=0.6+0.4*sin(uT*0.5-p.y*0.4+aHue*6.0);
-          vA=mix(tw*wave*(1.0+near*1.2),0.22+near*0.2,big)*(1.0-falling*fall)*(1.0-fogF(d));
-          vA*=1.0-smoothstep(90.0,120.0,d);
-          vBig=big;
-          vC=mix(mix(vec3(1.0,0.8,0.5),vec3(0.7,0.85,1.0),step(0.33,aHue)),vec3(1.0,0.7,0.88),step(0.72,aHue));
-          vec4 mv=viewMatrix*vec4(p,1.0);gl_Position=projectionMatrix*mv;
-          float size=mix(0.13,2.4,big);
-          gl_PointSize=clamp(size*uPx/max(-mv.z,0.5),1.5,90.0);
-        }`,
-      fragmentShader: /* glsl */ `
-        varying float vA;varying float vBig;varying vec3 vC;
-        void main(){
-          float r=length(gl_PointCoord-0.5)*2.0;
-          float a=mix(smoothstep(1.0,0.0,r)*1.6+smoothstep(0.3,0.0,r)*1.5,exp(-r*r*3.5)*0.3,vBig);
-          gl_FragColor=vec4(vC*a*vA,1.0);
-        }`,
-    });
-    const pts = new THREE.Points(g, mat);
-    pts.frustumCulled = false;
-    this.group.add(pts);
-    return pts;
+  private buildLeaves(): SpriteCloud {
+    const mat = softPoints();
+    const cloud = spriteCloud(MAX_TREES * 420, { base: 3, aK: 1, aHue: 1 }, mat);
+    const { base, aK, aHue } = cloud.nodes;
+    const big = step(1, aK), k = fract(aK);
+    // a few glints come loose and drift down: light descending into the world
+    const falling = step(k, 0.07).mul(float(1).sub(big));
+    const fall = fract(U.uT.mul(0.035).add(k.mul(37)));
+    const p = base.add(vec3(
+      sin(U.uT.mul(0.7).add(k.mul(40))).mul(0.08).add(falling.mul(sin(fall.mul(9).add(k.mul(50)))).mul(0.8)),
+      sin(U.uT.mul(0.9).add(k.mul(23))).mul(0.06).sub(falling.mul(fall).mul(7)),
+      0,
+    ));
+    mat.positionNode = p;
+    const d = distance(p, cameraPosition);
+    const near = smoothstep(14, 3, distance(p.xz, U.uPlayer.xz));
+    const tw = sin(U.uT.mul(k.mul(2.5).add(1.2)).add(k.mul(60))).mul(0.45).add(0.55);
+    // the canopy brightens in slow waves, in step with the light flowing down the trunk
+    const wave = sin(U.uT.mul(0.5).sub(p.y.mul(0.4)).add(aHue.mul(6))).mul(0.4).add(0.6);
+    const vA = mix(tw.mul(wave).mul(near.mul(1.2).add(1)), near.mul(0.2).add(0.22), big)
+      .mul(float(1).sub(falling.mul(fall))).mul(float(1).sub(fogF(d))).mul(float(1).sub(smoothstep(90, 120, d)));
+    const vC = mix(mix(vec3(1.0, 0.8, 0.5), vec3(0.7, 0.85, 1.0), step(0.33, aHue)), vec3(1.0, 0.7, 0.88), step(0.72, aHue));
+    const size = mix(0.13, 2.4, big);
+    mat.sizeNode = clamp(size.mul(U.uPx).div(max(viewDepth(p), 0.5)), 1.5, 90).div(T.screenDPR);
+    const r = length(pointUV.sub(0.5)).mul(2);
+    const a = mix(smoothstep(1, 0, r).mul(1.6).add(smoothstep(0.3, 0, r).mul(1.5)), exp(r.mul(r).mul(-3.5)).mul(0.3), big);
+    mat.colorNode = vec4(vC.mul(a).mul(vA), 1);
+    cloud.setCount(0);
+    this.group.add(cloud.sprite);
+    return cloud;
   }
 
   private buildRocks(): void {
@@ -608,10 +584,8 @@ export class Creation {
       g.translate(0, 0.18 - g.boundingBox!.min.y, 0);
       g.computeBoundingSphere();
       const old = src.material as THREE.MeshStandardMaterial;
-      const mat = etchedStone("#a3a6c4", "#2a2438", 1.7, { triplanar: false }); // the lattice only a whisper on real rock
-      mat.map = old.map;
-      mat.normalMap = old.normalMap;
-      mat.normalScale.set(1.2, 1.2);
+      // the lattice only a whisper on real rock
+      const mat = etchedStone("#a3a6c4", "#2a2438", 1.7, { triplanar: false, map: old.map, normalMap: old.normalMap });
       const target = this.rockMeshes[k];
       target.geometry.dispose();
       target.geometry = g;
@@ -625,54 +599,30 @@ export class Creation {
     const c = new THREE.InstancedBufferAttribute(new Float32Array(MAX_PRISMS * 3), 3); // hue, glow, seed
     c.setUsage(THREE.DynamicDrawUsage);
     geo.setAttribute("aC", c);
-    const mat = new THREE.ShaderMaterial({
-      uniforms: U,
-      transparent: true,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-      vertexShader: /* glsl */ `
-        attribute float aY;attribute vec3 aC;varying vec3 vW;varying vec3 vN;varying float vY;varying vec3 vCv;
-        ${GLSL_COMMON}
-        void main(){
-          mat4 im=mat4(1.0);
-          #ifdef USE_INSTANCING
-          im=instanceMatrix;
-          #endif
-          vec4 w=modelMatrix*im*vec4(position,1.0);
-          vW=w.xyz;vN=normalize(mat3(modelMatrix*im)*normal);vY=aY;vCv=aC;
-          gl_Position=projectionMatrix*viewMatrix*w;
-        }`,
-      fragmentShader: /* glsl */ `
-        varying vec3 vW;varying vec3 vN;varying float vY;varying vec3 vCv;
-        ${GLSL_COMMON}
-        uniform vec3 uVibePos;uniform float uVibeK,uVibeR;
-        void main(){
-          vec3 n=normalize(vN);vec3 v=normalize(cameraPosition-vW);
-          float ndv=abs(dot(n,v));
-          float fres=pow(1.0-ndv,2.2);
-          float hue=vCv.x,glow=vCv.y,seed=vCv.z;
-          vec3 core=mix(vec3(0.45,0.55,1.0),vec3(1.0,0.72,0.92),hue);
-          // the light is split: a rainbow that shifts as you walk around it
-          vec3 split=spectrum(ndv*1.4+vY*0.4+hue+uT*0.02);
-          // light rising through the stone
-          float rise=pow(fract(vY*1.3-uT*0.22+seed),8.0);
-          // the starlight glints off a facet
-          vec3 r=reflect(-v,n);float glint=pow(max(0.0,dot(r,uStar)),40.0);
-          vec3 c=core*(0.08+0.3*vY)+split*fres*0.8+core*rise*0.7+vec3(1.0,0.95,0.9)*glint*2.5;
-          c*=1.0+glow*1.6;
-          // vibrating: light pulses up through the crystal and races out from it
-          if(uVibeK>0.001){
-            float vd=distance(vW,uVibePos);
-            float on=1.0-smoothstep(uVibeR*1.1,uVibeR*1.6+0.8,vd);
-            float wave=pow(0.5+0.5*sin(vd*8.0-uT*10.0),5.0);
-            c+=(split*1.2+core)*wave*on*uVibeK*1.5;
-          }
-          float d=length(vW-cameraPosition);
-          gl_FragColor=vec4(c*(1.0-fogF(d)*0.85),1.0);
-        }`,
-    });
-    Object.assign(mat.uniforms, vibeUniforms);
+    const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: false });
+    mat.colorNode = Fn(() => {
+      const vW = positionWorld, vY = attribute("aY", "float"), vCv = attribute("aC", "vec3");
+      const n = normalize(normalWorldGeometry), v = normalize(cameraPosition.sub(vW));
+      const ndv = abs(dot(n, v));
+      const fres = pow(float(1).sub(ndv), 2.2);
+      const hue = vCv.x, glow = vCv.y, seed = vCv.z;
+      const core = mix(vec3(0.45, 0.55, 1.0), vec3(1.0, 0.72, 0.92), hue);
+      // the light is split: a rainbow that shifts as you walk around it
+      const split = spectrum(ndv.mul(1.4).add(vY.mul(0.4)).add(hue).add(U.uT.mul(0.02)));
+      // light rising through the stone
+      const rise = pow(fract(vY.mul(1.3).sub(U.uT.mul(0.22)).add(seed)), 8);
+      // the starlight glints off a facet
+      const glint = pow(max(0, dot(reflect(v.negate(), n), U.uStar)), 40);
+      const c = core.mul(vY.mul(0.3).add(0.08)).add(split.mul(fres).mul(0.8)).add(core.mul(rise).mul(0.7)).add(vec3(1.0, 0.95, 0.9).mul(glint).mul(2.5))
+        .mul(glow.mul(1.6).add(1)).toVar();
+      // vibrating: light pulses up through the crystal and races out from it
+      const vd = distance(vW, vibeUniforms.uVibePos);
+      const on = float(1).sub(smoothstep(vibeUniforms.uVibeR.mul(1.1), vibeUniforms.uVibeR.mul(1.6).add(0.8), vd));
+      const wave = pow(sin(vd.mul(8).sub(U.uT.mul(10))).mul(0.5).add(0.5), 5);
+      c.addAssign(split.mul(1.2).add(core).mul(wave).mul(on).mul(vibeUniforms.uVibeK).mul(1.5));
+      const d = length(vW.sub(cameraPosition));
+      return vec4(c.mul(float(1).sub(fogF(d).mul(0.85))), 1);
+    })();
     const m = new THREE.InstancedMesh(geo, mat, MAX_PRISMS);
     m.count = 0;
     m.renderOrder = 2;
@@ -681,45 +631,35 @@ export class Creation {
   }
 
   /** Shafts of light coming down from the sky onto the great crystals. */
-  private buildBeams(): [THREE.InstancedMesh, THREE.InstancedBufferAttribute] {
-    const geo = new THREE.PlaneGeometry(1, 1, 1, 8).translate(0, 0.5, 0);
+  private buildBeams(): [THREE.Mesh, THREE.InstancedBufferAttribute] {
+    const plane = new THREE.PlaneGeometry(1, 1, 1, 8).translate(0, 0.5, 0);
+    const geo = new THREE.InstancedBufferGeometry();
+    geo.setAttribute("position", plane.attributes.position);
+    geo.setIndex(plane.index);
     const a = new THREE.InstancedBufferAttribute(new Float32Array(MAX_BEAMS), 1);
     a.setUsage(THREE.DynamicDrawUsage);
     geo.setAttribute("aA", a);
-    const mat = new THREE.ShaderMaterial({
-      uniforms: U,
-      transparent: true,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-      vertexShader: /* glsl */ `
-        attribute float aA;varying vec2 vUv;varying float vA;varying float vD;
-        ${GLSL_COMMON}
-        void main(){
-          vec3 base=vec3(instanceMatrix[3]);
-          float h=length(instanceMatrix[1].xyz),wd=length(instanceMatrix[0].xyz);
-          vec3 toCam=cameraPosition-base;toCam.y=0.0;
-          vec3 right=normalize(vec3(toCam.z,0.0,-toCam.x)+1e-4);
-          // it widens a little toward the sky
-          vec3 w=base+right*position.x*wd*(1.0+position.y*2.0)+vec3(0.0,position.y*h,0.0);
-          vUv=vec2(position.x*2.0,position.y);vA=aA;vD=length(base-cameraPosition);
-          gl_Position=projectionMatrix*viewMatrix*vec4(w,1.0);
-        }`,
-      fragmentShader: /* glsl */ `
-        varying vec2 vUv;varying float vA;varying float vD;
-        ${GLSL_COMMON}
-        void main(){
-          float across=exp(-vUv.x*vUv.x*4.0);
-          float up=smoothstep(0.0,0.04,vUv.y)*(1.0-smoothstep(0.35,1.0,vUv.y));
-          // bands of light descending the shaft
-          float bands=0.7+0.3*sin(vUv.y*40.0+uT*1.2);
-          vec3 c=mix(vec3(1.0,0.9,0.75),spectrum(vUv.x*0.3+0.1),0.25);
-          float near=smoothstep(8.0,30.0,vD); // don't blind the wanderer standing in it
-          gl_FragColor=vec4(c*across*up*bands*(0.1+vA*0.2)*mix(0.35,1.0,near)*(1.0-fogF(vD)*0.6),1.0);
-        }`,
-    });
-    const m = new THREE.InstancedMesh(geo, mat, MAX_BEAMS);
-    m.count = 0;
+    this.beamBase = new THREE.InstancedBufferAttribute(new Float32Array(MAX_BEAMS * 3), 3);
+    this.beamBase.setUsage(THREE.DynamicDrawUsage);
+    geo.setAttribute("aBase", this.beamBase);
+    geo.instanceCount = 0;
+    this.beamGeo = geo;
+    const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: false });
+    const base = attribute("aBase", "vec3"), P = positionLocal;
+    const h = 90, wd = 1.6;
+    const toCam = cameraPosition.sub(base);
+    const right = normalize(vec3(toCam.z, 0, toCam.x.negate()).add(1e-4));
+    // it widens a little toward the sky
+    mat.positionNode = base.add(right.mul(P.x).mul(wd).mul(P.y.mul(2).add(1))).add(vec3(0, P.y.mul(h), 0));
+    const vUv = varying(vec2(P.x.mul(2), P.y)), vA = varying(attribute("aA", "float")), vD = varying(length(base.sub(cameraPosition)));
+    const across = exp(vUv.x.mul(vUv.x).mul(-4));
+    const up = smoothstep(0, 0.04, vUv.y).mul(float(1).sub(smoothstep(0.35, 1, vUv.y)));
+    // bands of light descending the shaft
+    const bands = sin(vUv.y.mul(40).add(U.uT.mul(1.2))).mul(0.3).add(0.7);
+    const c = mix(vec3(1.0, 0.9, 0.75), spectrum(vUv.x.mul(0.3).add(0.1)), 0.25);
+    const near = smoothstep(8, 30, vD); // don't blind the wanderer standing in it
+    mat.colorNode = vec4(c.mul(across).mul(up).mul(bands).mul(vA.mul(0.2).add(0.1)).mul(mix(0.35, 1, near)).mul(float(1).sub(fogF(vD).mul(0.6))), 1);
+    const m = new THREE.Mesh(geo, mat);
     m.frustumCulled = false;
     this.group.add(m);
     return [m, a];
@@ -728,30 +668,20 @@ export class Creation {
   /** Rainbow light thrown across the ground by the crystals. Rebuilt as clusters stream in. */
   private buildFans(): THREE.Mesh {
     const g = new THREE.BufferGeometry();
-    const mat = new THREE.ShaderMaterial({
-      uniforms: U,
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -2,
-      vertexShader: /* glsl */ `
-        attribute vec3 aF;varying vec3 vF;varying vec3 vW;
-        void main(){vF=aF;vW=position;gl_Position=projectionMatrix*viewMatrix*vec4(position,1.0);}`,
-      fragmentShader: /* glsl */ `
-        varying vec3 vF;varying vec3 vW; // across 0..1, out 0..1, strength
-        ${GLSL_COMMON}
-        void main(){
-          float x=fract(vF.x*3.0+uT*0.004);
-          vec3 c=spectrum(x*0.8+0.02);
-          float edge=smoothstep(0.0,0.25,x)*smoothstep(1.0,0.75,x);
-          float along=smoothstep(0.05,0.2,vF.y)*(1.0-vF.y)*(1.0-vF.y);
-          float shimmer=0.8+0.2*sin(vF.y*30.0-uT*2.0+vF.x*6.0);
-          float d=length(vW-cameraPosition);
-          gl_FragColor=vec4(c*edge*along*shimmer*vF.z*0.9*(1.0-fogF(d)),1.0);
-        }`,
+    const mat = new THREE.MeshBasicNodeMaterial({
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
     });
+    {
+      const vF = attribute("aF", "vec3"), vW = positionWorld; // across 0..1, out 0..1, strength
+      const x = fract(vF.x.mul(3).add(U.uT.mul(0.004)));
+      const c = spectrum(x.mul(0.8).add(0.02));
+      const edge = smoothstep(0, 0.25, x).mul(smoothstep(1, 0.75, x));
+      const along = smoothstep(0.05, 0.2, vF.y).mul(float(1).sub(vF.y)).mul(float(1).sub(vF.y));
+      const shimmer = sin(vF.y.mul(30).sub(U.uT.mul(2)).add(vF.x.mul(6))).mul(0.2).add(0.8);
+      const d = length(vW.sub(cameraPosition));
+      mat.colorNode = vec4(c.mul(edge).mul(along).mul(shimmer).mul(vF.z).mul(0.9).mul(float(1).sub(fogF(d))), 1);
+    }
     const m = new THREE.Mesh(g, mat);
     m.frustumCulled = false;
     m.renderOrder = 1;
@@ -762,27 +692,16 @@ export class Creation {
   /** The network under the ground: every tree and crystal is joined to its neighbours. */
   private buildWeb(): THREE.LineSegments {
     const g = new THREE.BufferGeometry();
-    const mat = new THREE.ShaderMaterial({
-      uniforms: U,
-      transparent: true,
-      depthWrite: false,
-      depthFunc: THREE.GreaterDepth,
-      blending: THREE.AdditiveBlending,
-      vertexShader: /* glsl */ `
-        attribute vec2 aS;varying vec2 vS;varying vec3 vW;
-        void main(){vS=aS;vW=position;gl_Position=projectionMatrix*viewMatrix*vec4(position,1.0);}`,
-      fragmentShader: /* glsl */ `
-        varying vec2 vS;varying vec3 vW;
-        ${GLSL_COMMON}
-        void main(){
-          float pulse=pow(fract(vS.x*1.5-uT*0.09+vS.y),16.0);
-          float near=smoothstep(16.0,2.0,distance(vW.xz,uPlayer.xz));
-          float d=length(vW-cameraPosition);
-          float fade=1.0-smoothstep(mix(6.0,30.0,uCommune),mix(20.0,70.0,uCommune),d);
-          vec3 c=mix(vec3(1.0,0.8,0.55),vec3(0.8,0.75,1.0),vS.y);
-          gl_FragColor=vec4(c*(0.02+near*0.05+pulse*(0.3+near*0.5))*fade*(1.0+uCommune*3.0),1.0);
-        }`,
-    });
+    const mat = new THREE.LineBasicNodeMaterial({ transparent: true, depthWrite: false, depthFunc: THREE.GreaterDepth, blending: THREE.AdditiveBlending, fog: false });
+    {
+      const vS = attribute("aS", "vec2"), vW = positionWorld;
+      const pulse = pow(fract(vS.x.mul(1.5).sub(U.uT.mul(0.09)).add(vS.y)), 16);
+      const near = smoothstep(16, 2, distance(vW.xz, U.uPlayer.xz));
+      const d = length(vW.sub(cameraPosition));
+      const fade = float(1).sub(smoothstep(mix(6, 30, U.uCommune), mix(20, 70, U.uCommune), d));
+      const c = mix(vec3(1.0, 0.8, 0.55), vec3(0.8, 0.75, 1.0), vS.y);
+      mat.colorNode = vec4(c.mul(near.mul(0.05).add(0.02).add(pulse.mul(near.mul(0.5).add(0.3)))).mul(fade).mul(U.uCommune.mul(3).add(1)), 1);
+    }
     const l = new THREE.LineSegments(g, mat);
     l.frustumCulled = false;
     l.renderOrder = 3;
@@ -892,20 +811,20 @@ export class Creation {
           this.activeTrees.push(t);
         }
       }
-    const lp = this.leaves.geometry.attributes.position as THREE.BufferAttribute;
-    const lk = this.leaves.geometry.attributes.aK as THREE.BufferAttribute;
-    const lh = this.leaves.geometry.attributes.aHue as THREE.BufferAttribute;
+    const lp = this.leaves.attrs.base, lk = this.leaves.attrs.aK, lh = this.leaves.attrs.aHue;
     const lpa = lp.array as Float32Array, lka = lk.array as Float32Array, lha = lh.array as Float32Array;
     const maxLeaves = lka.length;
     let nl = 0;
     const rp: number[] = [], ra: number[] = [];
     byKind.forEach((list, kind) => {
       const bark = this.barks[kind], roots = this.rootSegs[kind];
+      const seeds = this.barkSeeds[kind].array as Float32Array;
       const tips = this.tipSets[kind];
       list.forEach((t, n) => {
         this.q.setFromAxisAngle(this.v.set(0, 1, 0), t.rot);
         this.m4.compose(this.sc.set(t.x, t.y, t.z), this.q, new V(t.scale, t.scale, t.scale));
         bark.setMatrixAt(n, this.m4);
+        seeds[n] = hash1js(t.x, t.z);
         if (Math.hypot(t.x - px, t.z - pz) < 50) {
           const seed = t.hue;
           for (const g of roots) {
@@ -928,10 +847,11 @@ export class Creation {
       });
       bark.count = list.length;
       bark.instanceMatrix.needsUpdate = true;
+      this.barkSeeds[kind].needsUpdate = true;
       bark.computeBoundingSphere();
     });
-    this.leaves.geometry.setDrawRange(0, nl);
-    const rg = this.rootLines.geometry;
+    this.leaves.setCount(nl);
+    const rg = this.renew(this.rootLines);
     rg.setAttribute("position", new THREE.Float32BufferAttribute(rp, 3));
     rg.setAttribute("aR", new THREE.Float32BufferAttribute(ra, 2));
     lp.needsUpdate = lk.needsUpdate = lh.needsUpdate = true;
@@ -955,6 +875,7 @@ export class Creation {
     const fanPos: number[] = [], fanF: number[] = [], fanIdx: number[] = [];
     // the fans fall away from the star, like light through a prism
     const away = Math.atan2(-U.uStar.value.z, -U.uStar.value.x);
+    const bb = this.beamBase.array as Float32Array;
     for (const c of this.activeClusters) {
       for (const p of c.prisms) {
         if (np >= MAX_PRISMS) break;
@@ -964,8 +885,7 @@ export class Creation {
         np++;
       }
       if (c.great && nb < MAX_BEAMS) {
-        this.m4.compose(this.sc.set(c.x, c.y + 1.2, c.z), this.q.identity(), new V(1.6, 90, 1));
-        this.beams.setMatrixAt(nb++, this.m4);
+        bb.set([c.x, c.y + 1.2, c.z], nb++ * 3);
       }
       const base = rocks[0].length < MAX_ROCKS ? 0 : 1;
       const s = c.great ? 1.5 : 0.8;
@@ -993,9 +913,9 @@ export class Creation {
     this.prisms.instanceMatrix.needsUpdate = true;
     this.prisms.computeBoundingSphere();
     this.prismC.needsUpdate = true;
-    this.beams.count = nb;
-    this.beams.instanceMatrix.needsUpdate = true;
-    const fg = this.fans.geometry;
+    this.beamGeo.instanceCount = nb;
+    this.beamBase.needsUpdate = true;
+    const fg = this.renew(this.fans);
     fg.setAttribute("position", new THREE.Float32BufferAttribute(fanPos, 3));
     fg.setAttribute("aF", new THREE.Float32BufferAttribute(fanF, 3));
     fg.setIndex(fanIdx);
@@ -1065,9 +985,15 @@ export class Creation {
         }
       }
     });
-    const g = this.web.geometry;
+    const g = this.renew(this.web);
     g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
     g.setAttribute("aS", new THREE.Float32BufferAttribute(s, 2));
+  }
+
+  /** A fresh geometry for a mesh whose contents are rebuilt (GPU buffers are sized per geometry). */
+  private renew(o: THREE.Mesh | THREE.LineSegments): THREE.BufferGeometry {
+    o.geometry.dispose();
+    return (o.geometry = new THREE.BufferGeometry());
   }
 
   /* ---------------------------------------------------------------- per frame */
@@ -1159,7 +1085,7 @@ export class Spirits {
   group = new THREE.Group();
   private list: Spirit[] = [];
   private veil: THREE.Mesh;
-  private heads: THREE.Points;
+  private heads: SpriteCloud;
   private anchorsAt = -100;
   private anchors: THREE.Vector3[] = [];
   private tmp = new V();
@@ -1197,62 +1123,37 @@ export class Spirits {
       }
     g.setAttribute("aTrail", new THREE.BufferAttribute(trail, 4));
     g.setIndex(idx);
-    this.veil = new THREE.Mesh(
-      g,
-      new THREE.ShaderMaterial({
-        uniforms: U,
-        transparent: true,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-        blending: THREE.AdditiveBlending,
-        vertexShader: /* glsl */ `
-          attribute vec4 aTrail;attribute vec3 aTan;varying vec3 vC;varying float vA;varying float vX;
-          ${GLSL_COMMON}
-          void main(){
-            float s=aTrail.x;
-            float d=distance(position,cameraPosition);
-            // soft at the spirit, tapering away; never thinner than a couple of pixels
-            float w=aTrail.y*mix(0.12,0.02,pow(s,0.8)), wMin=2.5*d/uPx;
-            vec3 side=normalize(cross(aTan,cameraPosition-position));
-            vec3 p=position+side*aTrail.w*max(w,wMin);
-            vC=mix(mix(vec3(0.7,0.85,1.0),vec3(1.0,0.8,0.55),step(0.4,aTrail.z)),vec3(0.95,0.7,1.0),step(0.75,aTrail.z));
-            vC=mix(vC,vec3(1.0),0.3*(1.0-s));
-            vA=pow(1.0-s,1.5)*0.35*(1.0-fogF(d))*w/max(w,wMin)*outOfTheWay(position);
-            vX=aTrail.w;
-            gl_Position=projectionMatrix*viewMatrix*vec4(p,1.0);}`,
-        fragmentShader: /* glsl */ `
-          varying vec3 vC;varying float vA;varying float vX;
-          void main(){gl_FragColor=vec4(vC*exp(-vX*vX*3.5)*vA,1.0);}`,
-      }),
-    );
+    {
+      const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: false });
+      const aTrail = attribute("aTrail", "vec4"), aTan = attribute("aTan", "vec3"), P = positionLocal;
+      const sAl = aTrail.x;
+      const d = distance(P, cameraPosition);
+      // soft at the spirit, tapering away; never thinner than a couple of pixels
+      const w = aTrail.y.mul(mix(0.12, 0.02, pow(sAl, 0.8))), wMin = d.mul(2.5).div(U.uPx);
+      const side = normalize(cross(aTan, cameraPosition.sub(P)));
+      mat.positionNode = P.add(side.mul(aTrail.w).mul(max(w, wMin)));
+      const c0 = mix(mix(vec3(0.7, 0.85, 1.0), vec3(1.0, 0.8, 0.55), step(0.4, aTrail.z)), vec3(0.95, 0.7, 1.0), step(0.75, aTrail.z));
+      const vC = varying(mix(c0, vec3(1), float(1).sub(sAl).mul(0.3)));
+      const vA = varying(pow(float(1).sub(sAl), 1.5).mul(0.35).mul(float(1).sub(fogF(d))).mul(w.div(max(w, wMin))).mul(outOfTheWay(P)));
+      const vX = varying(aTrail.w);
+      mat.colorNode = vec4(vC.mul(exp(vX.mul(vX).mul(-3.5))).mul(vA), 1);
+      this.veil = new THREE.Mesh(g, mat);
+    }
     this.veil.frustumCulled = false;
-    const hg = new THREE.BufferGeometry();
-    hg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(count * 3), 3).setUsage(THREE.DynamicDrawUsage));
-    hg.setAttribute("aSize", new THREE.BufferAttribute(new Float32Array(this.list.map((s) => s.size)), 1));
-    hg.setAttribute("aHue", new THREE.BufferAttribute(new Float32Array(this.list.map((s) => s.hue)), 1));
-    this.heads = new THREE.Points(
-      hg,
-      new THREE.ShaderMaterial({
-        uniforms: U,
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        vertexShader: /* glsl */ `
-          attribute float aSize;attribute float aHue;varying vec3 vC;varying float vD;
-          ${GLSL_COMMON}
-          void main(){vec4 mv=viewMatrix*vec4(position,1.0);vD=-mv.z;gl_Position=projectionMatrix*mv;
-            vC=mix(mix(vec3(0.8,0.9,1.0),vec3(1.0,0.86,0.66),step(0.4,aHue)),vec3(1.0,0.8,1.0),step(0.75,aHue))*outOfTheWay(position);
-            gl_PointSize=clamp(aSize*0.9*uPx/max(vD,0.5),2.0,120.0);}`,
-        fragmentShader: /* glsl */ `
-          varying vec3 vC;varying float vD;
-          ${GLSL_COMMON}
-          void main(){float r=length(gl_PointCoord-0.5)*2.0;
-            float a=exp(-r*r*6.0)*1.2+smoothstep(0.25,0.0,r)*1.6;
-            gl_FragColor=vec4(vC*a*(1.0-fogF(vD)),1.0);}`,
-      }),
-    );
-    this.heads.frustumCulled = false;
-    this.group.add(this.veil, this.heads);
+    {
+      const mat = softPoints();
+      this.heads = spriteCloud(count, { position: 3, aSize: 1, aHue: 1 }, mat);
+      (this.heads.attrs.aSize.array as Float32Array).set(this.list.map((s) => s.size));
+      (this.heads.attrs.aHue.array as Float32Array).set(this.list.map((s) => s.hue));
+      const { position, aSize, aHue } = this.heads.nodes;
+      const vD = viewDepth(position);
+      const vC = mix(mix(vec3(0.8, 0.9, 1.0), vec3(1.0, 0.86, 0.66), step(0.4, aHue)), vec3(1.0, 0.8, 1.0), step(0.75, aHue)).mul(outOfTheWay(position));
+      mat.sizeNode = clamp(aSize.mul(0.9).mul(U.uPx).div(max(vD, 0.5)), 2, 120).div(T.screenDPR);
+      const r = length(pointUV.sub(0.5)).mul(2);
+      const a = exp(r.mul(r).mul(-6)).mul(1.2).add(smoothstep(0.25, 0, r).mul(1.6));
+      mat.colorNode = vec4(vC.mul(a).mul(float(1).sub(fogF(vD))), 1);
+    }
+    this.group.add(this.veil, this.heads.sprite);
   }
 
   /** Stillness calls the spirits: those nearby come to circle the wanderer. */
@@ -1273,7 +1174,7 @@ export class Spirits {
       this.anchorsAt = f.t;
       this.anchors = this.creation.anchors().filter((a) => Math.hypot(a.x - f.player.x, a.z - f.player.z) < 55);
     }
-    const hp = this.heads.geometry.attributes.position as THREE.BufferAttribute;
+    const hp = this.heads.attrs.position;
     const vp = this.veil.geometry.attributes.position as THREE.BufferAttribute;
     const tp = this.veil.geometry.attributes.aTan as THREE.BufferAttribute;
     const ha = hp.array as Float32Array, va = vp.array as Float32Array, ta = tp.array as Float32Array;

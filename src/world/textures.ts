@@ -1,6 +1,6 @@
 /* Real surfaces: photo-scanned textures (CC0, Poly Haven; see CREDITS.md), each a colour map
    and a normal map at 1024 px, shipped with the game (no network at runtime). */
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 
 const loader = new THREE.TextureLoader();
 const cache = new Map<string, THREE.Texture>();

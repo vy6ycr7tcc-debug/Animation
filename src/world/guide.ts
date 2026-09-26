@@ -3,7 +3,8 @@
    the archive's groves or orbs, or simply somewhere you haven't been, and it goes ahead of you,
    waiting when you fall behind, until you arrive. Then it circles the place once and fades.
    It never speaks over the voices; it only shows the way. */
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
+import { worldPoints } from "../gpu/tsl";
 import { heightAt, WATER_Y } from "./terrain";
 
 export interface Destination {
@@ -37,7 +38,9 @@ export class Guide {
   onArrive: ((d: Destination) => void) | null = null;
   private light: THREE.Sprite;
   private core: THREE.Mesh;
-  private trail: THREE.Points;
+  private trail: THREE.Sprite;
+  private trailMat: THREE.PointsNodeMaterial;
+  private trailPos: THREE.InstancedBufferAttribute;
   private hist: THREE.Vector3[] = [];
   private p = new THREE.Vector3();
   private k = 0;
@@ -47,10 +50,10 @@ export class Guide {
     this.light = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
     this.light.scale.setScalar(1.1);
     this.core = new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 12), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.3, 1.15, 0.9), transparent: true, depthWrite: false }));
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(TRAIL * 3), 3).setUsage(THREE.DynamicDrawUsage));
-    this.trail = new THREE.Points(g, new THREE.PointsMaterial({ color: new THREE.Color(1, 0.88, 0.7), size: 0.06, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false }));
-    this.trail.frustumCulled = false;
+    const tp = worldPoints(new Float32Array(TRAIL * 3), { color: new THREE.Color(1, 0.88, 0.7), size: 0.06, opacity: 0.6 });
+    this.trail = tp.sprite;
+    this.trailMat = tp.material;
+    this.trailPos = tp.position;
     this.group.add(this.light, this.core, this.trail);
     this.group.visible = false;
   }
@@ -109,12 +112,12 @@ export class Guide {
     // a faint trail of motes behind it
     this.hist.unshift(this.p.clone());
     if (this.hist.length > TRAIL) this.hist.pop();
-    const a = (this.trail.geometry.attributes.position as THREE.BufferAttribute).array as Float32Array;
+    const a = this.trailPos.array as Float32Array;
     for (let i = 0; i < TRAIL; i++) {
       const h = this.hist[Math.min(i, this.hist.length - 1)];
       a.set([h.x + Math.sin(i * 1.7 + t) * 0.05 * i * 0.1, h.y - i * 0.004, h.z], i * 3);
     }
-    this.trail.geometry.attributes.position.needsUpdate = true;
-    (this.trail.material as THREE.PointsMaterial).opacity = 0.5 * this.k;
+    this.trailPos.needsUpdate = true;
+    this.trailMat.opacity = 0.5 * this.k;
   }
 }
