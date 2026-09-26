@@ -310,9 +310,10 @@ export class Wanderer {
     this.halo.position.y = 1.1;
     this.halo.material.depthTest = false; // the ground would slice it along the feet in a hard line
     this.root.add(this.halo);
-    this.light = new THREE.PointLight(0xffdcb0, 6, 9, 1.6);
-    this.light.position.y = 1.2;
-    this.root.add(this.light);
+    // its own light no longer falls on the land: a pool that chased it over the floor (and a
+    // light every material had to reckon with, every frame)
+    this.light = new THREE.PointLight(0xffdcb0, 0, 9, 1.6);
+    this.light.visible = false;
     // In water the body becomes an orb of light floating on the surface.
     this.orbCore = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.9, 0.78, 0.6), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
     const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.4 }));
@@ -473,7 +474,7 @@ export class Wanderer {
     this.orb.position.y = 1.22 + (reduced ? 0 : Math.sin(t * 1.3) * 0.04);
     this.orbCore.opacity = orbK;
     this.motes.points.visible = water < 0.5;
-    this.light.intensity = 1.1 + glide * 0.3 + reach * 0.6; // a timid light: it no longer floods the ground around
+    this.light.intensity = 0;
 
     // Place the fluid body along the skeleton.
     this.root.updateMatrixWorld(true);

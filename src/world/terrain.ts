@@ -288,7 +288,10 @@ const cWeb = Fn(([p, t]: N[]) => {
 });
 
 function groundMaterial(): THREE.MeshStandardNodeMaterial {
-  const m = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.92, metalness: 0 });
+  // matte earth: no sheen of sky or moon sliding over it as the camera moves (Samuel: "you
+  // don't need to be ray tracing the floor")
+  const m = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
+  m.envMapIntensity = 0.35;
   const [sand, meadow, rock] = [surface("sand"), surface("meadow"), surface("rock")];
   const uT = groundUniforms.uT;
   const moon = vec3(...starDirection().toArray());
