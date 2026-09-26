@@ -249,6 +249,7 @@ function applyTier(t: Tier, i: number = quality.tier): void {
   star.shadow.mapSize.set(t.shadow, t.shadow);
   motes.setCount(Math.round(t.particles / 2));
   creation.setQuality(Math.max(0, i - 1));
+  forest.mesh.visible = i <= 2; // the forests beyond rest on the two lowest tiers
   resize();
 }
 applyTier(quality.current);
