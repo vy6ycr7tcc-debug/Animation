@@ -2,8 +2,8 @@
    the style of the drawings: dark ground, fine gold contour lines, a pearl shoreline, and the
    homes of the twenty-two archetypes marked with their numerals.
    - Drag to move the map; pinch, scroll or use − / + to come closer or see it all.
-   - Tap a place (or its name below the map) to choose it; "Wake here" takes you there. Tapping
-     open land chooses that spot, and the nearest archetype's voice comes first.
+   - Tap a place (or its name below the map) and you go there. Tapping open land takes you to
+     that spot, and the nearest archetype's voice comes first.
    - Each group has its own mark, so nothing depends on colour alone: the Mind a circle, the
      Body a diamond, the Spirit a triangle, the Choice a star. A wave beneath a mark means its
      home is in the deep: you wake on the water above it. */
@@ -58,8 +58,9 @@ export class StartMap {
   private pick = document.getElementById("map-pick") as HTMLDivElement;
   private pickName = document.getElementById("map-pick-name") as HTMLParagraphElement;
   private goBtn = document.getElementById("map-go") as HTMLButtonElement;
+  private continueBtn = document.getElementById("map-continue") as HTMLButtonElement;
   private places: Place[] = [];
-  private you: { x: number; z: number } | null = null;
+  private you: { x: number; z: number; heading?: number } | null = null;
   private view: View = { cx: 0, cz: 0, size: 1000 };
   private all: View = { cx: 0, cz: 0, size: 1000 };
   /** The ground, drawn for some stretch of the world: re-drawn sharper after you zoom. */
@@ -112,6 +113,12 @@ export class StartMap {
     document.getElementById("map-out")!.addEventListener("click", () => (this.zoomBy(1 / 0.6), this.changed()));
     document.getElementById("map-all")!.addEventListener("click", () => ((this.view = { ...this.all }), this.changed()));
     this.goBtn.addEventListener("click", () => this.go());
+    this.continueBtn.addEventListener("click", () => {
+      const y = this.you;
+      if (!y) return;
+      const p = this.nearest(y.x, y.z);
+      this.finish({ place: p, x: y.x, z: y.z, heading: y.heading ?? Math.atan2(-(p.x - y.x), -(p.z - y.z)) });
+    });
     this.closeBtn.addEventListener("click", () => this.finish(null));
     addEventListener("resize", () => !this.el.hidden && this.layout());
     addEventListener("keydown", (e) => {
@@ -125,11 +132,13 @@ export class StartMap {
     return !this.el.hidden;
   }
 
-  /** Show the map. Resolves with where to begin, or null if closed (only when closable). */
-  open(places: Place[], you: { x: number; z: number } | null, closable: boolean): Promise<Choice | null> {
+  /** Show the map. Resolves with where to begin, or null if closed (only when closable).
+      `resume`: offer to continue where you were (coming back to a saved journey). */
+  open(places: Place[], you: { x: number; z: number; heading?: number } | null, closable: boolean, resume = false): Promise<Choice | null> {
     this.places = places;
     this.you = you;
     this.closeBtn.hidden = !closable;
+    this.continueBtn.hidden = !(resume && you);
     this.selected = null;
     this.showPick();
     // the whole world of places, with room around them
@@ -144,7 +153,7 @@ export class StartMap {
     requestAnimationFrame(() => this.el.classList.add("on"));
     this.layout();
     this.renderBase();
-    (this.list.querySelector("button") as HTMLButtonElement | null)?.focus({ preventScroll: true });
+    (this.continueBtn.hidden ? (this.list.querySelector("button") as HTMLButtonElement | null) : this.continueBtn)?.focus({ preventScroll: true });
     return new Promise((res) => (this.resolve = res));
   }
 
@@ -163,7 +172,10 @@ export class StartMap {
         b.type = "button";
         b.textContent = p.numeral ? `${p.numeral} · ${p.label.replace(/^The /, "")}` : p.label;
         if (p.deep) b.textContent += " · in the deep";
-        b.addEventListener("click", () => this.select(p, true));
+        b.addEventListener("click", () => {
+          this.select(p, true);
+          this.go();
+        });
         b.addEventListener("focus", () => this.select(p, false));
         row.append(b);
       }
@@ -203,11 +215,15 @@ export class StartMap {
   private tapAt(e: PointerEvent): void {
     const [px, py] = this.local(e);
     const hit = this.hit(px, py);
-    if (hit) return this.select(hit, false);
+    // a tap is enough: tapping a place (or open land) takes you there
+    if (hit) {
+      this.select(hit, false);
+      return this.go();
+    }
     const x = this.toWorldX(px), z = this.toWorldZ(py);
     this.selected = { place: this.nearest(x, z), x, z };
     this.draw();
-    this.showPick();
+    this.go();
   }
 
   private showPick(): void {
@@ -412,7 +428,7 @@ export class StartMap {
       g.stroke();
       g.font = `italic ${11 * k}px ${SERIF}`;
       g.textAlign = "left";
-      g.fillText("you", x + 11 * k, y);
+      g.fillText(this.continueBtn.hidden ? "you" : "where you were", x + 11 * k, y);
     }
     const close = this.view.size < 1300;
     for (const p of this.places) {

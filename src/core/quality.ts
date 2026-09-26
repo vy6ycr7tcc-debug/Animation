@@ -1,5 +1,10 @@
 /* Frame timing and adaptive quality.
-   Drops a tier quickly when frames run long; climbs back slowly after a sustained good run. */
+   Samuel: "we want the maximum resolution". So resolution comes first: every tier keeps the
+   picture sharp (native on the top tier, never below 2x on a phone), and when frames run slow it
+   is the costly effects that rest, one by one, before any sharpness is given up.
+   The controller is patient: it ignores the hitches of the first seconds and of streaming new
+   ground, it recognises a steady 30 fps cap (Low Power Mode) as a cap rather than as slowness,
+   and after a long good run it tries the tier above again. */
 
 export interface Tier {
   name: string;
@@ -7,16 +12,20 @@ export interface Tier {
   shadow: number;
   bloom: boolean;
   particles: number;
+  ao: boolean; // soft contact shadows
+  rays: boolean; // god rays
+  reflection: boolean; // the mirrored world in the lakes
 }
 
 export const MOBILE =
   matchMedia("(pointer:coarse)").matches || Math.min(screen.width, screen.height) < 700;
 
 export const TIERS: Tier[] = [
-  { name: "high", dpr: 2, shadow: 2048, bloom: true, particles: MOBILE ? 1200 : 1800 },
-  { name: "medium", dpr: 1.5, shadow: 1024, bloom: true, particles: 900 },
-  { name: "low", dpr: 1.25, shadow: 1024, bloom: true, particles: 600 },
-  { name: "minimum", dpr: 1, shadow: 512, bloom: false, particles: 400 },
+  { name: "full", dpr: 3, shadow: 2048, bloom: true, particles: MOBILE ? 1200 : 1800, ao: true, rays: true, reflection: true },
+  { name: "high", dpr: 3, shadow: 2048, bloom: true, particles: 1100, ao: false, rays: true, reflection: true },
+  { name: "medium", dpr: 2.5, shadow: 1024, bloom: true, particles: 900, ao: false, rays: false, reflection: true },
+  { name: "light", dpr: 2, shadow: 1024, bloom: true, particles: 700, ao: false, rays: false, reflection: false },
+  { name: "minimum", dpr: 2, shadow: 512, bloom: false, particles: 400, ao: false, rays: false, reflection: false },
 ];
 
 export class FrameStats {
@@ -47,36 +56,47 @@ export class FrameStats {
 }
 
 export class AdaptiveQuality {
-  tier: number;
+  tier = 0;
+  /** Keep the top tier whatever happens (a setting). */
+  pinned = false;
   private good = 0;
   private bad = 0;
-  private settle = 3; // ignore the first seconds (shader compile, audio start)
-  private failed = new Set<number>(); // tiers that ran slow are not retried, so it can't ping-pong
+  private settle = 8; // ignore the first seconds (shader compile, audio start, the world streaming in)
+  private failedAt = new Map<number, number>(); // tier -> windows since it ran slow
+  private windows = 0;
 
-  constructor(private apply: (t: Tier, index: number) => void) {
-    this.tier = MOBILE ? 1 : 0;
-  }
+  constructor(private apply: (t: Tier, index: number) => void) {}
 
   get current(): Tier {
     return TIERS[this.tier];
   }
 
+  /** A burst of new work is coming (arriving somewhere, streaming ground): don't judge it. */
+  hold(windows = 3): void {
+    this.settle = Math.max(this.settle, windows);
+  }
+
   /** Feed once per stats window. */
   window(stats: FrameStats): void {
+    this.windows++;
+    if (this.pinned) return;
     if (this.settle > 0) {
       this.settle--;
       return;
     }
-    // Screens at 120 Hz show ~8 ms frames; judge by 60 fps either way.
-    if (stats.fps < 50) {
+    // a steady 30 fps (Low Power Mode caps Safari there) is a cap, not a struggle
+    const capped30 = stats.fps > 27 && stats.fps < 32 && stats.worstMs < 45;
+    if (stats.fps < 45 && !capped30) {
       this.good = 0;
-      if (++this.bad >= 2 && this.tier < TIERS.length - 1) {
-        this.failed.add(this.tier);
+      if (++this.bad >= 3 && this.tier < TIERS.length - 1) {
+        this.failedAt.set(this.tier, this.windows);
         this.set(this.tier + 1);
       }
-    } else if (stats.fps > 58) {
+    } else if (stats.fps > 56 || capped30) {
       this.bad = 0;
-      if (++this.good >= 8 && this.tier > 0 && !this.failed.has(this.tier - 1)) this.set(this.tier - 1);
+      // climb back after a good run; a tier that ran slow is tried again only after a long while
+      const above = this.tier - 1, failed = this.failedAt.get(above);
+      if (++this.good >= 10 && above >= 0 && (failed === undefined || this.windows - failed > 90)) this.set(above);
     } else {
       this.good = this.bad = 0;
     }
@@ -85,7 +105,7 @@ export class AdaptiveQuality {
   set(i: number): void {
     this.tier = i;
     this.good = this.bad = 0;
-    this.settle = 2;
+    this.settle = 3;
     this.apply(TIERS[i], i);
   }
 }

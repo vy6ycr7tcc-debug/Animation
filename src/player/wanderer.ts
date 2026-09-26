@@ -314,9 +314,9 @@ export class Wanderer {
     this.light.position.y = 1.2;
     this.root.add(this.light);
     // In water the body becomes an orb of light floating on the surface.
-    this.orbCore = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.7, 1.45, 1.1), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
-    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.9 }));
-    halo.scale.setScalar(0.95);
+    this.orbCore = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.9, 0.78, 0.6), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.4 }));
+    halo.scale.setScalar(0.8);
     halo.material.depthTest = false; // never sliced by the water's surface
     halo.renderOrder = 12;
     this.orb.add(new THREE.Mesh(new THREE.SphereGeometry(0.15, 24, 16), this.orbCore), halo);

@@ -69,7 +69,7 @@ export class UnderwaterEffect extends Effect {
         vec3 q=uCam-uOrb;float b=dot(ray,q);float cc=dot(q,q);
         float sInv=inversesqrt(max(cc-b*b,0.02));
         float lit=sInv*(atan((min(dist,40.0)+b)*sInv)-atan(b*sInv));
-        c+=vec3(1.0,0.86,0.62)*lit*0.045;
+        c+=vec3(1.0,0.86,0.62)*lit*0.014;
         c*=1.0-0.35*pow(length(uv-0.5)*1.3,2.0);
         outputColor=vec4(c,inputColor.a);
       }`,
@@ -155,7 +155,7 @@ export class SeaLife {
         uniforms: this.uni,
         vertexShader: /* glsl */ `
           attribute vec3 aBase;attribute vec3 aParams;uniform float uT;uniform vec3 uOrb,uCam;
-          varying vec2 vUv;varying float vHue;varying float vD;varying float vNear;
+          varying vec2 vUv;varying float vHue;varying float vD;varying float vNear;varying float vCamD;
           void main(){
             vec3 p=position;p.y*=aParams.x;
             float c=cos(aParams.y),s=sin(aParams.y);p=vec3(p.x*c,p.y,p.x*s);
@@ -167,18 +167,18 @@ export class SeaLife {
             vec3 w=aBase+p;
             vec2 away=w.xz-uOrb.xz;float d=length(away)+1e-3;
             float near=(1.0-smoothstep(0.6,3.2,d))*(1.0-smoothstep(1.0,5.0,abs(w.y-uOrb.y)));
-            w.xz+=away/d*near*uv.y*1.1;
+            w.xz+=away/d*near*uv.y*0.5;
             vNear=near;
-            // and it bends aside from the camera, so no blade ever fills the view
-            vec2 fromCam=w.xz-uCam.xz;float dc=length(fromCam)+1e-3;
-            w.xz+=fromCam/dc*(1.0-smoothstep(0.5,2.6,dc))*(1.0-smoothstep(1.5,4.0,abs(w.y-uCam.y)))*1.6;
+            vCamD=distance(w,uCam);
             vec4 mv=viewMatrix*vec4(w,1.0);vD=-mv.z;
             vUv=uv;vHue=aParams.z;gl_Position=projectionMatrix*mv;
           }`,
         fragmentShader: /* glsl */ `
-          varying vec2 vUv;varying float vHue;varying float vD;varying float vNear;uniform float uT;
+          varying vec2 vUv;varying float vHue;varying float vD;varying float vNear;varying float vCamD;uniform float uT;
           float kH(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
           void main(){
+            // near the lens a blade thins away to nothing, so none ever fills the view
+            if(vCamD<2.0+3.0*kH(gl_FragCoord.xy*0.37))discard;
             float edge=1.0-abs(vUv.x*2.0-1.0);
             vec3 hue=mix(vec3(0.25,0.9,0.8),vec3(0.6,0.5,1.0),vHue);
             // a dark, living blade: deep green at the root, a little light through it near the top
