@@ -3,9 +3,10 @@
    - ambient occlusion (GTAO), soft shadow where things meet, on the higher quality levels;
    - the water between the camera and everything, while the camera is under the surface;
    - god rays from the bright star, screen-space, at half resolution;
-   - temporal anti-aliasing (TRAA): the camera jitters a little each frame, and the frames are
-     gathered into one smooth image; SMAA (?aa=smaa) and none (?aa=none) for comparison;
-   - bloom with restraint: only what is truly bright glows (threshold 0.88, strength 0.7);
+   - anti-aliasing: SMAA on the finished image (crisp); temporal (?aa=traa) and none (?aa=none)
+     for comparison;
+   - bloom with restraint: only what is truly bright glows, close around itself (threshold 0.9,
+     strength 0.5, the widest blurs left out);
    - AgX tone mapping, then a faint vignette.
    Effects are switched by quality tier (a rebuild) or, for the ones that rest under the water,
    by uniforms (no rebuild, so diving never hitches). */
@@ -143,8 +144,13 @@ export class Post {
     if (o.aa === "traa") c = traa(c, depth, scene.getTextureNode("velocity"), this.camera);
 
     if (o.bloom) {
-      const b = bloom(c, 0.7, 0.45, 0.88); // a tighter glow: the image stays crisp
+      // a contained glow (Samuel: "glowing but contained… not this ever spreading glare"): only
+      // what is truly bright glows, and only close around itself. The bloom's two widest blurs,
+      // which spread a veil across the view, are left out; the middle one is kept faint.
+      const b = bloom(c, 0.5, 0, 0.9);
       b.smoothWidth.value = 0.3;
+      const tint = [1, 0.9, 0.35, 0.06, 0];
+      b.bloomTintColors.forEach((v: THREE.Vector3, i: number) => v.setScalar(tint[i]));
       c = vec4(c.rgb.add(b.rgb), c.a);
     }
 

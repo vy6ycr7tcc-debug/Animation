@@ -6,16 +6,16 @@
 - To see what your phone chose (renderer, fps, quality tier, resolution, render scale), tap ⋮ five times quickly, or add `#stats` to the URL. Tap five times again to hide it.
 
 ## Controls
-A stick in the bottom-left corner and one round button in the bottom-right, as in Sky. One small word appears beside the button only when it helps.
+A stick in the bottom-left corner and one round button in the bottom-right, as in Sky and Genshin. Put your thumb down anywhere in the lower left and the stick comes to it. One small word appears beside the button only when it helps.
 
 | | Phone | Keyboard + mouse |
 |---|---|---|
-| Walk to a spot | Tap it | Click it |
-| Walk freely | The stick, bottom left: push it any way, 360°, gently to stroll | W A S D or arrow keys |
-| Run | Push the stick to its edge (its ring turns gold) | Hold Shift |
+| Walk to a spot | (the stick) | Click it |
+| Walk freely | The stick, bottom left (or wherever your thumb lands in the lower left): push it any way, 360°, gently to stroll | W A S D or arrow keys |
+| Run | Push the stick further: past its inner half the walk rises smoothly into a run (its ring turns gold) | Hold Shift |
 | Glide | Run off a slope | Run off a slope |
 | Jump | Tap the round button | Tap Space |
-| Fly | Hold the round button: you take off and keep rising, faster the longer you hold. Let go and you drift gently down. | Hold Space; let go to drift down |
+| Fly | Tap it again in the air, or hold it: you take off and keep rising, faster the longer you hold. Flying, a tap is a wingbeat. Let go and you glide on, sinking gently. | Space again in the air, or hold it |
 | Land | Tap **Land** (shows only while you're flying) | C or L |
 | Dive | On the water, tap the round button (or **Dive**): a small leap and a plunge | Tap Space, or L |
 | Swim under the water | The stick swims where you look: look down to go deeper, up to rise. Tap the round button for a stroke; hold it to rise; let go to hover | W A S D and the mouse; Space (tap: stroke, hold: rise); hold C to sink |
@@ -88,22 +88,24 @@ There is no island and no path. After "Touch the water to begin", a map unfolds:
   | Arch of three stones | Walk through: a ripple and a low tone. |
   | Two crossing rings | Walk to the crossing: the rings pulse. |
 
-- **Stillness:** stop and stay still. The wanderer turns inward, head bowed and hands together at the heart. Its aura breathes out as a pale, luminous mist. Long, soft strokes of light wind in from the trees, crystals and archetypes, melt into the aura, and a few flow out into the world; slow swells of light travel along them. The network of roots lights up. The spirits gather, and the horses come near. Move, and it all dissolves.
+- **Stillness:** stop and stay still. The wanderer turns inward, head bowed and hands together at the heart, and a small warm light breathes there. Long, soft strokes of light wind in from the trees, crystals and archetypes, melt into the aura, and a few flow out into the world; slow swells of light travel along them. The network of roots lights up. The spirits gather, and the horses come near. Move, and it all dissolves.
 - **Under the water:** the lakes are deep now (tens of metres). Tap to dive, then swim where you look.
   - Light is absorbed as it travels, red first, so the far water turns teal and then indigo, darker the deeper you go. Moonlight falls in slow shafts that stay put as you swim through them. Looking up you see the sky through a bright, rippling window. Your orb is a lantern in the murk.
   - Kelp sways and parts around you, with specks of light rising up it; caustics dance on the floor; marine snow drifts past; bubbles rise from your strokes. The world's sounds are muffled; the voices stay clear.
   - Fish swim in schools, and mantas, dolphins and, in the deepest water, a whale. They glow softly and part around your light.
 - **Creatures:** herds of light horses roam the meadows in slow, dreamlike gallops. Run at them and they wheel away; stand still and they come close. Storks, flamingos and parrots wheel overhead.
 - **Stones that answer:** stop in front of a rock or crystal. It vibrates light outward, with waves racing over its surface and motes streaming off it.
-- **The archive's orbs and groves:** small glowing planets float through the world: in the sky (fly), deep in the lakes (dive), and over the land. Great trees stand in groves, each bearing glowing fruits.
+- **The archive's planets, stars and groves:** great ringed planets hang low in the sky, and stars carry voices high overhead (fly up to them). Great trees stand in groves, each bearing glowing fruits. Nothing plays by itself: when the journey's voices have all been heard, a quiet word now and then says where another is waiting.
   - Come near and a quiet label shows the title, the entity and the date.
-  - Tap an orb or a fruit to hear its narration. A small player appears top-left with pause, source and close, and you keep exploring.
+  - Tap a planet (from the ground below it), a star or a fruit to hear its narration. A small card appears top-left with pause, back 15 s, source, fold and close, and you keep exploring. It folds itself after a few seconds into a half-moon on the left edge: play/pause in the middle, back 15 s above, the card again below, its curve filling as the narration goes.
   - While it plays, the voice it comes from (Ra, Q'uo, Hatonn, Latwii and others) stands beside you as a figure of light in its own colour and form, and fades when it ends.
   - When a narration ends, choose "Continue with background narration" or "Just the music".
 - **The guide:** ⋮ → Guide (or "Ask the guide" on the map). Choose somewhere new, an archetype, a grove or an orb, then "Walk with the guide" (a warm light goes ahead and waits for you) or "Take me there".
   - 86 narrations in all: 8 orbs (episodes 1–8) and 18 groves holding episodes 9–86.
 - **The whole creation:**
-  - **Trees of light,** grown in smooth curves, with twigs that curl into spirals. Pulses of light run down from the crown through the trunk. Under the ground you can see the roots as fine lines of light going deep, brightest near you.
+  - **Trees of light,** grown in smooth curves, with twigs that curl into spirals, in groves with open meadow between. Pulses of light run down from the crown through the trunk. Under the ground you can see the roots as fine lines of light going deep, brightest near you.
+  - **Rising flowers.** Tall stems of light with a leaf curled at the foot stand in drifts in the meadows. Come near and they rise out of the ground one after another, their cups opening around a small light, a thread of light running up each stem; some while after you've gone they sink back to rest.
+  - **The sky changes as you travel.** The shore keeps its moonlit night. Walk or fly out a few hundred metres and the sky turns: east a cold winter sunrise, north-east a pale morning haze, north the deep night full of stars and galaxies, north-west dusk, west a violet-amber sunset, south-west a red ember sunset, south the blue hour, south-east a pink dawn.
   - **The network.** Threads of light join the roots of neighbouring trees and crystals underground, and the same pulses travel along them.
   - **Crystals.** The great ones take a shaft of light from the sky. Every cluster splits light into rainbow petals on the ground and shifts colour as you walk around it. Walk close and they wake.
   - **Rocks,** etched with fine gold lines.

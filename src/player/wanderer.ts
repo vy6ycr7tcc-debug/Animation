@@ -171,6 +171,7 @@ class BodyMotes {
 }
 
 /* ---------- ribbons of light ---------- */
+const MAX_TRAIL = 1.4; // metres
 class Ribbon {
   mesh: THREE.Mesh;
   private pts: THREE.Vector3[] = [];
@@ -226,6 +227,15 @@ class Ribbon {
       if (this.pts.length > this.max) {
         this.pts.pop();
         this.ages.pop();
+      }
+      // never longer than a short stroke: climbing fast, a trail of frames stretched into long
+      // strings above the wanderer, as if hung from them
+      for (let i = 1, len = 0; i < this.pts.length; i++) {
+        len += this.pts[i].distanceTo(this.pts[i - 1]);
+        if (len > MAX_TRAIL) {
+          this.pts.length = this.ages.length = i + 1;
+          break;
+        }
       }
     } else {
       this.pts[0].copy(head);
@@ -533,8 +543,9 @@ export class Wanderer {
     this.turnBone(F, rot, k);
   }
 
-  /** Flight, like Superman: arms reach ahead of the head, the legs trail together. Hovering,
-      the arms rest a little out from the sides. */
+  /** Flight: the body lies along the line of flight and the arms sweep back along the sides,
+      a little out and lifted, like a diver's glide (Samuel: "arms back for flying"); the legs
+      trail together. Hovering, the arms rest a little out from the sides. */
   private flyPose(k: number, soar: number): void {
     if (k < 0.001 || !this.ready) return;
     this.body.updateMatrixWorld(true);
@@ -544,11 +555,12 @@ export class Wanderer {
     const back = new THREE.Vector3().crossVectors(right, along).normalize(); // the body's back
     for (const [side, sgn] of [["L", -1], ["R", 1]] as const) {
       const shoulder = this.bonePos(`DEF-upper_arm.${side}`, new THREE.Vector3());
-      // soaring: both arms stretched ahead, a hand's width apart; hovering: low and a little out
-      const ahead = shoulder.clone().addScaledVector(along, 0.6).addScaledVector(right, 0.05 * sgn).addScaledVector(back, 0.06);
+      // soaring: swept back toward the hips, out from the sides, lifted a little over the back
+      const swept = shoulder.clone().addScaledVector(along, -0.52).addScaledVector(right, 0.2 * sgn).addScaledVector(back, 0.14);
       const rest = shoulder.clone().addScaledVector(along, -0.5).addScaledVector(right, 0.22 * sgn);
-      const target = rest.lerp(ahead, soar);
-      const pole = back.clone().multiplyScalar(-1).addScaledVector(right, 0.5 * sgn);
+      const target = rest.lerp(swept, soar);
+      // elbows soft, turned out and up
+      const pole = right.clone().multiplyScalar(sgn).addScaledVector(back, 0.6);
       this.reachTo(side, target, pole, k);
     }
   }

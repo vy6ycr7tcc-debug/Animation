@@ -1,11 +1,10 @@
 /* Where the archive's vessels stand (content/transcript_orbs.json). Everything is placed from
    the data alone, so the real delivery (8 orbs, 18 groves) needs no code change.
    - Each narration may name its vessel: `"vessel": "tree" | "planet" | "star"`. Without it, the
-     groves' episodes are fruit on their trees, and the orbs are split: about a quarter become
-     stars high in the night sky, a quarter planets hanging in the sky, a quarter planets deep
-     underwater and the rest small planets over the land. An episode marked "planet" or "star"
-     leaves its tree for the sky; an orb marked "tree" stays a planet over the land.
-   - Stars and sky planets are reached only by flying; the deep ones only by diving.
+     groves' episodes are fruit on their trees, and the orbs all live in the sky (Samuel: "the
+     planets and orbs need to be on the sky"), planets and stars in turn. An episode marked
+     "planet" or "star" leaves its tree for the sky.
+   - A sky planet can be tapped from the ground below it; fly up to hear a star.
    - Each grove stands where its `suggested_biome` fits (meadow, water, hills, sand, forest,
      "near the starting shore", ...), well apart from the others, the landmarks and the shore. */
 import data from "../../content/transcript_orbs.json";
@@ -34,7 +33,7 @@ export interface GroveData {
 }
 export const ARCHIVE = data as unknown as { orbs: Narration[]; trees: GroveData[] };
 
-export type Realm = "star" | "sky" | "water" | "land";
+export type Realm = "star" | "sky";
 export interface OrbSite {
   orb: Narration;
   realm: Realm;
@@ -73,16 +72,13 @@ function spiral(x: number, z: number, ok: (x: number, z: number) => boolean, ste
 }
 
 function placeOrbs(orbs: Narration[]): OrbSite[] {
-  // the default split, for the orbs that don't name their vessel
+  // the orbs that don't name their vessel: planets and stars in turn
   const free = orbs.filter((o) => !o.vessel);
-  const q = Math.max(free.length >= 4 ? 1 : 0, Math.round(free.length * 0.25));
-  const defaultRealm = new Map<Narration, Realm>();
-  free.forEach((o, i) => defaultRealm.set(o, i < q ? "star" : i < 2 * q ? "sky" : i < 3 * q ? "water" : "land"));
   const out: OrbSite[] = [];
   orbs.forEach((orb, i) => {
-    const realm: Realm = defaultRealm.get(orb) ?? (orb.vessel === "star" ? "star" : orb.vessel === "planet" ? (i % 2 ? "sky" : "water") : "land");
-    // spread around the world on a golden-angle spiral, from ~180 m to ~1.3 km out
-    const a = i * GOLDEN * 2.3 + 0.7, r = 180 + ((i * 0.618) % 1) * 1100;
+    const realm: Realm = orb.vessel === "star" || (!orb.vessel && free.indexOf(orb) % 2 === 1) ? "star" : "sky";
+    // spread around the world on a golden-angle spiral, from ~240 m to ~1.3 km out
+    const a = i * GOLDEN * 2.3 + 0.7, r = 240 + ((i * 0.618) % 1) * 1050;
     const cx = Math.cos(a) * r, cz = Math.sin(a) * r;
     const taken = (x: number, z: number) => out.every((o) => Math.hypot(o.x - x, o.z - z) > 120);
     if (realm === "star") {
@@ -91,29 +87,11 @@ function placeOrbs(orbs: Narration[]): OrbSite[] {
       out.push({ orb, realm, x: p[0], y: Math.max(heightAt(p[0], p[1]), WATER_Y) + 150 + ((i * 131) % 90), z: p[1] });
       return;
     }
-    if (realm === "water") {
-      // deep water, the orb hanging halfway down between the surface and the floor
-      const p = spiral(cx, cz, (x, z) => heightAt(x, z) < WATER_Y - 7 && taken(x, z), 13, 1400);
-      if (p) {
-        const floor = heightAt(p[0], p[1]);
-        out.push({ orb, realm, x: p[0], y: Math.max(floor + 1.5, WATER_Y - 2.5 - (WATER_Y - floor) * 0.35), z: p[1] });
-        return;
-      }
-    }
-    if (realm === "sky") {
-      const p = spiral(cx, cz, (x, z) => taken(x, z) && awayFromLandmarks(x, z, 60), 17) ?? [cx, cz];
-      const ground = Math.max(heightAt(p[0], p[1]), WATER_Y);
-      // a planet hanging in the sky, large enough to be seen from the ground
-      out.push({ orb, realm, x: p[0], y: ground + 70 + ((i * 53) % 50), z: p[1] });
-      return;
-    }
-    // land (or water, if no deep water was found): floating a little above dry, open ground
-    const p =
-      spiral(cx, cz, (x, z) => {
-        const h = heightAt(x, z);
-        return h > WATER_Y + 1.2 && h < 45 && taken(x, z) && awayFromLandmarks(x, z, 40);
-      }) ?? [cx, cz];
-    out.push({ orb, realm: "land", x: p[0], y: Math.max(heightAt(p[0], p[1]), WATER_Y) + 1.7, z: p[1] });
+    const p = spiral(cx, cz, (x, z) => taken(x, z) && awayFromLandmarks(x, z, 60), 17) ?? [cx, cz];
+    const ground = Math.max(heightAt(p[0], p[1]), WATER_Y);
+    // a planet low in the sky, large: from the ground it rises over the horizon ahead (higher
+    // up, it sat above the top of a phone's view, which looks a little down at the land)
+    out.push({ orb, realm, x: p[0], y: ground + 50 + ((i * 53) % 40), z: p[1] });
   });
   return out;
 }

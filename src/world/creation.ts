@@ -719,7 +719,9 @@ export class Creation {
     let t: TreeDef | null = null;
     const x = (i + 0.15 + cellHash(i, j, 41) * 0.7) * TCELL, z = (j + 0.15 + cellHash(i, j, 42) * 0.7) * TCELL;
     const grove = smooth(0.46, 0.64, fbm(x * 0.008 + 71, z * 0.008 - 33));
-    if (cellHash(i, j, 40) < 0.08 + grove * 0.62 && clearOf(x, z, 11, 16)) {
+    // fewer trees than before, in groves with open meadow between (Samuel: "more variety of
+    // elements than just so many trees"); the rising flowers and the rest fill the open ground
+    if (cellHash(i, j, 40) < 0.035 + grove * 0.36 && clearOf(x, z, 11, 16)) {
       const h = heightAt(x, z);
       const k = groundKind(x, z, h);
       if (h > WATER_Y + 0.7 && h < 28 && k.stone < 0.5) {
@@ -1161,9 +1163,9 @@ export class Spirits {
       const { position, aSize, aHue } = this.heads.nodes;
       const vD = viewDepth(position);
       const vC = mix(mix(vec3(0.8, 0.9, 1.0), vec3(1.0, 0.86, 0.66), step(0.4, aHue)), vec3(1.0, 0.8, 1.0), step(0.75, aHue)).mul(outOfTheWay(position));
-      mat.sizeNode = clamp(aSize.mul(0.9).mul(U.uPx).div(max(vD, 0.5)), 2, 120).div(T.screenDPR);
+      mat.sizeNode = clamp(aSize.mul(0.7).mul(U.uPx).div(max(vD, 0.5)), 2, 70).div(T.screenDPR);
       const r = length(pointUV.sub(0.5)).mul(2);
-      const a = exp(r.mul(r).mul(-6)).mul(1.2).add(smoothstep(0.25, 0, r).mul(1.6));
+      const a = exp(r.mul(r).mul(-10)).mul(0.8).add(smoothstep(0.25, 0, r).mul(1.4)); // contained
       mat.colorNode = vec4(vC.mul(a).mul(float(1).sub(fogF(vD))), 1);
     }
     this.group.add(this.veil, this.heads.sprite);

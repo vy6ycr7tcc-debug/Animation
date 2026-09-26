@@ -34,6 +34,8 @@ export interface MoveInput {
   x: number; // right
   y: number; // forward
   glide: boolean;
+  /** How far into a run, 0..1 (the stick rises smoothly from a walk into it; default: `glide`). */
+  run?: number;
   /** Jump held: in the air, the wanderer glides down slowly; while flying, rises. */
   hold?: boolean;
   /** In the water: sink, while held. */
@@ -100,10 +102,20 @@ export class Controller {
     if (this.diving) this.surfacing = true;
   }
 
+  /** The round button's tap, as in Sky: on the ground a jump; in the air it opens into flight;
+      flying, a wingbeat lifts you a little. */
   jump(): void {
-    if (this.grounded && !this.swimming) {
+    if (this.swimming) return;
+    if (this.grounded) {
       this.vy = JUMP_V;
       this.grounded = false;
+    } else if (!this.flying) {
+      this.flying = true;
+      this.landing = false;
+      this.vy = Math.max(this.vy, 3);
+    } else {
+      this.landing = false;
+      this.vy = Math.max(this.vy, 0) + 3.2;
     }
   }
 
@@ -142,12 +154,15 @@ export class Controller {
       dx /= len;
       dz /= len;
     }
+    const run = input.run ?? (input.glide ? 1 : 0);
+    const lerp = THREE.MathUtils.lerp;
     const top = this.flying
-      ? input.glide ? FLY_FAST : FLY
-      : this.swimming ? (input.glide ? SWIM_FAST : SWIM) : this.gliding && !this.grounded ? AIR_GLIDE : input.glide ? RUN : WALK;
+      ? lerp(FLY, FLY_FAST, run)
+      : this.swimming ? lerp(SWIM, SWIM_FAST, run) : this.gliding && !this.grounded ? AIR_GLIDE : lerp(WALK, RUN, run);
     // flying without holding the button is a glide: it keeps its speed, steered by the stick
-    const target = Math.min(1, mag) * (glideOn ? FLY_GLIDE : this.flying && !input.hold && !input.glide ? FLY_GLIDE : top);
-    const accel = this.flying ? 2.2 : this.grounded || this.swimming ? (input.glide ? 3.5 : 7) : this.gliding ? 3 : 2;
+    const target = Math.min(1, mag) * (glideOn ? FLY_GLIDE : this.flying && !input.hold ? Math.max(FLY_GLIDE, top) : top);
+    // quick to answer the thumb: a walk is under way within a tenth of a second, a run within a few
+    const accel = this.flying ? 3 : this.grounded || this.swimming ? lerp(9, 5.5, run) : this.gliding ? 3 : 2.5;
     this.vel.x += (dx * target - this.vel.x) * Math.min(1, dt * accel);
     this.vel.z += (dz * target - this.vel.z) * Math.min(1, dt * accel);
 
@@ -179,7 +194,7 @@ export class Controller {
       this.climbHeld = input.hold ? this.climbHeld + dt : 0;
       const surge = 1 + Math.min(8, this.climbHeld * this.climbHeld * 0.35); // up to ~40 m/s after a few seconds
       const wantVy = input.hold
-        ? CLIMB * surge * (input.glide ? 1.8 : 1)
+        ? CLIMB * surge * (1 + 0.8 * run)
         : this.landing
           ? -Math.min(14, 3 + (this.pos.y - ground) * 0.25)
           : -GLIDE_SINK; // not rising: always a glide, sinking gently
@@ -201,7 +216,7 @@ export class Controller {
           const want2 = Math.atan2(-dx, -dz);
           let dh = want2 - this.heading;
           dh = Math.atan2(Math.sin(dh), Math.cos(dh));
-          this.heading += dh * Math.min(1, dt * 5);
+          this.heading += dh * Math.min(1, dt * 6);
         }
         this.pose = this.speed > 0.6 ? "fly" : "hover";
         return;
@@ -268,7 +283,7 @@ export class Controller {
       const want = Math.atan2(-dx, -dz);
       let dh = want - this.heading;
       dh = Math.atan2(Math.sin(dh), Math.cos(dh));
-      this.heading += dh * Math.min(1, dt * 8);
+      this.heading += dh * Math.min(1, dt * 10);
     }
     this.pose = this.swimming
       ? "swim"
@@ -299,7 +314,7 @@ export class Controller {
       dir.set(hx * 0.55, -1, hz * 0.55).normalize();
       this.swimVel.lerp(dir.clone().multiplyScalar(4.2), Math.min(1, dt * 6));
     } else {
-      const want = dir.multiplyScalar(mag * (input.glide ? SWIM_FAST : UNDER));
+      const want = dir.multiplyScalar(mag * THREE.MathUtils.lerp(UNDER, SWIM_FAST, input.run ?? (input.glide ? 1 : 0)));
       // a stroke's burst carries you on the way you are heading, easing off over a second or so
       if (this.burst > 0.01) {
         const along = this.swimVel.lengthSq() > 0.04 ? this.swimVel.clone().normalize() : new THREE.Vector3(fx * cp, -sp, fz * cp);
