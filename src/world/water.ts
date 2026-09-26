@@ -43,12 +43,12 @@ export class Water {
     const build = (withWorld: boolean) =>
       Fn(() => {
         const vW = positionWorld;
-        /* ---- from below: the sky through a bright window straight up, elsewhere a dim teal
-           mirror shimmering with the ripples */
+        /* ---- from below: the sky through a bright window straight up, elsewhere a plain dim
+           teal (no shimmering mirror: Samuel found the underwater reflection annoying) */
         const up = normalize(vW.sub(cameraPosition));
         const wob = sin(vW.x.mul(1.3).add(S.uT.mul(0.9))).mul(sin(vW.z.mul(1.1).sub(S.uT.mul(0.7)))).mul(0.5).add(0.5);
         const window_ = smoothstep(0.62, 0.9, up.y.add(wob.mul(0.05)));
-        const below = vec3(0.02, 0.1, 0.13).mul(wob.mul(0.6).add(0.7));
+        const below = vec3(0.02, 0.1, 0.13).mul(0.85);
         const upS = normalize(vec3(up.x, up.y.mul(1.4), up.z));
         const skyB = skyColor(upS).mul(1.6).add(vec3(0.05, 0.12, 0.14));
         const moonB = pow(max(dot(upS, S.uStar), 0), 30);

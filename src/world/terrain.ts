@@ -334,7 +334,8 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
     const web = min(cWeb(cq, uT.mul(0.5)), cWeb(cq.mul(1.37).add(7.3), uT.mul(-0.4)));
     const cau = pow(float(1).sub(smoothstep(0, 0.32, web)), 2.2).mul(gN(cq.mul(0.35).add(uT.mul(0.03))).mul(0.45).add(0.55));
     const k = exp(dep.mul(-0.08)).mul(smoothstep(0.3, 1.5, dep)).mul(float(1).sub(smoothstep(12, 40, camD)));
-    e.addAssign(vGW.y.lessThan(-0.3).select(vec3(0.45, 0.75, 0.95).mul(cau).mul(k).mul(0.3), vec3(0)));
+    // (left out: Samuel found the moving web on the floor "annoying", like a reflection)
+    void cau, k;
     // a soft sheen where the ground faces away toward the moon (light through the haze)
     // the lights of the world, pooling on the ground (lanterns, beings, crystals, your own)
     e.addAssign(groundLight(vGW).mul(T.vertexColor().rgb.mul(1.6).add(0.12)).mul(gr.x));
