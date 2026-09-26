@@ -1,5 +1,9 @@
 name: Deploy to GitHub Pages
 
+# The live game (main) is published at the site's root. The WebGPU work in progress
+# (branch claude/vite-threejs-scaffold-yym13y) is published beside it at /next/, so both
+# can be compared on the phone. Run by hand (workflow_dispatch) to refresh /next/.
+
 on:
   push:
     branches: [main]
@@ -19,12 +23,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/vite-threejs-scaffold-yym13y
+          path: next-src
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: Build /next/ (WebGPU preview)
+        run: |
+          cd next-src
+          npm ci
+          npm run build
+          cp -r dist ../dist/next
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
