@@ -34,7 +34,7 @@ function fileFor(t: Track): string {
 }
 
 export class Narration {
-  subtitlesOn = true;
+  subtitlesOn = false;
   current: string | null = null;
   onEnd: ((id: string) => void) | null = null;
   private raw = new Map<string, Promise<ArrayBuffer | null>>();
