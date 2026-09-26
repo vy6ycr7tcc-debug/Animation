@@ -108,7 +108,7 @@ export interface TreeShape {
   rootLen: number;
   leaves: number; // glints in the rosette at each twig tip
 }
-const SHAPES: TreeShape[] = [
+export const SHAPES: TreeShape[] = [
   { height: 5.2, radius: 0.26, limbs: 3, depth: 2, spread: 0.6, limbLen: 2.8, bend: 0.7, roots: 6, rootLen: 3.4, leaves: 6 }, // graceful
   { height: 7.4, radius: 0.22, limbs: 3, depth: 2, spread: 0.42, limbLen: 2.6, bend: 0.5, roots: 5, rootLen: 3.8, leaves: 5 }, // slender
   { height: 4.2, radius: 0.3, limbs: 4, depth: 2, spread: 0.95, limbLen: 3.4, bend: 0.9, roots: 6, rootLen: 3.2, leaves: 7 }, // spreading, like a tree of life
@@ -374,7 +374,7 @@ function prismGeometry(): THREE.BufferGeometry {
 }
 
 /* ================================================================ placement records */
-interface TreeDef {
+export interface TreeDef {
   x: number;
   y: number;
   z: number;
@@ -402,7 +402,8 @@ interface ClusterDef {
   woke: number; // time it last woke
 }
 
-const TCELL = 12, TRING = 8; // trees out to ~100 m
+export const TCELL = 12;
+const TRING = 8; // trees out to ~100 m (beyond, forest.ts draws their likenesses)
 const RCELL = 10, RRING = 6; // rocks out to ~65 m
 const CCELL = 23, CRING = 5; // crystals out to ~120 m
 const MAX_TREES = 90, MAX_ROCKS = 240, MAX_PRISMS = 900, MAX_BEAMS = 24;
@@ -711,7 +712,8 @@ export class Creation {
   }
 
   /* ---------------------------------------------------------------- placement */
-  private treeAt(i: number, j: number): TreeDef | null {
+  /** The tree in grid cell (i, j), if one grows there (cells are TCELL metres). */
+  treeAt(i: number, j: number): TreeDef | null {
     const key = `${i},${j}`;
     if (this.trees.has(key)) return this.trees.get(key)!;
     let t: TreeDef | null = null;
@@ -732,7 +734,7 @@ export class Creation {
       }
     }
     this.trees.set(key, t);
-    if (this.trees.size > 3000) this.trees.delete(this.trees.keys().next().value!);
+    if (this.trees.size > 16000) this.trees.delete(this.trees.keys().next().value!);
     return t;
   }
 

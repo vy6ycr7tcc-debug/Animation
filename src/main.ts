@@ -42,6 +42,7 @@ import { NO_MIRROR_LAYER, Water } from "./world/water";
 import { FOG } from "./world/fog";
 import { Moods } from "./world/moods";
 import { lightField } from "./world/lightfield";
+import { Forest } from "./world/forest";
 
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
 
@@ -184,6 +185,9 @@ creationUniforms.uStar.value.copy(starDir);
 // the sky's moods, which change as you travel
 const moods = new Moods({ hemi, star, scene, creationFog: creationUniforms.uFogC.value });
 const creation = new Creation(sparks);
+// the forests beyond, out to half a kilometre
+const forest = new Forest(creation);
+scene.add(forest.mesh);
 const spirits = new Spirits(creation, MOBILE ? 10 : 14);
 scene.add(creation.group, spirits.group);
 const seaLife = new SeaLife();
@@ -1119,6 +1123,7 @@ function update(dt: number): void {
     butterflies.update(life);
   }
   gliders.update(life);
+  forest.update(player.pos);
   creation.update(life, (innerHeight * dpr) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
   spirits.update(life, camera);
   sparks.update(dt, dpr);

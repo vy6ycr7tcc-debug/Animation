@@ -196,6 +196,12 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - Moods (`src/world/moods.ts`): the sky, fog colour and density, clouds, moon/sun light, hemisphere light and the baked sky reflection blend by where you are: home a moonlit night; east (the Body) a cold winter sunrise; west (the Spirit) a violet-amber sunset; north (toward the Choice) the deep night, nearly black. Blended over ~250–1100 m from the shore, eased.
   - Sky (`sky.ts`): Milky Way band with dust lanes, nebulae (rose/violet/teal fbm clouds, mostly near the band), four far spiral galaxies, more stars in the deep night; the low sun's glow at dawn/dusk. The water mirrors a cheaper version (no fine detail).
   - Ground (`terrain.ts`): the scans' texture reaches farther (to ~520 m) with stronger relief, more of their own colour, and broad stretches of warm bare earth using the rock scan's grit.
+- 2026-09-26: Samuel: "Continue everything and finish the game". Phases 2 and 3, on the same branch (`/next/`):
+  - Sky vessels (`sites.ts`, `vessels.ts`): each narration may name its vessel, `"vessel": "tree" | "planet" | "star"`. Default split (proposed to Samuel): groves' episodes stay fruit; of the orbs, a quarter become stars far overhead (620–1000 m, a bright core, halo and four slow rays), a quarter great planets in the sky (26–42 m across, 260–420 m up, ringed), a quarter planets in the deep, the rest small planets over the land. Stars and sky planets have their own pale marks on the map (a sparkle, a ringed disc).
+  - Shooting stars in the sky shader, often in the deep night.
+  - Light on the land (`lightfield.ts`): lanterns, beings, crystals, spirits, flowers and the wanderer splat their glow into a 160 m top-down texture that follows you; the ground and etched stone add it as light.
+  - Grass: 7 × 7 tiles of 360 blades (fades out at 32–50 m).
+  - Forests beyond (`forest.ts`): past ~96 m, each tree the world would grow (same cells as `creation.ts`) is a camera-facing likeness of its own kind, drawn once from its grown limbs; out to ~480 m.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.
