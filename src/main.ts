@@ -1280,11 +1280,9 @@ quality.hold(12);
 
 /** Everything that glows lights the ground around it (world/lightfield.ts). */
 const lfTint = new THREE.Color();
-const WANDERER_LIGHT = new THREE.Color(1.0, 0.82, 0.6);
 function fillLightField(): void {
   const add = (x: number, z: number, r: number, c: THREE.Color, k: number) => lightField.add(x, z, r, c, k);
   lightField.begin();
-  if (S.mode !== "intro" && !player.swimming) add(player.pos.x, player.pos.z, 3.5, WANDERER_LIGHT, 0.18 / (1 + Math.max(0, player.pos.y - heightAt(player.pos.x, player.pos.z) - 1.5) * 0.3));
   lanterns.lights(add);
   flowers.lights(add);
   blooms.lights(add);
@@ -1325,6 +1323,13 @@ renderer
   .init()
   .then(() => {
     nameRenderer();
+    // if the phone takes the GPU away (memory pressure, a long time in the background), start
+    // again where you were instead of freezing on an error
+    renderer.onDeviceLost = () => {
+      persist();
+      if (document.hidden) addEventListener("visibilitychange", () => location.reload(), { once: true });
+      else location.reload();
+    };
     bakeEnvironment();
     post.start();
     requestAnimationFrame(frame);
