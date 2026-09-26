@@ -15,7 +15,7 @@ A stick in the bottom-left corner and one round button in the bottom-right, as i
 | Run | Push the stick further: past its inner half the walk rises smoothly into a run (its ring turns gold) | Hold Shift |
 | Glide | Run off a slope | Run off a slope |
 | Jump | Tap the round button | Tap Space |
-| Fly | Tap it again in the air, or hold it: you take off and keep rising, faster the longer you hold. Flying, a tap is a wingbeat. Let go and you glide on, sinking gently. | Space again in the air, or hold it |
+| Fly | Tap it again in the air, or hold it: you become a flame, take off and keep rising, faster the longer you hold. Flying, a tap is a wingbeat. Let go and you glide on, sinking gently. Land and your body forms again. | Space again in the air, or hold it |
 | Land | Tap **Land** (shows only while you're flying) | C or L |
 | Dive | On the water, tap the round button (or **Dive**): a small leap and a plunge | Tap Space, or L |
 | Swim under the water | The stick swims where you look: look down to go deeper, up to rise. Tap the round button for a stroke; hold it to rise; let go to hover | W A S D and the mouse; Space (tap: stroke, hold: rise); hold C to sink |
