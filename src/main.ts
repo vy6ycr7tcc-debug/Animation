@@ -46,6 +46,32 @@ import { Forest } from "./world/forest";
 
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
 
+/** If anything fails on the phone, say so quietly on screen (for a screenshot), instead of the
+    game silently losing a control or a voice. */
+function showProblem(msg: string): void {
+  let el = document.getElementById("problem");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "problem";
+    el.style.cssText = "position:fixed;left:8px;right:8px;bottom:calc(env(safe-area-inset-bottom) + 4px);z-index:99;font:11px/1.3 ui-monospace,monospace;color:#ffd9b0;background:rgba(20,10,20,.72);padding:4px 8px;border-radius:6px;pointer-events:none;white-space:pre-wrap";
+    document.body.append(el);
+  }
+  el.textContent = ("Problem: " + msg).slice(0, 300);
+  window.clearTimeout((showProblem as unknown as { t?: number }).t);
+  (showProblem as unknown as { t?: number }).t = window.setTimeout(() => el?.remove(), 30000);
+}
+addEventListener("error", (e) => showProblem(`${e.message} (${String(e.filename).split("/").pop()}:${e.lineno})`));
+// the renderer reports shader and GPU failures through console.error: show those too
+{
+  const ce = console.error.bind(console);
+  console.error = (...a: unknown[]) => {
+    ce(...a);
+    const m = a.map((x) => (x instanceof Error ? x.message : String(x))).join(" ");
+    if (/THREE|WebGPU|GPU|shader|WGSL|GLSL/i.test(m)) showProblem(m);
+  };
+}
+addEventListener("unhandledrejection", (e) => showProblem(String((e as PromiseRejectionEvent).reason?.message ?? (e as PromiseRejectionEvent).reason)));
+
 type Mode = "intro" | "play" | "rest";
 const S = {
   mode: "intro" as Mode,
@@ -267,7 +293,9 @@ if (saved) {
   S.reducedPref = saved.settings?.reduced ?? null;
   audio.volume = saved.settings?.volume ?? 0.8;
   narration.subtitlesOn = saved.settings?.subtitles ?? true;
-  playlist.on = saved.settings?.narration ?? true;
+  // (the older "narration" setting is not read: one tap on "Just the music" had silenced the
+  // narrator for good; only the menu's own switch turns the voices off now)
+  playlist.on = saved.settings?.voices ?? true;
   playlist.restore(saved.journey?.heard ?? []);
   for (const b of beings.list) {
     b.walked = !!saved.journey?.walked.includes(b.spec.numeral);
@@ -283,7 +311,7 @@ function persist(): void {
     heading: player.heading,
     heard: [],
     visited: [],
-    settings: { volume: audio.volume, reduced: S.reducedPref, subtitles: narration.subtitlesOn, narration: playlist.on, awake: awake.on },
+    settings: { volume: audio.volume, reduced: S.reducedPref, subtitles: narration.subtitlesOn, voices: playlist.on, awake: awake.on },
     journey: {
       heard: playlist.heardIds,
       walked: beings.list.filter((b) => b.walked).map((b) => b.spec.numeral),
@@ -376,9 +404,13 @@ function begin(e?: Event): void {
   void startMap.open(places(), you, false, !!you).then((c) => c && arrive(c, true));
 }
 
-/** The archive's planets and stars in the sky, marked on the map in their own way. */
-function skyMarks(): { x: number; z: number; kind: "planet" | "star"; label: string }[] {
-  return ORB_SITES.filter((o) => o.realm === "star" || o.realm === "sky").map((o) => ({ x: o.x, z: o.z, kind: o.realm === "star" ? "star" : "planet", label: o.orb.title }));
+/** Every vessel of the archive's narrations, marked on the map in its own way: the groves'
+    great trees, the planets (over the land, in the deep, in the sky) and the stars. */
+function skyMarks(): { x: number; z: number; kind: "planet" | "star" | "grove"; label: string }[] {
+  return [
+    ...ORB_SITES.map((o) => ({ x: o.x, z: o.z, kind: (o.realm === "star" ? "star" : "planet") as "star" | "planet", label: o.orb.title })),
+    ...GROVE_SITES.map((g) => ({ x: g.x, z: g.z, kind: "grove" as const, label: g.grove.name })),
+  ];
 }
 
 /** The places on the map: the shore, and the seven archetypes' homes. */
@@ -715,9 +747,25 @@ tp.onChange = (id) => {
   if (who && presences.entity) whisper(who, 3500);
 };
 tp.onChoose = (background) => {
-  playlist.setOn(background);
-  voiceBox.checked = background;
-  persist();
+  // "Just the music" is a rest, not a switch: the narrator comes back in a quarter of an hour
+  if (!background) playlist.rest(900);
+};
+// the narrator, once the journey's voices are all heard: the nearest archive narration not yet heard
+playlist.onRunOut = () => {
+  let best: (typeof vessels.vessels)[number] | null = null, bd = Infinity;
+  for (const v of vessels.vessels) {
+    if (archiveHeard.has(v.narration.id)) continue;
+    const d = v.pos.distanceTo(player.pos);
+    if (d < bd) (bd = d), (best = v);
+  }
+  if (!best || tp.active) return false;
+  playArchive(best.narration);
+  return true;
+};
+// left unanswered, the end of an archive narration lets the background voices go on
+tp.onEndIdle = () => {
+  tp.dismiss();
+  playlist.held = false;
 };
 const releaseHold = () => {
   if (!tp.active) playlist.held = false;
@@ -1030,6 +1078,7 @@ function readings(): string {
     `${quality.reason} · ${shadersReady ? "shaders ready" : "compiling shaders…"}`,
     `${ri.calls} draws · ${(ri.triangles / 1000).toFixed(0)}k tris`,
     `audio ${audio.ctx?.state ?? "off"} · session ${audio.sessionType} · voice ${narration.current ?? "-"}`,
+    `sky ${["night", "sunrise", "sunset", "deep", "twilight"].map((n, i) => `${n} ${(moods.weights[i] * 100).toFixed(0)}`).filter((x) => !x.endsWith(" 0")).join(" · ")}`,
     `pos ${player.pos.x.toFixed(1)}, ${player.pos.y.toFixed(1)}, ${player.pos.z.toFixed(1)} · ${player.pose} · lanterns ${lanterns.litCount}`,
   ].join("\n");
 }
@@ -1107,7 +1156,7 @@ function update(dt: number): void {
       audio.step(true);
     }
     playlist.quiet = sitting.phase === "seated";
-    playlist.update(dt);
+    playlist.update(realDt); // real time: a slow frame rate never stretches the quiet
   }
   narration.update();
 
@@ -1232,12 +1281,14 @@ function fillLightField(): void {
 }
 
 let last = performance.now();
+let realDt = 0;
 function frame(now: number): void {
   requestAnimationFrame(frame);
   if (S.hidden) return;
   const ms = now - last;
   last = now;
   const dt = Math.min(0.05, ms / 1000);
+  realDt = Math.min(1, ms / 1000);
   if (ms < 250 && stats.push(ms)) {
     if (S.mode !== "intro") quality.window(stats);
     if (showStats) $("#stats-text").textContent = readings();
@@ -1259,10 +1310,13 @@ renderer
     requestAnimationFrame(frame);
     return renderer.compileAsync(scene, camera);
   })
-  .catch((e) => console.error(e))
+  .catch((e) => {
+    console.error(e);
+    showProblem(String(e?.message ?? e));
+  })
   .finally(() => {
     shadersReady = true;
     quality.hold(3);
   });
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField } });

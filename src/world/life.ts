@@ -23,7 +23,7 @@ export interface LifeFrame {
 const SCALE = [440, 493.88, 587.33, 659.25, 739.99, 880, 987.77, 1174.66];
 
 const {
-  abs, attribute, cameraPosition, clamp, cos, Discard, dot, exp, float, fract, Fn, If, length, Loop, max, min, mix, pointUV, positionLocal,
+  abs, attribute, cameraPosition, clamp, cos, Discard, dot, exp, float, fract, Fn, If, length, Loop, max, min, mix, pointUV, positionGeometry, positionLocal,
   pow, screenCoordinate, sin, smoothstep, step, uniform, uniformArray, varying, vec2, vec3, vec4,
 } = T;
 const tuv = T.uv;
@@ -130,7 +130,8 @@ export class LightGrass {
     const U = this.uniforms, uTrail = uniformArray(this.trail, "vec4");
     const aBase = attribute("aBase", "vec3"), aParams = attribute("aParams", "vec3"); // height, rotation, phase
     const hgt = aParams.x, rot = aParams.y, ph = aParams.z;
-    const p0 = positionLocal.mul(vec3(1, hgt, 1));
+    // the blade's own shape (positionLocal would already be the moved blade in the varyings below)
+    const p0 = positionGeometry.mul(vec3(1, hgt, 1));
     const c = cos(rot), sn = sin(rot);
     const w0 = aBase.add(vec3(p0.x.mul(c).sub(p0.z.mul(sn)), p0.y, p0.x.mul(sn).add(p0.z.mul(c))));
     const y2 = tuv().y.mul(tuv().y);
@@ -296,7 +297,9 @@ export class Flowers {
       const ca = cos(a), sa = sin(a);
       const p2 = vec3(p1.x.mul(ca).add(p1.z.mul(sa)), p1.y, p1.x.negate().mul(sa).add(p1.z.mul(ca)));
       mat.positionNode = aPos.xyz.add(vec3(0, sin(uT.mul(0.8).add(aPos.w.mul(9))).mul(0.02).add(0.32), 0)).add(p2);
-      const vTip = varying(length(positionLocal.xy).div(0.5));
+      // from the petal's own shape: positionLocal here would be the placed petal, out in the world,
+      // and far from the world's centre the flowers would blaze (and bloom into a milky haze)
+      const vTip = varying(length(positionGeometry.xy).div(0.5));
       const vFade = varying(float(1).sub(smoothstep(45, 62, length(aPos.xz.sub(cameraPosition.xz)))));
       const hue = aPos.w;
       const c = mix(mix(vec3(1.0, 0.78, 0.55), vec3(0.75, 0.85, 1.0), step(0.5, hue)), vec3(1.0, 0.65, 0.85), step(0.8, hue));
@@ -600,7 +603,7 @@ export class Gliders {
       const lift = sin(uT.mul(1.1).add(abs(P.x).mul(0.5))).mul(abs(P.x)).mul(0.35) // slow wing strokes
         .add(sin(uT.mul(1.1).sub(P.z.mul(0.6))).mul(0.25).mul(step(P.z, -1.4))); // the tail follows
       mat.positionNode = P.add(vec3(0, lift, 0));
-      const vP = varying(P);
+      const vP = varying(positionGeometry);
       const edge = smoothstep(3.6, 4.2, abs(vP.x)).add(smoothstep(-3.5, -4.4, vP.z).mul(0.5));
       const body = exp(vP.x.mul(vP.x).mul(-0.6)).mul(0.5);
       const lines = smoothstep(0.92, 1, sin(vP.x.mul(6).add(vP.z.mul(2))).mul(0.5).add(0.5)).mul(0.35);

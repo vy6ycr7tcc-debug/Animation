@@ -22,6 +22,9 @@ export class TranscriptPlayer {
   }
   onChoose: ((backgroundNarration: boolean) => void) | null = null;
   onChange: ((id: string | null) => void) | null = null;
+  /** Nobody answered the end's question for a while. */
+  onEndIdle: (() => void) | null = null;
+  private idleTimer = 0;
   subtitlesOn = true;
 
   private el = document.getElementById("tp") as HTMLDivElement;
@@ -171,6 +174,13 @@ export class TranscriptPlayer {
     this.onChange?.(null);
     this.pauseBtn.hidden = true;
     this.ended.hidden = false;
+    window.clearTimeout(this.idleTimer);
+    this.idleTimer = window.setTimeout(() => !this.ended.hidden && this.onEndIdle?.(), 15000);
+  }
+
+  /** Put the bar away without a choice. */
+  dismiss(): void {
+    this.close();
   }
 
   private choose(background: boolean): void {

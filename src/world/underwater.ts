@@ -19,7 +19,7 @@ import { heightAt, WATER_Y } from "./terrain";
 
 const {
   abs, atan, attribute, clamp, cos, Discard, distance, dot, exp, float, floor, Fn, fract, getViewPosition, If, inverseSqrt, length, max, min,
-  mix, normalize, pointUV, positionLocal, pow, screenCoordinate, sin, smoothstep, step, uniform, uv, varying, vec2, vec3, vec4,
+  mix, normalize, pointUV, positionGeometry, pow, screenCoordinate, sin, smoothstep, step, uniform, uv, varying, vec2, vec3, vec4,
 } = T;
 
 const uwH = (p: N): N => fract(sin(dot(p, vec2(127.1, 311.7))).mul(43758.5453));
@@ -160,7 +160,7 @@ export class SeaLife {
       const mat = new THREE.MeshBasicNodeMaterial({ side: THREE.DoubleSide, fog: false });
       const aBase = attribute("aBase", "vec3"), aParams = attribute("aParams", "vec3");
       const vy = uv().y, y2 = vy.mul(vy);
-      const p0 = positionLocal.mul(vec3(1, aParams.x, 1));
+      const p0 = positionGeometry.mul(vec3(1, aParams.x, 1)); // its own shape (also read by the varyings)
       const c = cos(aParams.y), sn = sin(aParams.y);
       // a sway that travels up the stalk
       const sway = aParams.x.mul(0.25).mul(y2);

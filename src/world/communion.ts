@@ -1,11 +1,11 @@
 /* Stillness. When the wanderer stops and stays still, it turns inward: head bowed, hands
    together before the heart (wanderer.ts). Then:
-   1. Its aura breathes out as a luminous gas: soft, pale veils of light that billow, curl and
-      rise around the body. No shell or edge; it thins into the night like moonlit mist.
+   1. The heart shines a little: a small warm light at the chest, breathing. (The misty aura
+      that once billowed around the body is gone: Samuel found it "cloudy glass".)
    2. Streams of light arrive: long, soft brush-strokes of light that wind in from the things
       around (trees, crystals, the archetypes) toward the heart, and a few that flow out from it
       into the world. Slow swells of light travel along them, like breath. They are smooth and
-      unbroken, and they melt into the aura before they reach the body.
+      unbroken, and they melt away before they reach the body.
    3. Then everything connects to everything: strokes weave between the things themselves, and
       the network of roots under the ground lights up.
    The moment the wanderer moves, it all dissolves. */
@@ -31,12 +31,29 @@ const gN = Fn(([p]: N[]) => {
   return mix(mix(gH(i), gH(i.add(vec2(1, 0))), f.x), mix(gH(i.add(vec2(0, 1))), gH(i.add(vec2(1, 1))), f.x), f.y);
 });
 
+/** A small warm light: a bright point with a soft round glow. */
+function heartTexture(): THREE.Texture {
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const g = c.getContext("2d")!;
+  const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grd.addColorStop(0, "rgba(255,236,205,1)");
+  grd.addColorStop(0.18, "rgba(255,214,160,0.55)");
+  grd.addColorStop(1, "rgba(255,190,130,0)");
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 64, 64);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 export class Communion {
   group = new THREE.Group();
   private gas: THREE.Sprite;
   private strokes: THREE.Mesh;
   private uni = { uT: uniform(0), uAge: uniform(0), uK: uniform(0), uOpen: uniform(0), uHeart: uniform(new THREE.Vector3()), uPx: uniform(600) };
   private built = false;
+  private heart: THREE.Sprite;
   private age = 0;
 
   constructor(gasCount = 150) {
@@ -123,7 +140,11 @@ export class Communion {
     }
     this.strokes.frustumCulled = false;
     this.strokes.renderOrder = 11;
-    this.group.add(this.gas, this.strokes);
+    // the heart shines a little: a small, warm light at the chest, breathing (Samuel: "remove
+    // the cloudy glass, just make the heart shine a bit"; the misty aura is no longer drawn)
+    this.heart = new THREE.Sprite(new THREE.SpriteMaterial({ map: heartTexture(), blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, transparent: true, opacity: 0, fog: false }));
+    this.heart.renderOrder = 12;
+    this.group.add(this.heart, this.strokes);
     this.group.visible = false;
   }
 
@@ -213,6 +234,10 @@ export class Communion {
     this.uni.uK.value = k;
     this.uni.uPx.value = pxPerUnit;
     this.uni.uHeart.value.copy(heart);
+    this.heart.position.copy(heart);
+    const breath = 0.85 + 0.15 * Math.sin(t * 1.1);
+    this.heart.material.opacity = Math.min(1, k * 1.4) * 0.8 * breath;
+    this.heart.scale.setScalar(0.55 + 0.12 * breath);
     if (k > 0.05 && !this.built) {
       this.built = true;
       this.age = 0;
