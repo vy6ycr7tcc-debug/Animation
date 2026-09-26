@@ -123,15 +123,6 @@ const sky = buildSky();
 sky.layers.set(NO_MIRROR_LAYER); // the lakes mirror the world; the sky they draw themselves
 scene.add(sky);
 /** The sky as light for glossy things (after the renderer is ready; again as the mood changes). */
-const envScene = new THREE.Scene();
-envScene.add(buildSky(true)); // the reflection: the sky's light only, no stars or nebulae
-function bakeEnvironment(): void {
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const old = scene.environment;
-  scene.environment = pmrem.fromScene(envScene, 0, 0.1, 1100).texture;
-  old?.dispose();
-  pmrem.dispose();
-}
 
 const hemi = new THREE.HemisphereLight(0x7a86d0, 0x221a36, 0.85);
 scene.add(hemi);
@@ -274,7 +265,9 @@ function applyTier(t: Tier, i: number = quality.tier): void {
   tierFx.rays = t.rays;
   tierFx.ao = t.ao;
   post.configure({ ao: t.ao, rays: t.rays, bloom: t.bloom, aa: AA });
-  water.setReflection(t.reflection); // mirrored world in the lakes
+  // no mirrored world in the lakes: the water reflects only the sky (Samuel: "better to not
+  // have any reflecting… but incredible skies when you look at them")
+  water.setReflection(false);
   // the shadow map follows mapSize by itself (no dispose, as WebGL needed)
   star.shadow.mapSize.set(t.shadow, t.shadow);
   motes.setCount(Math.round(t.particles / 2));
@@ -1278,26 +1271,8 @@ function update(dt: number): void {
 let shadersReady = false;
 quality.hold(12);
 
-/** Everything that glows lights the ground around it (world/lightfield.ts). */
-const lfTint = new THREE.Color();
-function fillLightField(): void {
-  const add = (x: number, z: number, r: number, c: THREE.Color, k: number) => lightField.add(x, z, r, c, k);
-  lightField.begin();
-  lanterns.lights(add);
-  flowers.lights(add);
-  blooms.lights(add);
-  wilds.lights(add, player.pos);
-  creation.lights(add);
-  spirits.lights(add);
-  for (const b of beings.list) {
-    const p = b.root.position;
-    if (Math.hypot(p.x - player.pos.x, p.z - player.pos.z) > 90) continue;
-    lfTint.setRGB(...b.spec.tint);
-    add(p.x, p.z, 7, lfTint, 0.25 + b.wake * 0.45);
-  }
-}
-
 const shadowAt = new THREE.Vector3();
+
 let last = performance.now();
 let realDt = 0;
 function frame(now: number): void {
@@ -1313,8 +1288,6 @@ function frame(now: number): void {
   }
   update(dt);
   renderer.info.reset();
-  fillLightField();
-  lightField.render(renderer, player.pos);
   water.renderMirror(renderer, scene, camera);
   post.render();
 }
@@ -1330,7 +1303,7 @@ renderer
       if (document.hidden) addEventListener("visibilitychange", () => location.reload(), { once: true });
       else location.reload();
     };
-    bakeEnvironment();
+    // nothing reflects the sky's picture (blurred, its stars and nebulae became blobs over the land)
     post.start();
     requestAnimationFrame(frame);
     return renderer.compileAsync(scene, camera);
