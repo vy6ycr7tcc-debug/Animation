@@ -34,6 +34,11 @@ export const creationUniforms = {
   uFogD: T.uniform(0.006),
   uPx: T.uniform(600), // pixels per unit at distance 1 (for point sizes)
   uCommune: T.uniform(0), // 0–1: the wanderer's stillness; the whole network of light shows itself
+  // a tree held in the wanderer's arms (touch.ts): where the hands are, how strongly, and the
+  // seconds since it last answered (a wave of light rising and sinking from the hands)
+  uTouchPos: T.uniform(new THREE.Vector3(0, -1e4, 0)),
+  uTouchK: T.uniform(0),
+  uTouchWave: T.uniform(99),
 };
 const U = creationUniforms;
 
@@ -339,6 +344,15 @@ export function barkMaterial(accent?: THREE.Color, seed: number | null = null): 
     const gold0 = mix(vec3(1.0, 0.78, 0.48), vec3(0.75, 0.85, 1.0), step(0.5, vSeed));
     const gold = acc ?? gold0;
     c.addAssign(gold.mul(grain.mul(near.mul(0.12).add(0.05).add(flow.mul(1.1))).add(flow.mul(0.08))));
+    // held: warmth where the hands rest, and each answer a wave of light running up into the
+    // crown and down into the roots along the grain
+    const tH = distance(vW.xz, U.uTouchPos.xz), tY = abs(vW.y.sub(U.uTouchPos.y));
+    const mine = float(1).sub(smoothstep(3.5, 6, tH)).mul(U.uTouchK);
+    const along = tY.add(tH.mul(0.6));
+    const front = U.uTouchWave.mul(2.4);
+    const band = exp(along.sub(front).mul(along.sub(front)).mul(-2.5)).mul(float(1).sub(smoothstep(2, 4.5, U.uTouchWave)));
+    const warm = exp(length(vW.sub(U.uTouchPos)).mul(-2.2)).mul(0.35);
+    c.addAssign(gold.mul(grain.mul(1.4).add(0.25)).mul(band.mul(0.9).add(warm)).mul(mine));
     // never a wall of bark in front of the camera: it dissolves as the camera comes close
     If(hash1(screenCoordinate.xy).greaterThan(smoothstep(0.6, 2.2, dist0)), () => {
       Discard();
@@ -500,7 +514,9 @@ export class Creation {
       const d = length(vW.sub(cameraPosition));
       const fade = float(1).sub(smoothstep(mix(5, 30, U.uCommune), mix(16, 60, U.uCommune), d)).mul(float(1).sub(smoothstep(0.4, 1, vR.x.negate()).mul(0.5)));
       const c = mix(vec3(1.0, 0.78, 0.5), vec3(0.72, 0.82, 1.0), step(0.5, vR.y));
-      mat.colorNode = vec4(c.mul(near.mul(0.06).add(0.03).add(flow.mul(near.mul(0.5).add(0.35)))).mul(fade).mul(U.uCommune.mul(2.5).add(1)), 1);
+      const tD = distance(vW.xz, U.uTouchPos.xz), tF = U.uTouchWave.mul(2.4);
+      const answer = exp(tD.sub(tF).mul(tD.sub(tF)).mul(-1.5)).mul(float(1).sub(smoothstep(2, 4.5, U.uTouchWave))).mul(U.uTouchK).mul(float(1).sub(smoothstep(6, 9, tD)));
+      mat.colorNode = vec4(c.mul(near.mul(0.06).add(0.03).add(flow.mul(near.mul(0.5).add(0.35))).add(answer.mul(1.2))).mul(fade).mul(U.uCommune.mul(2.5).add(1)), 1);
       this.rootLines = new THREE.LineSegments(new THREE.BufferGeometry(), mat);
     }
     this.rootLines.frustumCulled = false;
@@ -1066,6 +1082,14 @@ export class Creation {
     }
   }
   private lightCol = new THREE.Color();
+
+  /** What the wanderer can lay hands on nearby: trunks, rocks of some size, crystal clusters. */
+  touchables(): { kind: "tree" | "rock" | "crystal"; x: number; y: number; z: number; r: number; h: number }[] {
+    return [
+      ...this.activeTrees.map((t) => ({ kind: "tree" as const, x: t.x, y: t.y, z: t.z, r: SHAPES[t.kind].radius * t.scale, h: SHAPES[t.kind].height * t.scale })),
+      ...this.stones.map((s) => ({ kind: s.crystal ? ("crystal" as const) : ("rock" as const), x: s.p.x, y: s.p.y, z: s.p.z, r: s.r, h: s.crystal ? s.r * 1.5 : s.r * 0.8 })),
+    ];
+  }
 
   anchors(): THREE.Vector3[] {
     return [

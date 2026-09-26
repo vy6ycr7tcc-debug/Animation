@@ -42,6 +42,8 @@ import { floorHook, groundUniforms, heightAt, LANDMARK_SITES, SPAWN, Terrain, WA
 import { Temple } from "./world/temple";
 import { Autofly } from "./player/autofly";
 import { Genesis } from "./world/genesis";
+import { Touch } from "./world/touch";
+import { Depths } from "./world/depths";
 import { cloudUniforms } from "./world/atmosphere";
 import { NO_MIRROR_LAYER, Water } from "./world/water";
 import { FOG } from "./world/fog";
@@ -205,7 +207,7 @@ const temple = new Temple(sparks, {
   },
 });
 scene.add(temple.group, temple.gate);
-floorHook.fn = (x, z) => temple.floorAt(x, z);
+floorHook.fn = (x, z) => (x > 35000 ? depths.floorAt() : temple.floorAt(x, z));
 void beings.load("models/wanderer.glb").then((m) => m && temple.attach(m));
 // the voices of the archive, present while they speak
 const presences = new Presences();
@@ -318,8 +320,8 @@ function persist(): void {
   if (S.mode === "intro" || resetting) return;
   const d: SaveData = {
     v: 1,
-    pos: temple.inside ? templeReturnPos() : [player.pos.x, player.pos.y, player.pos.z],
-    heading: temple.inside ? temple.outside().heading : player.heading,
+    pos: temple.inside ? templeReturnPos() : depths.inside ? deepReturnPos() : [player.pos.x, player.pos.y, player.pos.z],
+    heading: temple.inside ? temple.outside().heading : depths.inside ? depths.outside(deepMouth ?? depths.mouths[0].site).heading : player.heading,
     heard: [],
     visited: [],
     settings: { volume: audio.volume, reduced: S.reducedPref, subtitles: narration.subtitlesOn, voices: playlist.on, awake: awake.on },
@@ -396,6 +398,22 @@ input.onAction = () => {
 };
 input.onTap = (x, y, touch) => {
   if (S.mode !== "play" || genesis.active || temple.cardsOpen) return;
+  // in the deep archive: a tablet plays its narration again, an alcove's light its archetype
+  if (depths.inside) {
+    const got = depths.pick(x, y, camera);
+    if (got && "tablet" in got) {
+      const n = ARCHIVE_ORDER.find((a) => a.id === got.tablet);
+      if (n && archiveHeard.has(n.id)) playArchive(n);
+      else if (n) whisper("Not yet heard. It waits in the world above, in the sky or among the groves.", 4500);
+    } else if (got && "numeral" in got) {
+      const b = beings.list.find((k) => k.spec.numeral === got.numeral);
+      if (b && (b.met || playlist.heardIds.includes(b.spec.narration))) {
+        whisper(`${b.spec.numeral} · ${b.spec.name}`, 4000);
+        void narration.play(b.spec.narration);
+      } else if (b) whisper(`${b.spec.name}: not yet met.`, 3500);
+    }
+    return;
+  }
   // an orb or a fruit under the tap: its narration begins (never by itself)
   const v = vessels.pick(x, y, camera);
   if (v) {
@@ -509,6 +527,18 @@ function closeCards(): void {
   cardsEl.hidden = true;
 }
 $("#cards-offer").addEventListener("click", openCards);
+// out of the temple: through the door, or by this word near it, or from the menu
+const leaveTemple = (): void => {
+  setMenu(false);
+  if (temple.inside) crossTemple(false);
+  else if (depths.inside) crossDeep(false);
+};
+// on the touch itself (a phone sends no click while the other thumb holds the stick)
+$("#temple-leave").addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  leaveTemple();
+});
+$("#menu-temple-leave").addEventListener("click", leaveTemple);
 $("#cards-close").addEventListener("click", closeCards);
 $("#cards-prev").addEventListener("click", () => setCard(cardIndex - 1));
 $("#cards-next").addEventListener("click", () => setCard(cardIndex + 1));
@@ -558,6 +588,9 @@ function templeFrame(dt: number): void {
     if (temple.confine(player.pos) && !crossing) crossTemple(false);
     if (player.flying) player.flying = false; // no flight in the temple: you walk here
     $("#cards-offer").hidden = temple.cardsOpen || !temple.nearCards(player.pos) || crossing;
+    $("#temple-leave").hidden = crossing || !temple.nearDoor(player.pos);
+    $("#temple-leave").textContent = $("#menu-temple-leave").textContent = "Leave the temple";
+    $("#menu-temple-leave").hidden = false;
     // the air inside: warm, dim, a little dust in the light
     fogUniforms.color.value.setRGB(0.09, 0.065, 0.045);
     fogUniforms.glow.value.setRGB(0.3, 0.22, 0.15);
@@ -572,6 +605,9 @@ function templeFrame(dt: number): void {
     return;
   }
   $("#cards-offer").hidden = true;
+  if (depths.inside) return; // the deep archive keeps its own (deepFrame)
+  $("#temple-leave").hidden = true;
+  $("#menu-temple-leave").hidden = true;
   const d = player.pos.distanceTo(temple.gateAt);
   if (!toldGate && d < 30) {
     toldGate = true;
@@ -589,7 +625,7 @@ const autofly = new Autofly(
 function setAutofly(on: boolean): void {
   if (on === autofly.active) return;
   if (on) {
-    if (S.mode !== "play" || sitting.phase === "seated" || player.diving || genesis.active || temple.inside) return;
+    if (S.mode !== "play" || sitting.phase === "seated" || player.diving || genesis.active || temple.inside || depths.inside) return;
     player.target = null;
     autofly.start(player.pos, player.heading);
     say("Autofly: the stick or the button takes you back.");
@@ -617,7 +653,7 @@ function heartAt(out: THREE.Vector3): THREE.Vector3 {
   return out.copy(player.pos).add(new THREE.Vector3(0, 1.15, 0));
 }
 function beginGenesis(): void {
-  if (S.mode !== "play" || genesis.active || sitting.phase === "seated" || player.flying || player.diving || temple.inside) return;
+  if (S.mode !== "play" || genesis.active || sitting.phase === "seated" || player.flying || player.diving || temple.inside || depths.inside) return;
   // the forms whose geometry lights up: the land gold, living things rose, the sky's vessels pale blue
   const layers = [
     { root: terrain.group, color: new THREE.Color(0.75, 0.58, 0.32) },
@@ -636,7 +672,42 @@ input.onHold = (x, y) => {
   heartAt(heartScreen).project(camera);
   const sx = (heartScreen.x * 0.5 + 0.5) * innerWidth, sy = (-heartScreen.y * 0.5 + 0.5) * innerHeight;
   if (heartScreen.z < 1 && Math.hypot(x - sx, y - sy) < Math.max(70, innerHeight * 0.09)) beginGenesis();
+  else beginTouch(x, y);
 };
+
+// Laying hands on the world: hold a finger on a tree, a stone, a crystal or the ground
+// (world/touch.ts). The wanderer goes to it, kneels or embraces it, and they talk in light.
+const touch = new Touch(creation, wanderer, player, {
+  bell: (f, g, d) => audio.bell(f, g, d),
+  sparks: (at, n, c, spread) => sparks.emit(at, n, c, spread),
+});
+scene.add(touch.points);
+let toldTouch = false;
+function canTouch(): boolean {
+  return S.mode === "play" && player.grounded && !player.swimming && !player.flying && !temple.inside && !genesis.active &&
+    !autofly.active && sitting.phase === "none" && !startMap.isOpen;
+}
+function beginTouch(x: number, y: number): void {
+  if (!canTouch() || !touch.pick(x, y, camera, groundPoint(x, y))) return;
+  // a small ring where the finger rests: the press was heard
+  const mark = Object.assign(document.createElement("div"), { className: "touch-mark" });
+  mark.style.left = `${x}px`;
+  mark.style.top = `${y}px`;
+  document.body.append(mark);
+  window.setTimeout(() => mark.remove(), 1400);
+  audio.bell(392, 0.02, 2);
+  if (!toldTouch) {
+    toldTouch = true;
+    const what = touch.target?.kind === "tree" ? "the tree" : touch.target?.kind === "ground" ? "the earth" : touch.target?.kind === "crystal" ? "the crystal" : "the stone";
+    whisper(`Stay a while with ${what}. The stick lets go.`, 6000);
+  }
+}
+addEventListener("keydown", (e) => {
+  // T: lay hands on what is just ahead
+  if (e.key.toLowerCase() !== "t" || e.repeat || (e.target as HTMLElement)?.closest?.("input, #menu")) return;
+  if (touch.active) touch.stop();
+  else beginTouch(innerWidth / 2, innerHeight * 0.6);
+});
 input.onHeart = beginGenesis;
 function genesisFrame(dt: number): void {
   const g = genesis.update(dt, camera, S.reduced);
@@ -705,6 +776,11 @@ function places(): Place[] {
   return [
     { numeral: "", label: "The shore", group: "Shore", x: SPAWN.x, z: SPAWN.z, narration: "J01", start: { x: SPAWN.x, z: SPAWN.z, heading: SPAWN.heading } },
     { numeral: "", label: "The temple", group: "Shore", x: temple.gateAt.x, z: temple.gateAt.z, narration: "J01", start: { ...temple.outside(), heading: temple.gateHeading } },
+    // over the water above the nearest cave: dive, and swim into the light under the arch
+    ...depths.mouths.slice(0, 1).map((m) => {
+      const o = depths.outside(m.site);
+      return { numeral: "", label: "The way to the deep archive", group: "Shore" as const, x: m.site.x, z: m.site.z, narration: "J01", start: { x: o.x, z: o.z, heading: o.heading + Math.PI } };
+    }),
     ...beings.list.map((b, i) => ({
       numeral: b.spec.numeral,
       label: b.spec.name,
@@ -721,6 +797,7 @@ function places(): Place[] {
 /** Wake at the chosen place. */
 function arrive(c: Choice, first: boolean): void {
   if (temple.inside) setInside(false);
+  if (depths.inside) setDeep(false);
   standUp();
   player.pos.set(c.x, Math.max(heightAt(c.x, c.z), WATER_Y - 1), c.z);
   player.vel.set(0, 0, 0);
@@ -1050,6 +1127,116 @@ tp.next = (n) => {
   }
   return ARCHIVE_ORDER[(i + 1) % ARCHIVE_ORDER.length] ?? null;
 };
+
+// The deep (world/depths.ts): ruins and rings of stillness on the lake floors, and caves whose
+// mouths lead to the Archive of the Deeper Self, a grotto apart like the temple.
+const depths = new Depths(
+  ARCHIVE_ORDER.map((n) => ({ id: n.id, title: n.title })),
+  beings.list.map((b) => ({ numeral: b.spec.numeral, name: b.spec.name, tint: new THREE.Color(...b.spec.tint) })),
+);
+scene.add(depths.group, depths.grotto);
+{
+  // inside the grotto the scene's own lights rest with the world: its stone has its own
+  const hemi = new THREE.HemisphereLight(0x9fc4ff, 0x1a1420, 0.9);
+  const warm = new THREE.PointLight(0xffc98a, 30, 30, 1.6);
+  warm.position.set(0, 6, 0);
+  depths.grotto.add(hemi, warm);
+}
+let deepMouth: ReturnType<Depths["atMouth"]> = null;
+let deepHidden: [THREE.Object3D, boolean][] = [];
+let ringStill = 0, ringSpoke = false;
+function deepReturnPos(): [number, number, number] {
+  const o = depths.outside(deepMouth ?? depths.mouths[0].site);
+  return [o.x, o.y, o.z];
+}
+/** Into the deep archive and out again, at once (no fade). */
+function setDeep(inside: boolean): void {
+  if (inside === depths.inside) return;
+  if (inside) {
+    const keep = new Set<THREE.Object3D>([depths.grotto, wanderer.root, wanderer.fx, camera]);
+    deepHidden = scene.children.filter((o) => !keep.has(o)).map((o) => [o, o.visible]);
+    for (const [o] of deepHidden) o.visible = false;
+    depths.refresh(archiveHeard, (numeral) => {
+      const b = beings.list.find((k) => k.spec.numeral === numeral);
+      return !!b && (b.met || playlist.heardIds.includes(b.spec.narration));
+    });
+    depths.show(true);
+    const e = depths.entry();
+    player.pos.set(e.x, e.y, e.z);
+    player.heading = e.heading;
+    follow.yaw = e.heading;
+    follow.pitch = 0.1;
+  } else {
+    for (const [o, v] of deepHidden) o.visible = v;
+    deepHidden = [];
+    depths.show(false);
+    const o = depths.outside(deepMouth ?? depths.mouths[0].site);
+    player.pos.set(o.x, o.y, o.z);
+    player.heading = o.heading;
+    follow.yaw = o.heading;
+    terrain.update(o.x, o.z, true);
+  }
+  player.placeUnder();
+  follow.underwater = true;
+  follow.snapTo(player.pos);
+  ringStill = 0;
+  quality.hold(3);
+}
+function crossDeep(inside: boolean): void {
+  if (crossing) return;
+  crossing = true;
+  fadeEl.classList.add("on");
+  audio.bell(inside ? 264 : 352, 0.1, 6);
+  window.setTimeout(() => {
+    setDeep(inside);
+    if (inside) whisper("The Archive of the Deeper Self. All you have heard and met is kept here. Touch a light to hear it again.", 8000);
+    window.setTimeout(() => {
+      fadeEl.classList.remove("on");
+      crossing = false;
+    }, 250);
+  }, 650);
+}
+/** Each frame: the caves' mouths, the grotto's walls and way out, and the rings of stillness. */
+function deepFrame(dt: number, wt: number, inWater: boolean): void {
+  const nearWater = heightAt(player.pos.x, player.pos.z) < WATER_Y - 2 && player.pos.y < 12;
+  const ring = depths.update(wt, player.pos, inWater, nearWater);
+  if (S.mode !== "play") return;
+  if (depths.inside) {
+    if (!player.swimming) player.placeUnder();
+    if (depths.confine(player.pos) && !crossing) crossDeep(false);
+    const near = depths.nearExit(player.pos) && !crossing;
+    $("#temple-leave").hidden = !near;
+    $("#temple-leave").textContent = $("#menu-temple-leave").textContent = "Return to the lake";
+    $("#menu-temple-leave").hidden = false;
+    // the still water of the grotto: clear, blue-dark, a little warm light from the centre
+    fogUniforms.color.value.setRGB(0.02, 0.04, 0.06);
+    fogUniforms.density.value = 0.01;
+    gradeUniforms.shadow.value.setRGB(0.0, 0.01, 0.025);
+    gradeUniforms.high.value.setRGB(1.0, 0.98, 0.94);
+    gradeUniforms.sat.value = 1.0;
+    gradeUniforms.contrast.value = 1.05;
+  } else if (player.diving && !crossing && !autofly.active) {
+    const m = depths.atMouth(player.pos);
+    if (m) {
+      deepMouth = m;
+      crossDeep(true);
+    }
+  }
+  // a ring of stillness: come to rest in it and the sea hushes, and a question rises
+  const resting = !!ring && player.swimming && player.speed < 0.45 && Math.hypot(input.move.x, input.move.y) < 0.05 && !input.hold;
+  ringStill = resting ? ringStill + dt : 0;
+  for (const r of [...depths.rings, depths.centreRing]) r.glow += ((r === ring ? (resting ? 1 : 0.35) : 0) - r.glow) * Math.min(1, dt * (resting ? 0.5 : 2));
+  if (ringStill > 2.5 && !ringSpoke) {
+    ringSpoke = true;
+    audio.duck(true);
+    audio.bell(528, 0.03, 7);
+    if (ring) seaLife.bubbles(player.pos, 4);
+    whisper(depths.reflection(), 11000);
+  } else if (ringStill === 0 && ringSpoke) {
+    ringSpoke = false;
+    audio.duck(false);
+  }
+}
 // once the journey's voices are all heard, the archive never speaks by itself (it starts only on a
 // tap): now and then a quiet word points out where a voice not yet heard is waiting
 let lastHint = -1e9;
@@ -1490,13 +1677,13 @@ function update(dt: number): void {
       water.ripple(player.pos.x, player.pos.z, 0.8, t);
       audio.step(true);
     }
-    playlist.quiet = sitting.phase === "seated" || temple.inside;
+    playlist.quiet = sitting.phase === "seated" || temple.inside || depths.inside;
     playlist.update(realDt); // real time: a slow frame rate never stretches the quiet
   }
   narration.update();
 
   // The world streams around the wanderer and answers them.
-  const world = !temple.inside; // inside the temple, the open world rests
+  const world = !temple.inside && !depths.inside; // inside the temple or the deep archive, the open world rests
   if (world) terrain.update(player.pos.x, player.pos.z);
   life.t = wt;
   life.dt = dt;
@@ -1525,6 +1712,17 @@ function update(dt: number): void {
   tp.subtitlesOn = narration.subtitlesOn;
   tp.update();
   if (world) updateStillness(dt, wt);
+  if (S.mode === "play") {
+    const letGo = Math.hypot(input.move.x, input.move.y) > 0.2 || input.hold || (touch.phase === "touching" && !!player.target) ||
+      startMap.isOpen || temple.inside || depths.inside || genesis.active || autofly.active || sitting.phase !== "none";
+    touch.update(dt, dpr, letGo, S.reduced);
+    // a stone or crystal in the hands vibrates with light, as it does before stillness
+    if (touch.vibe > 0.01 && touch.target) {
+      vibeUniforms.uVibePos.value.copy(touch.target.contact);
+      vibeUniforms.uVibeR.value = Math.max(0.6, touch.target.r * 1.3);
+      vibeUniforms.uVibeK.value = Math.max(vibeUniforms.uVibeK.value, touch.vibe);
+    }
+  }
   if (S.mode !== "intro" && world) creatures.update(wt, dt, player.pos, medK, player.speed > 3 || player.gliding, S.reduced);
   const camUnder = camera.position.y < WATER_Y - 0.05;
   post.under.value = camUnder ? 1 : 0;
@@ -1540,6 +1738,7 @@ function update(dt: number): void {
   const inWater = player.swimming || camUnder;
   if (world) seaLife.update(wt, dt, player.pos, inWater, orbAt, camera.position, (innerHeight * dpr) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
   if (world) fauna.update(wt, dt, player.pos, inWater, orbAt, S.reduced);
+  deepFrame(dt, wt, inWater);
   if (world) guide.update(wt, dt, player.pos);
   presences.speaking = tp.playing ? 1 : 0;
   if (world) presences.update(wt, dt, player.pos, follow.yaw, follow.underwater);
@@ -1562,6 +1761,7 @@ function update(dt: number): void {
   if (camUnder) {
     camera.updateMatrixWorld();
     underwater.follow(camera, wt, orbPos);
+    underwater.u.uRoof.value = depths.inside ? 1 : 0;
   }
   sky.position.copy(camera.position);
   starSource.position.copy(camera.position).addScaledVector(starDir, 900);
@@ -1573,7 +1773,7 @@ function update(dt: number): void {
   glow.set(player.pos.x, S.mode === "intro" ? 0 : 1, player.pos.z);
   water.update(camera.position.x, camera.position.z, glow);
   skyUniforms.uT.value = wt;
-  if (!temple.inside) moods.update(player.pos, dt);
+  if (!temple.inside && !depths.inside) moods.update(player.pos, dt);
   templeFrame(dt);
   if (genesis.active) genesisFrame(dt);
   // the sky's reflection is baked once: baking it again as the moods drifted (every few seconds
@@ -1674,4 +1874,4 @@ function endLoading(): void {
   }, wait);
 }
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, touch, beginTouch, depths, setDeep, crossDeep } });

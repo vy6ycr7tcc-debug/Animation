@@ -16,7 +16,11 @@ import { FluidBody, SEGMENTS } from "./fluidBody";
 import { lightBodyMaterial, tickLightBody } from "./lightBody";
 
 export type Pose = "idle" | "walk" | "glide" | "swim" | "air" | "fly" | "hover";
-export type Gesture = "none" | "sit" | "reach";
+export type Gesture = "none" | "sit" | "reach" | "touch";
+/** How the wanderer lays hands on something (touch.ts): arms around a trunk; kneeling, a palm
+    on the earth; kneeling, both palms on a low stone; standing, both palms on a stone or crystal. */
+export type TouchPose = "hug" | "ground" | "low" | "palms";
+const KNEEL_DROP = 0.44; // how far the hips sink, kneeling on one knee (metres)
 
 export const HEIGHT = 1.65;
 /** Height of the hips, the pivot the body turns about when it flies (metres). */
@@ -298,7 +302,9 @@ export class Wanderer {
   private geo = new GeoForm();
   private halo: THREE.Sprite;
   private light: THREE.PointLight;
-  private k = { swim: 0, water: 0, glide: 0, move: 0, air: 0, sit: 0, reach: 0, fly: 0, soar: 0 };
+  private k = { swim: 0, water: 0, glide: 0, move: 0, air: 0, sit: 0, reach: 0, fly: 0, soar: 0, touch: 0 };
+  /** Set by touch.ts while the wanderer lays hands on something. */
+  touching = { pose: "palms" as TouchPose, contact: new THREE.Vector3(), centre: new THREE.Vector3(), r: 0.3, breath: 0 };
   private form = 0;
   private flow = 0;
   private landT = 9;
@@ -422,6 +428,10 @@ export class Wanderer {
     const air = ease("air", pose === "air" ? 1 : 0, 8);
     const sit = ease("sit", this.gesture === "sit" ? 1 : 0, 2.2);
     const reach = ease("reach", this.gesture === "reach" ? 1 : 0, 2.5);
+    const touch = ease("touch", this.gesture === "touch" ? 1 : 0, this.gesture === "touch" ? 1.4 : 2.2);
+    const kneel = this.touching.pose === "ground" || this.touching.pose === "low" ? touch : 0;
+    // embracing a trunk, the body comes in close (the trunk's collider holds the feet a little off)
+    const lean = this.touching.pose === "hug" ? touch : 0;
     const moving = pose === "walk" || pose === "glide" || pose === "fly" || (pose === "swim" && speed > 0.2);
     const sp = ease("move", moving ? speed : 0, 6);
 
@@ -460,7 +470,8 @@ export class Wanderer {
       // flying: the body tips forward about the hips until it lies along the line of flight
       const tilt = -1.42 * soar * fly;
       this.body.rotation.x = tilt;
-      this.body.position.set(0, water * (swimMove * 0.28 + (1 - swimMove) * 0.35) + HIP * (1 - Math.cos(tilt)), -HIP * Math.sin(tilt));
+      const settle = THREE.MathUtils.smoothstep(kneel, 0, 1);
+      this.body.position.set(0, water * (swimMove * 0.28 + (1 - swimMove) * 0.35) + HIP * (1 - Math.cos(tilt)) - KNEEL_DROP * settle, -HIP * Math.sin(tilt) - 0.24 * THREE.MathUtils.smoothstep(lean, 0, 1));
     }
 
     const breathe = reduced ? 0 : Math.sin(t * 0.63);
@@ -487,6 +498,7 @@ export class Wanderer {
     this.root.updateMatrixWorld(true);
     this.meditate(this.meditation * (1 - water));
     this.flyPose(fly, soar, reduced ? t * 0.4 : t);
+    this.touchPose(THREE.MathUtils.smoothstep(touch, 0, 1) * (1 - water) * (1 - fly));
     if (this.ready) {
       SEGS.forEach((s, i) => {
         const put = (e: End, out: THREE.Vector3) => (typeof e === "string" ? this.bonePos(e, out) : this.bonePos(e[0], out, e[1]));
@@ -505,7 +517,7 @@ export class Wanderer {
     // Ribbons trail from the hands and the crown, stronger in motion.
     const cam = this.tmp.cam.copy(this.camera.position);
     // in flight they rest: climbing, they trailed straight down from the hands like stilts
-    const strength = Math.min(1, 0.25 + this.flow * 0.4 + reach * 0.5) * f * (1 - water) * (1 - 0.9 * this.k.fly);
+    const strength = Math.min(1, 0.25 + this.flow * 0.4 + reach * 0.5 + touch * 0.2) * f * (1 - water) * (1 - 0.9 * this.k.fly);
     if (this.ready) {
       this.ribbons[0].update(dt, this.bonePos("DEF-hand.L", this.tmp.a, 0.12), cam, strength);
       this.ribbons[1].update(dt, this.bonePos("DEF-hand.R", this.tmp.a, 0.12), cam, strength);
@@ -531,7 +543,13 @@ export class Wanderer {
 
   /** Two-bone reach: upper arm and forearm bend so the wrist arrives at the target. */
   private reachTo(side: "L" | "R", target: THREE.Vector3, pole: THREE.Vector3, k: number): void {
-    const U = this.bones[key(`DEF-upper_arm.${side}`)], F = this.bones[key(`DEF-forearm.${side}`)], H = this.bones[key(`DEF-hand.${side}`)];
+    this.twoBone(`DEF-upper_arm.${side}`, `DEF-forearm.${side}`, `DEF-hand.${side}`, target, pole, k);
+  }
+
+  /** Two bones (arm or leg) bend so the third's root arrives at the target; the middle joint
+      bends toward the pole. */
+  private twoBone(upper: string, lower: string, end: string, target: THREE.Vector3, pole: THREE.Vector3, k: number): void {
+    const U = this.bones[key(upper)], F = this.bones[key(lower)], H = this.bones[key(end)];
     if (!U || !F || !H) return;
     const [s, e, w, d, p] = this.v;
     U.getWorldPosition(s);
@@ -603,6 +621,95 @@ export class Wanderer {
       const target = heart.clone().addScaledVector(right, 0.03 * sgn);
       const pole = up.clone().multiplyScalar(-1).addScaledVector(right, 0.7 * sgn);
       this.reachTo(side, target, pole, k);
+    }
+  }
+
+  /** Where a hand is (its palm, a little past the wrist), in the world. */
+  handPos(side: "L" | "R", out: THREE.Vector3): THREE.Vector3 {
+    return this.bonePos(`DEF-hand.${side}`, out, 0.08);
+  }
+
+  /** Point a bone (along its own +y) in a world direction, blended by k. */
+  private aimBone(name: string, dir: THREE.Vector3, k: number): void {
+    const b = this.bones[key(name)];
+    if (!b) return;
+    const cur = new THREE.Vector3(0, 1, 0).applyQuaternion(b.getWorldQuaternion(new THREE.Quaternion()));
+    this.turnBone(b, new THREE.Quaternion().setFromUnitVectors(cur, dir.clone().normalize()), k);
+  }
+
+  /** Laying hands on the world (Samuel: "hugging trees, kneeling and touching the ground,
+      rocks… the hand transfers subtle energy, almost like talking to it"). Each pose is built
+      on the standing figure: the spine leans, the legs fold (kneeling), and the arms reach so
+      the palms arrive where they touch. A slow breath moves through it. */
+  private touchPose(k: number): void {
+    if (k < 0.001 || !this.ready) return;
+    const T = this.touching;
+    const h = this.root.rotation.y;
+    const fwd = new THREE.Vector3(-Math.sin(h), 0, -Math.cos(h));
+    const up = new THREE.Vector3(0, 1, 0);
+    const right = new THREE.Vector3().crossVectors(fwd, up).normalize();
+    const foot = this.root.position.y;
+    const qa = new THREE.Quaternion();
+    const bend = (name: string, angle: number, axis = right) => this.turnBone(this.bones[key(name)], qa.setFromAxisAngle(axis, angle), k);
+    const breath = Math.sin(T.breath) * 0.5 + 0.5; // 0 out, 1 in
+    if (T.pose === "ground" || T.pose === "low") {
+      // kneeling on the left knee, the right foot planted ahead; leaning toward the hands
+      const bow = T.pose === "ground" ? 1 : 0.6; // a palm on the earth asks for a deep bow
+      bend("DEF-hips", -0.3 * bow); // the pelvis tips forward over the front thigh
+      bend("DEF-spine.001", (-0.45 - 0.03 * breath) * bow);
+      bend("DEF-spine.002", -0.4 * bow);
+      bend("DEF-spine.003", -0.25 * bow);
+      bend("DEF-neck", 0.18 * bow - 0.2); // the eyes stay on the hands
+      bend("DEF-head", -0.12);
+      const hipR = this.bonePos("DEF-thigh.R", new THREE.Vector3()), hipL = this.bonePos("DEF-thigh.L", new THREE.Vector3());
+      const footR = hipR.clone().addScaledVector(fwd, 0.42).addScaledVector(right, 0.05).setY(foot + 0.09);
+      this.twoBone("DEF-thigh.R", "DEF-shin.R", "DEF-foot.R", footR, fwd.clone().addScaledVector(up, 0.4), k);
+      const footL = hipL.clone().addScaledVector(fwd, -0.4).addScaledVector(right, -0.04).setY(foot + 0.1);
+      this.twoBone("DEF-thigh.L", "DEF-shin.L", "DEF-foot.L", footL, fwd.clone().addScaledVector(up, -0.35), k);
+      this.aimBone("DEF-foot.L", fwd.clone().multiplyScalar(-1).addScaledVector(up, -0.3), k); // toes along the ground behind
+      this.aimBone("DEF-foot.R", fwd.clone().addScaledVector(up, -0.35), k);
+      const chest = this.bonePos("DEF-spine.003", new THREE.Vector3());
+      if (T.pose === "ground") {
+        // the right palm on the earth ahead; the left hand rests on the right knee
+        const c = T.contact.clone();
+        const off = c.clone().sub(chest).setY(0);
+        const d = THREE.MathUtils.clamp(off.length(), 0.18, 0.34);
+        off.normalize().multiplyScalar(d);
+        const palm = chest.clone().add(off).addScaledVector(right, 0.12).setY(c.y + 0.1 + 0.015 * breath);
+        this.reachTo("R", palm, right.clone().addScaledVector(fwd, -0.4), k);
+        this.aimBone("DEF-hand.R", fwd.clone().addScaledVector(up, -0.25), k);
+        const knee = this.bonePos("DEF-shin.R", new THREE.Vector3()).addScaledVector(up, 0.1).addScaledVector(right, -0.03);
+        this.reachTo("L", knee, right.clone().multiplyScalar(-1).addScaledVector(up, -0.5), k);
+      } else {
+        for (const [side, sgn] of [["L", -1], ["R", 1]] as const) {
+          const palm = T.contact.clone().addScaledVector(right, 0.12 * sgn).addScaledVector(up, 0.02 * breath);
+          this.reachTo(side, palm, right.clone().multiplyScalar(sgn).addScaledVector(up, -0.4), k);
+          this.aimBone(`DEF-hand.${side}`, fwd.clone().addScaledVector(up, -0.4).addScaledVector(right, 0.15 * sgn), k);
+        }
+      }
+    } else if (T.pose === "hug") {
+      // arms around the trunk, the cheek against it, the body close
+      bend("DEF-spine.001", -0.12 - 0.02 * breath);
+      bend("DEF-spine.003", -0.06);
+      this.turnBone(this.bones[key("DEF-neck")], qa.setFromAxisAngle(up, 0.5), k);
+      this.turnBone(this.bones[key("DEF-head")], qa.setFromAxisAngle(fwd, -0.18), k);
+      const near = this.root.position.clone().sub(T.centre).setY(0).normalize();
+      const side = new THREE.Vector3().crossVectors(up, near).normalize(); // the wanderer's right, seen from the trunk
+      const R = T.r + 0.06;
+      for (const [s, sgn] of [["L", -1], ["R", 1]] as const) {
+        const a = Math.PI / 2 + (R < 0.35 ? 0.3 : 0.05);
+        const hand = T.centre.clone().addScaledVector(near, Math.cos(a) * R).addScaledVector(side, -sgn * Math.sin(a) * R).setY(foot + (sgn < 0 ? 1.28 : 1.12) + 0.015 * breath);
+        this.reachTo(s, hand, right.clone().multiplyScalar(sgn).addScaledVector(up, -0.15).addScaledVector(fwd, -0.3), k);
+      }
+    } else {
+      // standing, both palms laid on the stone
+      bend("DEF-spine.001", -0.09 - 0.02 * breath);
+      bend("DEF-neck", -0.14);
+      for (const [side, sgn] of [["L", -1], ["R", 1]] as const) {
+        const palm = T.contact.clone().addScaledVector(right, 0.14 * sgn).addScaledVector(up, 0.02 * breath);
+        this.reachTo(side, palm, right.clone().multiplyScalar(sgn).addScaledVector(up, -0.6), k);
+        this.aimBone(`DEF-hand.${side}`, up.clone().addScaledVector(fwd, 0.35).addScaledVector(right, 0.2 * sgn), k);
+      }
     }
   }
 
