@@ -38,11 +38,13 @@ export class UnderwaterEffect {
     uOrb: uniform(new THREE.Vector3()),
     uProjInv: uniform(new THREE.Matrix4()),
     uCamWorld: uniform(new THREE.Matrix4()),
+    /** 1 under a roof of stone (the deep archive): no sky overhead, no moonlight shafts. */
+    uRoof: uniform(0),
   };
 
   /** `color`: the scene's colour; `depth`: its depth texture node. */
   node(color: N, depth: N): N {
-    const { uT, uDepth, uCam, uOrb, uProjInv, uCamWorld } = this.u;
+    const { uT, uDepth, uCam, uOrb, uProjInv, uCamWorld, uRoof } = this.u;
     return Fn(() => {
       const q0 = uv();
       const d = depth.sample(q0).r;
@@ -62,7 +64,7 @@ export class UnderwaterEffect {
       const c = color.rgb.mul(Tr).add(glowW.mul(float(1).sub(Tr))).toVar();
       // the sky through the surface: a bright window straight overhead (Snell's window),
       // rippling, with a brighter rim, fading as you go deeper
-      If(ray.y.greaterThan(0.5), () => {
+      If(ray.y.greaterThan(0.5).and(uRoof.lessThan(0.5)), () => {
         const hit = uCam.xz.add(ray.xz.mul(uDepth.div(ray.y)));
         const rip = uwN(hit.mul(0.6).add(vec2(uT.mul(0.3), uT.mul(0.2)))).mul(0.6).add(uwN(hit.mul(1.7).sub(vec2(uT.mul(0.25), 0))).mul(0.4));
         const win = smoothstep(0.62, 0.7, ray.y.add(rip.sub(0.5).mul(0.04)));
@@ -82,7 +84,7 @@ export class UnderwaterEffect {
         const pat = pow(smoothstep(0.52, 0.9, pat0), 2);
         shafts.addAssign(pat.mul(exp(below.mul(-0.07).sub(s.mul(0.06)))));
       }
-      c.addAssign(vec3(0.3, 0.55, 0.62).mul(shafts).div(6).mul(0.8).mul(float(1).sub(deep.mul(0.7))));
+      c.addAssign(vec3(0.3, 0.55, 0.62).mul(shafts).div(6).mul(0.8).mul(float(1).sub(deep.mul(0.7))).mul(float(1).sub(uRoof)));
       // the orb: a lantern in the murk (light scattered along the ray, after Macklin)
       const oq = uCam.sub(uOrb);
       const b = dot(ray, oq), cc = dot(oq, oq);

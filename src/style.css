@@ -46,6 +46,14 @@ button:focus-visible, input:focus-visible { outline: 1px solid var(--gold); outl
 #title.gone { opacity: 0; }
 #begin { position: fixed; inset: 0; width: 100%; height: 100%; }
 #begin[hidden] { display: none; }
+/* ---- a long press heard: a ring where the finger rests ---- */
+.touch-mark {
+  position: fixed; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 50%;
+  border: 1px solid rgba(255, 226, 170, 0.8); box-shadow: 0 0 12px rgba(255, 210, 140, 0.35);
+  pointer-events: none; z-index: 30; animation: touch-mark 1.4s ease-out forwards;
+}
+@keyframes touch-mark { from { opacity: 0.9; transform: scale(0.4); } to { opacity: 0; transform: scale(1.6); } }
+
 /* ---- loading: a seed of light drawing itself, and a line to sit with ---- */
 #loading {
   position: fixed; inset: 0; z-index: 60;
@@ -280,7 +288,7 @@ body.loading #title h1, body.loading #title p { animation-play-state: paused; }
 }
 #sit-offer[hidden], #sit-panel[hidden] { display: none; }
 /* ---- the cards, at the temple's centre ---- */
-#cards-offer {
+#cards-offer, #temple-leave {
   position: fixed; left: 50%; transform: translateX(-50%);
   bottom: calc(96px + env(safe-area-inset-bottom, 0px)); z-index: 6;
   padding: 10px 22px; min-height: 44px; border-radius: 22px;
@@ -296,7 +304,7 @@ body.loading #title h1, body.loading #title p { animation-play-state: paused; }
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   animation: rise 0.9s ease; text-align: center;
 }
-#cards-offer[hidden], #cards[hidden] { display: none; }
+#cards-offer[hidden], #cards[hidden], #temple-leave[hidden], #menu-temple-leave[hidden] { display: none; }
 #cards-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 #cards-head > div { flex: 1; }
 #cards-title { margin: 0; font-size: 20px; color: var(--gold); letter-spacing: 0.04em; }
@@ -311,7 +319,7 @@ body.loading #title h1, body.loading #title p { animation-play-state: paused; }
 /* on a narrow (portrait) phone the stick and the round button fill the bottom corners, so the
    offer to sit and the subtitles rise above them */
 @media (max-width: 600px) {
-  #sit-offer, #cards-offer { bottom: calc(164px + env(safe-area-inset-bottom, 0px)); }
+  #sit-offer, #cards-offer, #temple-leave { bottom: calc(164px + env(safe-area-inset-bottom, 0px)); }
   #sub { bottom: calc(218px + env(safe-area-inset-bottom, 0px)); }
 }
 #sit-panel {

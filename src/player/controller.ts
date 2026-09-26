@@ -121,6 +121,14 @@ export class Controller {
     }
   }
 
+  /** Put the wanderer under the water at once, still (coming into or out of a place apart). */
+  placeUnder(): void {
+    Object.assign(this, { flying: false, landing: false, grounded: false, swimming: true, gliding: false, vy: 0, target: null, plunge: 0, burst: 0, surfacing: false });
+    this.swimVel.set(0, 0, 0);
+    this.vel.set(0, 0, 0);
+    this.depth = Math.max(1, -this.pos.y);
+  }
+
   update(dt: number, input: MoveInput, camYaw: number): void {
     if (this.swimming && !this.flying && (this.depth > 0.5 || this.plunge > 0)) {
       this.swimUnder(dt, input, camYaw);

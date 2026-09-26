@@ -1097,6 +1097,12 @@ export class Temple {
     return { x: TEMPLE_ORIGIN.x, y: TEMPLE_ORIGIN.y, z: TEMPLE_ORIGIN.z + HALL_Z0 - 3, heading: 0 };
   }
 
+  /** Near the door, inside (where "Leave the temple" is offered). */
+  nearDoor(p: THREE.Vector3): boolean {
+    const lz = p.z - TEMPLE_ORIGIN.z, lx = p.x - TEMPLE_ORIGIN.x;
+    return lz > HALL_Z0 - 7 && Math.abs(lx) < 5;
+  }
+
   /** The floor inside (the sanctuary a step up). */
   floorAt(x: number, z: number): number {
     const lz = z - TEMPLE_ORIGIN.z, lx = x - TEMPLE_ORIGIN.x;
@@ -1110,8 +1116,8 @@ export class Temple {
   confine(p: THREE.Vector3): boolean {
     const l = this.local.copy(p).sub(TEMPLE_ORIGIN);
     // the door: within its opening you may walk on through the wall, and out
-    const inDoor = Math.abs(l.x) < 2.2;
-    if (l.z > HALL_Z0 + 0.4 && inDoor) return true;
+    const inDoor = Math.abs(l.x) < 2.4;
+    if (l.z > HALL_Z0 - 0.9 && inDoor) return true; // stepping into the doorway is enough
     const inSanct = l.z < HALL_Z1 + 0.6;
     const xMax = inSanct ? SANCT_X - 0.6 : HALL_X - 0.6;
     // the gateway: pass only through its door
