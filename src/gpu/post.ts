@@ -143,7 +143,7 @@ export class Post {
     if (o.aa === "traa") c = traa(c, depth, scene.getTextureNode("velocity"), this.camera);
 
     if (o.bloom) {
-      const b = bloom(c, 0.7, 0.7, 0.88);
+      const b = bloom(c, 0.7, 0.45, 0.88); // a tighter glow: the image stays crisp
       b.smoothWidth.value = 0.3;
       c = vec4(c.rgb.add(b.rgb), c.a);
     }

@@ -4,7 +4,7 @@
    (a small leap and a curving plunge); hold to rise out of the water into flight. Under the
    water you swim where you look, in three dimensions: look down to go deeper, up to rise. Tap
    for a stroke (a burst that eases off; taps in rhythm keep the glide going); hold to rise; let
-   go and you hover, weightless. No breath, no current, nothing to fear. */
+   go and you sink slowly toward the floor. No breath, no current, nothing to fear. */
 import * as THREE from "three/webgpu";
 import { colliders, heightAt, WATER_Y } from "../world/terrain";
 import type { Pose } from "./wanderer";
@@ -17,6 +17,7 @@ const SWIM = 2.6;
 const SWIM_FAST = 4.5; // the thumb at the edge
 const UNDER = 3.0; // swimming under the water
 const STROKE = 6.0; // the burst of one stroke
+const SINK = 1.1; // drifting down under the water when you let go
 const FLY = 6.0;
 const FLY_FAST = 13.0; // flying while holding Run
 const FLY_GLIDE = 7.5; // flying with the stick let go: a steady glide straight ahead
@@ -144,7 +145,8 @@ export class Controller {
     const top = this.flying
       ? input.glide ? FLY_FAST : FLY
       : this.swimming ? (input.glide ? SWIM_FAST : SWIM) : this.gliding && !this.grounded ? AIR_GLIDE : input.glide ? RUN : WALK;
-    const target = Math.min(1, mag) * (glideOn ? FLY_GLIDE : top);
+    // flying without holding the button is a glide: it keeps its speed, steered by the stick
+    const target = Math.min(1, mag) * (glideOn ? FLY_GLIDE : this.flying && !input.hold && !input.glide ? FLY_GLIDE : top);
     const accel = this.flying ? 2.2 : this.grounded || this.swimming ? (input.glide ? 3.5 : 7) : this.gliding ? 3 : 2;
     this.vel.x += (dx * target - this.vel.x) * Math.min(1, dt * accel);
     this.vel.z += (dz * target - this.vel.z) * Math.min(1, dt * accel);
@@ -180,7 +182,7 @@ export class Controller {
         ? CLIMB * surge * (input.glide ? 1.8 : 1)
         : this.landing
           ? -Math.min(14, 3 + (this.pos.y - ground) * 0.25)
-          : glideOn ? -GLIDE_SINK : -1.1;
+          : -GLIDE_SINK; // not rising: always a glide, sinking gently
       this.vy += (wantVy - this.vy) * Math.min(1, dt * (input.hold ? 2.5 : 1.8));
       this.pos.y = Math.min(CEILING, this.pos.y + this.vy * dt);
       const floor = Math.max(ground, WATER_Y - SWIM_DEPTH);
@@ -305,6 +307,9 @@ export class Controller {
       }
       if (input.hold) want.y += 2.6;
       if (input.down) want.y -= 2.6;
+      // let go of everything and you sink gently toward the floor, as flight glides down:
+      // going deeper takes no effort at all
+      else if (!input.hold && !this.surfacing && mag < 0.05 && this.burst < 0.1) want.y -= SINK;
       if (this.surfacing) {
         want.y = Math.max(want.y, 3.2);
         if (input.down) this.surfacing = false;

@@ -56,7 +56,7 @@ export class UnderwaterEffect {
         dist.assign(min(dist, uDepth.add(0.02).div(ray.y)));
       });
       // absorption (red first) and the glow of the water itself, darker the deeper you are
-      const Tr = exp(vec3(0.28, 0.08, 0.052).negate().mul(dist));
+      const Tr = exp(vec3(0.15, 0.045, 0.03).negate().mul(dist)); // clear water: forms read to ~30 m
       const deep = smoothstep(0, 38, uDepth);
       const glowW = mix(vec3(0.03, 0.1, 0.135), vec3(0.004, 0.013, 0.036), deep).mul(max(0, ray.y).mul(float(1).sub(deep.mul(0.6))).mul(0.9).add(0.55));
       const c = color.rgb.mul(Tr).add(glowW.mul(float(1).sub(Tr))).toVar();
@@ -82,7 +82,7 @@ export class UnderwaterEffect {
         const pat = pow(smoothstep(0.52, 0.9, pat0), 2);
         shafts.addAssign(pat.mul(exp(below.mul(-0.07).sub(s.mul(0.06)))));
       }
-      c.addAssign(vec3(0.3, 0.55, 0.62).mul(shafts).div(6).mul(0.55).mul(float(1).sub(deep.mul(0.85))));
+      c.addAssign(vec3(0.3, 0.55, 0.62).mul(shafts).div(6).mul(0.8).mul(float(1).sub(deep.mul(0.7))));
       // the orb: a lantern in the murk (light scattered along the ray, after Macklin)
       const oq = uCam.sub(uOrb);
       const b = dot(ray, oq), cc = dot(oq, oq);

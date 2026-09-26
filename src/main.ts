@@ -238,8 +238,9 @@ function resize(): void {
 }
 /** What the quality tier allows; under the water, ambient occlusion and god rays rest. */
 const tierFx = { rays: true, ao: true };
-/** Anti-aliasing: temporal (TRAA) by default; `?aa=smaa` or `?aa=none` to compare. */
-const AA = (new URLSearchParams(location.search).get("aa") ?? "traa") as "smaa" | "traa" | "none";
+/** Anti-aliasing: SMAA by default (crisp; TRAA softened everything and left ghost trails behind
+    moving motes on the phone); `?aa=traa` or `?aa=none` to compare. */
+const AA = (new URLSearchParams(location.search).get("aa") ?? "smaa") as "smaa" | "traa" | "none";
 function applyTier(t: Tier, i: number = quality.tier): void {
   tierFx.rays = t.rays;
   tierFx.ao = t.ao;

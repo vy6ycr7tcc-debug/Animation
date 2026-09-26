@@ -202,6 +202,12 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - Light on the land (`lightfield.ts`): lanterns, beings, crystals, spirits, flowers and the wanderer splat their glow into a 160 m top-down texture that follows you; the ground and etched stone add it as light.
   - Grass: 7 × 7 tiles of 360 blades (fades out at 32–50 m).
   - Forests beyond (`forest.ts`): past ~96 m, each tree the world would grow (same cells as `creation.ts`) is a camera-facing likeness of its own kind, drawn once from its grown limbs; out to ~480 m.
+- 2026-09-26: Samuel, from his iPhone (underwater screenshot): "everything is too diffused now"; flying still looked like swimming and didn't glide (he was on the old live build); "the experience to go deeper underwater is awful"; "controls aren't great".
+  - Crisp over soft: SMAA is the default (TRAA softened the whole image and left ghost trails behind moving motes); bloom radius 0.45; the home night's haze a little thinner (0.0044).
+  - Clearer water: absorption about halved (forms read to ~30 m), brighter moonlight shafts.
+  - Going deeper takes no effort: let go of the stick and the button under the water and you sink slowly (1.1 m/s) toward the floor; hold to rise; the stick swims where you look.
+  - Flight: whenever the button isn't held it's a glide (7.5 m/s, sinking 1.6 m/s), steered by the stick, straight on when it's released.
+  - The WebGPU build became the live game (merged to main); the pre-WebGPU game stays at `/classic/` for comparison.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.

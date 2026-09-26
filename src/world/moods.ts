@@ -45,7 +45,7 @@ const NIGHT: Mood = {
   sun: V(1, 0.05, 0), sunCol: C(1, 0.6, 0.4), sunK: 0,
   stars: 1, deep: 0.15, moonK: 1,
   light: C(1.8, 1.58, 1.33), hemiSky: C(0.48, 0.53, 0.82), hemiGround: C(0.13, 0.1, 0.21), hemi: 0.85, env: 1.5,
-  density: 0.0052, cloudShade: C(0.13, 0.12, 0.26), cloudLight: C(0.62, 0.54, 0.52),
+  density: 0.0044, cloudShade: C(0.13, 0.12, 0.26), cloudLight: C(0.62, 0.54, 0.52),
 };
 const SUNRISE: Mood = {
   zen: C(0.018, 0.045, 0.17), mid: C(0.08, 0.15, 0.34), hor: C(0.85, 0.42, 0.36),
