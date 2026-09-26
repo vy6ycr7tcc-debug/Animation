@@ -4,7 +4,7 @@
    they layer the distance. (The earlier flat mist sheets and cut-out horizon were retired when
    the land itself reached the mountains.) */
 import * as THREE from "three/webgpu";
-import { hash2b, T, withFog } from "../gpu/tsl";
+import { fogUniforms, hash2b, T, withFog } from "../gpu/tsl";
 import { starDirection } from "./sky";
 
 const { attribute, cameraPosition, cameraProjectionMatrix, cameraViewMatrix, dot, float, floor, fract, length, max, mix, mod, normalize, positionLocal, pow, smoothstep, uniform, uv, varying, vec2, vec3, vec4, Fn, Loop, int } = T;
@@ -50,13 +50,17 @@ export class Clouds {
     const w = vec3(cxz.x, aCentre.y, cxz.y).add(right.mul(positionLocal.x).mul(aSize.x)).add(up.mul(positionLocal.y).mul(aSize.y));
     mat.vertexNode = cameraProjectionMatrix.mul(cameraViewMatrix).mul(vec4(w, 1));
     const vW = varying(w), vRight = varying(right), vSeed = varying(aSeed);
+    const vHigh = varying(aCentre.y.greaterThan(200).select(float(1), float(0))); // a high, thin sheet
     const vUv = uv();
     const q = vUv.mul(2).sub(1);
     // a billowing mass: round on top, flatter underneath
-    const body = float(1).sub(length(vec2(q.x, q.y.greaterThan(0).select(q.y.mul(1.1), q.y.mul(2.2)))));
-    const f = fbm5(vUv.mul(vec2(3, 2)).add(vSeed.mul(17)).add(vec2(U.uT.mul(0.004), 0)));
-    const d0 = smoothstep(0, 0.9, body.add(f.sub(0.5).mul(1.1)));
-    const d = d0.mul(d0);
+    const body0 = float(1).sub(length(vec2(q.x, q.y.greaterThan(0).select(q.y.mul(1.1), q.y.mul(2.2)))));
+    // the high sheets (as in Sky's layered skies): long, thin, combed by the wind into streaks
+    const bodyHigh = float(1).sub(length(vec2(q.x.mul(0.9), q.y.mul(1.6))));
+    const body = mix(body0, bodyHigh, vHigh);
+    const f = fbm5(vUv.mul(mix(vec2(3, 2), vec2(7, 1.1), vHigh)).add(vSeed.mul(17)).add(vec2(U.uT.mul(0.004), 0)));
+    const d0 = smoothstep(0, 0.9, body.add(f.sub(0.5).mul(mix(float(1.1), float(1.6), vHigh))));
+    const d = d0.mul(d0).mul(mix(float(1), float(0.55), vHigh));
     // shade it as a volume: a normal as if it were a rounded mass
     const viewDir = normalize(cameraPosition.sub(vW));
     const nrm = normalize(vRight.mul(q.x).add(up.mul(q.y).mul(0.8)).add(viewDir.mul(max(0.2, body))));
@@ -73,12 +77,13 @@ export class Clouds {
     let s = 11;
     const R = () => ((s = (s * 16807) % 2147483647) / 2147483647);
     for (let i = 0; i < count; i++) {
-      const low = i < count * 0.6; // most drift low over the land; the rest float high
-      const y = low ? 45 + R() * 50 : 130 + R() * 110;
+      // three layers: billows low over the land, smaller ones above them, and high thin sheets
+      const layer = i < count * 0.5 ? 0 : i < count * 0.75 ? 1 : 2;
+      const y = layer === 0 ? 45 + R() * 50 : layer === 1 ? 130 + R() * 60 : 260 + R() * 160;
       centre.set([(R() - 0.5) * 5000, y, (R() - 0.5) * 5000], i * 3);
       seed[i] = R();
-      const w = low ? 120 + R() * 180 : 90 + R() * 120;
-      size.set([w, w * (low ? 0.32 + R() * 0.18 : 0.22 + R() * 0.12)], i * 2);
+      const w = layer === 0 ? 120 + R() * 180 : layer === 1 ? 90 + R() * 120 : 320 + R() * 360;
+      size.set([w, w * (layer === 0 ? 0.32 + R() * 0.18 : layer === 1 ? 0.22 + R() * 0.12 : 0.1 + R() * 0.08)], i * 2);
     }
     geo.setAttribute("aSeed", new THREE.InstancedBufferAttribute(seed, 1));
     geo.setAttribute("aSize", new THREE.InstancedBufferAttribute(size, 2));
@@ -88,5 +93,7 @@ export class Clouds {
   update(t: number, cam: THREE.Vector3): void {
     this.uniforms.uT.value = t;
     this.uniforms.uCam.value.copy(cam);
+    // lit from wherever the air glows: the moon by night, the low sun at dawn and dusk
+    this.uniforms.uMoon.value.copy(fogUniforms.glowDir.value);
   }
 }

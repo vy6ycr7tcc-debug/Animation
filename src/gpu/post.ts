@@ -15,10 +15,10 @@ import { ao } from "three/examples/jsm/tsl/display/GTAONode.js";
 import { bloom } from "three/examples/jsm/tsl/display/BloomNode.js";
 import { traa } from "three/examples/jsm/tsl/display/TRAANode.js";
 import { smaa } from "three/examples/jsm/tsl/display/SMAANode.js";
-import { T, type N } from "./tsl";
+import { gradeUniforms, T, type N } from "./tsl";
 import type { UnderwaterEffect } from "../world/underwater";
 
-const { dot, exp, float, Fn, If, min, mix, mrt, output, pass, pow, renderOutput, rtt, uniform, uv, vec2, vec3, vec4, velocity } = T;
+const { clamp, dot, exp, float, Fn, If, min, mix, mrt, output, pass, pow, renderOutput, rtt, smoothstep, uniform, uv, vec2, vec3, vec4, velocity } = T;
 
 export interface PostOptions {
   ao: boolean;
@@ -156,6 +156,17 @@ export class Post {
 
     // AgX (the renderer's tone mapping), to sRGB, smoothed edges, then a faint vignette as before
     let out: N = renderOutput(c);
+    // the grade (as a film is graded, per place): colour lifted into the shadows, the highlights
+    // warmed or cooled, a touch of saturation and contrast (moods.ts sets them as you travel)
+    {
+      const G = gradeUniforms;
+      const l = dot(out.rgb, vec3(0.2126, 0.7152, 0.0722));
+      let g: N = mix(vec3(l), out.rgb, G.sat);
+      g = g.sub(0.42).mul(G.contrast).add(0.42);
+      g = g.add(G.shadow.mul(pow(float(1).sub(l).max(0), 2)));
+      g = g.mul(mix(vec3(1), G.high, smoothstep(0.35, 1, l)));
+      out = vec4(clamp(g, 0, 1), 1);
+    }
     if (o.aa === "smaa") out = smaa(out);
     // a faint vignette that only darkens (mixing toward grey lifted the dark corners into a haze)
     const q = uv().sub(0.5).mul(0.35);

@@ -21,6 +21,9 @@ import type { Station } from "./stations";
 import { surface } from "./textures";
 import { colliders, heightAt, LANDMARK_SITES, SPAWN, WATER_Y, type Collider } from "./terrain";
 import { T, vnoise, worldPoints, type N } from "../gpu/tsl";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
+import { floatAttributes, loadBytes } from "../core/assets";
 
 const { clamp, dot, exp, float, length, mix, positionWorld, smoothstep, texture, uniform, uv, vec2, vec3, vec4 } = T;
 
@@ -372,6 +375,8 @@ export class Temple {
   gateHeading = 0;
   private shrines: { beings: Beings; pivot: THREE.Group; numeral: string; name: string }[] = [];
   private centreShaft: THREE.Mesh[] = [];
+  private plainStone!: THREE.Material;
+  private firePits: THREE.Vector3[] = [];
   private dust!: { pos: THREE.InstancedBufferAttribute; base: Float32Array };
   private flames: { light: THREE.PointLight; sprite: THREE.Sprite; base: number; phase: number }[] = [];
   private shafts: THREE.MeshBasicNodeMaterial[] = [];
@@ -385,6 +390,8 @@ export class Temple {
     this.buildShrines(sparks);
     this.buildStage(sparks);
     this.showCard(0);
+    this.buildRuin();
+    void this.loadProps();
     this.buildLight();
     this.group.visible = false;
     this.buildGate();
@@ -525,6 +532,7 @@ export class Temple {
     const wallMat = this.stoneMaterial("sandstone_blocks_08", 8, WALL_H, 3.2, { overlay: relief });
     const floorMat = this.floorMaterial();
     const stoneMat = this.stoneMaterial("sandstone_cracks", 3, 3, 2.2);
+    this.plainStone = stoneMat;
     const ceilMat = this.stoneMaterial("sandstone_cracks", 4, 4, 2.2, { paint: starTexture() });
     const add = (g: THREE.BufferGeometry, m: THREE.Material, shadow = true) => {
       const mesh = new THREE.Mesh(g, m);
@@ -552,6 +560,97 @@ export class Temple {
     });
     cols.castShadow = cols.receiveShadow = true;
     this.group.add(cols);
+  }
+
+  /** What time has left on the floor: fallen column drums and blocks in the hall's corners, half
+      sunk in drifted sand (the same scanned stone, so they belong to the walls they fell from). */
+  private buildRuin(): void {
+    const drum = new THREE.CylinderGeometry(1.05, 1.1, 0.95, 28);
+    const block = new THREE.BoxGeometry(1.6, 0.9, 1.1);
+    const put = (g: THREE.BufferGeometry, x: number, y: number, z: number, rx: number, ry: number, rz: number) => {
+      const m = new THREE.Mesh(g, this.plainStone);
+      m.position.set(x, y, z);
+      m.rotation.set(rx, ry, rz);
+      m.castShadow = m.receiveShadow = true;
+      this.group.add(m);
+      this.collide(x, z, 1.1);
+    };
+    // by the door, left and right
+    put(drum, -9.6, 0.62, 29.6, Math.PI / 2, 0.4, 0.08);
+    put(block, -10.3, 0.4, 27.4, 0.05, 0.7, 0.03);
+    put(block, 10.2, 0.35, 29.8, 0.02, -0.3, -0.06);
+    // before the gateway
+    put(drum, 9.8, 0.5, HALL_Z1 + 2.4, 0.15, 0.2, 0.06);
+    put(drum, 10.4, 1.35, HALL_Z1 + 2.2, 0.1, 1.2, -0.12);
+    put(block, -10.0, 0.42, HALL_Z1 + 3.2, 0.04, -0.5, 0.08);
+    // in the sanctuary's far corners
+    put(block, -14.2, 0.4, SANCT_Z1 + 2.2, 0.06, 0.3, -0.04);
+    put(drum, 14.0, 0.62, SANCT_Z1 + 2.8, Math.PI / 2, -0.8, 0.05);
+  }
+
+  /** The scanned props (Poly Haven, CC0; built by tools/build-temple-props.mjs): the fire pits on
+      their pedestals, clay and ceramic vessels gathered at the foot of the shrines and in the
+      sanctuary, brass lamps around the ring. Each kind drawn as instances (one draw per part). */
+  private async loadProps(): Promise<void> {
+    const bytes = await loadBytes("models/temple-props.glb");
+    if (!bytes) return;
+    const loader = new GLTFLoader();
+    loader.setMeshoptDecoder(MeshoptDecoder);
+    const gltf = await loader.parseAsync(bytes, "");
+    floatAttributes(gltf.scene);
+    gltf.scene.updateMatrixWorld(true);
+    const r = rng(21);
+    /** Place copies of prop `name`, `height` metres tall, standing on its base at each spot. */
+    const place = (name: string, height: number, spots: { x: number; y: number; z: number; ry: number; k?: number }[]) => {
+      const node = gltf.scene.getObjectByName(name);
+      if (!node || !spots.length) return;
+      const box = new THREE.Box3().setFromObject(node);
+      const size = box.max.y - box.min.y || 1;
+      const inv = new THREE.Matrix4().copy(node.matrixWorld).invert();
+      node.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        // the part's place within its prop
+        const local = new THREE.Matrix4().multiplyMatrices(inv, mesh.matrixWorld);
+        const im = new THREE.InstancedMesh(mesh.geometry, mesh.material, spots.length);
+        spots.forEach((s, i) => {
+          const sc = (height / size) * (s.k ?? 1);
+          const m = new THREE.Matrix4().compose(
+            new THREE.Vector3(s.x, s.y - box.min.y * sc, s.z),
+            new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), s.ry),
+            new THREE.Vector3(sc, sc, sc),
+          ).multiply(new THREE.Matrix4().copy(node.matrixWorld)).multiply(local);
+          im.setMatrixAt(i, m);
+        });
+        im.castShadow = im.receiveShadow = true;
+        this.group.add(im);
+      });
+    };
+    place("stone_fire_pit", 0.5, this.firePits.map((p) => ({ x: p.x, y: p.y, z: p.z, ry: r() * 6 })));
+    // vessels at the foot of each hall shrine, two or three, of different kinds and sizes
+    const kinds = ["antique_ceramic_vase_01", "ceramic_vase_02", "planter_pot_clay"];
+    const spots: Record<string, { x: number; y: number; z: number; ry: number; k?: number }[]> = {};
+    for (const k of kinds) spots[k] = [];
+    for (const side of [-1, 1])
+      for (const nz of NICHE_Z)
+        for (const dz of [-2.6, 2.4, r() < 0.5 ? -1.9 : 2.0]) {
+          if (r() < 0.25) continue;
+          const kind = kinds[Math.floor(r() * kinds.length)];
+          spots[kind].push({ x: side * (HALL_X - 0.9 - r() * 0.4), y: 0, z: nz + dz + (r() - 0.5) * 0.3, ry: r() * 6, k: 0.75 + r() * 0.5 });
+        }
+    // and in the sanctuary, gathered by the walls
+    for (let i = 0; i < 12; i++) {
+      const side = i % 2 ? 1 : -1, z = HALL_Z1 - 3 - r() * 22;
+      const kind = kinds[Math.floor(r() * kinds.length)];
+      spots[kind].push({ x: side * (SANCT_X - 0.9 - r() * 0.5), y: 0.3, z, ry: r() * 6, k: 0.8 + r() * 0.6 });
+    }
+    place("antique_ceramic_vase_01", 0.7, spots.antique_ceramic_vase_01);
+    place("ceramic_vase_02", 0.55, spots.ceramic_vase_02);
+    place("planter_pot_clay", 0.6, spots.planter_pot_clay);
+    // brass lamps on the Spirit's plinths, one before each, and two at the Choice's steps
+    const lamps = this.ringSpots().map(({ x, z, face }) => ({ x: x + Math.sin(face) * 1.25, y: 0.9, z: z + Math.cos(face) * 1.25, ry: face }));
+    lamps.push({ x: CENTRE.x - 2.2, y: 0.6, z: SANCT_Z1 + 5.2, ry: 0 }, { x: CENTRE.x + 2.2, y: 0.6, z: SANCT_Z1 + 5.2, ry: 0 });
+    place("brass_diya_lantern", 0.42, lamps);
   }
 
   /** The Spirit's seven stand in a ring around the dais, behind it and to either side. */
@@ -813,21 +912,21 @@ export class Temple {
     sun.shadow.bias = -0.0006;
     this.group.add(sun, sun.target);
     // braziers: fire in bronze bowls, down the aisle and at the gateway
-    const bowl = new THREE.MeshStandardNodeMaterial({ color: 0x5a3a1e, roughness: 0.5, metalness: 0.7 });
     const fire = new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
     const r = length(uv().sub(0.5)).mul(2);
     const flick = float(0.85).add(T.sin(this.uT.mul(13.1)).mul(0.08)).add(T.sin(this.uT.mul(7.3)).mul(0.07));
     fire.colorNode = vec4(vec3(1.0, 0.62, 0.25).mul(exp(r.mul(r).mul(-5)).mul(smoothstep(1, 0.4, r))).mul(flick).mul(1.4), 1);
     const braziers: [number, number][] = [[-2.8, 12], [2.8, 12], [-2.8, -12], [2.8, -12], [-3.6, HALL_Z1 + 2.5], [3.6, HALL_Z1 + 2.5]];
     braziers.forEach(([x, z], i) => {
-      const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.22, 1.1, 12), bowl);
-      stand.position.set(x, 0.55, z);
-      const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.3, 0.35, 20), bowl);
-      cup.position.set(x, 1.25, z);
+      // a stone pedestal; the fire pit (a scanned model) is set on it when the props arrive
+      const ped = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.9, 1.25), this.plainStone);
+      ped.position.set(x, 0.45, z);
+      ped.castShadow = ped.receiveShadow = true;
       const s = new THREE.Sprite(fire);
-      s.position.set(x, 1.75, z);
-      s.scale.set(0.9, 1.3, 1);
-      this.group.add(stand, cup, s);
+      s.position.set(x, 1.55, z);
+      s.scale.set(0.8, 1.15, 1);
+      this.group.add(ped, s);
+      this.firePits.push(new THREE.Vector3(x, 0.9, z));
       this.collide(x, z, 0.6);
       // only four carry real light (a phone's budget); the others glow
       if (i % 3 !== 2) {
@@ -856,24 +955,34 @@ export class Temple {
     this.group.add(top);
 
     // shafts of light: soft, slanting down from the clerestory's gaps, and straight down onto the dais
+    // Shafts of light: soft volumes, not flat planes. Each is an open tube of light, brightest
+    // where you look through its depth and fading at its edges, with dust turning slowly in it;
+    // it melts away near the lens, and lays a soft pool of light where it meets the floor.
     const shaft = (w: number, h: number, x: number, y: number, z: number, tilt: number, k: number) => {
-      const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
+      const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.FrontSide, fog: false });
       const u = uv();
-      const across = smoothstep(0, 0.35, u.x).mul(smoothstep(1, 0.65, u.x));
-      const along = smoothstep(0, 0.25, u.y).mul(smoothstep(1, 0.55, u.y).mul(0.6).add(0.4));
-      const shimmer = float(0.85).add(T.sin(this.uT.mul(0.3).add(u.y.mul(4)).add(x)).mul(0.15));
-      m.colorNode = vec4(vec3(1.0, 0.88, 0.66).mul(across.mul(along).mul(shimmer).mul(k)), 1);
+      const view = T.normalize(T.cameraPosition.sub(positionWorld));
+      const through = T.pow(T.abs(dot(T.normalWorld, view)), 1.6); // the depth of light you look through
+      const along = smoothstep(0, 0.18, u.y).mul(smoothstep(1, 0.7, u.y).mul(0.55).add(0.45));
+      const dustK = vnoise(vec2(u.x.mul(9), u.y.mul(5).sub(this.uT.mul(0.03)))).mul(0.6).add(vnoise(vec2(u.x.mul(23), u.y.mul(14).add(this.uT.mul(0.05)))).mul(0.4));
+      const near = smoothstep(0.8, 4, length(T.cameraPosition.sub(positionWorld)));
+      m.colorNode = vec4(vec3(1.0, 0.86, 0.62).mul(through.mul(along).mul(dustK.mul(0.7).add(0.5)).mul(near).mul(k)), 1);
       this.shafts.push(m);
-      const out: THREE.Mesh[] = [];
-      for (const ry of [0, Math.PI / 2]) {
-        const q = new THREE.Mesh(new THREE.PlaneGeometry(w, h), m);
-        q.position.set(x, y, z);
-        q.rotation.set(0, ry, tilt, "YXZ");
-        q.renderOrder = 5;
-        this.group.add(q);
-        out.push(q);
-      }
-      return out;
+      const tube = new THREE.Mesh(new THREE.CylinderGeometry(w * 0.5, w * 0.62, h, 24, 1, true), m);
+      tube.position.set(x, y, z);
+      tube.rotation.set(0, 0, tilt);
+      tube.renderOrder = 5;
+      this.group.add(tube);
+      // where it falls: a soft warm pool on the floor, stretched along the slant
+      const foot = new THREE.Vector3(0, -h / 2, 0).applyEuler(new THREE.Euler(0, 0, tilt)).add(new THREE.Vector3(x, y, z));
+      const pm = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
+      const pr = length(uv().sub(0.5)).mul(2);
+      pm.colorNode = vec4(vec3(1.0, 0.8, 0.55).mul(smoothstep(1, 0.2, pr).mul(k * 1.6)), 1);
+      const pool = new THREE.Mesh(new THREE.PlaneGeometry(w * (1.3 + Math.abs(Math.tan(tilt)) * 1.6), w * 1.3), pm);
+      pool.rotation.x = -Math.PI / 2;
+      pool.position.set(foot.x, 0.03 + (foot.z < HALL_Z1 ? 0.3 : 0), foot.z);
+      this.group.add(pool);
+      return [tube, pool];
     };
     // daylight beyond: behind the clerestory's grilles, in the door, above the opening
     const day = new THREE.MeshBasicNodeMaterial({ color: new THREE.Color(1.0, 0.86, 0.62), fog: false, side: THREE.DoubleSide });
@@ -891,8 +1000,8 @@ export class Temple {
     sky.position.set(CENTRE.x, WALL_H + 2 + 1.5, CENTRE.z);
     sky.rotation.x = Math.PI / 2;
     this.group.add(sky);
-    for (let z = HALL_Z0 - 6; z > HALL_Z1 + 3; z -= 12) shaft(1.4, 16, 1.6, 7.5, z - 0.8, 0.42, 0.05);
-    this.centreShaft = shaft(5, 15, CENTRE.x, 8.5, CENTRE.z, 0, 0.07);
+    for (let z = HALL_Z0 - 6; z > HALL_Z1 + 3; z -= 12) shaft(1.3, 16, -1.2, 7.5, z - 0.8, 0.42, 0.11);
+    this.centreShaft = shaft(4.6, 15, CENTRE.x, 8.5, CENTRE.z, 0, 0.1);
   }
 
   /** The pylon in the open world: two battered towers and a door between them, glowing within. */

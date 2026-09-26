@@ -27,7 +27,7 @@ import { Creation, creationUniforms, Spirits } from "./world/creation";
 import { Beings } from "./world/beings";
 import { SeaFauna, SeaLife, UnderwaterEffect } from "./world/underwater";
 import { Post } from "./gpu/post";
-import { fogUniforms, gpuUniforms, ijFogNode } from "./gpu/tsl";
+import { fogUniforms, gpuUniforms, gradeUniforms, ijFogNode } from "./gpu/tsl";
 import { newerBuild, reloadTo } from "./core/fresh";
 import { Presences } from "./world/presences";
 import { Guide, type Destination } from "./world/guide";
@@ -562,6 +562,11 @@ function templeFrame(dt: number): void {
     fogUniforms.color.value.setRGB(0.09, 0.065, 0.045);
     fogUniforms.glow.value.setRGB(0.3, 0.22, 0.15);
     fogUniforms.density.value = 0.004;
+    // the temple's own grade: warm stone, shadows a little deeper
+    gradeUniforms.shadow.value.setRGB(0.02, 0.008, 0.0);
+    gradeUniforms.high.value.setRGB(1.06, 1.0, 0.9);
+    gradeUniforms.sat.value = 1.05;
+    gradeUniforms.contrast.value = 1.1;
     post.starVis.value = 0;
     post.raysOn.value = 0;
     return;
