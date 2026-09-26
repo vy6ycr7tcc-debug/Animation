@@ -9,93 +9,100 @@
    - Marine snow: a slow drift of motes all around, lit by your orb; bubbles from your strokes.
    - Creatures (SeaFauna): schools of fish, mantas, dolphins and a whale, from Quaternius's
      Animated Fish Pack (CC0), drawn in the same glass light as the wanderer. */
-import * as THREE from "three";
-import { BlendFunction, Effect, EffectAttribute } from "postprocessing";
+import * as THREE from "three/webgpu";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { loadBytes } from "../core/assets";
+import { gpuUniforms, softPoints, spriteCloud, T, viewDepth, type N, type SpriteCloud } from "../gpu/tsl";
 import { lightBodyMaterial, tickLightBody } from "../player/lightBody";
 import { heightAt, WATER_Y } from "./terrain";
 
+const {
+  abs, atan, attribute, clamp, cos, Discard, distance, dot, exp, float, floor, Fn, fract, getViewPosition, If, inverseSqrt, length, max, min,
+  mix, normalize, pointUV, positionLocal, pow, screenCoordinate, sin, smoothstep, step, uniform, uv, varying, vec2, vec3, vec4,
+} = T;
+
+const uwH = (p: N): N => fract(sin(dot(p, vec2(127.1, 311.7))).mul(43758.5453));
+const uwN = Fn(([p]: N[]) => {
+  const i = floor(p), f0 = fract(p), f = f0.mul(f0).mul(float(3).sub(f0.mul(2)));
+  return mix(mix(uwH(i), uwH(i.add(vec2(1, 0))), f.x), mix(uwH(i.add(vec2(0, 1))), uwH(i.add(vec2(1, 1))), f.x), f.y);
+});
+
 /* ---------------------------------------------------------------- the look under the surface */
-export class UnderwaterEffect extends Effect {
-  constructor() {
-    super(
-      "Underwater",
-      /* glsl */ `
-      uniform float uT,uDepth;uniform vec3 uCam,uOrb;uniform mat4 uProjInv,uCamWorld;
-      float uwH(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-      float uwN(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);
-        return mix(mix(uwH(i),uwH(i+vec2(1,0)),f.x),mix(uwH(i+vec2(0,1)),uwH(i+vec2(1,1)),f.x),f.y);}
-      void mainImage(const in vec4 inputColor,const in vec2 uv,const in float depth,out vec4 outputColor){
-        // the ray through this pixel, in the world
-        vec4 vv=uProjInv*vec4(uv*2.0-1.0,1.0,1.0);
-        vec3 rv=normalize(vv.xyz/vv.w);
-        vec3 ray=normalize((uCamWorld*vec4(rv,0.0)).xyz);
-        float dist=depth>=0.9999?160.0:-getViewZ(depth)/max(-rv.z,0.05);
-        // looking up, the water ends at the surface
-        if(ray.y>0.01)dist=min(dist,(uDepth+0.02)/ray.y);
-        // absorption (red first) and the glow of the water itself, darker the deeper you are
-        vec3 sigma=vec3(0.28,0.08,0.052);
-        vec3 T=exp(-sigma*dist);
-        float deep=smoothstep(0.0,38.0,uDepth);
-        vec3 glowW=mix(vec3(0.03,0.1,0.135),vec3(0.004,0.013,0.036),deep);
-        glowW*=0.55+0.9*max(0.0,ray.y)*(1.0-deep*0.6);
-        vec3 c=inputColor.rgb*T+glowW*(1.0-T);
-        // the sky through the surface: a bright window straight overhead (Snell's window),
-        // rippling, with a brighter rim, fading as you go deeper
-        if(ray.y>0.5){
-          vec2 hit=uCam.xz+ray.xz*(uDepth/ray.y);
-          float rip=uwN(hit*0.6+vec2(uT*0.3,uT*0.2))*0.6+uwN(hit*1.7-vec2(uT*0.25,0.0))*0.4;
-          float win=smoothstep(0.62,0.7,ray.y+(rip-0.5)*0.04);
-          float rim=win*(1.0-smoothstep(0.7,0.78,ray.y));
-          c+=(vec3(0.16,0.26,0.32)*win*(0.7+rip*0.6)+vec3(0.3,0.42,0.45)*rim)*exp(-uDepth*0.06);
-        }
-        // shafts of moonlight: a pattern on the surface, cast down through the water; a few
-        // samples along the ray, each dimmed by the water it has come through
-        float shafts=0.0;
-        float reach=min(dist,32.0);
-        for(int k=0;k<6;k++){
-          float s=(float(k)+0.5+0.5*uwH(uv*vec2(913.0,577.0)+float(k)))/6.0*reach;
-          vec3 p=uCam+ray*s;
-          float below=max(0.0,-p.y);
-          vec2 q=(p.xz+vec2(0.25,0.6)*below)*0.16;
-          float pat=uwN(q+vec2(uT*0.04,-uT*0.03))*0.65+uwN(q*2.3-vec2(uT*0.05,uT*0.02))*0.35;
-          pat=pow(smoothstep(0.52,0.9,pat),2.0);
-          shafts+=pat*exp(-below*0.07-s*0.06);
-        }
-        c+=vec3(0.3,0.55,0.62)*shafts/6.0*0.55*(1.0-deep*0.85);
-        // the orb: a lantern in the murk (light scattered along the ray, after Macklin)
-        vec3 q=uCam-uOrb;float b=dot(ray,q);float cc=dot(q,q);
-        float sInv=inversesqrt(max(cc-b*b,0.02));
-        float lit=sInv*(atan((min(dist,40.0)+b)*sInv)-atan(b*sInv));
-        c+=vec3(1.0,0.86,0.62)*lit*0.014;
-        c*=1.0-0.35*pow(length(uv-0.5)*1.3,2.0);
-        outputColor=vec4(c,inputColor.a);
-      }`,
-      {
-        attributes: EffectAttribute.DEPTH,
-        blendFunction: BlendFunction.NORMAL,
-        uniforms: new Map<string, THREE.Uniform>([
-          ["uT", new THREE.Uniform(0)],
-          ["uDepth", new THREE.Uniform(1)],
-          ["uCam", new THREE.Uniform(new THREE.Vector3())],
-          ["uOrb", new THREE.Uniform(new THREE.Vector3())],
-          ["uProjInv", new THREE.Uniform(new THREE.Matrix4())],
-          ["uCamWorld", new THREE.Uniform(new THREE.Matrix4())],
-        ]),
-      },
-    );
+/** The water between the camera and everything it sees, as a post-processing node. */
+export class UnderwaterEffect {
+  readonly u = {
+    uT: uniform(0),
+    uDepth: uniform(1),
+    uCam: uniform(new THREE.Vector3()),
+    uOrb: uniform(new THREE.Vector3()),
+    uProjInv: uniform(new THREE.Matrix4()),
+    uCamWorld: uniform(new THREE.Matrix4()),
+  };
+
+  /** `color`: the scene's colour; `depth`: its depth texture node. */
+  node(color: N, depth: N): N {
+    const { uT, uDepth, uCam, uOrb, uProjInv, uCamWorld } = this.u;
+    return Fn(() => {
+      const q0 = uv();
+      const d = depth.sample(q0).r;
+      // the ray through this pixel, in the world
+      const rv = normalize(getViewPosition(q0, float(1), uProjInv));
+      const ray = normalize(uCamWorld.mul(vec4(rv, 0)).xyz);
+      const vp = getViewPosition(q0, d, uProjInv);
+      const dist = d.greaterThanEqual(0.9999).select(float(160), vp.z.negate().div(max(rv.z.negate(), 0.05))).toVar();
+      // looking up, the water ends at the surface
+      If(ray.y.greaterThan(0.01), () => {
+        dist.assign(min(dist, uDepth.add(0.02).div(ray.y)));
+      });
+      // absorption (red first) and the glow of the water itself, darker the deeper you are
+      const Tr = exp(vec3(0.15, 0.045, 0.03).negate().mul(dist)); // clear water: forms read to ~30 m
+      const deep = smoothstep(0, 38, uDepth);
+      const glowW = mix(vec3(0.03, 0.1, 0.135), vec3(0.004, 0.013, 0.036), deep).mul(max(0, ray.y).mul(float(1).sub(deep.mul(0.6))).mul(0.9).add(0.55));
+      const c = color.rgb.mul(Tr).add(glowW.mul(float(1).sub(Tr))).toVar();
+      // the sky through the surface: a bright window straight overhead (Snell's window),
+      // rippling, with a brighter rim, fading as you go deeper
+      If(ray.y.greaterThan(0.5), () => {
+        const hit = uCam.xz.add(ray.xz.mul(uDepth.div(ray.y)));
+        const rip = uwN(hit.mul(0.6).add(vec2(uT.mul(0.3), uT.mul(0.2)))).mul(0.6).add(uwN(hit.mul(1.7).sub(vec2(uT.mul(0.25), 0))).mul(0.4));
+        const win = smoothstep(0.62, 0.7, ray.y.add(rip.sub(0.5).mul(0.04)));
+        const rim = win.mul(float(1).sub(smoothstep(0.7, 0.78, ray.y)));
+        c.addAssign(vec3(0.16, 0.26, 0.32).mul(win).mul(rip.mul(0.6).add(0.7)).add(vec3(0.3, 0.42, 0.45).mul(rim)).mul(exp(uDepth.mul(-0.06))));
+      });
+      // shafts of moonlight: a pattern on the surface, cast down through the water; a few
+      // samples along the ray, each dimmed by the water it has come through
+      const shafts = float(0).toVar();
+      const reach = min(dist, 32);
+      for (let k = 0; k < 6; k++) {
+        const s = float(k + 0.5).add(uwH(q0.mul(vec2(913, 577)).add(k)).mul(0.5)).div(6).mul(reach);
+        const p = uCam.add(ray.mul(s));
+        const below = max(0, p.y.negate());
+        const q = p.xz.add(vec2(0.25, 0.6).mul(below)).mul(0.16);
+        const pat0 = uwN(q.add(vec2(uT.mul(0.04), uT.mul(-0.03)))).mul(0.65).add(uwN(q.mul(2.3).sub(vec2(uT.mul(0.05), uT.mul(0.02)))).mul(0.35));
+        const pat = pow(smoothstep(0.52, 0.9, pat0), 2);
+        shafts.addAssign(pat.mul(exp(below.mul(-0.07).sub(s.mul(0.06)))));
+      }
+      c.addAssign(vec3(0.3, 0.55, 0.62).mul(shafts).div(6).mul(0.8).mul(float(1).sub(deep.mul(0.7))));
+      // the orb: a lantern in the murk (light scattered along the ray, after Macklin)
+      const oq = uCam.sub(uOrb);
+      const b = dot(ray, oq), cc = dot(oq, oq);
+      const sInv = inverseSqrt(max(cc.sub(b.mul(b)), 0.02));
+      const lit = sInv.mul(atan(min(dist, 40).add(b).mul(sInv)).sub(atan(b.mul(sInv))));
+      c.addAssign(vec3(1.0, 0.86, 0.62).mul(lit).mul(0.014));
+      c.mulAssign(float(1).sub(pow(length(q0.sub(0.5)).mul(1.3), 2).mul(0.35)));
+      return vec4(c, color.a);
+    })();
   }
+
   /** Each frame while under: the camera, the time, and where the orb is. */
   follow(camera: THREE.PerspectiveCamera, t: number, orb: THREE.Vector3): void {
-    const u = this.uniforms;
-    (u.get("uT") as THREE.Uniform).value = t;
-    (u.get("uDepth") as THREE.Uniform).value = Math.max(0, WATER_Y - camera.position.y);
-    (u.get("uCam") as THREE.Uniform<THREE.Vector3>).value.copy(camera.position);
-    (u.get("uOrb") as THREE.Uniform<THREE.Vector3>).value.copy(orb);
-    (u.get("uProjInv") as THREE.Uniform<THREE.Matrix4>).value.copy(camera.projectionMatrixInverse);
-    (u.get("uCamWorld") as THREE.Uniform<THREE.Matrix4>).value.copy(camera.matrixWorld);
+    const u = this.u;
+    u.uT.value = t;
+    u.uDepth.value = Math.max(0, WATER_Y - camera.position.y);
+    u.uCam.value.copy(camera.position);
+    u.uOrb.value.copy(orb);
+    u.uProjInv.value.copy(camera.projectionMatrixInverse);
+    u.uCamWorld.value.copy(camera.matrixWorld);
   }
 }
 
@@ -114,14 +121,14 @@ function hash(i: number, j: number, s: number): number {
 
 export class SeaLife {
   group = new THREE.Group();
-  private uni = { uT: { value: 0 }, uOrb: { value: new THREE.Vector3() }, uCam: { value: new THREE.Vector3() }, uPx: { value: 600 } };
+  private uni = { uT: uniform(0), uOrb: uniform(new THREE.Vector3()), uCam: uniform(new THREE.Vector3()), uPx: uniform(600) };
   private ribbons: THREE.Mesh;
   private rGeo: THREE.InstancedBufferGeometry;
   private rBase: THREE.InstancedBufferAttribute;
   private rParams: THREE.InstancedBufferAttribute;
-  private glowPts: THREE.Points;
-  private snow: THREE.Points;
-  private bub: THREE.Points;
+  private glowPts: SpriteCloud;
+  private snow: THREE.Sprite;
+  private bub: SpriteCloud;
   private bubState: { p: THREE.Vector3; v: number; life: number; wob: number }[] = [];
   private bubNext = 0;
   private cx = Infinity;
@@ -130,145 +137,115 @@ export class SeaLife {
   constructor() {
     // sea-ribbons (kelp): a tall, narrow strip, swaying; uv.y 0 at the root, 1 at the tip
     const seg = 12;
-    const pos: number[] = [], uv: number[] = [], idx: number[] = [];
+    const pos: number[] = [], uvs: number[] = [], idx: number[] = [];
     for (let k = 0; k <= seg; k++) {
       const y = k / seg;
       const w = 0.16 * Math.sin(Math.PI * (0.08 + y * 0.84)) * (1 - y * 0.35); // a leaf: narrow at root and tip
       pos.push(-w, y, 0, w, y, 0);
-      uv.push(0, y, 1, y);
+      uvs.push(0, y, 1, y);
       if (k < seg) idx.push(k * 2, k * 2 + 2, k * 2 + 1, k * 2 + 1, k * 2 + 2, k * 2 + 3);
     }
     this.rGeo = new THREE.InstancedBufferGeometry();
     this.rGeo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-    this.rGeo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+    this.rGeo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
     this.rGeo.setIndex(idx);
-    const max = RIBBONS_PER_TILE * (RING * 2 + 1) ** 2;
-    this.rBase = new THREE.InstancedBufferAttribute(new Float32Array(max * 3), 3);
-    this.rParams = new THREE.InstancedBufferAttribute(new Float32Array(max * 3), 3); // height, rotation, hue
+    const maxR = RIBBONS_PER_TILE * (RING * 2 + 1) ** 2;
+    this.rBase = new THREE.InstancedBufferAttribute(new Float32Array(maxR * 3), 3);
+    this.rParams = new THREE.InstancedBufferAttribute(new Float32Array(maxR * 3), 3); // height, rotation, hue
     this.rGeo.setAttribute("aBase", this.rBase);
     this.rGeo.setAttribute("aParams", this.rParams);
     this.rGeo.instanceCount = 0;
-    this.ribbons = new THREE.Mesh(
-      this.rGeo,
-      new THREE.ShaderMaterial({
-        side: THREE.DoubleSide,
-        uniforms: this.uni,
-        vertexShader: /* glsl */ `
-          attribute vec3 aBase;attribute vec3 aParams;uniform float uT;uniform vec3 uOrb,uCam;
-          varying vec2 vUv;varying float vHue;varying float vD;varying float vNear;varying float vCamD;
-          void main(){
-            vec3 p=position;p.y*=aParams.x;
-            float c=cos(aParams.y),s=sin(aParams.y);p=vec3(p.x*c,p.y,p.x*s);
-            float y2=uv.y*uv.y;
-            // a sway that travels up the stalk
-            p.x+=sin(uT*0.6+aBase.x*0.3-uv.y*2.5)*0.35*y2*aParams.x*0.25;
-            p.z+=cos(uT*0.5+aBase.z*0.3-uv.y*2.1)*0.3*y2*aParams.x*0.25;
-            // it parts around the wanderer's light, and brightens
-            vec3 w=aBase+p;
-            vec2 away=w.xz-uOrb.xz;float d=length(away)+1e-3;
-            float near=(1.0-smoothstep(0.6,3.2,d))*(1.0-smoothstep(1.0,5.0,abs(w.y-uOrb.y)));
-            w.xz+=away/d*near*uv.y*0.5;
-            vNear=near;
-            vCamD=distance(w,uCam);
-            vec4 mv=viewMatrix*vec4(w,1.0);vD=-mv.z;
-            vUv=uv;vHue=aParams.z;gl_Position=projectionMatrix*mv;
-          }`,
-        fragmentShader: /* glsl */ `
-          varying vec2 vUv;varying float vHue;varying float vD;varying float vNear;varying float vCamD;uniform float uT;
-          float kH(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-          void main(){
-            // near the lens a blade thins away to nothing, so none ever fills the view
-            if(vCamD<2.0+3.0*kH(gl_FragCoord.xy*0.37))discard;
-            float edge=1.0-abs(vUv.x*2.0-1.0);
-            vec3 hue=mix(vec3(0.25,0.9,0.8),vec3(0.6,0.5,1.0),vHue);
-            // a dark, living blade: deep green at the root, a little light through it near the top
-            vec3 c=mix(vec3(0.008,0.03,0.03),vec3(0.03,0.09,0.08),vUv.y)*(0.5+0.5*edge);
-            // specks of light rising slowly up the blade, and a soft glow at the tip
-            vec2 cell=vec2(floor(vUv.x*3.0),floor(vUv.y*28.0-uT*0.6));
-            float speck=step(0.93,kH(cell+vHue*17.0))*smoothstep(0.35,0.0,abs(fract(vUv.y*28.0-uT*0.6)-0.5));
-            c+=hue*(speck*0.5+smoothstep(0.85,1.0,vUv.y)*0.35+vNear*0.35);
-            gl_FragColor=vec4(c*(1.0-smoothstep(30.0,55.0,vD)),1.0);
-          }`,
-      }),
-    );
+    const U = this.uni, dpr = gpuUniforms.dpr;
+    {
+      const mat = new THREE.MeshBasicNodeMaterial({ side: THREE.DoubleSide, fog: false });
+      const aBase = attribute("aBase", "vec3"), aParams = attribute("aParams", "vec3");
+      const vy = uv().y, y2 = vy.mul(vy);
+      const p0 = positionLocal.mul(vec3(1, aParams.x, 1));
+      const c = cos(aParams.y), sn = sin(aParams.y);
+      // a sway that travels up the stalk
+      const sway = aParams.x.mul(0.25).mul(y2);
+      const p = vec3(
+        p0.x.mul(c).add(sin(U.uT.mul(0.6).add(aBase.x.mul(0.3)).sub(vy.mul(2.5))).mul(0.35).mul(sway)),
+        p0.y,
+        p0.x.mul(sn).add(cos(U.uT.mul(0.5).add(aBase.z.mul(0.3)).sub(vy.mul(2.1))).mul(0.3).mul(sway)),
+      );
+      // it parts around the wanderer's light, and brightens
+      const w0 = aBase.add(p);
+      const away = w0.xz.sub(U.uOrb.xz), d = length(away).add(1e-3);
+      const near = float(1).sub(smoothstep(0.6, 3.2, d)).mul(float(1).sub(smoothstep(1, 5, abs(w0.y.sub(U.uOrb.y)))));
+      const push = away.div(d).mul(near).mul(vy).mul(0.5);
+      const w = vec3(w0.x.add(push.x), w0.y, w0.z.add(push.y));
+      mat.positionNode = w;
+      const vNear = varying(near), vCamD = varying(distance(w, U.uCam)), vD = varying(viewDepth(w));
+      const vHue = varying(aParams.z);
+      const kH = (q: N): N => fract(sin(dot(q, vec2(127.1, 311.7))).mul(43758.5453));
+      mat.colorNode = Fn(() => {
+        // near the lens a blade thins away to nothing, so none ever fills the view
+        If(vCamD.lessThan(kH(screenCoordinate.xy.mul(0.37)).mul(3).add(2)), () => {
+          Discard();
+        });
+        const vUv = uv();
+        const edge = float(1).sub(abs(vUv.x.mul(2).sub(1)));
+        const hue = mix(vec3(0.25, 0.9, 0.8), vec3(0.6, 0.5, 1.0), vHue);
+        // a dark, living blade: deep green at the root, a little light through it near the top
+        const col = mix(vec3(0.008, 0.03, 0.03), vec3(0.03, 0.09, 0.08), vUv.y).mul(edge.mul(0.5).add(0.5)).toVar();
+        // specks of light rising slowly up the blade, and a soft glow at the tip
+        const ly = vUv.y.mul(28).sub(U.uT.mul(0.6));
+        const cell = vec2(floor(vUv.x.mul(3)), floor(ly));
+        const speck = step(0.93, kH(cell.add(vHue.mul(17)))).mul(smoothstep(0.35, 0, abs(fract(ly).sub(0.5))));
+        col.addAssign(hue.mul(speck.mul(0.5).add(smoothstep(0.85, 1, vUv.y).mul(0.35)).add(vNear.mul(0.35))));
+        return vec4(col.mul(float(1).sub(smoothstep(30, 55, vD))), 1);
+      })();
+      this.ribbons = new THREE.Mesh(this.rGeo, mat);
+    }
     this.ribbons.frustumCulled = false;
 
     // anemones and floor lights
-    const gmax = 900;
-    const gg = new THREE.BufferGeometry();
-    gg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(gmax * 3), 3));
-    gg.setAttribute("aK", new THREE.BufferAttribute(new Float32Array(gmax), 1));
-    gg.setDrawRange(0, 0);
-    this.glowPts = new THREE.Points(
-      gg,
-      new THREE.ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        uniforms: this.uni,
-        vertexShader: /* glsl */ `attribute float aK;uniform float uT;varying float vA;varying vec3 vC;
-          void main(){vec4 mv=viewMatrix*vec4(position,1.0);gl_Position=projectionMatrix*mv;
-            vA=(0.55+0.45*sin(uT*(0.6+aK)+aK*40.0))*(1.0-smoothstep(25.0,50.0,-mv.z));
-            vC=mix(vec3(0.3,1.0,0.85),vec3(1.0,0.5,0.8),step(0.6,aK));
-            gl_PointSize=clamp(260.0*(0.2+aK*0.16)/max(-mv.z,0.5),2.0,56.0);}`,
-        fragmentShader: /* glsl */ `varying float vA;varying vec3 vC;void main(){float r=length(gl_PointCoord-0.5)*2.0;
-            gl_FragColor=vec4(vC*(exp(-r*r*4.0)*1.4+(1.0-smoothstep(0.0,0.3,r))*2.2)*vA,1.0);}`,
-      }),
-    );
-    this.glowPts.frustumCulled = false;
+    {
+      const mat = softPoints();
+      this.glowPts = spriteCloud(900, { position: 3, aK: 1 }, mat);
+      const { position, aK } = this.glowPts.nodes;
+      const dz = viewDepth(position);
+      const vA = sin(U.uT.mul(aK.add(0.6)).add(aK.mul(40))).mul(0.45).add(0.55).mul(float(1).sub(smoothstep(25, 50, dz)));
+      const vC = mix(vec3(0.3, 1.0, 0.85), vec3(1.0, 0.5, 0.8), step(0.6, aK));
+      mat.sizeNode = clamp(aK.mul(0.16).add(0.2).mul(260).div(max(dz, 0.5)), 2, 56).div(dpr);
+      const r = length(pointUV.sub(0.5)).mul(2);
+      mat.colorNode = vec4(vC.mul(exp(r.mul(r).mul(-4)).mul(1.4).add(float(1).sub(smoothstep(0, 0.3, r)).mul(2.2))).mul(vA), 1);
+      this.glowPts.setCount(0);
+    }
 
     // marine snow: motes drifting in a box that wraps around the camera, so there are always
     // some near you; lit mostly by your orb
-    const sg = new THREE.BufferGeometry();
-    const seed = new Float32Array(SNOW * 4);
-    for (let i = 0; i < SNOW * 4; i++) seed[i] = Math.random();
-    sg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(SNOW * 3), 3));
-    sg.setAttribute("aSeed", new THREE.BufferAttribute(seed, 4));
-    this.snow = new THREE.Points(
-      sg,
-      new THREE.ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        uniforms: this.uni,
-        vertexShader: /* glsl */ `attribute vec4 aSeed;uniform float uT,uPx;uniform vec3 uOrb,uCam;varying float vA;
-          void main(){
-            const float B=${SNOW_BOX.toFixed(1)};
-            vec3 drift=vec3(sin(uT*0.05+aSeed.w*6.0)*0.6,-uT*0.06*(0.4+aSeed.w),cos(uT*0.04+aSeed.x*6.0)*0.6);
-            vec3 p=uCam+(fract((aSeed.xyz*B+drift-uCam)/B)-0.5)*B;
-            float dCam=distance(p,uCam),dOrb=distance(p,uOrb);
-            vA=(0.1+1.4/(1.0+dOrb*dOrb*0.35))*(1.0-smoothstep(B*0.3,B*0.5,dCam))*step(p.y,-0.2);
-            vec4 mv=viewMatrix*vec4(p,1.0);gl_Position=projectionMatrix*mv;
-            gl_PointSize=clamp((0.025+aSeed.w*0.03)*uPx/max(-mv.z,0.3),1.0,10.0);}`,
-        fragmentShader: /* glsl */ `varying float vA;void main(){float r=length(gl_PointCoord-0.5)*2.0;
-            gl_FragColor=vec4(vec3(0.75,0.88,1.0)*(1.0-smoothstep(0.2,1.0,r))*vA*0.5,1.0);}`,
-      }),
-    );
-    this.snow.frustumCulled = false;
+    {
+      const mat = softPoints();
+      const cloud = spriteCloud(SNOW, { aSeed: 4 }, mat);
+      const seed = cloud.attrs.aSeed.array as Float32Array;
+      for (let i = 0; i < SNOW * 4; i++) seed[i] = Math.random();
+      const aSeed = cloud.nodes.aSeed, B = SNOW_BOX;
+      const drift = vec3(sin(U.uT.mul(0.05).add(aSeed.w.mul(6))).mul(0.6), U.uT.mul(-0.06).mul(aSeed.w.add(0.4)), cos(U.uT.mul(0.04).add(aSeed.x.mul(6))).mul(0.6));
+      const p = U.uCam.add(fract(aSeed.xyz.mul(B).add(drift).sub(U.uCam).div(B)).sub(0.5).mul(B));
+      mat.positionNode = p;
+      const dCam = distance(p, U.uCam), dOrb = distance(p, U.uOrb);
+      const vA = float(1.4).div(dOrb.mul(dOrb).mul(0.35).add(1)).add(0.1).mul(float(1).sub(smoothstep(B * 0.3, B * 0.5, dCam))).mul(step(p.y, -0.2));
+      mat.sizeNode = clamp(aSeed.w.mul(0.03).add(0.025).mul(U.uPx).div(max(viewDepth(p), 0.3)), 1, 10).div(dpr);
+      const r = length(pointUV.sub(0.5)).mul(2);
+      mat.colorNode = vec4(vec3(0.75, 0.88, 1.0).mul(float(1).sub(smoothstep(0.2, 1, r))).mul(vA).mul(0.5), 1);
+      this.snow = cloud.sprite;
+    }
 
     // bubbles from your strokes, wobbling up to the surface
-    const bg = new THREE.BufferGeometry();
-    bg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(BUBBLES * 3), 3).setUsage(THREE.DynamicDrawUsage));
-    bg.setAttribute("aSize", new THREE.BufferAttribute(new Float32Array(BUBBLES), 1).setUsage(THREE.DynamicDrawUsage));
-    this.bub = new THREE.Points(
-      bg,
-      new THREE.ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        uniforms: this.uni,
-        vertexShader: /* glsl */ `attribute float aSize;uniform float uPx;varying float vS;
-          void main(){vec4 mv=viewMatrix*vec4(position,1.0);gl_Position=projectionMatrix*mv;vS=aSize;
-            gl_PointSize=clamp(aSize*uPx/max(-mv.z,0.3),0.0,24.0);}`,
-        fragmentShader: /* glsl */ `varying float vS;void main(){float r=length(gl_PointCoord-0.5)*2.0;
-            float ring=smoothstep(0.55,0.85,r)*(1.0-smoothstep(0.85,1.0,r));
-            gl_FragColor=vec4(vec3(0.8,0.92,1.0)*(ring*0.9+0.08)*step(0.001,vS),1.0);}`,
-      }),
-    );
-    this.bub.frustumCulled = false;
+    {
+      const mat = softPoints();
+      this.bub = spriteCloud(BUBBLES, { position: 3, aSize: 1 }, mat);
+      const { position, aSize } = this.bub.nodes;
+      mat.sizeNode = clamp(aSize.mul(U.uPx).div(max(viewDepth(position), 0.3)), 0, 24).div(dpr);
+      const r = length(pointUV.sub(0.5)).mul(2);
+      const ring = smoothstep(0.55, 0.85, r).mul(float(1).sub(smoothstep(0.85, 1, r)));
+      mat.colorNode = vec4(vec3(0.8, 0.92, 1.0).mul(ring.mul(0.9).add(0.08)).mul(step(0.001, aSize)), 1);
+    }
     for (let i = 0; i < BUBBLES; i++) this.bubState.push({ p: new THREE.Vector3(), v: 0, life: 0, wob: Math.random() * 6 });
 
-    this.group.add(this.ribbons, this.glowPts, this.snow, this.bub);
+    this.group.add(this.ribbons, this.glowPts.sprite, this.snow, this.bub.sprite);
     this.group.visible = false;
   }
 
@@ -285,8 +262,8 @@ export class SeaLife {
 
   private restream(px: number, pz: number): void {
     const b = this.rBase.array as Float32Array, pr = this.rParams.array as Float32Array;
-    const gp = this.glowPts.geometry.attributes.position as THREE.BufferAttribute;
-    const gk = this.glowPts.geometry.attributes.aK as THREE.BufferAttribute;
+    const gp = this.glowPts.attrs.position;
+    const gk = this.glowPts.attrs.aK;
     const gpa = gp.array as Float32Array, gka = gk.array as Float32Array;
     let n = 0, g = 0;
     const cx = Math.floor(px / TILE), cz = Math.floor(pz / TILE);
@@ -319,7 +296,7 @@ export class SeaLife {
       }
     this.rGeo.instanceCount = n;
     this.rBase.needsUpdate = this.rParams.needsUpdate = true;
-    this.glowPts.geometry.setDrawRange(0, g);
+    this.glowPts.setCount(g);
     gp.needsUpdate = gk.needsUpdate = true;
   }
 
@@ -339,7 +316,7 @@ export class SeaLife {
       this.cz = cz;
       this.restream(player.x, player.z);
     }
-    const bp = this.bub.geometry.attributes.position as THREE.BufferAttribute, bs = this.bub.geometry.attributes.aSize as THREE.BufferAttribute;
+    const bp = this.bub.attrs.position, bs = this.bub.attrs.aSize;
     const pa = bp.array as Float32Array, sa = bs.array as Float32Array;
     this.bubState.forEach((b, i) => {
       if (b.life > 0) {

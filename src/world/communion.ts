@@ -9,7 +9,13 @@
    3. Then everything connects to everything: strokes weave between the things themselves, and
       the network of roots under the ground lights up.
    The moment the wanderer moves, it all dissolves. */
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
+import { gpuUniforms, softPoints, spriteCloud, T, viewDepth, type N } from "../gpu/tsl";
+
+const {
+  attribute, cameraPosition, clamp, cos, cross, distance, dot, exp, float, floor, Fn, fract, max, min, mix, normalize, pointUV, positionLocal,
+  pow, sin, smoothstep, uniform, varying, vec2, vec3, vec4,
+} = T;
 
 const SEG = 36;
 interface Stroke {
@@ -19,121 +25,102 @@ interface Stroke {
   hue: number;
 }
 
+const gH = (p: N): N => fract(sin(dot(p, vec2(127.1, 311.7))).mul(43758.5453));
+const gN = Fn(([p]: N[]) => {
+  const i = floor(p), f0 = fract(p), f = f0.mul(f0).mul(float(3).sub(f0.mul(2)));
+  return mix(mix(gH(i), gH(i.add(vec2(1, 0))), f.x), mix(gH(i.add(vec2(0, 1))), gH(i.add(vec2(1, 1))), f.x), f.y);
+});
+
 export class Communion {
   group = new THREE.Group();
-  private gas: THREE.Points;
-  private gasMat: THREE.ShaderMaterial;
+  private gas: THREE.Sprite;
   private strokes: THREE.Mesh;
-  private uni = { uT: { value: 0 }, uAge: { value: 0 }, uK: { value: 0 }, uOpen: { value: 0 }, uHeart: { value: new THREE.Vector3() }, uPx: { value: 600 } };
+  private uni = { uT: uniform(0), uAge: uniform(0), uK: uniform(0), uOpen: uniform(0), uHeart: uniform(new THREE.Vector3()), uPx: uniform(600) };
   private built = false;
   private age = 0;
 
   constructor(gasCount = 150) {
+    const U = this.uni;
     // the gas: many large, soft puffs, each drifting on its own slow spiral around the body
-    const seed = new Float32Array(gasCount * 4);
-    for (let i = 0; i < gasCount; i++) seed.set([Math.random(), Math.random(), Math.random(), Math.random()], i * 4);
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(gasCount * 3), 3));
-    g.setAttribute("aSeed", new THREE.BufferAttribute(seed, 4));
-    this.gasMat = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      uniforms: this.uni,
-      vertexShader: /* glsl */ `
-        attribute vec4 aSeed;uniform float uT,uK,uOpen,uPx;uniform vec3 uHeart;
-        varying float vA;varying vec3 vC;varying vec2 vSeed;
-        void main(){
-          // a life cycle: born near the body, billowing slowly outward and upward, fading away
-          float life=fract(uT*(0.035+aSeed.w*0.035)+aSeed.x);
-          float ang=aSeed.y*6.2832+uT*(0.1+aSeed.z*0.12)*(aSeed.w>0.5?1.0:-1.0)+life*1.6;
-          float r=(0.3+life*(0.7+aSeed.z*1.8))*(0.35+0.65*uOpen);
-          float y=(aSeed.z-0.45)*1.5+life*(1.0+aSeed.y*1.3)*uOpen;
-          vec3 p=uHeart+vec3(cos(ang)*r,y,sin(ang)*r*0.85);
-          p.x+=sin(uT*0.5+aSeed.x*20.0+p.y)*0.22*life;
-          // a puff never reaches into the ground, where the ground would cut it off in a hard line
-          float feet=uHeart.y-1.15;
-          p.y=max(p.y,feet+0.4);
-          vec4 mv=viewMatrix*vec4(p,1.0);gl_Position=projectionMatrix*mv;
-          float size=min((0.7+aSeed.w*1.1)*(0.7+life*1.3),(p.y-feet)*1.9);
-          gl_PointSize=clamp(size*uPx/max(-mv.z,0.5),2.0,240.0);
-          vA=sin(life*3.14159)*uK*(0.01+0.012*aSeed.x);
-          // pale light, never smoke: warm pearl near the heart, cooling to moonlit lavender as it rises
-          vC=mix(vec3(1.0,0.9,0.74),vec3(0.74,0.8,1.0),clamp(life*0.8+aSeed.z*0.3,0.0,1.0))*1.25;
-          vSeed=aSeed.xy;
-        }`,
-      fragmentShader: /* glsl */ `
-        varying float vA;varying vec3 vC;varying vec2 vSeed;uniform float uT;
-        float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-        float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
-        void main(){
-          vec2 q=gl_PointCoord-0.5;float r2=dot(q,q)*4.0;
-          // veils: a soft puff shaped by broad, slowly curling noise, so it reads as mist, not a ball
-          vec2 w=q*1.6+vSeed*17.0;
-          float f=n(w+vec2(uT*0.06,0.0))*0.75+n(w*2.1-vec2(0.0,uT*0.09))*0.25;
-          float a=exp(-r2*3.0)*(1.0-smoothstep(0.5,1.0,r2))*smoothstep(0.3,0.85,f);
-          gl_FragColor=vec4(vC*a*vA,1.0);
-        }`,
-    });
-    this.gas = new THREE.Points(g, this.gasMat);
-    this.gas.frustumCulled = false;
-    this.gas.renderOrder = 11;
+    {
+      const mat = softPoints();
+      const cloud = spriteCloud(gasCount, { aSeed: 4 }, mat);
+      const seed = cloud.attrs.aSeed.array as Float32Array;
+      for (let i = 0; i < gasCount * 4; i++) seed[i] = Math.random();
+      const aSeed = cloud.nodes.aSeed;
+      // a life cycle: born near the body, billowing slowly outward and upward, fading away
+      const life = fract(U.uT.mul(aSeed.w.mul(0.035).add(0.035)).add(aSeed.x));
+      const ang = aSeed.y.mul(6.2832).add(U.uT.mul(aSeed.z.mul(0.12).add(0.1)).mul(aSeed.w.greaterThan(0.5).select(1, -1))).add(life.mul(1.6));
+      const r = life.mul(aSeed.z.mul(1.8).add(0.7)).add(0.3).mul(U.uOpen.mul(0.65).add(0.35));
+      const y = aSeed.z.sub(0.45).mul(1.5).add(life.mul(aSeed.y.mul(1.3).add(1)).mul(U.uOpen));
+      const py0 = U.uHeart.y.add(y);
+      const px = U.uHeart.x.add(cos(ang).mul(r)).add(sin(U.uT.mul(0.5).add(aSeed.x.mul(20)).add(py0)).mul(0.22).mul(life));
+      // a puff never reaches into the ground, where the ground would cut it off in a hard line
+      const feet = U.uHeart.y.sub(1.15);
+      const p = vec3(px, max(py0, feet.add(0.4)), U.uHeart.z.add(sin(ang).mul(r).mul(0.85)));
+      mat.positionNode = p;
+      const size = min(aSeed.w.mul(1.1).add(0.7).mul(life.mul(1.3).add(0.7)), p.y.sub(feet).mul(1.9));
+      mat.sizeNode = clamp(size.mul(U.uPx).div(max(viewDepth(p), 0.5)), 2, 240).div(gpuUniforms.dpr);
+      const vA = sin(life.mul(3.14159)).mul(U.uK).mul(aSeed.x.mul(0.012).add(0.01));
+      // pale light, never smoke: warm pearl near the heart, cooling to moonlit lavender as it rises
+      const vC = mix(vec3(1.0, 0.9, 0.74), vec3(0.74, 0.8, 1.0), clamp(life.mul(0.8).add(aSeed.z.mul(0.3)), 0, 1)).mul(1.25);
+      mat.colorNode = Fn(() => {
+        const q = pointUV.sub(0.5), r2 = dot(q, q).mul(4);
+        // veils: a soft puff shaped by broad, slowly curling noise, so it reads as mist, not a ball
+        const w = q.mul(1.6).add(aSeed.xy.mul(17));
+        const f = gN(w.add(vec2(U.uT.mul(0.06), 0))).mul(0.75).add(gN(w.mul(2.1).sub(vec2(0, U.uT.mul(0.09)))).mul(0.25));
+        const a = exp(r2.mul(-3)).mul(float(1).sub(smoothstep(0.5, 1, r2))).mul(smoothstep(0.3, 0.85, f));
+        return vec4(vC.mul(a).mul(vA), 1);
+      })();
+      this.gas = cloud.sprite;
+      this.gas.renderOrder = 11;
+    }
 
-    this.strokes = new THREE.Mesh(
-      new THREE.BufferGeometry(),
-      new THREE.ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-        blending: THREE.AdditiveBlending,
-        uniforms: this.uni,
-        vertexShader: /* glsl */ `
-          attribute vec3 aTan;attribute vec4 aInfo; // side (-1..1), u along (0..1), delay, kind
-          attribute vec2 aStyle; // hue, width
-          uniform float uT,uPx;uniform vec3 uHeart;varying vec2 vUv;varying float vKind;varying float vDelay;varying vec2 vStyle;varying float vCam;varying float vThin;varying float vClear;
-          void main(){
-            vec3 side=normalize(cross(aTan,cameraPosition-position));
-            // a soft brush: it swells gently in the middle and lifts off at both ends
-            float press=pow(sin(aInfo.y*3.14159),0.7);
-            vCam=distance(position,cameraPosition);
-            // never thinner than a few pixels, so a far stroke stays a smooth line instead of breaking
-            // into dashes; what it gains in width it gives back in light
-            float w=aStyle.y*press, wMin=3.0*vCam/uPx;
-            vThin=w/max(w,wMin);
-            vec3 p=position+side*aInfo.x*max(w,wMin);
-            vUv=vec2(aInfo.x,aInfo.y);vKind=aInfo.w;vDelay=aInfo.z;vStyle=aStyle;
-            // a stroke that would pass between the camera and the wanderer fades there
-            vec3 ab=uHeart-cameraPosition;
-            float t=clamp(dot(position-cameraPosition,ab)/max(dot(ab,ab),1e-3),0.0,0.85);
-            vClear=smoothstep(0.5,1.8,distance(position,cameraPosition+ab*t));
-            gl_Position=projectionMatrix*viewMatrix*vec4(p,1.0);
-          }`,
-        fragmentShader: /* glsl */ `
-          varying vec2 vUv;varying float vKind;varying float vDelay;varying vec2 vStyle;varying float vCam;varying float vThin;varying float vClear;uniform float uT,uAge,uK;
-          void main(){
-            // each stroke is drawn out slowly from where it starts, with a soft front
-            float grow=clamp((uAge-vDelay)/2.6,0.0,1.0)*1.15;
-            float u=vKind<0.5||vKind>1.5?vUv.y:1.0-vUv.y; // "in" strokes travel toward the heart, "out" ones away
-            float front=1.0-smoothstep(grow-0.12,grow,u);
-            // at the heart the stroke dissolves into the aura, so nothing converges on the body
-            float atHeart=vKind<0.5?vUv.y:vKind<1.5?1.0-vUv.y:0.0;
-            float melt=1.0-smoothstep(0.62,0.97,atHeart);
-            // a smooth, unbroken body of light: a bright core in a soft glow, no texture to shimmer
-            float x=vUv.x;
-            float body=exp(-x*x*9.0)+0.3*exp(-x*x*2.2);
-            // slow swells of light travel along it, like breath
-            float speed=0.07+vStyle.x*0.05;
-            float wave=0.5+0.5*sin((u*1.7-uT*speed-vStyle.x*3.0)*6.2832);
-            float flow=0.3+0.7*wave*wave*wave;
-            // each stroke its own soft hue, turning to warm gold as it nears the heart
-            vec3 hue=0.5+0.5*cos(6.2832*(vStyle.x+vec3(0.0,0.33,0.67)));
-            vec3 c=mix(mix(hue,vec3(0.95,0.93,1.0),0.6),vec3(1.0,0.86,0.62),smoothstep(0.3,0.9,atHeart));
-            float a=body*front*melt*flow*vThin*0.5*uK;
-            a*=smoothstep(3.0,11.0,vCam)*vClear; // never a stroke across the lens, or across the wanderer
-            gl_FragColor=vec4(c*a,1.0);
-          }`,
-      }),
-    );
+    {
+      const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: false });
+      const aTan = attribute("aTan", "vec3"), aInfo = attribute("aInfo", "vec4"); // side (-1..1), u along (0..1), delay, kind
+      const aStyle = attribute("aStyle", "vec2"); // hue, width
+      const P = positionLocal;
+      const side = normalize(cross(aTan, cameraPosition.sub(P)));
+      // a soft brush: it swells gently in the middle and lifts off at both ends
+      const press = pow(sin(aInfo.y.mul(3.14159)), 0.7);
+      const camD = distance(P, cameraPosition);
+      // never thinner than a few pixels, so a far stroke stays a smooth line instead of breaking
+      // into dashes; what it gains in width it gives back in light
+      const w = aStyle.y.mul(press), wMin = camD.mul(3).div(U.uPx);
+      const vThin = varying(w.div(max(w, wMin)));
+      mat.positionNode = P.add(side.mul(aInfo.x).mul(max(w, wMin)));
+      // a stroke that would pass between the camera and the wanderer fades there
+      const ab = U.uHeart.sub(cameraPosition);
+      const t = clamp(dot(P.sub(cameraPosition), ab).div(max(dot(ab, ab), 1e-3)), 0, 0.85);
+      const vClear = varying(smoothstep(0.5, 1.8, distance(P, cameraPosition.add(ab.mul(t)))));
+      const vCam = varying(camD);
+      const vUv = varying(aInfo.xy), vKind = varying(aInfo.w), vDelay = varying(aInfo.z), vStyle = varying(aStyle);
+      mat.colorNode = Fn(() => {
+        // each stroke is drawn out slowly from where it starts, with a soft front
+        const grow = clamp(U.uAge.sub(vDelay).div(2.6), 0, 1).mul(1.15);
+        const isIn = vKind.lessThan(0.5), isOut = vKind.greaterThan(0.5).and(vKind.lessThan(1.5));
+        const u = isOut.select(float(1).sub(vUv.y), vUv.y); // "in" strokes travel toward the heart, "out" ones away
+        const front = float(1).sub(smoothstep(grow.sub(0.12), grow, u));
+        // at the heart the stroke dissolves into the aura, so nothing converges on the body
+        const atHeart = isIn.select(vUv.y, isOut.select(float(1).sub(vUv.y), float(0)));
+        const melt = float(1).sub(smoothstep(0.62, 0.97, atHeart));
+        // a smooth, unbroken body of light: a bright core in a soft glow, no texture to shimmer
+        const x = vUv.x;
+        const body = exp(x.mul(x).mul(-9)).add(exp(x.mul(x).mul(-2.2)).mul(0.3));
+        // slow swells of light travel along it, like breath
+        const speed = vStyle.x.mul(0.05).add(0.07);
+        const wave = sin(u.mul(1.7).sub(U.uT.mul(speed)).sub(vStyle.x.mul(3)).mul(6.2832)).mul(0.5).add(0.5);
+        const flow = wave.mul(wave).mul(wave).mul(0.7).add(0.3);
+        // each stroke its own soft hue, turning to warm gold as it nears the heart
+        const hue = cos(vec3(vStyle.x).add(vec3(0, 0.33, 0.67)).mul(6.2832)).mul(0.5).add(0.5);
+        const c = mix(mix(hue, vec3(0.95, 0.93, 1.0), 0.6), vec3(1.0, 0.86, 0.62), smoothstep(0.3, 0.9, atHeart));
+        const a = body.mul(front).mul(melt).mul(flow).mul(vThin).mul(0.5).mul(U.uK)
+          .mul(smoothstep(3, 11, vCam)).mul(vClear); // never a stroke across the lens, or across the wanderer
+        return vec4(c.mul(a), 1);
+      })();
+      this.strokes = new THREE.Mesh(new THREE.BufferGeometry(), mat);
+    }
     this.strokes.frustumCulled = false;
     this.strokes.renderOrder = 11;
     this.group.add(this.gas, this.strokes);
@@ -209,7 +196,9 @@ export class Communion {
         }
       }
     }
-    const g = this.strokes.geometry;
+    // a fresh geometry each time (the GPU buffers are sized once per geometry)
+    this.strokes.geometry.dispose();
+    const g = (this.strokes.geometry = new THREE.BufferGeometry());
     g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
     g.setAttribute("aTan", new THREE.Float32BufferAttribute(tan, 3));
     g.setAttribute("aInfo", new THREE.Float32BufferAttribute(info, 4));

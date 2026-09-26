@@ -1,6 +1,6 @@
 /* Third-person camera: glides after the wanderer, eases behind them while they move,
    and never dips under the ground or the water. No shake, ever. */
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 import { heightAt, WATER_Y } from "../world/terrain";
 
 export class FollowCamera {

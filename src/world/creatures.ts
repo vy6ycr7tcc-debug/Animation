@@ -5,7 +5,7 @@
      wheel away. When the wanderer turns inward in stillness, they come close and stand.
    - Birds: storks, flamingos and parrots, in flocks wheeling slowly overhead.
    Nothing here can harm or be harmed; they are company. */
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { loadBytes } from "../core/assets";
 import { lightBodyMaterial, tickLightBody } from "../player/lightBody";

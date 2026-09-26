@@ -11,10 +11,10 @@
    - Nona: rose, notes of light rising from its hands as it heals with song;
    - others: a pearl light in their own hue.
    It stands a little ahead and to the side, facing you, never between the camera and you. */
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
-import { loadBytes } from "../core/assets";
+import { floatAttributes, loadBytes } from "../core/assets";
 import { lightBodyMaterial, tickLightBody } from "../player/lightBody";
 import { HEIGHT } from "../player/wanderer";
 import { heightAt, WATER_Y } from "./terrain";
@@ -99,6 +99,7 @@ export class Presences {
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
     const gltf = await loader.parseAsync(bytes, "");
+    floatAttributes(gltf.scene);
     const m = gltf.scene;
     m.traverse((o) => {
       const mesh = o as THREE.Mesh;

@@ -4,7 +4,10 @@
    - A gentle meadow where the wanderer wakes.
    - Mountains rising far out, so the world has an edge you see but never reach.
    The ground is streamed in square chunks around the wanderer. */
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
+import { T, type N } from "../gpu/tsl";
+import { starDirection } from "./fog";
+import { groundLight } from "./lightfield";
 import { surface } from "./textures";
 
 export const WATER_Y = 0;
@@ -194,108 +197,94 @@ const C = {
   meadowC: new THREE.Color("#6d5268"), // rose
   stone: new THREE.Color("#4b4563"),
   snow: new THREE.Color("#bcb9da"),
+  earth: new THREE.Color("#5e4a3c"), // bare, warm earth
+  loam: new THREE.Color("#46382f"),
 };
 
 /** The ground's material: real scanned sand, grass and rock (tinted to the moonlit palette),
     with glitter in the sand and no drawn lines. */
 /** Shared with the game loop: the time, for the caustics that dance on the floor of the lakes. */
-export const groundUniforms = { uT: { value: 0 } };
-function groundMaterial(): THREE.MeshStandardMaterial {
-  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0 });
+export const groundUniforms = { uT: T.uniform(0) };
+
+const tmix = T.mix;
+const {
+  abs, attribute, cameraPosition, cameraViewMatrix, dot, exp, float, floor, Fn, fract, length, mat2, max, min, normalize, normalView,
+  positionWorld, pow, sin, smoothstep, step, texture, vec2, vec3, vec4,
+} = T;
+const gH = (p: N): N => fract(sin(dot(p, vec2(127.1, 311.7))).mul(43758.5453));
+const cH2 = (p: N): N => fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))).mul(43758.5453));
+const gN = Fn(([p]: N[]) => {
+  const i = floor(p), f0 = fract(p), f = f0.mul(f0).mul(float(3).sub(f0.mul(2)));
+  return tmix(tmix(gH(i), gH(i.add(vec2(1, 0))), f.x), tmix(gH(i.add(vec2(0, 1))), gH(i.add(vec2(1, 1))), f.x), f.y);
+});
+/** Caustics: light through the moving surface, gathered into a slowly shifting web of cell edges. */
+const cWeb = Fn(([p, t]: N[]) => {
+  const i = floor(p), f = fract(p);
+  const d1 = float(8).toVar(), d2 = float(8).toVar();
+  for (let y = -1; y <= 1; y++)
+    for (let x = -1; x <= 1; x++) {
+      const g = vec2(x, y);
+      const o = sin(t.add(cH2(i.add(g)).mul(6.2831))).mul(0.42).add(0.5);
+      const d = length(g.add(o).sub(f));
+      d2.assign(min(d2, max(d1, d)));
+      d1.assign(min(d1, d));
+    }
+  return d2.sub(d1);
+});
+
+function groundMaterial(): THREE.MeshStandardNodeMaterial {
+  const m = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.92, metalness: 0 });
   const [sand, meadow, rock] = [surface("sand"), surface("meadow"), surface("rock")];
-  m.onBeforeCompile = (sh) => {
-    sh.uniforms.uMoon = { value: new THREE.Vector3(0.06, 0.16, -1).normalize() };
-    sh.uniforms.uT = groundUniforms.uT;
-    Object.assign(sh.uniforms, {
-      tSandD: { value: sand.diff }, tSandN: { value: sand.nor },
-      tMeadowD: { value: meadow.diff }, tMeadowN: { value: meadow.nor },
-      tRockD: { value: rock.diff }, tRockN: { value: rock.nor },
-    });
-    sh.vertexShader = sh.vertexShader
-      .replace("#include <common>", "#include <common>\nattribute vec3 aGround;varying vec3 vGround;varying vec3 vGW;")
-      .replace("#include <project_vertex>", "#include <project_vertex>\nvGround=aGround;vGW=(modelMatrix*vec4(transformed,1.0)).xyz;");
-    sh.fragmentShader = sh.fragmentShader
-      .replace(
-        "#include <common>",
-        `#include <common>
-        varying vec3 vGround; // x: sky seen (1 open … darker in hollows), y: how sandy, z: how rocky
-        varying vec3 vGW;
-        uniform vec3 uMoon;uniform float uT;
-        uniform sampler2D tSandD,tSandN,tMeadowD,tMeadowN,tRockD,tRockN;
-        // caustics: light through the moving surface, gathered into a slowly shifting web.
-        // Two layers of cells whose edges are bright, taken together so only the web remains.
-        vec2 cH2(vec2 p){p=vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3)));return fract(sin(p)*43758.5453);}
-        float cWeb(vec2 p,float t){
-          vec2 i=floor(p),f=fract(p);float d1=8.0,d2=8.0;
-          for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){
-            vec2 g=vec2(float(x),float(y));vec2 o=0.5+0.42*sin(t+6.2831*cH2(i+g));
-            float d=length(g+o-f);if(d<d1){d2=d1;d1=d;}else if(d<d2)d2=d;}
-          return d2-d1;
-        }
-        float gH(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-        float gN(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);
-          return mix(mix(gH(i),gH(i+vec2(1,0)),f.x),mix(gH(i+vec2(0,1)),gH(i+vec2(1,1)),f.x),f.y);}
-        // two scales of the same texture, blended by a slow noise, so no repeat ever shows
-        vec4 samp(sampler2D t,vec2 q,float s){
-          vec2 b=mat2(0.8,-0.6,0.6,0.8)*q/(s*3.7);
-          return mix(texture2D(t,q/s),texture2D(t,b),smoothstep(0.25,0.75,gN(q*0.02))*0.6);
-        }
-        vec3 gW(){float s=vGround.y,r=vGround.z;return vec3(s,r,max(0.0,1.0-s-r));} // sand, rock, meadow`,
-      )
-      .replace(
-        "#include <color_fragment>",
-        `#include <color_fragment>
-        {
-          diffuseColor.rgb*=vGround.x;
-          vec3 w=gW();vec2 q=vGW.xz;
-          vec3 det=samp(tSandD,q,3.0).rgb*1.9*w.x+samp(tRockD,q,4.0).rgb*2.2*w.y+samp(tMeadowD,q,2.2).rgb*2.6*w.z;
-          // keep the moonlit palette: take mostly the scan's light and shade, a little of its colour
-          det=mix(vec3(dot(det,vec3(0.3,0.5,0.2))),det,0.3);
-          float fade=1.0-smoothstep(80.0,260.0,length(vGW-cameraPosition));
-          diffuseColor.rgb*=mix(vec3(1.0),det,fade);
-        }`,
-      )
-      .replace(
-        "#include <normal_fragment_maps>",
-        `#include <normal_fragment_maps>
-        {
-          // the scans' relief: each surface's normal map, blended as the ground is
-          float near=1.0-smoothstep(20.0,90.0,length(vGW-cameraPosition));
-          vec3 w=gW();vec2 q=vGW.xz;
-          vec2 p=(samp(tSandN,q,3.0).xy*2.0-1.0)*w.x*0.9+(samp(tRockN,q,4.0).xy*2.0-1.0)*w.y*1.2+(samp(tMeadowN,q,2.2).xy*2.0-1.0)*w.z*0.7;
-          vec3 dW=vec3(p.x,0.0,-p.y)*near;
-          normal=normalize(normal+mat3(viewMatrix)*dW);
-        }`,
-      )
-      .replace(
-        "#include <emissivemap_fragment>",
-        `#include <emissivemap_fragment>
-        {
-          vec3 gv=normalize(cameraPosition-vGW);
-          float gd=length(vGW-cameraPosition);
-          // glitter: grains of sand that catch the light as you move
-          vec2 gq=vGW.xz*22.0;vec2 cell=floor(gq);
-          float h=gH(cell);
-          float tw=gH(cell*1.7+floor(gv.xz*24.0+gv.y*11.0));
-          float dot_=smoothstep(0.22,0.0,length(fract(gq)-0.5)); // a point of light, not a fleck
-          float glit=step(0.975,h)*step(0.6,tw)*dot_*vGround.y*(1.0-smoothstep(3.0,18.0,gd))*step(0.0,vGW.y);
-          totalEmissiveRadiance+=vec3(1.0,0.93,0.82)*glit*2.2;
-          if(vGW.y<-0.3){
-            float dep=-vGW.y;
-            // the web is warped by slow noise, so no cell is ever regular
-            vec2 cq=vGW.xz*0.32;
-            cq+=vec2(gN(cq*0.9+uT*0.05),gN(cq*0.9-uT*0.04+5.0))*1.4;
-            float web=min(cWeb(cq,uT*0.5),cWeb(cq*1.37+7.3,-uT*0.4));
-            float cau=pow(1.0-smoothstep(0.0,0.32,web),2.2)*(0.55+0.45*gN(cq*0.35+uT*0.03));
-            float k=exp(-dep*0.08)*smoothstep(0.3,1.5,dep)*(1.0-smoothstep(12.0,40.0,gd));
-            totalEmissiveRadiance+=vec3(0.45,0.75,0.95)*cau*k*0.3;
-          }
-          // a soft sheen where the ground faces away toward the moon (light through the haze)
-          float back=pow(max(dot(-gv,uMoon),0.0),3.0);
-          totalEmissiveRadiance+=vec3(0.32,0.26,0.24)*back*(0.3+0.7*vGround.y)*0.18;
-        }`,
-      );
-  };
+  const uT = groundUniforms.uT;
+  const moon = vec3(...starDirection().toArray());
+  // x: sky seen (1 open … darker in hollows), y: how sandy, z: how rocky
+  const gr = attribute("aGround", "vec3");
+  const vGW = positionWorld;
+  const w = vec3(gr.y, gr.z, max(0, float(1).sub(gr.y).sub(gr.z))); // sand, rock, meadow
+  const q = vGW.xz;
+  const R = mat2(0.8, 0.6, -0.6, 0.8); // column-major, as GLSL's mat2(0.8,-0.6,0.6,0.8)
+  const blend = smoothstep(0.25, 0.75, gN(q.mul(0.02))).mul(0.6);
+  // two scales of the same texture, blended by a slow noise, so no repeat ever shows
+  const samp = (t: THREE.Texture, s: number) => tmix(texture(t, q.div(s)), texture(t, R.mul(q).div(s * 3.7)), blend);
+  const camD = length(vGW.sub(cameraPosition));
+
+  const det0 = samp(sand.diff, 3).rgb.mul(1.9).mul(w.x).add(samp(rock.diff, 4).rgb.mul(2.2).mul(w.y)).add(samp(meadow.diff, 2.2).rgb.mul(2.6).mul(w.z));
+  // keep the moonlit palette: mostly the scan's light and shade, a little of its colour
+  const det = tmix(vec3(dot(det0, vec3(0.3, 0.5, 0.2))), det0, 0.5);
+  const fade = float(1).sub(smoothstep(150, 520, camD));
+  m.colorNode = vec4(tmix(vec3(1), det, fade).mul(gr.x), 1);
+
+  // the scans' relief: each surface's normal map, blended as the ground is
+  const near = float(1).sub(smoothstep(30, 160, camD));
+  const nm = (t: THREE.Texture, s: number) => samp(t, s).xy.mul(2).sub(1);
+  const pn = nm(sand.nor, 3).mul(w.x).mul(0.9).add(nm(rock.nor, 4).mul(w.y).mul(1.2)).add(nm(meadow.nor, 2.2).mul(w.z).mul(0.7));
+  const dW = vec3(pn.x, 0, pn.y.negate()).mul(near).mul(1.35);
+  m.normalNode = normalize(normalView.add(cameraViewMatrix.mul(vec4(dW, 0)).xyz));
+
+  m.emissiveNode = Fn(() => {
+    const gv = normalize(cameraPosition.sub(vGW));
+    // glitter: grains of sand that catch the light as you move
+    const gq = vGW.xz.mul(22), cell = floor(gq);
+    const tw = gH(cell.mul(1.7).add(floor(gv.xz.mul(24).add(gv.y.mul(11)))));
+    const dot_ = smoothstep(0.22, 0, length(fract(gq).sub(0.5))); // a point of light, not a fleck
+    const glit = step(0.975, gH(cell)).mul(step(0.6, tw)).mul(dot_).mul(gr.y).mul(float(1).sub(smoothstep(3, 18, camD))).mul(step(0, vGW.y));
+    const e = vec3(1.0, 0.93, 0.82).mul(glit).mul(2.2).toVar();
+    // caustics on the floor of the lakes; the web is warped by slow noise, so no cell is ever regular
+    const dep = vGW.y.negate();
+    const cq0 = vGW.xz.mul(0.32);
+    const cq = cq0.add(vec2(gN(cq0.mul(0.9).add(uT.mul(0.05))), gN(cq0.mul(0.9).sub(uT.mul(0.04)).add(5))).mul(1.4));
+    const web = min(cWeb(cq, uT.mul(0.5)), cWeb(cq.mul(1.37).add(7.3), uT.mul(-0.4)));
+    const cau = pow(float(1).sub(smoothstep(0, 0.32, web)), 2.2).mul(gN(cq.mul(0.35).add(uT.mul(0.03))).mul(0.45).add(0.55));
+    const k = exp(dep.mul(-0.08)).mul(smoothstep(0.3, 1.5, dep)).mul(float(1).sub(smoothstep(12, 40, camD)));
+    e.addAssign(vGW.y.lessThan(-0.3).select(vec3(0.45, 0.75, 0.95).mul(cau).mul(k).mul(0.3), vec3(0)));
+    // a soft sheen where the ground faces away toward the moon (light through the haze)
+    // the lights of the world, pooling on the ground (lanterns, beings, crystals, your own)
+    e.addAssign(groundLight(vGW).mul(T.vertexColor().rgb.mul(1.6).add(0.12)).mul(gr.x));
+    const back = pow(max(dot(gv.negate(), moon), 0), 3);
+    e.addAssign(vec3(0.32, 0.26, 0.24).mul(back).mul(gr.y.mul(0.7).add(0.3)).mul(0.18));
+    return e;
+  })();
+  void abs;
   return m;
 }
 
@@ -417,10 +406,16 @@ export class Terrain {
       const region = fbm(x * 0.004 + 9, z * 0.004 - 4);
       this.col.copy(C.meadowA).lerp(C.meadowB, smooth(0.35, 0.6, region)).lerp(C.meadowC, smooth(0.6, 0.78, region));
       this.col.lerp(this.tmp.copy(C.sand), k.sand).lerp(C.stone, k.stone).lerp(C.snow, smooth(40, 70, h));
+      // broad stretches of bare earth, warm and deeply textured
+      const earth = smooth(0.42, 0.62, fbm(x * 0.005 + 123, z * 0.005 - 7)) * (1 - k.sand) * smooth(0.6, 2.5, h);
+      this.tmp.copy(C.earth).lerp(C.loam, smooth(0.3, 0.7, fbm(x * 0.03 - 9, z * 0.03 + 4)));
+      this.col.lerp(this.tmp, earth * 0.8);
       if (h < 0.1) this.col.lerp(C.wet, smooth(0.1, -0.6, h));
       col.setXYZ(v, this.col.r, this.col.g, this.col.b);
       const sandy = Math.min(1, k.sand + smooth(0.45, 0.62, fbm(x * 0.01 - 30, z * 0.01 + 12)) * (1 - k.stone) * 0.6);
-      gr.setXYZ(v, sky, sandy, Math.min(1 - sandy, k.stone + smooth(0.5, 1.0, 1 - nor.getY(v)) * 0.8));
+      // the earth takes the rock scan's grit and the sand's grain
+      const rocky = Math.min(1 - sandy, k.stone + smooth(0.5, 1.0, 1 - nor.getY(v)) * 0.8 + earth * 0.55);
+      gr.setXYZ(v, sky, Math.min(1 - rocky, sandy + earth * 0.3), rocky);
     }
     pos.needsUpdate = nor.needsUpdate = col.needsUpdate = gr.needsUpdate = true;
     g.computeBoundingSphere();

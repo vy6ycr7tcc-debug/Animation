@@ -1,6 +1,6 @@
 /* Footprints of radiance that fade: the world remembers your passing briefly, then lets go.
    On land they are small glowing prints; on water the Water class draws rings instead. */
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 
 const COUNT = 48;
 const LIFE = 5; // seconds

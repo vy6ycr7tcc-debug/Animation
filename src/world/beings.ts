@@ -18,11 +18,12 @@
    greet you with a gesture, and its narration begins. The narration carries on as you walk
    away; nobody has to wait anywhere. Nothing is religious iconography: the forms are light,
    circles and lines. */
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
+import { T, worldPoints } from "../gpu/tsl";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { loadBytes } from "../core/assets";
+import { floatAttributes, loadBytes } from "../core/assets";
 import { lightBodyMaterial, tickLightBody } from "../player/lightBody";
 import { HEIGHT, key } from "../player/wanderer";
 import type { Sparks } from "./life";
@@ -97,19 +98,15 @@ function polyline(points: THREE.Vector3[], mat: THREE.LineBasicMaterial): THREE.
   return new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), mat);
 }
 /** Soft forms of light: bright at the silhouette, faint in the middle, with slow rising threads. */
-function rimGlow(color: THREE.Color, strength = 1): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-    uniforms: { uC: { value: color }, uS: { value: strength }, uT: { value: 0 } },
-    vertexShader: `varying vec3 vN;varying vec3 vV;varying vec3 vW;void main(){vec4 w=modelMatrix*vec4(position,1.0);vW=w.xyz;
-      vN=normalize(mat3(modelMatrix)*normal);vV=normalize(cameraPosition-w.xyz);gl_Position=projectionMatrix*viewMatrix*w;}`,
-    fragmentShader: `varying vec3 vN;varying vec3 vV;varying vec3 vW;uniform vec3 uC;uniform float uS,uT;void main(){
-      float f=1.0-abs(dot(normalize(vN),vV));
-      float threads=0.5+0.5*sin(vW.y*18.0-uT*1.5+sin(vW.x*7.0+vW.z*5.0)*1.5);
-      gl_FragColor=vec4(uC*(0.06+pow(f,2.0)*0.8+threads*0.05)*uS,1.0);}`,
-  });
+function rimGlow(color: THREE.Color, strength = 1): THREE.MeshBasicNodeMaterial & { uniforms: { uS: { value: number }; uT: { value: number } } } {
+  const { abs, cameraPosition, dot, normalize, normalWorldGeometry, positionWorld, pow, sin, uniform, vec3, vec4 } = T;
+  const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
+  const uS = uniform(strength), uT = uniform(0);
+  const vW = positionWorld;
+  const f = abs(dot(normalize(normalWorldGeometry), normalize(cameraPosition.sub(vW)))).oneMinus();
+  const threads = sin(vW.y.mul(18).sub(uT.mul(1.5)).add(sin(vW.x.mul(7).add(vW.z.mul(5))).mul(1.5))).mul(0.5).add(0.5);
+  m.colorNode = vec4(vec3(color.r, color.g, color.b).mul(pow(f, 2).mul(0.8).add(0.06).add(threads.mul(0.05))).mul(uS), 1);
+  return Object.assign(m, { uniforms: { uS, uT } });
 }
 function circle(r: number, n = 64, y = 0, a0 = 0, a1 = Math.PI * 2): THREE.Vector3[] {
   return Array.from({ length: n + 1 }, (_, i) => {
@@ -150,7 +147,7 @@ function orb(color: THREE.Color, r = 0.1): THREE.Group {
 class Being {
   root = new THREE.Group(); // at the feet
   props = new THREE.Group(); // in the being's frame
-  skin: THREE.MeshStandardMaterial;
+  skin: THREE.MeshStandardNodeMaterial;
   private meshes: THREE.Mesh[] = [];
   held: { obj: THREE.Object3D; bone: string; along: number; lift: number }[] = [];
   met = false;
@@ -603,13 +600,9 @@ function buildMoreProps(b: Being, world: THREE.Group, stone: THREE.Material): vo
   };
   /** A stream of light falling or arcing between two points, as motes. */
   const stream = (from: () => THREE.Vector3, to: () => THREE.Vector3, c: THREE.Color, count = 28, arc = 0.35) => {
-    const pos = new Float32Array(count * 3);
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    const mat = new THREE.PointsMaterial({ color: c, size: 0.05, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false });
-    const pts = new THREE.Points(g, mat);
-    pts.frustumCulled = false;
-    world.add(pts);
+    const wp = worldPoints(new Float32Array(count * 3), { color: c, size: 0.05, opacity: 0.8 });
+    const pos = wp.position.array as Float32Array, mat = wp.material;
+    world.add(wp.sprite);
     const a = new THREE.Vector3(), z = new THREE.Vector3();
     b.animated.push({
       update: (t, wake) => {
@@ -622,7 +615,7 @@ function buildMoreProps(b: Being, world: THREE.Group, stone: THREE.Material): vo
           pos[i * 3 + 1] = a.y + (z.y - a.y) * u + Math.sin(u * Math.PI) * arc;
           pos[i * 3 + 2] = a.z + (z.z - a.z) * u;
         }
-        g.attributes.position.needsUpdate = true;
+        wp.position.needsUpdate = true;
         mat.opacity = 0.45 + wake * 0.45;
       },
     });
@@ -1003,6 +996,7 @@ export class Beings {
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
     const gltf = await loader.parseAsync(bytes, "");
+    floatAttributes(gltf.scene);
     const model = gltf.scene;
     model.rotation.y = Math.PI;
     model.updateMatrixWorld(true);

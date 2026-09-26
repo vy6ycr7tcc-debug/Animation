@@ -5,10 +5,10 @@
      its narrations. Fruits pulse gently and can be tapped one by one.
    Approach shows quiet labels (they fade with distance); tapping one plays its narration
    (see ui/transcriptPlayer.ts). Nothing here ever plays by itself. */
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
+import { T, withFog, worldPoints, type N } from "../gpu/tsl";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { barkMaterial, grow, tubes, type TreeShape } from "./creation";
-import { IJ_FOG_GLSL } from "./fog";
 import { GROVE_SITES, ORB_SITES, type GroveSite, type Narration, type OrbSite } from "./sites";
 import { colliders } from "./terrain";
 
@@ -20,6 +20,27 @@ export interface Vessel {
   radius: number;
   grove?: GroveSite;
 }
+
+/** Four long, soft rays crossing at the centre: a star's sparkle. */
+function raysTexture(): THREE.Texture {
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const g = c.getContext("2d")!;
+  g.translate(64, 64);
+  for (let k = 0; k < 4; k++) {
+    g.rotate(Math.PI / 4 + (k % 2 ? 0.0 : 0));
+    const grd = g.createLinearGradient(-64, 0, 64, 0);
+    grd.addColorStop(0, "rgba(255,255,255,0)");
+    grd.addColorStop(0.5, k % 2 ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.8)");
+    grd.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = grd;
+    g.fillRect(-64, -1.2, 128, 2.4);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const RAYS = raysTexture();
 
 function halo(color: THREE.Color, size: number): THREE.Sprite {
   const c = document.createElement("canvas");
@@ -46,39 +67,49 @@ const fade = (d: number, full: number, gone: number) => 1 - THREE.MathUtils.smoo
 const colourFor = (i: number) => new THREE.Color().setHSL(...(PALETTE[i % PALETTE.length] as [number, number, number]));
 
 /* ---------------------------------------------------------------- orbs */
-function planetMaterial(a: THREE.Color, b: THREE.Color, seed: number): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
-    uniforms: { uA: { value: a }, uB: { value: b }, uSeed: { value: seed }, uT: { value: 0 }, uNear: { value: 0 }, uPlaying: { value: 0 } },
-    vertexShader: /* glsl */ `varying vec3 vN;varying vec3 vP;varying vec3 vW;void main(){vP=position;vec4 w=modelMatrix*vec4(position,1.0);vW=w.xyz;
-      vN=normalize(mat3(modelMatrix)*normal);gl_Position=projectionMatrix*viewMatrix*w;}`,
-    fragmentShader: /* glsl */ `varying vec3 vN;varying vec3 vP;varying vec3 vW;uniform vec3 uA,uB;uniform float uSeed,uT,uNear,uPlaying;
-      ${IJ_FOG_GLSL}
-      float h3(vec3 p){p=fract(p*0.3183+uSeed);p*=17.0;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}
-      float n3(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.0-2.0*f);
-        return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x),mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),
-                   mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x),mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y),f.z);}
-      void main(){
-        vec3 p=normalize(vP);
-        // slowly turning seas and bands of soft colour
-        float c=cos(uT*0.08),s=sin(uT*0.08);p=vec3(p.x*c-p.z*s,p.y,p.x*s+p.z*c);
-        float land=n3(p*2.2+uSeed*7.0)*0.6+n3(p*5.0)*0.3+n3(p*11.0)*0.1;
-        float bands=0.5+0.5*sin(p.y*9.0+land*4.0);
-        vec3 col=mix(uA,uB,smoothstep(0.42,0.6,land))*(0.55+0.45*bands);
-        vec3 n=normalize(vN);vec3 v=normalize(cameraPosition-vW);
-        float rim=pow(1.0-abs(dot(n,v)),2.4);
-        float lit=0.55+0.45*max(0.0,dot(n,normalize(vec3(0.3,0.8,0.2))));
-        vec3 c3=col*lit*(0.5+uNear*0.2+uPlaying*0.25)+mix(uA,vec3(1.0),0.3)*rim*(0.7+uNear*0.3);
-        vec4 fg=ijFog(vW);
-        gl_FragColor=vec4(mix(c3,fg.rgb,fg.a*0.8),1.0);
-      }`,
+type PlanetMaterial = THREE.MeshBasicNodeMaterial & { uniforms: { uT: { value: number }; uNear: { value: number }; uPlaying: { value: number } } };
+function planetMaterial(a: THREE.Color, b: THREE.Color, seed: number): PlanetMaterial {
+  const { abs, cameraPosition, cos, dot, float, floor, Fn, fract, max, mix, normalize, normalWorldGeometry, positionGeometry, positionWorld, pow, sin, smoothstep, uniform, vec3, vec4 } = T;
+  const uA = vec3(a.r, a.g, a.b), uB = vec3(b.r, b.g, b.b);
+  const uT = uniform(0), uNear = uniform(0), uPlaying = uniform(0);
+  const h3 = (p0: N): N => {
+    const p = fract(p0.mul(0.3183).add(seed)).mul(17);
+    return fract(p.x.mul(p.y).mul(p.z).mul(p.x.add(p.y).add(p.z)));
+  };
+  const n3 = Fn(([x]: N[]) => {
+    const i = floor(x), f0 = fract(x), f = f0.mul(f0).mul(float(3).sub(f0.mul(2)));
+    const h = (dx: number, dy: number, dz: number) => h3(i.add(vec3(dx, dy, dz)));
+    return mix(
+      mix(mix(h(0, 0, 0), h(1, 0, 0), f.x), mix(h(0, 1, 0), h(1, 1, 0), f.x), f.y),
+      mix(mix(h(0, 0, 1), h(1, 0, 1), f.x), mix(h(0, 1, 1), h(1, 1, 1), f.x), f.y),
+      f.z,
+    );
   });
+  const m = new THREE.MeshBasicNodeMaterial({ fog: false });
+  m.colorNode = Fn(() => {
+    const p0 = normalize(positionGeometry);
+    // slowly turning seas and bands of soft colour
+    const c = cos(uT.mul(0.08)), s = sin(uT.mul(0.08));
+    const p = vec3(p0.x.mul(c).sub(p0.z.mul(s)), p0.y, p0.x.mul(s).add(p0.z.mul(c)));
+    const land = n3(p.mul(2.2).add(seed * 7)).mul(0.6).add(n3(p.mul(5)).mul(0.3)).add(n3(p.mul(11)).mul(0.1));
+    const bands = sin(p.y.mul(9).add(land.mul(4))).mul(0.5).add(0.5);
+    const col = mix(uA, uB, smoothstep(0.42, 0.6, land)).mul(bands.mul(0.45).add(0.55));
+    const vW = positionWorld;
+    const n = normalize(normalWorldGeometry), v = normalize(cameraPosition.sub(vW));
+    const rim = pow(float(1).sub(abs(dot(n, v))), 2.4);
+    const lit = max(0, dot(n, normalize(vec3(0.3, 0.8, 0.2)))).mul(0.45).add(0.55);
+    const c3 = col.mul(lit).mul(uNear.mul(0.2).add(0.5).add(uPlaying.mul(0.25))).add(mix(uA, vec3(1), 0.3).mul(rim).mul(uNear.mul(0.3).add(0.7)));
+    // the air in front of it, a little lighter than for the land
+    return vec4(mix(c3, withFog(c3, vW), 0.8), 1);
+  })();
+  return Object.assign(m, { uniforms: { uT, uNear, uPlaying } });
 }
 
 interface OrbView {
   site: OrbSite;
   group: THREE.Group;
   planet: THREE.Mesh;
-  mat: THREE.ShaderMaterial;
+  mat: PlanetMaterial;
   moon: THREE.Mesh;
   glow: THREE.Sprite;
   vessel: Vessel;
@@ -124,6 +155,7 @@ export class Vessels {
   group = new THREE.Group();
   vessels: Vessel[] = [];
   private orbs: OrbView[] = [];
+  private stars: { site: OrbSite; group: THREE.Group; glow: THREE.Sprite; rays: THREE.Sprite; vessel: Vessel; phase: number }[] = [];
   private groves: GroveView[] = [];
   private labels = document.getElementById("labels") as HTMLDivElement;
   private labelEls = new Map<object, HTMLDivElement>();
@@ -136,16 +168,18 @@ export class Vessels {
   }
 
   private buildOrb(site: OrbSite, i: number): void {
+    if (site.realm === "star") return this.buildStar(site, i);
     const a = colourFor(i * 5 + 2), b = colourFor(i * 5 + 5).offsetHSL(0.08, 0, -0.1);
-    const r = site.realm === "sky" ? 1.1 : 0.7;
+    // a planet in the sky is large, a world of its own seen from the ground; the others are small
+    const r = site.realm === "sky" ? 26 + (i % 3) * 8 : 0.7;
     const group = new THREE.Group();
     group.position.set(site.x, site.y, site.z);
     const mat = planetMaterial(a, b, (i * 0.137) % 1);
     const planet = new THREE.Mesh(new THREE.SphereGeometry(r, 40, 28), mat);
     const moon = new THREE.Mesh(new THREE.SphereGeometry(r * 0.16, 16, 12), new THREE.MeshBasicMaterial({ color: a.clone().lerp(new THREE.Color(1, 1, 1), 0.6) }));
-    const glow = halo(a.clone().lerp(new THREE.Color(1, 1, 1), 0.3), r * 7);
+    const glow = halo(a.clone().lerp(new THREE.Color(1, 1, 1), 0.3), r * (site.realm === "sky" ? 3.2 : 7));
     group.add(planet, moon, glow);
-    if (i % 3 === 1) {
+    if (i % 3 === 1 || site.realm === "sky") {
       // a few carry a faint ring
       const ring = new THREE.Mesh(
         new THREE.RingGeometry(r * 1.45, r * 1.75, 64).rotateX(-Math.PI / 2 + 0.35),
@@ -159,6 +193,23 @@ export class Vessels {
     this.orbs.push({ site, group, planet, mat, moon, glow, vessel, phase: i * 1.3 });
   }
 
+  /** A star of the night sky that carries a narration: a bright core, a soft halo and four
+      slow-turning rays, far overhead. Fly up to it to listen. */
+  private buildStar(site: OrbSite, i: number): void {
+    const col = colourFor(i * 7 + 3).lerp(new THREE.Color(1, 0.95, 0.85), 0.55);
+    const group = new THREE.Group();
+    group.position.set(site.x, site.y, site.z);
+    const core = new THREE.Mesh(new THREE.SphereGeometry(2.4, 24, 16), new THREE.MeshBasicMaterial({ color: col.clone().multiplyScalar(2.2), fog: false }));
+    const glow = halo(col, 70);
+    const rays = new THREE.Sprite(new THREE.SpriteMaterial({ map: RAYS, color: col, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
+    rays.scale.setScalar(120);
+    group.add(core, glow, rays);
+    this.group.add(group);
+    const vessel: Vessel = { kind: "orb", narration: site.orb, pos: group.position.clone(), radius: 3 };
+    this.vessels.push(vessel);
+    this.stars.push({ site, group, glow, rays, vessel, phase: i * 1.7 });
+  }
+
   private buildGrove(site: GroveSite): void {
     const accent = colourFor(site.index * 3 + 1);
     const shape = groveShape(site.index);
@@ -168,7 +219,7 @@ export class Vessels {
     group.rotation.y = site.index * 1.7;
     const scale = 1.15;
     group.scale.setScalar(scale);
-    const trunk = new THREE.Mesh(mergeGeometries([tubes(limbs), tubes(roots, -0.2)]), barkMaterial(accent.clone().lerp(new THREE.Color(1, 1, 1), 0.25)));
+    const trunk = new THREE.Mesh(mergeGeometries([tubes(limbs), tubes(roots, -0.2)]), barkMaterial(accent.clone().lerp(new THREE.Color(1, 1, 1), 0.25), (site.index * 0.618) % 1));
     trunk.castShadow = true;
     group.add(trunk);
     // a canopy of soft glints in the grove's own colour
@@ -176,13 +227,8 @@ export class Vessels {
     let s = site.index * 977 + 1;
     const R = () => ((s = (s * 16807) % 2147483647) / 2147483647);
     for (const tp of tips) for (let k = 0; k < 10; k++) pts.push(tp.x + (R() - 0.5) * 2.6, tp.y + (R() - 0.3) * 1.8, tp.z + (R() - 0.5) * 2.6);
-    const cg = new THREE.BufferGeometry();
-    cg.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
-    const canopy = new THREE.Points(
-      cg,
-      new THREE.PointsMaterial({ color: accent.clone().lerp(new THREE.Color(1, 1, 1), 0.35), size: 0.22, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }),
-    );
-    group.add(canopy);
+    const canopy = worldPoints(new Float32Array(pts), { color: accent.clone().lerp(new THREE.Color(1, 1, 1), 0.35), size: 0.22, opacity: 0.8 });
+    group.add(canopy.sprite);
     this.group.add(group);
     group.updateMatrixWorld(true);
     colliders.push({ x: site.x, z: site.z, r: shape.radius * scale * 1.3, top: site.y + shape.height * scale });
@@ -217,7 +263,7 @@ export class Vessels {
     const w = innerWidth, h = innerHeight;
     for (const vs of this.vessels) {
       const d = vs.pos.distanceTo(camera.position);
-      if (d > 160) continue;
+      if (d - vs.radius > 160) continue;
       this.v.copy(vs.pos).project(camera);
       if (this.v.z > 1) continue;
       const sx = (this.v.x * 0.5 + 0.5) * w, sy = (-this.v.y * 0.5 + 0.5) * h;
@@ -236,7 +282,7 @@ export class Vessels {
   nearest(p: THREE.Vector3, within = 9): Vessel | null {
     let best: Vessel | null = null, bd = within;
     for (const vs of this.vessels) {
-      const d = vs.pos.distanceTo(p);
+      const d = vs.pos.distanceTo(p) - Math.max(0, vs.radius - 1);
       if (d < bd) {
         bd = d;
         best = vs;
@@ -250,7 +296,7 @@ export class Vessels {
       const bob = reduced ? 0 : Math.sin(t * 0.5 + o.phase) * 0.3;
       o.group.position.set(o.site.x, o.site.y + bob, o.site.z);
       o.vessel.pos.copy(o.group.position);
-      const d = player.distanceTo(o.group.position);
+      const d = Math.max(0, player.distanceTo(o.group.position) - o.vessel.radius);
       const playing = this.playingId === o.vessel.narration.id ? 1 : 0;
       o.mat.uniforms.uT.value = t;
       o.mat.uniforms.uNear.value = fade(d, 6, 30);
@@ -261,6 +307,17 @@ export class Vessels {
       // the halo is for finding it from afar; close up it steps back so the planet itself shows
       o.glow.material.opacity = (0.5 - 0.35 * o.mat.uniforms.uNear.value) + playing * 0.15;
       o.glow.scale.setScalar(r * (5 + (reduced ? 0 : Math.sin(t * 0.9 + o.phase)) * 0.4 + playing * 1.5));
+    }
+    for (const st of this.stars) {
+      const playing = this.playingId === st.vessel.narration.id ? 1 : 0;
+      const tw = reduced ? 1 : 0.85 + 0.15 * Math.sin(t * 1.7 + st.phase);
+      st.rays.material.rotation = reduced ? 0 : t * 0.03 + st.phase;
+      st.rays.material.opacity = (0.55 + playing * 0.35) * tw;
+      st.glow.material.opacity = (0.45 + playing * 0.3) * tw;
+      // up close it steps back, so the core itself shows
+      const near = fade(player.distanceTo(st.group.position), 30, 160);
+      st.glow.scale.setScalar(70 - near * 45);
+      st.rays.scale.setScalar(120 - near * 70);
     }
     for (const g of this.groves) {
       for (const f of g.fruits) {
@@ -310,8 +367,13 @@ export class Vessels {
       const s = n.sources[0];
       return `<b>${esc(n.title)}</b>${s ? `<span>${esc(s.entity)} · ${esc(s.date)}</span>` : ""}`;
     };
+    for (const st of this.stars) {
+      const d = player.distanceTo(st.vessel.pos);
+      const el = this.label(st, line(st.vessel.narration), "orb");
+      this.place(el, this.v.copy(st.vessel.pos).add(new THREE.Vector3(0, 6, 0)), camera, fade(d, 40, 90));
+    }
     for (const o of this.orbs) {
-      const d = player.distanceTo(o.vessel.pos);
+      const d = Math.max(0, player.distanceTo(o.vessel.pos) - o.vessel.radius);
       const el = this.label(o, line(o.vessel.narration), "orb");
       this.place(el, this.v.copy(o.vessel.pos).add(new THREE.Vector3(0, o.vessel.radius + 0.5, 0)), camera, fade(d, 10, 26));
     }

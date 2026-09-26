@@ -1,57 +1,27 @@
 /* Etched light: the ink drawings' linework carried into 3D.
-   - contourMaterial: terrain whose height contours glow as fine, slightly wandering lines.
+   - etchedStone: dark stone with a faint gold lattice, which wakes when you are still before it.
    - buildMandala: hand-drawn line geometry on the central platform (seven-fold, one ring per island). */
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
+import { T, type N } from "../gpu/tsl";
+import { groundLight } from "./lightfield";
 import { surface } from "./textures";
+
+const {
+  abs, cameraPosition, cameraViewMatrix, cos, distance, dot, float, floor, Fn, fract, fwidth, length, max, mix, normalize, normalView,
+  normalWorldGeometry, positionWorld, pow, sin, smoothstep, texture, uniform, vec2, vec3, vec4,
+} = T;
 
 /** Stillness before a rock or crystal: it vibrates light outward (waves over its surface). */
 export const vibeUniforms = {
-  uVibePos: { value: new THREE.Vector3(0, -1e4, 0) },
-  uVibeK: { value: 0 },
-  uVibeR: { value: 1 },
+  uVibePos: uniform(new THREE.Vector3(0, -1e4, 0)),
+  uVibeK: uniform(0),
+  uVibeR: uniform(1),
 };
 
 export const etchUniforms = {
-  uEtchT: { value: 0 },
-  uEtchGain: { value: 1 }, // raised as the world brightens with progress
+  uEtchT: uniform(0),
+  uEtchGain: uniform(1), // raised as the world brightens with progress
 };
-
-export function contourMaterial(lineColor: string, spacing: number): THREE.MeshStandardMaterial {
-  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
-  const line = new THREE.Color(lineColor);
-  m.onBeforeCompile = (sh) => {
-    sh.uniforms.uEtchT = etchUniforms.uEtchT;
-    sh.uniforms.uEtchGain = etchUniforms.uEtchGain;
-    sh.uniforms.uLine = { value: line };
-    sh.uniforms.uSpacing = { value: spacing };
-    sh.vertexShader = sh.vertexShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vEtchW;")
-      .replace("#include <project_vertex>", "#include <project_vertex>\nvEtchW=(modelMatrix*vec4(transformed,1.0)).xyz;");
-    sh.fragmentShader = sh.fragmentShader
-      .replace(
-        "#include <common>",
-        "#include <common>\nvarying vec3 vEtchW;uniform vec3 uLine;uniform float uSpacing,uEtchT,uEtchGain;",
-      )
-      .replace(
-        "#include <emissivemap_fragment>",
-        `#include <emissivemap_fragment>
-        {
-          // Contours with a hand-drawn wander; they breathe very slowly.
-          float wob=sin(vEtchW.x*0.37+vEtchW.z*0.21)*0.18+sin(vEtchW.z*0.83-vEtchW.x*0.11)*0.07;
-          float f=(vEtchW.y+wob)/uSpacing;
-          float w=fwidth(f);
-          float dd=abs(fract(f+0.5)-0.5);
-          float ln=1.0-smoothstep(w*0.35,w*1.1,dd);
-          float above=smoothstep(0.15,0.6,vEtchW.y);
-          float dist=length(vEtchW-cameraPosition);
-          float fade=1.0-smoothstep(45.0,140.0,dist);
-          float breathe=0.8+0.2*sin(uEtchT*0.5+vEtchW.y*0.4);
-          totalEmissiveRadiance+=uLine*ln*above*fade*breathe*0.42*uEtchGain;
-        }`,
-      );
-  };
-  return m;
-}
 
 /** Seeded wobble so repeated shapes never match exactly, like a pen. */
 function rng(seed: number) {
@@ -129,100 +99,91 @@ export function buildMandala(): THREE.Group {
   return group;
 }
 
+const stoneH = (p: N): N => fract(sin(dot(p, vec3(127.1, 311.7, 74.7))).mul(43758.5453));
+const stoneN = Fn(([x]: N[]) => {
+  const i = floor(x), f0 = fract(x), f = f0.mul(f0).mul(float(3).sub(f0.mul(2)));
+  const h = (dx: number, dy: number, dz: number) => stoneH(i.add(vec3(dx, dy, dz)));
+  return mix(
+    mix(mix(h(0, 0, 0), h(1, 0, 0), f.x), mix(h(0, 1, 0), h(1, 1, 0), f.x), f.y),
+    mix(mix(h(0, 0, 1), h(1, 0, 1), f.x), mix(h(0, 1, 1), h(1, 1, 1), f.x), f.y),
+    f.z,
+  );
+});
+/** The lattice: three families of lines and circles around their nodes, hand-wobbled. */
+const etchLines = Fn(([p0, scale]: N[]) => {
+  const p1 = p0.mul(scale);
+  const p = p1.add(vec2(sin(p1.y.mul(1.7)), sin(p1.x.mul(1.3))).mul(0.05)).toVar(); // the pen's wobble
+  const l = float(0).toVar();
+  for (let k = 0; k < 3; k++) {
+    const a = k * 1.0471976;
+    const f = dot(p, vec2(Math.cos(a), Math.sin(a)));
+    const w = fwidth(f);
+    l.assign(max(l, float(1).sub(smoothstep(w.mul(0.3), w, abs(fract(f.add(0.5)).sub(0.5))))));
+  }
+  const g = vec2(p.x.sub(p.y.mul(0.57735)), p.y.mul(1.1547));
+  const c = floor(g.add(0.5));
+  const cc = vec2(c.x.add(c.y.mul(0.5)), c.y.mul(0.866));
+  const r = length(p.sub(cc));
+  const wr = fwidth(r);
+  l.assign(max(l, float(1).sub(smoothstep(wr.mul(0.3), wr, abs(r.sub(0.5))))));
+  return l;
+});
+
 /** Dark stone etched with fine gold sacred-geometry linework: a triangular lattice with
     circles around its nodes, hand-wobbled, projected onto whichever faces it covers. */
-export function etchedStone(color = "#1c1a2c", line = "#e9c37d", scale = 2.2, opts: { triplanar?: boolean } = {}): THREE.MeshStandardMaterial {
-  const m = new THREE.MeshStandardMaterial({ color, roughness: 0.78, metalness: 0.05 });
+export function etchedStone(
+  color = "#1c1a2c",
+  line = "#e9c37d",
+  scale = 2.2,
+  opts: { triplanar?: boolean; map?: THREE.Texture | null; normalMap?: THREE.Texture | null } = {},
+): THREE.MeshStandardNodeMaterial {
+  const m = new THREE.MeshStandardNodeMaterial({ color, roughness: 0.78, metalness: 0.05 });
+  if (opts.map) m.map = opts.map;
   // real scanned rock, projected from three sides (so it never stretches), unless the mesh
   // brings its own maps
   const triplanar = opts.triplanar ?? true;
   const rock = surface("rock");
-  const lineColor = new THREE.Color(line);
-  m.onBeforeCompile = (sh) => {
-    sh.uniforms.uEtchT = etchUniforms.uEtchT;
-    sh.uniforms.uEtchGain = etchUniforms.uEtchGain;
-    sh.uniforms.uLine = { value: lineColor };
-    sh.uniforms.uScale = { value: scale };
-    sh.uniforms.tRockD = { value: rock.diff };
-    Object.assign(sh.uniforms, vibeUniforms);
-    sh.uniforms.tRockN = { value: rock.nor };
-    sh.vertexShader = sh.vertexShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vEW;varying vec3 vEN;")
-      .replace(
-        "#include <project_vertex>",
-        `#include <project_vertex>
-        mat4 eM=modelMatrix;
-        #ifdef USE_INSTANCING
-        eM=modelMatrix*instanceMatrix;
-        #endif
-        vEW=(eM*vec4(transformed,1.0)).xyz;vEN=normalize(mat3(eM)*objectNormal);`,
-      );
-    sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", `#include <common>
-        varying vec3 vEW;varying vec3 vEN;uniform vec3 uLine;uniform float uScale,uEtchT,uEtchGain;
-        uniform sampler2D tRockD,tRockN;
-        uniform vec3 uVibePos;uniform float uVibeK,uVibeR;
-        vec3 triW(){vec3 w=pow(abs(vEN),vec3(4.0));return w/(w.x+w.y+w.z);}
-        vec3 triTex(sampler2D t,float s){vec3 w=triW();
-          return texture2D(t,vEW.zy/s).rgb*w.x+texture2D(t,vEW.xz/s).rgb*w.y+texture2D(t,vEW.xy/s).rgb*w.z;}
-        float stoneH(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}
-        float stoneN(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.0-2.0*f);
-          return mix(mix(mix(stoneH(i),stoneH(i+vec3(1,0,0)),f.x),mix(stoneH(i+vec3(0,1,0)),stoneH(i+vec3(1,1,0)),f.x),f.y),
-                     mix(mix(stoneH(i+vec3(0,0,1)),stoneH(i+vec3(1,0,1)),f.x),mix(stoneH(i+vec3(0,1,1)),stoneH(i+vec3(1,1,1)),f.x),f.y),f.z);}
-        float etchLines(vec2 p){
-          p*=uScale;
-          p+=0.05*vec2(sin(p.y*1.7),sin(p.x*1.3)); // the pen's wobble
-          float l=0.0;
-          for(int k=0;k<3;k++){
-            float a=float(k)*1.0471976;vec2 d=vec2(cos(a),sin(a));
-            float f=dot(p,d);float w=fwidth(f);
-            l=max(l,1.0-smoothstep(w*0.3,w*1.0,abs(fract(f+0.5)-0.5)));
-          }
-          // circles around the lattice nodes
-          vec2 g=vec2(p.x-p.y*0.57735,p.y*1.1547);vec2 c=floor(g+0.5);vec2 cc=vec2(c.x+c.y*0.5,c.y*0.866);
-          float r=length(p-cc);float wr=fwidth(r);
-          l=max(l,1.0-smoothstep(wr*0.3,wr*1.0,abs(r-0.5)));
-          return l;
-        }`)
-      .replace(
-        "#include <color_fragment>",
-        triplanar ? `#include <color_fragment>
-        {
-          vec3 det=triTex(tRockD,2.5)*2.2;
-          diffuseColor.rgb*=mix(vec3(dot(det,vec3(0.3,0.5,0.2))),det,0.35);
-        }` : "#include <color_fragment>",
-      )
-      .replace(
-        "#include <normal_fragment_maps>",
-        `#include <normal_fragment_maps>
-        {
-          ${triplanar ? `{vec3 w=triW();vec3 nx=texture2D(tRockN,vEW.zy/2.5).xyz*2.0-1.0,ny=texture2D(tRockN,vEW.xz/2.5).xyz*2.0-1.0,nz=texture2D(tRockN,vEW.xy/2.5).xyz*2.0-1.0;
-            vec3 dn=vec3(0.0,nx.y,nx.x)*w.x+vec3(ny.x,0.0,ny.y)*w.y+vec3(nz.x,nz.y,0.0)*w.z;
-            normal=normalize(normal+mat3(viewMatrix)*dn*1.1);}` : ""}
-          // weathered stone: soft pits and swells, strongest up close
-          vec3 sp=vEW*2.3;
-          float s0=stoneN(sp);
-          vec3 g=vec3(stoneN(sp+vec3(0.2,0,0))-s0,stoneN(sp+vec3(0,0.2,0))-s0,stoneN(sp+vec3(0,0,0.2))-s0);
-          float near=1.0-smoothstep(10.0,40.0,length(vEW-cameraPosition));
-          normal=normalize(normal-mat3(viewMatrix)*g*2.2*near);
-        }`,
-      )
-      .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
-        {
-          vec3 an=abs(vEN);
-          float l=an.y>0.6?etchLines(vEW.xz):(an.x>an.z?etchLines(vEW.zy):etchLines(vEW.xy));
-          float dist=length(vEW-cameraPosition);
-          float fade=1.0-smoothstep(25.0,70.0,dist);
-          // the drawings' lattice survives only as a faint trace in the stone
-          totalEmissiveRadiance+=uLine*l*fade*0.06*uEtchGain*(0.85+0.15*sin(uEtchT*0.6+vEW.y));
-          // vibrating: rings of light race outward over the stone, and its lattice wakes
-          if(uVibeK>0.001){
-            float vd=distance(vEW,uVibePos);
-            float on=1.0-smoothstep(uVibeR*1.1,uVibeR*1.6+0.6,vd);
-            float wave=pow(0.5+0.5*sin(vd*10.0-uEtchT*9.0),6.0)+pow(0.5+0.5*sin(vd*4.0-uEtchT*5.0),10.0)*0.6;
-            totalEmissiveRadiance+=(vec3(1.0,0.85,0.6)*wave*0.9+uLine*l*1.2)*on*uVibeK;
-          }
-        }`);
-  };
+  const uLine = vec3(...new THREE.Color(line).toArray());
+  const E = etchUniforms, V = vibeUniforms;
+  const vEW = positionWorld, vEN = normalWorldGeometry;
+  const wp = pow(abs(vEN), vec3(4));
+  const triW = wp.div(wp.x.add(wp.y).add(wp.z));
+  const tri = (t: THREE.Texture, s: number) =>
+    [texture(t, vEW.zy.div(s)), texture(t, vEW.xz.div(s)), texture(t, vEW.xy.div(s))];
+  const camD = length(vEW.sub(cameraPosition));
+  if (triplanar) {
+    const [a, b, c] = tri(rock.diff, 2.5);
+    const det = a.rgb.mul(triW.x).add(b.rgb.mul(triW.y)).add(c.rgb.mul(triW.z)).mul(2.2);
+    m.colorNode = T.materialColor.mul(mix(vec3(dot(det, vec3(0.3, 0.5, 0.2))), det, 0.35));
+  }
+  // the scans' relief, then weathered stone: soft pits and swells, strongest up close
+  let nView: N = opts.normalMap ? T.normalMap(texture(opts.normalMap), vec2(1.2)) : normalView;
+  if (triplanar) {
+    const [nx0, ny0, nz0] = tri(rock.nor, 2.5).map((t: N) => t.xyz.mul(2).sub(1));
+    const dn = vec3(0, nx0.y, nx0.x).mul(triW.x).add(vec3(ny0.x, 0, ny0.y).mul(triW.y)).add(vec3(nz0.x, nz0.y, 0).mul(triW.z));
+    nView = nView.add(cameraViewMatrix.mul(vec4(dn.mul(1.1), 0)).xyz);
+  }
+  const sp = vEW.mul(2.3);
+  const s0 = stoneN(sp);
+  const g = vec3(stoneN(sp.add(vec3(0.2, 0, 0))).sub(s0), stoneN(sp.add(vec3(0, 0.2, 0))).sub(s0), stoneN(sp.add(vec3(0, 0, 0.2))).sub(s0));
+  const near = float(1).sub(smoothstep(10, 40, camD));
+  m.normalNode = normalize(normalize(nView).sub(cameraViewMatrix.mul(vec4(g.mul(2.2).mul(near), 0)).xyz));
+
+  m.emissiveNode = Fn(() => {
+    const an = abs(vEN);
+    const l = an.y.greaterThan(0.6).select(etchLines(vEW.xz, scale), an.x.greaterThan(an.z).select(etchLines(vEW.zy, scale), etchLines(vEW.xy, scale)));
+    const fade = float(1).sub(smoothstep(25, 70, camD));
+    // the drawings' lattice survives only as a faint trace in the stone
+    const e = uLine.mul(l).mul(fade).mul(0.06).mul(E.uEtchGain).mul(sin(E.uEtchT.mul(0.6).add(vEW.y)).mul(0.15).add(0.85)).toVar();
+    // the lights nearby fall on the stone too
+    e.addAssign(groundLight(vEW).mul(T.materialColor.rgb.mul(1.4).add(0.08)).mul(T.smoothstep(-0.3, 0.6, vEN.y).mul(0.6).add(0.4)));
+    // vibrating: rings of light race outward over the stone, and its lattice wakes
+    const vd = distance(vEW, V.uVibePos);
+    const on = float(1).sub(smoothstep(V.uVibeR.mul(1.1), V.uVibeR.mul(1.6).add(0.6), vd));
+    const wave = pow(sin(vd.mul(10).sub(E.uEtchT.mul(9))).mul(0.5).add(0.5), 6).add(pow(sin(vd.mul(4).sub(E.uEtchT.mul(5))).mul(0.5).add(0.5), 10).mul(0.6));
+    e.addAssign(vec3(1.0, 0.85, 0.6).mul(wave).mul(0.9).add(uLine.mul(l).mul(1.2)).mul(on).mul(V.uVibeK));
+    return e;
+  })();
+  void cos;
   return m;
 }
