@@ -20,9 +20,9 @@ import type { Sparks } from "./life";
 import type { Station } from "./stations";
 import { surface } from "./textures";
 import { colliders, heightAt, LANDMARK_SITES, SPAWN, WATER_Y, type Collider } from "./terrain";
-import { T } from "../gpu/tsl";
+import { T, vnoise, worldPoints, type N } from "../gpu/tsl";
 
-const { exp, float, length, smoothstep, uniform, uv, vec3, vec4 } = T;
+const { clamp, dot, exp, float, length, mix, positionWorld, smoothstep, texture, uniform, uv, vec2, vec3, vec4 } = T;
 
 /** Where the temple stands: far beyond the world's edge, a place apart. */
 export const TEMPLE_ORIGIN = new THREE.Vector3(30000, 1, 0);
@@ -90,18 +90,22 @@ function reliefTexture(): THREE.CanvasTexture {
   }
   const Y = (m: number) => H - m * PX; // metres from the floor to canvas y
   const cut = (draw: () => void, pigment?: string) => {
+    // each pass builds the path, then strokes it: the lit lip, the shadowed cut, the paint in it
     g.save();
     g.translate(1.5, 2);
-    g.strokeStyle = "rgba(246,226,190,0.55)"; // the lit lip
+    g.strokeStyle = "rgba(246,226,190,0.55)";
     draw();
+    g.stroke();
     g.restore();
-    g.strokeStyle = "rgba(62,42,24,0.8)"; // the shadowed cut
+    g.strokeStyle = "rgba(62,42,24,0.6)";
     draw();
+    g.stroke();
     if (pigment) {
-      g.strokeStyle = pigment;
       g.save();
-      g.lineWidth = Math.max(1, g.lineWidth * 0.45);
+      g.strokeStyle = pigment;
+      g.lineWidth = Math.max(1, g.lineWidth * 0.55);
       draw();
+      g.stroke();
       g.restore();
     }
   };
@@ -115,7 +119,7 @@ function reliefTexture(): THREE.CanvasTexture {
   band(1.4, "rgba(170,120,40,0.4)", 0.06);
   // the glyphs: simple forms, carved in columns and rows
   const glyph = (k: number, x: number, y: number, s: number) => {
-    g.lineWidth = Math.max(2, s * 0.09);
+    g.lineWidth = Math.max(1.5, s * 0.055);
     g.beginPath();
     switch (k) {
       case 0: // the sun on the horizon
@@ -136,12 +140,11 @@ function reliefTexture(): THREE.CanvasTexture {
         g.moveTo(x, y);
         g.quadraticCurveTo(x + s * 0.25, y - s * 0.15, x + s * 0.2, y - s * 0.3);
         break;
-      case 3: // a star, five points
-        for (let j = 0; j <= 5; j++) {
-          const a = -Math.PI / 2 + (j * 4 * Math.PI) / 5;
-          const px = x + Math.cos(a) * s * 0.4, py = y + Math.sin(a) * s * 0.4;
-          if (j) g.lineTo(px, py);
-          else g.moveTo(px, py);
+      case 3: // a star, as the temples drew it: five arms from a centre
+        for (let j = 0; j < 5; j++) {
+          const a = -Math.PI / 2 + (j * 2 * Math.PI) / 5;
+          g.moveTo(x, y);
+          g.lineTo(x + Math.cos(a) * s * 0.38, y + Math.sin(a) * s * 0.38);
         }
         break;
       case 4: // a lotus
@@ -192,7 +195,7 @@ function reliefTexture(): THREE.CanvasTexture {
         for (let q = 0; q <= 5; q++) g.lineTo(x - s * 0.4 + (q * s * 0.8) / 5, y + (q % 2 ? -s * 0.25 : s * 0.25));
     }
   };
-  const pig = ["rgba(170,70,40,0.55)", "rgba(40,90,140,0.5)", "rgba(60,120,80,0.45)", "rgba(190,140,40,0.55)"];
+  const pig = ["rgba(150,62,36,0.5)", "rgba(40,86,138,0.48)", "rgba(56,112,84,0.42)", "rgba(190,140,52,0.5)"]; // faded by the ages
   // four registers, each a line of great forms between columns of small ones
   const regs = [[1.8, 3.9], [4.3, 6.3], [6.7, 8.7], [9.1, 11.0]];
   for (const [a, b] of regs) {
@@ -201,16 +204,22 @@ function reliefTexture(): THREE.CanvasTexture {
     for (let x = 0.5; x < 8; x += 2) {
       // a great form
       const k = Math.floor(r() * 12);
-      cut(() => glyph(k, x * PX, Y(mid), (b - a) * PX * 0.8), pig[Math.floor(r() * pig.length)]);
-      // a column of small ones beside it
-      for (let yy = a + 0.3; yy < b - 0.1; yy += 0.42) cut(() => glyph(Math.floor(r() * 12), (x + 1) * PX, Y(yy), PX * 0.34));
+      cut(() => glyph(k, x * PX, Y(mid), (b - a) * PX * 0.5), pig[Math.floor(r() * pig.length)]);
+      // columns of small ones beside it, painted in turn, between ruled lines (as text runs)
+      for (const cx of [0.7, 1.0, 1.3]) {
+        let j = 0;
+        for (let yy = a + 0.25; yy < b - 0.1; yy += 0.3) {
+          const kk = Math.floor(r() * 12); // chosen once: the lip, the cut and the paint are one glyph
+          cut(() => glyph(kk, (x + cx) * PX, Y(yy), PX * 0.24), pig[(j++ + Math.floor(cx * 10)) % pig.length]);
+        }
+      }
       g.lineWidth = 2;
       cut(() => {
         g.beginPath();
-        g.moveTo((x + 0.75) * PX, Y(a));
-        g.lineTo((x + 0.75) * PX, Y(b));
-        g.moveTo((x + 1.25) * PX, Y(a));
-        g.lineTo((x + 1.25) * PX, Y(b));
+        for (const lx of [0.55, 0.85, 1.15, 1.45]) {
+          g.moveTo((x + lx) * PX, Y(a));
+          g.lineTo((x + lx) * PX, Y(b));
+        }
       });
     }
   }
@@ -377,6 +386,7 @@ export class Temple {
   gateHeading = 0;
   private shrines: { beings: Beings; pivot: THREE.Group; numeral: string; name: string }[] = [];
   private centreShaft: THREE.Mesh[] = [];
+  private dust!: { pos: THREE.InstancedBufferAttribute; base: Float32Array };
   private flames: { light: THREE.PointLight; sprite: THREE.Sprite; base: number; phase: number }[] = [];
   private shafts: THREE.MeshBasicNodeMaterial[] = [];
   private uT = uniform(0);
@@ -394,12 +404,44 @@ export class Temple {
     this.buildGate();
   }
 
-  private stoneMaterial(map: THREE.Texture, rough = 0.92): THREE.MeshStandardNodeMaterial {
-    const m = new THREE.MeshStandardNodeMaterial({ map, roughness: rough, metalness: 0 });
-    const rock = surface("rock").nor.clone();
-    rock.wrapS = rock.wrapT = THREE.RepeatWrapping; // (shares the scan's image: it uploads when that loads)
-    m.normalMap = rock;
-    m.normalScale = new THREE.Vector2(0.5, 0.5);
+  /** Stone that feels real (Samuel: "more real life, more texture… Assassin's Creed Origins"):
+      the painted or plain surface `map` (its uv spanning `du` × `dv` metres), carrying the
+      scanned rock's grain at two scales, its relief in the normals, and weathering: darker grime
+      toward the floor, faint streaks run down by old water, broad uneven patches. `base` (a
+      colour node) replaces the map, as for the painted columns. */
+  private stoneMaterial(map: THREE.Texture | null, du: number, dv: number, rough = 0.92, base?: N): THREE.MeshStandardNodeMaterial {
+    const m = new THREE.MeshStandardNodeMaterial({ roughness: rough, metalness: 0 });
+    const rockC = surface("rock").diff, rockN = surface("rock").nor.clone();
+    rockN.wrapS = rockN.wrapT = THREE.RepeatWrapping; // (shares the scan's image: it uploads when that loads)
+    rockN.repeat.set(du / 1.7, dv / 1.7);
+    m.normalMap = rockN;
+    m.normalScale = new THREE.Vector2(0.85, 0.85);
+    const U = uv(), metres = vec2(U.x.mul(du), U.y.mul(dv));
+    const lum = (c: N) => dot(c.rgb, vec3(0.3, 0.5, 0.2));
+    const grain = lum(texture(rockC, metres.div(1.7))).mul(0.6).add(lum(texture(rockC, metres.div(6.1))).mul(0.4));
+    const detail = clamp(grain.div(0.36), 0.62, 1.35);
+    const pw = positionWorld;
+    const hy = pw.y.sub(TEMPLE_ORIGIN.y);
+    const grime = mix(float(0.6), float(1), smoothstep(0, 1.8, hy));
+    const streak = mix(float(0.82), float(1), vnoise(vec2(pw.x.add(pw.z).mul(1.3), hy.mul(0.09))));
+    const patch = mix(float(0.84), float(1.08), vnoise(pw.xz.add(vec2(pw.y, pw.y)).mul(0.22)));
+    const surfaceC = base ?? texture(map!, U).rgb;
+    m.colorNode = vec4(surfaceC.mul(detail).mul(grime).mul(streak).mul(patch), 1);
+    m.roughnessNode = clamp(float(rough).add(float(1).sub(detail).mul(0.25)), 0.3, 1);
+    return m;
+  }
+
+  /** The floor: worn slabs, polished smoother down the aisle, with sand blown in along the walls
+      and drifted in hollows. */
+  private floorMaterial(): THREE.MeshStandardNodeMaterial {
+    const m = this.stoneMaterial(floorTexture(), 4, 4, 0.8);
+    const pw = positionWorld, lx = pw.x.sub(TEMPLE_ORIGIN.x).abs();
+    const sand = surface("sand").diff;
+    const drift = smoothstep(0.52, 0.78, vnoise(pw.xz.mul(0.16)).mul(0.7).add(smoothstep(7, 11.5, lx).mul(0.45)).add(vnoise(pw.xz.mul(0.9)).mul(0.15)));
+    const sandC = texture(sand, pw.xz.div(2.5)).rgb.mul(vec3(1.25, 1.05, 0.82));
+    m.colorNode = vec4(mix((m.colorNode as N).rgb, sandC, drift.mul(0.85)), 1);
+    // the aisle, walked for centuries: smoother and a little glossy
+    m.roughnessNode = mix(mix(float(0.42), float(0.85), smoothstep(1.5, 4.5, lx)), float(1), drift);
     return m;
   }
 
@@ -487,12 +529,10 @@ export class Temple {
     const wallGeo = merged(walls);
     worldUV(wallGeo, 8, true);
     const relief = reliefTexture();
-    const wallMat = this.stoneMaterial(relief);
-    const floorMat = this.stoneMaterial(floorTexture(), 0.55);
-    const sandstone = floorTexture();
-    const stoneMat = this.stoneMaterial(sandstone);
-    stoneMat.color = new THREE.Color(1.35, 1.25, 1.12);
-    const ceilMat = new THREE.MeshStandardNodeMaterial({ map: starTexture(), roughness: 0.95 });
+    const wallMat = this.stoneMaterial(relief, 8, WALL_H);
+    const floorMat = this.floorMaterial();
+    const stoneMat = this.stoneMaterial(null, 3, 3, 0.9, vec3(0.74, 0.6, 0.44));
+    const ceilMat = this.stoneMaterial(starTexture(), 4, 4, 0.95);
     const add = (g: THREE.BufferGeometry, m: THREE.Material, shadow = true) => {
       const mesh = new THREE.Mesh(g, m);
       mesh.receiveShadow = true;
@@ -507,7 +547,8 @@ export class Temple {
 
     // the columns: one form, fourteen places (two rows), and two more at the gateway
     const cg = columnGeometry();
-    const cm = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.9 });
+    const cm = this.stoneMaterial(null, 3, 3, 0.9, T.vertexColor().rgb);
+    cm.vertexColors = true;
     const spots: [number, number][] = [];
     for (const z of COL_Z) spots.push([-5.5, z], [5.5, z]);
     const cols = new THREE.InstancedMesh(cg, cm, spots.length);
@@ -563,7 +604,7 @@ export class Temple {
       const gm = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
       const q = uv().sub(vec3(0.5, 0.42, 0).xy);
       const glowK = exp(length(q.mul(vec3(1.4, 1, 0).xy)).mul(-4.5));
-      gm.colorNode = vec4(vec3(tint.r, tint.g, tint.b).mul(glowK.mul(0.22)), 1);
+      gm.colorNode = vec4(vec3(tint.r, tint.g, tint.b).mul(glowK.mul(0.1)), 1);
       const back = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 7), gm);
       back.position.set(side * (HALL_X + 3.15), 3.6, nz);
       back.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
@@ -761,9 +802,9 @@ export class Temple {
 
   private buildLight(): void {
     // the stone's own warm bounce, dim; the sky's light from the clerestory and the opening above
-    const hemi = new THREE.HemisphereLight(0x9a8468, 0x2a1c12, 0.55);
+    const hemi = new THREE.HemisphereLight(0xa88e6e, 0x3a2818, 0.62);
     this.group.add(hemi);
-    const sun = new THREE.DirectionalLight(0xffe2b0, 2.2);
+    const sun = new THREE.DirectionalLight(0xffdca0, 3.2);
     sun.position.set(-18, 40, 10);
     sun.target.position.set(0, 0, -10);
     sun.castShadow = true;
@@ -799,9 +840,22 @@ export class Temple {
         const light = new THREE.PointLight(0xff9a4a, 0, 16, 1.6);
         light.position.set(x, 2.2, z);
         this.group.add(light);
-        this.flames.push({ light, sprite: s, base: 9, phase: i * 1.7 });
+        this.flames.push({ light, sprite: s, base: 12, phase: i * 1.7 });
       }
     });
+    // dust hanging in the air, catching the light down the aisle and in the sanctuary
+    {
+      const N = 700, p = new Float32Array(N * 3);
+      for (let i = 0; i < N; i++) {
+        const inSanct = i % 3 === 0;
+        p[i * 3] = (Math.random() - 0.5) * (inSanct ? 14 : 9);
+        p[i * 3 + 1] = 0.5 + Math.random() * 12;
+        p[i * 3 + 2] = inSanct ? CENTRE.z + (Math.random() - 0.5) * 16 : HALL_Z1 + Math.random() * (HALL_Z0 - HALL_Z1);
+      }
+      const d = worldPoints(p, { color: new THREE.Color(1.0, 0.85, 0.6), size: 0.035, opacity: 0.55 });
+      this.group.add(d.sprite);
+      this.dust = { pos: d.position, base: p.slice() };
+    }
     // the sanctuary's light: from the opening above, onto the dais
     const top = new THREE.PointLight(0xfff0d0, 22, 26, 1.4);
     top.position.set(CENTRE.x, 11, CENTRE.z);
@@ -895,7 +949,7 @@ export class Temple {
     walls.push(l);
     for (const g of walls) worldUV(g, 8, true);
     const geo = merged(walls);
-    const mat = this.stoneMaterial(reliefTexture());
+    const mat = this.stoneMaterial(reliefTexture(), 8, WALL_H);
     const mesh = new THREE.Mesh(geo, mat);
     mesh.castShadow = mesh.receiveShadow = true;
     this.gate.add(mesh);
@@ -972,6 +1026,18 @@ export class Temple {
   update(t: number, dt: number, player: THREE.Vector3, reduced: boolean): void {
     this.uT.value = t;
     if (!this.inside) return;
+    // the dust drifts, slowly turning in the still air
+    {
+      const a = this.dust.pos.array as Float32Array, b = this.dust.base;
+      const k = reduced ? 0.3 : 1;
+      for (let i = 0; i < a.length; i += 3) {
+        const ph = i * 0.37;
+        a[i] = b[i] + Math.sin(t * 0.07 * k + ph) * 0.6;
+        a[i + 1] = b[i + 1] + Math.sin(t * 0.05 * k + ph * 1.3) * 0.5;
+        a[i + 2] = b[i + 2] + Math.cos(t * 0.06 * k + ph * 0.7) * 0.6;
+      }
+      this.dust.pos.needsUpdate = true;
+    }
     for (const f of this.flames) {
       const k = reduced ? 1 : 0.85 + 0.1 * Math.sin(t * 11 + f.phase) + 0.06 * Math.sin(t * 23 + f.phase * 2);
       f.light.intensity = f.base * k;

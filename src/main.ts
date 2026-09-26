@@ -200,8 +200,8 @@ scene.add(beings.group);
 // The temple: a pylon near the shore, and through its door a place apart (world/temple.ts)
 const temple = new Temple(sparks, {
   onMeet: (numeral, name) => {
+    // only the name: inside, it is silent but for your steps and the far chant (Samuel)
     whisper(`${numeral} · ${name}`, 4000);
-    if (playlist.on && !narration.current && !tp.playing) void narration.play(trackId(numeral, "who"));
   },
 });
 scene.add(temple.group, temple.gate);
@@ -432,7 +432,7 @@ function setInside(inside: boolean): void {
     for (const [o] of hiddenWorld) o.visible = false;
     temple.show(true);
     temple.reset();
-    wanderer.setRobed(true);
+    audio.setTemple(true);
     const e = temple.entry();
     player.pos.set(e.x, temple.floorAt(e.x, e.z), e.z);
     player.heading = e.heading;
@@ -442,7 +442,7 @@ function setInside(inside: boolean): void {
     for (const [o, v] of hiddenWorld) o.visible = v;
     hiddenWorld = [];
     closeCards();
-    wanderer.setRobed(false);
+    audio.setTemple(false);
     temple.show(false);
     const o = temple.outside();
     player.pos.set(o.x, heightAt(o.x, o.z), o.z);
@@ -663,7 +663,8 @@ player.onLand = () => {
   const y = Math.max(heightAt(player.pos.x, player.pos.z), WATER_Y);
   footprints.place(player.pos.x - 0.1, y, player.pos.z, player.heading, S.t);
   footprints.place(player.pos.x + 0.1, y, player.pos.z, player.heading, S.t);
-  audio.step(false);
+  if (temple.inside) audio.stepStone();
+  else audio.step(false);
 };
 lanterns.onKindle = () => say("Lanterns kindle around you.");
 
@@ -1473,15 +1474,18 @@ function update(dt: number): void {
       const ox = Math.cos(player.heading) * 0.11 * printSide, oz = -Math.sin(player.heading) * 0.11 * printSide;
       const gy = heightAt(player.pos.x, player.pos.z);
       footprints.place(player.pos.x + ox, gy, player.pos.z + oz, player.heading, t);
-      audio.step(false);
-      if (gy < 0.15) water.ripple(player.pos.x, player.pos.z, 0.5, t);
+      if (temple.inside) audio.stepStone(); // on the temple's stone, and the hall answers
+      else {
+        audio.step(false);
+        if (gy < 0.15) water.ripple(player.pos.x, player.pos.z, 0.5, t);
+      }
     }
     if (player.swimming && !player.diving && player.odometer - lastStroke > 1.1) {
       lastStroke = player.odometer;
       water.ripple(player.pos.x, player.pos.z, 0.8, t);
       audio.step(true);
     }
-    playlist.quiet = sitting.phase === "seated";
+    playlist.quiet = sitting.phase === "seated" || temple.inside;
     playlist.update(realDt); // real time: a slow frame rate never stretches the quiet
   }
   narration.update();
