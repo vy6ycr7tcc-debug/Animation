@@ -353,68 +353,123 @@ export class Terrain {
   private pools = LEVELS.map(() => [] as THREE.Mesh[]);
   private centre = LEVELS.map(() => [Infinity, Infinity]);
   private material = groundMaterial();
-  private queue: (() => void)[] = [];
   private col = new THREE.Color();
   private tmp = new THREE.Color();
 
-  /** The square a level's tiles cover: the next level's vertices inside it are sunk. */
-  private box(li: number): [number, number, number, number] {
-    const L = LEVELS[li], [cx, cz] = this.centre[li];
-    return [(cx - L.ring) * L.chunk, (cz - L.ring) * L.chunk, (cx + L.ring + 1) * L.chunk, (cz + L.ring + 1) * L.chunk];
-  }
-
-  /** Keep the wanderer in the middle of every level. `force` builds everything now. */
+  /** Keep the wanderer in the middle of every level. `force` builds everything now.
+      Each level's ground sinks out of sight only where the finer level's tiles already stand,
+      and a tile left behind goes only after the coarser ground under it has risen again: done
+      the other way round, flying fast left holes with straight edges, splits across the land. */
   update(x: number, z: number, force = false): void {
-    let innerMoved = false;
     LEVELS.forEach((L, li) => {
       const cx = Math.floor(x / L.chunk), cz = Math.floor(z / L.chunk);
-      const moved = cx !== this.centre[li][0] || cz !== this.centre[li][1];
-      if (force || moved || innerMoved) {
-        if (li === 0) this.queue = [];
-        this.centre[li] = [cx, cz];
-        // coarser levels are refilled after finer ones, since the square they give way to moved
-        this.stream(li, cx, cz, force || moved);
-      }
-      innerMoved = innerMoved || moved;
+      if (!force && cx === this.centre[li][0] && cz === this.centre[li][1]) return;
+      this.centre[li] = [cx, cz];
+      for (let i = -L.ring; i <= L.ring; i++)
+        for (let j = -L.ring; j <= L.ring; j++) {
+          const k = `${cx + i},${cz + j}`;
+          if (!this.tiles[li].has(k)) this.push(li, k, false);
+        }
+      for (const k of this.tiles[li].keys()) if (!this.wanted(li, k)) this.retire(li, k);
     });
-    // a tile a frame, so walking never stutters
-    const n = force ? this.queue.length : 1; // one tile a frame (~10 ms of work each on a phone)
-    for (let i = 0; i < n && this.queue.length; i++) this.queue.shift()!();
-  }
-
-  private stream(li: number, cx: number, cz: number, recentred: boolean): void {
-    const L = LEVELS[li], tiles = this.tiles[li], pool = this.pools[li];
-    const want = new Set<string>();
-    for (let i = -L.ring; i <= L.ring; i++) for (let j = -L.ring; j <= L.ring; j++) want.add(`${cx + i},${cz + j}`);
-    if (recentred)
-      for (const [k, m] of tiles) {
-        if (!want.has(k)) {
-          this.group.remove(m);
-          pool.push(m);
-          tiles.delete(k);
-        }
-      }
-    for (const k of want) {
-      const [i, j] = k.split(",").map(Number);
-      const have = tiles.get(k);
-      if (have && li === 0) continue; // the finest tiles never change
-      if (have && !this.touchesInner(li, i, j)) continue; // coarser tiles change only where the finer square moved
-      this.queue.push(() => {
-        const m = tiles.get(k) ?? pool.pop() ?? this.newMesh(L, li === 0);
-        this.fill(m, li, i, j);
-        if (!tiles.has(k)) {
-          tiles.set(k, m);
-          this.group.add(m);
-        }
-      });
+    if (force) {
+      while (this.queue.length) this.runNext();
+      return;
     }
+    // about a tile a frame (~10 ms of work each on a phone), so walking never stutters; while
+    // much is waiting (flying fast), a little more
+    const t0 = performance.now(), budget = this.queue.length > 12 ? 7 : 3;
+    let built = 0;
+    while (this.queue.length && (built === 0 || performance.now() - t0 < budget)) if (this.runNext()) built++;
   }
 
-  private touchesInner(li: number, i: number, j: number): boolean {
-    const L = LEVELS[li];
-    const [x0, z0, x1, z1] = this.box(li - 1);
-    const m = LEVELS[li - 1].chunk; // the old square was at most one finer tile away
-    return i * L.chunk < x1 + m && (i + 1) * L.chunk > x0 - m && j * L.chunk < z1 + m && (j + 1) * L.chunk > z0 - m;
+  private queue: { li: number; k: string }[] = [];
+  private queued = new Set<string>();
+
+  /** Queue building (or rebuilding) a tile; `last` moves it behind everything already waiting. */
+  private push(li: number, k: string, last: boolean): void {
+    const key = `${li}:${k}`;
+    if (this.queued.has(key)) {
+      if (!last) return;
+      this.queue.splice(this.queue.findIndex((q) => q.li === li && q.k === k), 1);
+    }
+    this.queued.add(key);
+    this.queue.push({ li, k });
+  }
+
+  private runNext(): boolean {
+    const { li, k } = this.queue.shift()!;
+    this.queued.delete(`${li}:${k}`);
+    if (!this.wanted(li, k)) return false; // passed by before its turn came
+    const L = LEVELS[li], tiles = this.tiles[li];
+    const [i, j] = k.split(",").map(Number);
+    const fresh = !tiles.has(k);
+    const m = tiles.get(k) ?? this.pools[li].pop() ?? this.newMesh(L, li === 0);
+    this.fill(m, li, i, j);
+    if (fresh) {
+      tiles.set(k, m);
+      this.group.add(m);
+    }
+    // the finer tiles left behind here can go now: this ground has risen under them
+    if (li > 0) for (const fk of this.children(li, k)) if (!this.wanted(li - 1, fk)) this.drop(li - 1, fk);
+    // a new tile: the coarser ground beneath it can sink
+    if (fresh && li < LEVELS.length - 1) this.push(li + 1, this.parent(li, i, j), true);
+    return true;
+  }
+
+  private wanted(li: number, k: string): boolean {
+    const L = LEVELS[li], [cx, cz] = this.centre[li];
+    const [i, j] = k.split(",").map(Number);
+    return Math.abs(i - cx) <= L.ring && Math.abs(j - cz) <= L.ring;
+  }
+
+  private parent(li: number, i: number, j: number): string {
+    const r = LEVELS[li + 1].chunk / LEVELS[li].chunk;
+    return `${Math.floor(i / r)},${Math.floor(j / r)}`;
+  }
+
+  /** The finer tiles standing inside a tile. */
+  private children(li: number, k: string): string[] {
+    const r = LEVELS[li].chunk / LEVELS[li - 1].chunk;
+    const [i, j] = k.split(",").map(Number);
+    const out: string[] = [];
+    for (const fk of this.tiles[li - 1].keys()) {
+      const [a, b] = fk.split(",").map(Number);
+      if (Math.floor(a / r) === i && Math.floor(b / r) === j) out.push(fk);
+    }
+    return out;
+  }
+
+  /** A tile no longer wanted: it goes once the ground beneath it is rebuilt (or at once, if it
+      is the coarsest, or if the ground beneath is going too). */
+  private retire(li: number, k: string): void {
+    if (li === LEVELS.length - 1) return this.drop(li, k);
+    const [i, j] = k.split(",").map(Number);
+    const pk = this.parent(li, i, j);
+    if (this.wanted(li + 1, pk) && this.tiles[li + 1].has(pk)) this.push(li + 1, pk, true);
+    else if (!this.wanted(li + 1, pk)) {
+      /* the parent is leaving too: its own retirement takes this one with it */
+    } else this.drop(li, k); // nothing beneath yet (it's being built): nothing to wait for
+  }
+
+  private drop(li: number, k: string): void {
+    const m = this.tiles[li].get(k);
+    if (!m) return;
+    if (li > 0) for (const fk of this.children(li, k)) if (!this.wanted(li - 1, fk)) this.drop(li - 1, fk);
+    this.group.remove(m);
+    this.pools[li].push(m);
+    this.tiles[li].delete(k);
+  }
+
+  /** Whether the finer level stands (and stays) over this spot, so this level may sink here. */
+  private coveredBelow(li: number, x: number, z: number): boolean {
+    const L = LEVELS[li - 1], tiles = this.tiles[li - 1];
+    for (const dx of [-0.01, 0.01])
+      for (const dz of [-0.01, 0.01]) {
+        const k = `${Math.floor((x + dx) / L.chunk)},${Math.floor((z + dz) / L.chunk)}`;
+        if (!tiles.has(k) || !this.wanted(li - 1, k)) return false;
+      }
+    return true;
   }
 
   private newMesh(L: Level, isNear: boolean): THREE.Mesh {
@@ -444,14 +499,13 @@ export class Terrain {
     const H = new Float32Array(W * W);
     for (let b = 0; b < W; b++)
       for (let a = 0; a < W; a++) H[b * W + a] = heightAt(ox + ((a - B) - L.seg / 2) * step, oz + ((b - B) - L.seg / 2) * step);
-    const box = li > 0 ? this.box(li - 1) : null;
     for (let v = 0; v < pos.count; v++) {
       const a = (v % n) + B, b = Math.floor(v / n) + B;
       const lx = (a - B - L.seg / 2) * step, lz = (b - B - L.seg / 2) * step;
       const x = ox + lx, z = oz + lz;
       const h = H[b * W + a];
       // hidden beneath the near tiles?
-      const sunk = box && x > box[0] + 0.01 && x < box[2] - 0.01 && z > box[1] + 0.01 && z < box[3] - 0.01;
+      const sunk = li > 0 && this.coveredBelow(li, x, z);
       pos.setXYZ(v, lx, sunk ? h - 40 : h, lz);
       const dx = H[b * W + a - 1] - H[b * W + a + 1], dz = H[(b - 1) * W + a] - H[(b + 1) * W + a];
       const inv = 1 / Math.hypot(dx, 2 * step, dz);

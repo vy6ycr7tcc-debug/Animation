@@ -76,7 +76,7 @@ export const ijFog = Fn(([p]: N[]) => {
   const k = a.mul(rd.y).mul(d);
   const integ = abs(k).greaterThan(1e-3).select(float(1).sub(exp(k.negate())).div(k), float(1).sub(k.mul(0.5)));
   const depth = fogUniforms.density.mul(d).mul(exp(a.negate().mul(max(cameraPosition.y, 0)))).mul(integ).add(float(FOG.haze).mul(d));
-  const f = max(float(1).sub(exp(depth.negate())), smoothstep(1700, 2450, d)); // the far land melts into the haze
+  const f = max(float(1).sub(exp(depth.negate())), smoothstep(1450, 2020, d)); // the far land melts into the haze before its last tiles end (≥ 2048 m away)
   const moon = pow(max(dot(rd, fogUniforms.glowDir), 0), 5);
   const col = mix(fogUniforms.color, fogUniforms.glow, moon.mul(0.7))
     .mul(float(1).add(exp(max(p.y, 0).mul(-0.08)).mul(0.1)));

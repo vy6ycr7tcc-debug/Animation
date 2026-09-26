@@ -1154,7 +1154,7 @@ function readings(): string {
     `fps ${stats.fps.toFixed(1)} · avg ${stats.avgMs.toFixed(1)} ms · worst ${stats.worstMs.toFixed(0)} ms`,
     `tier ${quality.current.name} · dpr ${dpr.toFixed(2)} of ${devicePixelRatio} · scale ${quality.scale.toFixed(1)} · ${px}`,
     `${quality.reason} · ${shadersReady ? "shaders ready" : "compiling shaders…"}`,
-    `${ri.drawCalls} draws · ${(ri.triangles / 1000).toFixed(0)}k tris`, // this frame's (calls counts since the start)
+    `${frameDraws} draws · ${(ri.triangles / 1000).toFixed(0)}k tris`, // this frame's (calls counts since the start)
     `audio ${audio.ctx?.state ?? "off"} · session ${audio.sessionType} · voice ${narration.current ?? "-"}`,
     `sky ${MOOD_NAMES.map((n, i) => `${n} ${(moods.weights[i] * 100).toFixed(0)}`).filter((x) => !x.endsWith(" 0")).join(" · ")}`,
     `pos ${player.pos.x.toFixed(1)}, ${player.pos.y.toFixed(1)}, ${player.pos.z.toFixed(1)} · ${player.pose} · lanterns ${lanterns.litCount}`,
@@ -1310,6 +1310,7 @@ function update(dt: number): void {
   post.follow(starSource.position, innerWidth, innerHeight);
   gpuUniforms.player.value.copy(player.pos);
   gpuUniforms.dpr.value = dpr;
+  gpuUniforms.px.value = innerHeight / 2 / Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2); // CSS pixels per metre at 1 m
   glow.set(player.pos.x, S.mode === "intro" ? 0 : 1, player.pos.z);
   water.update(camera.position.x, camera.position.z, glow);
   skyUniforms.uT.value = wt;
@@ -1349,6 +1350,7 @@ const shadowAt = new THREE.Vector3();
 
 let last = performance.now();
 let realDt = 0;
+let frameDraws = 0; // draw calls of the last frame, taken right after it (for the readout)
 function frame(now: number): void {
   requestAnimationFrame(frame);
   if (S.hidden) return;
@@ -1364,6 +1366,7 @@ function frame(now: number): void {
   renderer.info.reset();
   water.renderMirror(renderer, scene, camera);
   post.render();
+  frameDraws = renderer.info.render.drawCalls;
 }
 // WebGPU starts asynchronously (it asks the browser for the GPU); the world is built meanwhile.
 renderer
