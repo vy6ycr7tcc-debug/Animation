@@ -17,7 +17,7 @@
    glossy things, already turning a short walk from the shore (~80 m) and full by ~450 m;
    between two directions, their moods blend. */
 import * as THREE from "three/webgpu";
-import { fogUniforms } from "../gpu/tsl";
+import { fogUniforms, gradeUniforms } from "../gpu/tsl";
 import { cloudUniforms } from "./atmosphere";
 import { skyUniforms } from "./sky";
 import { SPAWN } from "./terrain";
@@ -139,6 +139,20 @@ const DAWN: Mood = {
 };
 
 /** Every mood, and the direction from the shore where it is full (x east, z south). */
+/** Each mood's colour grade, in the order of MOODS: the shadows' lifted colour, the highlights'
+    tint, saturation, contrast. Gentle: a film's grade, not a filter. */
+const GRADES: [THREE.Color, THREE.Color, number, number][] = [
+  [C(0.0, 0.01, 0.045), C(1.0, 0.98, 0.95), 1.0, 1.05], // night: cool blue shadows
+  [C(0.01, 0.02, 0.05), C(1.04, 1.0, 0.96), 0.95, 1.05], // winter sunrise
+  [C(0.03, 0.0, 0.045), C(1.08, 0.98, 0.9), 1.08, 1.06], // violet-amber sunset
+  [C(0.0, 0.0, 0.02), C(1.0, 1.0, 1.0), 0.9, 1.1], // deep night
+  [C(0.0, 0.01, 0.05), C(0.97, 1.0, 1.05), 1.0, 1.04], // blue hour
+  [C(0.0, 0.015, 0.05), C(1.1, 1.0, 0.86), 1.08, 1.08], // golden hour: dusky blue shadows, gold light
+  [C(0.0, 0.01, 0.05), C(1.08, 0.95, 0.9), 1.05, 1.06], // dusk: reds and blues
+  [C(0.0, 0.02, 0.02), C(1.1, 0.98, 0.85), 1.1, 1.1], // ember: teal shadows, gold
+  [C(0.01, 0.02, 0.05), C(1.06, 0.98, 0.98), 1.05, 1.04], // pink dawn
+];
+
 const MOODS: { mood: Mood; dir: [number, number] | null }[] = [
   { mood: NIGHT, dir: null },
   { mood: SUNRISE, dir: [1, 0] },
@@ -218,6 +232,23 @@ export class Moods {
     S.uDeep.value = m.deep;
     S.uMoonK.value = m.moonK;
     fogUniforms.color.value.copy(m.fog);
+    // the grade, blended as the moods are
+    const G = gradeUniforms;
+    G.shadow.value.setRGB(0, 0, 0);
+    G.high.value.setRGB(0, 0, 0);
+    G.sat.value = 0;
+    G.contrast.value = 0;
+    this.w.forEach((wi, i) => {
+      const [sh, hi, sat, con] = GRADES[i];
+      G.shadow.value.r += sh.r * wi;
+      G.shadow.value.g += sh.g * wi;
+      G.shadow.value.b += sh.b * wi;
+      G.high.value.r += hi.r * wi;
+      G.high.value.g += hi.g * wi;
+      G.high.value.b += hi.b * wi;
+      G.sat.value += sat * wi;
+      G.contrast.value += con * wi;
+    });
     fogUniforms.density.value = m.density;
     cloudUniforms.shade.value.copy(m.cloudShade);
     cloudUniforms.light.value.copy(m.cloudLight);

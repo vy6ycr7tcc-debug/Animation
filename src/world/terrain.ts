@@ -6,7 +6,7 @@
      snow-capped massifs standing within it.
    The ground is streamed in square chunks around the wanderer. */
 import * as THREE from "three/webgpu";
-import { T, type N } from "../gpu/tsl";
+import { fogUniforms, T, type N } from "../gpu/tsl";
 import { starDirection } from "./fog";
 import { groundLight } from "./lightfield";
 import { surface } from "./textures";
@@ -349,7 +349,13 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
   // on a cliff, each side's normal map turns about its own plane (x-facing: z and y; z-facing: x and y)
   const nX = texture(cliff.nor, vGW.zy.div(CS)).xy.mul(2).sub(1), nZ = texture(cliff.nor, vGW.xy.div(CS)).xy.mul(2).sub(1);
   const dCliff = vec3(0, nX.y, nX.x).mul(bx).add(vec3(nZ.x, nZ.y, 0).mul(bz)).div(bsum).mul(float(1).sub(smoothstep(60, 400, camD))).mul(1.6);
-  const dW = tmix(dFlat, dCliff, steep);
+  // Sand, as in Journey: ripples the wind combs across it (two wavelengths, bent by slow noise),
+  // tilting its surface so the light catches their crests
+  const WIND = vec2(0.8, 0.6);
+  const ripPh = dot(q, WIND).mul(6.3).add(gN(q.mul(0.25)).mul(7)), ripPh2 = dot(q, vec2(0.6, -0.8)).mul(15).add(gN(q.mul(0.9)).mul(4));
+  const ripK = w.x.mul(float(1).sub(smoothstep(12, 45, camD))).mul(float(1).sub(steep));
+  const dRip = vec3(WIND.x, 0, WIND.y).mul(sin(ripPh).mul(0.13)).add(vec3(0.6, 0, -0.8).mul(sin(ripPh2).mul(0.06))).mul(ripK);
+  const dW = tmix(dFlat, dCliff, steep).add(dRip);
   m.normalNode = normalize(normalView.add(cameraViewMatrix.mul(vec4(dW, 0)).xyz));
 
   m.emissiveNode = Fn(() => {
@@ -358,7 +364,7 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
     const gq = vGW.xz.mul(22), cell = floor(gq);
     const tw = gH(cell.mul(1.7).add(floor(gv.xz.mul(24).add(gv.y.mul(11)))));
     const dot_ = smoothstep(0.22, 0, length(fract(gq).sub(0.5))); // a point of light, not a fleck
-    const glit = step(0.975, gH(cell)).mul(step(0.6, tw)).mul(dot_).mul(gr.y).mul(float(1).sub(smoothstep(3, 18, camD))).mul(step(0, vGW.y));
+    const glit = step(0.975, gH(cell)).mul(step(0.6, tw)).mul(dot_).mul(gr.y).mul(float(1).sub(smoothstep(4, 30, camD))).mul(step(0, vGW.y));
     const e = vec3(1.0, 0.93, 0.82).mul(glit).mul(2.2).toVar();
     // caustics on the floor of the lakes; the web is warped by slow noise, so no cell is ever regular
     const dep = vGW.y.negate();
@@ -372,6 +378,12 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
     // a soft sheen where the ground faces away toward the moon (light through the haze)
     // the lights of the world, pooling on the ground (lanterns, beings, crystals, your own)
     e.addAssign(groundLight(vGW).mul(T.vertexColor().rgb.mul(1.6).add(0.12)).mul(gr.x));
+    // Journey's sand: a liquid sheen toward the low sun or the moon, off the rippled surface (soft,
+    // broad and faint: never a glare sliding over the ground), and a pale rim at grazing angles
+    const nS = normalize(nW.add(dRip.mul(1.2)));
+    const sheen = pow(max(dot(T.reflect(gv.negate(), nS), fogUniforms.glowDir), 0), 24).mul(0.16);
+    const rim = pow(float(1).sub(max(dot(nS, gv), 0)), 5).mul(0.05);
+    e.addAssign(fogUniforms.glow.mul(sheen.add(rim)).mul(gr.y).mul(float(1).sub(steep)).mul(float(1).sub(smoothstep(60, 220, camD))));
     const back = pow(max(dot(gv.negate(), moon), 0), 3);
     e.addAssign(vec3(0.32, 0.26, 0.24).mul(back).mul(gr.y.mul(0.7).add(0.3)).mul(0.18));
     return e;

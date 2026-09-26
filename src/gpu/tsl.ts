@@ -67,6 +67,15 @@ export const fogUniforms = {
   density: uniform(FOG.density),
 };
 
+/** The colour grade after tone mapping, set by the moods (and the temple): a lift of colour into
+    the shadows, a tint on the highlights, saturation and contrast (post.ts). */
+export const gradeUniforms = {
+  shadow: uniform(new THREE.Color(0, 0.01, 0.04)),
+  high: uniform(new THREE.Color(1, 1, 1)),
+  sat: uniform(1),
+  contrast: uniform(1),
+};
+
 /** The colour of the air along the ray to `p` (rgb) and how much of it there is (a). */
 export const ijFog = Fn(([p]: N[]) => {
   const rd0 = p.sub(cameraPosition);
