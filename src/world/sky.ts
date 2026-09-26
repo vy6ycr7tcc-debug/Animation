@@ -10,7 +10,7 @@
    The same function colours the water's reflection (without the finest detail), so the lakes
    mirror the sky truthfully. */
 import * as THREE from "three/webgpu";
-import { hash3, T, type N } from "../gpu/tsl";
+import { fogUniforms, hash3, T, type N } from "../gpu/tsl";
 
 const {
   abs, atan, cameraProjectionMatrix, cos, dot, exp, float, floor, Fn, fract, length, log, max, mix, modelViewMatrix, normalize,
@@ -162,6 +162,10 @@ function skyColorImpl(d: N, detail: boolean): N {
   // the moon's glow in the haze, matching the fog's light toward it
   c.assign(mix(c, vec3(0.55, 0.42, 0.34), pow(ss, 5).mul(0.7).mul(float(1).sub(smoothstep(0, 0.35, hy))).mul(U.uMoonK)));
   c.addAssign(vec3(0.35, 0.28, 0.3).mul(pow(ss, 24)).mul(0.35).mul(U.uMoonK));
+  // below the horizon the sky is the far air itself, the same colour as the haze the far land
+  // and water melt into: flying high, the edge of the world never shows as a line across the view
+  const haze = mix(fogUniforms.color, fogUniforms.glow, pow(max(dot(d, fogUniforms.glowDir), 0), 5).mul(0.7)).mul(1.1);
+  c.assign(mix(c, haze, smoothstep(0.015, -0.06, y)));
   void abs;
   return c;
 }

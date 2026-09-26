@@ -6,9 +6,15 @@
    - west, where the Spirit's live: a winter sunset, violet above and rose and amber below;
    - north, toward the Choice's island: the deep night, nearly black, full of stars, the band of
      the galaxy with its dust, nebulae and far galaxies;
-   - south: the cold blue hour before a winter dawn.
+   - south: the cold blue hour before a winter dawn;
+   and between them (Samuel: "I would add some like these too: dusk, haze, sunset…"):
+   - north-east: a pale morning haze, pearl and peach, the sun a soft disc;
+   - north-west: dusk, the afterglow sinking into violet and the first stars;
+   - south-west: an ember sunset, crimson and gold;
+   - south-east: a pink dawn, rose and lilac.
    Each mood sets the sky, the air (fog), the light on the land and the sky's reflection in
-   glossy things, already turning a short walk from the shore (~80 m) and full by ~450 m. */
+   glossy things, already turning a short walk from the shore (~80 m) and full by ~450 m;
+   between two directions, their moods blend. */
 import * as THREE from "three/webgpu";
 import { fogUniforms } from "../gpu/tsl";
 import { cloudUniforms } from "./atmosphere";
@@ -83,6 +89,57 @@ const TWILIGHT: Mood = {
   density: 0.0036, cloudShade: C(0.07, 0.1, 0.2), cloudLight: C(0.5, 0.6, 0.75),
 };
 
+const HAZE: Mood = {
+  // north-east: a soft morning haze, pale and luminous, the sun a diffuse disc
+  zen: C(0.05, 0.07, 0.19), mid: C(0.19, 0.18, 0.33), hor: C(0.74, 0.55, 0.5),
+  fog: C(0.25, 0.22, 0.33), glow: C(0.85, 0.66, 0.52),
+  sun: V(0.7, 0.14, -0.7), sunCol: C(1.0, 0.74, 0.58), sunK: 0.42,
+  stars: 0, deep: 0, moonK: 0.05,
+  light: C(1.85, 1.62, 1.45), hemiSky: C(0.56, 0.56, 0.76), hemiGround: C(0.18, 0.14, 0.18), hemi: 0.9, env: 1.4,
+  density: 0.003, cloudShade: C(0.3, 0.27, 0.4), cloudLight: C(1.0, 0.84, 0.74),
+};
+const DUSK: Mood = {
+  // north-west: after the sun has gone, violet deepening overhead, a rose afterglow low down
+  zen: C(0.018, 0.022, 0.09), mid: C(0.09, 0.07, 0.22), hor: C(0.44, 0.26, 0.42),
+  fog: C(0.14, 0.11, 0.24), glow: C(0.55, 0.36, 0.46),
+  sun: V(-0.7, -0.03, -0.7), sunCol: C(0.75, 0.36, 0.48), sunK: 0.5,
+  stars: 0.7, deep: 0.2, moonK: 0.4,
+  light: C(1.3, 1.15, 1.38), hemiSky: C(0.4, 0.38, 0.7), hemiGround: C(0.12, 0.08, 0.18), hemi: 0.8, env: 1.3,
+  density: 0.0036, cloudShade: C(0.12, 0.09, 0.22), cloudLight: C(0.72, 0.46, 0.6),
+};
+const EMBER: Mood = {
+  // south-west: a deep red sunset, crimson and gold, the sun a red disc on the horizon
+  zen: C(0.03, 0.02, 0.07), mid: C(0.28, 0.08, 0.12), hor: C(1.0, 0.36, 0.1),
+  fog: C(0.3, 0.12, 0.14), glow: C(1.0, 0.4, 0.15),
+  sun: V(-0.7, 0.02, 0.7), sunCol: C(1.0, 0.35, 0.08), sunK: 1,
+  stars: 0.2, deep: 0, moonK: 0.1,
+  light: C(2.2, 1.2, 0.8), hemiSky: C(0.6, 0.32, 0.45), hemiGround: C(0.2, 0.08, 0.1), hemi: 0.9, env: 1.6,
+  density: 0.0036, cloudShade: C(0.22, 0.07, 0.12), cloudLight: C(1.0, 0.45, 0.2),
+};
+const DAWN: Mood = {
+  // south-east: a pink dawn, rose along the horizon, lilac above
+  zen: C(0.03, 0.04, 0.15), mid: C(0.22, 0.13, 0.33), hor: C(0.95, 0.48, 0.58),
+  fog: C(0.24, 0.17, 0.31), glow: C(0.92, 0.55, 0.6),
+  sun: V(0.7, 0.0, 0.7), sunCol: C(1.0, 0.6, 0.62), sunK: 0.7,
+  stars: 0.3, deep: 0, moonK: 0.2,
+  light: C(1.8, 1.45, 1.5), hemiSky: C(0.52, 0.5, 0.8), hemiGround: C(0.18, 0.12, 0.18), hemi: 0.9, env: 1.4,
+  density: 0.003, cloudShade: C(0.26, 0.2, 0.36), cloudLight: C(1.0, 0.7, 0.72),
+};
+
+/** Every mood, and the direction from the shore where it is full (x east, z south). */
+const MOODS: { mood: Mood; dir: [number, number] | null }[] = [
+  { mood: NIGHT, dir: null },
+  { mood: SUNRISE, dir: [1, 0] },
+  { mood: SUNSET, dir: [-1, 0] },
+  { mood: DEEP, dir: [0, -1] },
+  { mood: TWILIGHT, dir: [0, 1] },
+  { mood: HAZE, dir: [Math.SQRT1_2, -Math.SQRT1_2] },
+  { mood: DUSK, dir: [-Math.SQRT1_2, -Math.SQRT1_2] },
+  { mood: EMBER, dir: [-Math.SQRT1_2, Math.SQRT1_2] },
+  { mood: DAWN, dir: [Math.SQRT1_2, Math.SQRT1_2] },
+];
+export const MOOD_NAMES = ["night", "sunrise", "sunset", "deep", "twilight", "haze", "dusk", "ember", "dawn"];
+
 export interface MoodTargets {
   hemi: THREE.HemisphereLight;
   star: THREE.DirectionalLight;
@@ -92,12 +149,12 @@ export interface MoodTargets {
 }
 
 export class Moods {
-  /** The blend now: night, sunrise, sunset, deep, twilight (they sum to 1). */
-  weights = [1, 0, 0, 0, 0];
+  /** The blend now, in the order of MOOD_NAMES (they sum to 1). */
+  weights = MOODS.map((_, i) => (i ? 0 : 1));
   /** Changes since the sky's reflection in glossy things was last baked (0 → none). */
   drift = 0;
   private cur: Mood = structuredCloneMood(NIGHT);
-  private w = [1, 0, 0, 0, 0];
+  private w = MOODS.map((_, i) => (i ? 0 : 1));
 
   constructor(private t: MoodTargets) {}
 
@@ -107,13 +164,12 @@ export class Moods {
     const dist = Math.hypot(dx, dz) || 1;
     // the shore keeps its moonlit night; a short walk out, the sky already turns
     const away = THREE.MathUtils.smoothstep(dist, 80, 450);
-    const lobe = (c: number) => THREE.MathUtils.smoothstep(c, 0.15, 0.8);
-    let e = lobe(dx / dist) * away, wst = lobe(-dx / dist) * away, n = lobe(-dz / dist) * away, so = lobe(dz / dist) * away;
-    const sum = e + wst + n + so;
-    if (sum > 1) (e /= sum), (wst /= sum), (n /= sum), (so /= sum);
-    const want = [Math.max(0, 1 - e - wst - n - so), e, wst, n, so];
+    // each direction's mood is full where you head straight that way, and gone 45° off it
+    const lobes = MOODS.map(({ dir }) => (dir ? THREE.MathUtils.smoothstep((dx * dir[0] + dz * dir[1]) / dist, Math.SQRT1_2, 1) : 0));
+    const sum = lobes.reduce((a, b) => a + b, 0) || 1;
+    const want = lobes.map((l, i) => (i ? (l / sum) * away : 1 - away));
     const k = Math.min(1, dt * 0.6);
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < MOODS.length; i++) {
       const before = this.w[i];
       this.w[i] += (want[i] - this.w[i]) * k;
       this.drift += Math.abs(this.w[i] - before);
@@ -124,7 +180,7 @@ export class Moods {
   }
 
   private blend(): void {
-    const ms = [NIGHT, SUNRISE, SUNSET, DEEP, TWILIGHT], w = this.w, m = this.cur;
+    const ms = MOODS.map((x) => x.mood), w = this.w, m = this.cur;
     const colours: (keyof Mood)[] = ["zen", "mid", "hor", "fog", "glow", "sunCol", "light", "hemiSky", "hemiGround", "cloudShade", "cloudLight"];
     for (const key of colours) {
       const out = m[key] as THREE.Color;
@@ -133,7 +189,9 @@ export class Moods {
     }
     for (const key of ["sunK", "stars", "deep", "moonK", "hemi", "env", "density"] as const) m[key] = ms.reduce((s, x, i) => s + x[key] * w[i], 0);
     // the low sun stands where the dawn or the dusk is strongest
-    m.sun.set(0, 0, 0).addScaledVector(SUNRISE.sun, w[1] + 1e-3).addScaledVector(SUNSET.sun, w[2]).addScaledVector(TWILIGHT.sun, w[4]).normalize();
+    m.sun.copy(SUNRISE.sun).multiplyScalar(1e-3);
+    ms.forEach((x, i) => m.sun.addScaledVector(x.sun, w[i] * x.sunK));
+    m.sun.normalize();
   }
 
   private apply(): void {

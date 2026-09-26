@@ -1,7 +1,10 @@
 /* The quiet player for the archive's narrations (orbs and grove fruits).
    - It starts only when the player taps a vessel; nothing here ever autoplays.
-   - A small bar, never a modal: the title, the source caption, pause/resume, a "source" link
-     to the full record, and close. Movement is never locked.
+   - A small card, never a modal: the title, the source caption, pause/resume, back 15 s, a
+     "source" link to the full record, fold and close. Movement is never locked.
+   - Folded (by its ‹, or by itself after a few seconds), it becomes a half-moon on the left
+     edge (Samuel: "a semi circle top left with play pause in the middle"): play/pause in the
+     middle, back 15 s above, the card again below, and its curve filling with the progress.
    - Tapping another vessel switches to it. When a narration ends, two quiet choices:
      continue with the background narration (the journey's own voices), or just the music.
    - Attribution: interpretive narrations say "An interpretive narration after {entity} ·
@@ -34,6 +37,10 @@ export class TranscriptPlayer {
   private ended = document.getElementById("tp-end") as HTMLDivElement;
   private sourceDlg = document.getElementById("tp-source") as HTMLDivElement;
   private sub = document.getElementById("sub") as HTMLElement;
+  private mini = document.getElementById("tp-mini") as HTMLDivElement;
+  private miniPlay = document.getElementById("tp-mini-play") as HTMLButtonElement;
+  private arc = document.getElementById("tp-arc") as unknown as SVGPathElement;
+  private foldTimer = 0;
   private buffers = new Map<string, Promise<AudioBuffer | null>>();
   private src: AudioBufferSourceNode | null = null;
   private gain: GainNode | null = null;
@@ -45,7 +52,23 @@ export class TranscriptPlayer {
   private cueIndex = -1;
 
   constructor(private audio: AudioEngine) {
-    this.pauseBtn.addEventListener("click", () => (this.playing ? this.pause() : this.resume()));
+    // on the touch itself, so they answer while the other thumb walks (a second finger's tap
+    // makes no click on a phone); the click stays for the keyboard
+    const tap = (id: string, fn: () => void) => {
+      const el = document.getElementById(id)!;
+      el.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        fn();
+      });
+      el.addEventListener("click", (e) => e.detail === 0 && fn());
+    };
+    const toggle = () => (this.playing ? this.pause() : this.resume());
+    this.pauseBtn.addEventListener("click", toggle);
+    tap("tp-mini-play", toggle);
+    tap("tp-mini-back", () => this.back(15));
+    tap("tp-mini-open", () => this.unfold());
+    tap("tp-fold", () => this.fold());
+    document.getElementById("tp-back")!.addEventListener("click", () => this.back(15));
     document.getElementById("tp-close")!.addEventListener("click", () => this.close());
     document.getElementById("tp-src")!.addEventListener("click", () => this.showSource(true));
     document.getElementById("tp-source-close")!.addEventListener("click", () => this.showSource(false));
@@ -120,8 +143,7 @@ export class TranscriptPlayer {
     this.startedAt = ctx.currentTime - this.offset;
     this.cueIndex = -1;
     this.audio.duck(true);
-    this.pauseBtn.textContent = "Pause";
-    this.pauseBtn.setAttribute("aria-label", "Pause the narration");
+    this.showPlaying(true);
     src.onended = () => {
       if (this.src !== src) return; // paused, switched or closed
       this.src = null;
@@ -148,8 +170,40 @@ export class TranscriptPlayer {
     if (!this.src || !ctx) return;
     this.offset = Math.min(ctx.currentTime - this.startedAt, (this.buffer?.duration ?? 0) - 0.05);
     this.stopSource(0.25);
-    this.pauseBtn.textContent = "Resume";
-    this.pauseBtn.setAttribute("aria-label", "Resume the narration");
+    this.showPlaying(false);
+  }
+
+  private showPlaying(on: boolean): void {
+    this.pauseBtn.textContent = on ? "Pause" : "Resume";
+    this.pauseBtn.setAttribute("aria-label", on ? "Pause the narration" : "Resume the narration");
+    this.miniPlay.classList.toggle("paused", !on);
+    this.miniPlay.setAttribute("aria-label", on ? "Pause the narration" : "Resume the narration");
+  }
+
+  /** Go back a little (to hear a passage again), playing or paused. */
+  back(seconds: number): void {
+    const ctx = this.audio.ctx;
+    if (!this.buffer || !ctx) return;
+    const at = this.src ? ctx.currentTime - this.startedAt : this.offset;
+    this.offset = Math.max(0, at - seconds);
+    if (this.src) {
+      this.stopSource(0.12);
+      this.start();
+    }
+  }
+
+  /** Fold the card away into the half-moon on the left edge. */
+  fold(): void {
+    window.clearTimeout(this.foldTimer);
+    if (!this.current) return;
+    this.el.hidden = true;
+    this.mini.hidden = false;
+  }
+
+  unfold(): void {
+    window.clearTimeout(this.foldTimer);
+    this.el.hidden = false;
+    this.mini.hidden = true;
   }
 
   resume(): void {
@@ -161,7 +215,9 @@ export class TranscriptPlayer {
     this.token++;
     this.stopSource(0.8);
     this.current = null;
+    window.clearTimeout(this.foldTimer);
     this.el.hidden = true;
+    this.mini.hidden = true;
     this.ended.hidden = true;
     this.showSource(false);
     this.onChange?.(null);
@@ -174,6 +230,7 @@ export class TranscriptPlayer {
     this.onChange?.(null);
     this.pauseBtn.hidden = true;
     this.ended.hidden = false;
+    this.unfold(); // the end's two choices
     window.clearTimeout(this.idleTimer);
     this.idleTimer = window.setTimeout(() => !this.ended.hidden && this.onEndIdle?.(), 15000);
   }
@@ -189,9 +246,12 @@ export class TranscriptPlayer {
   }
 
   private render(n: Narration): void {
-    this.el.hidden = false;
+    this.unfold();
+    // the card folds itself away after a moment, so the view stays open
+    this.foldTimer = window.setTimeout(() => this.fold(), 10000);
     this.pauseBtn.hidden = false;
-    this.pauseBtn.textContent = "Pause";
+    this.showPlaying(true);
+    this.arc.style.strokeDashoffset = "232.5";
     this.titleEl.textContent = n.title;
     this.captionEl.replaceChildren(
       ...TranscriptPlayer.caption(n).map((l) => {
@@ -223,9 +283,13 @@ export class TranscriptPlayer {
     if (on) (document.getElementById("tp-source-close") as HTMLButtonElement).focus();
   }
 
-  /** Each frame: subtitles in step with the voice. */
+  /** Each frame: subtitles in step with the voice, and the half-moon's progress. */
   update(): void {
     const ctx = this.audio.ctx;
+    if (ctx && this.buffer && !this.mini.hidden) {
+      const at = this.src ? ctx.currentTime - this.startedAt : this.offset;
+      this.arc.style.strokeDashoffset = String(232.5 * (1 - Math.min(1, at / this.buffer.duration)));
+    }
     if (!this.src || !ctx || !this.subtitlesOn) return;
     const t = ctx.currentTime - this.startedAt;
     let k = -1;

@@ -40,9 +40,10 @@ import { buildSky, skyUniforms, starDirection } from "./world/sky";
 import { groundUniforms, heightAt, SPAWN, Terrain, WATER_Y } from "./world/terrain";
 import { NO_MIRROR_LAYER, Water } from "./world/water";
 import { FOG } from "./world/fog";
-import { Moods } from "./world/moods";
+import { MOOD_NAMES, Moods } from "./world/moods";
 import { lightField } from "./world/lightfield";
 import { Forest } from "./world/forest";
+import { RisingFlowers } from "./world/blooms";
 
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
 
@@ -192,6 +193,7 @@ const sparks = new Sparks();
 const grass = new LightGrass();
 const flowers = new Flowers(sparks, audio);
 const lanterns = new Lanterns(sparks);
+const blooms = new RisingFlowers();
 const butterflies = new Butterflies(flowers);
 const gliders = new Gliders();
 const landmarks = new Landmarks(scene, audio, wanderer);
@@ -203,7 +205,7 @@ void beings.load("models/wanderer.glb");
 const presences = new Presences();
 scene.add(presences.group);
 void presences.load("models/wanderer.glb");
-scene.add(sparks.points, grass.mesh, flowers.mesh, lanterns.points, butterflies.points, gliders.group);
+scene.add(sparks.points, grass.mesh, flowers.mesh, blooms.mesh, lanterns.points, butterflies.points, gliders.group);
 // The whole creation: trees and their roots, rocks, crystals, spirits, and the light through them.
 creationUniforms.uFogC.value.copy(FOG_COLOR);
 creationUniforms.uFogD.value = FOG.density * 0.9;
@@ -246,7 +248,7 @@ function additiveKeepsAlpha(root: THREE.Object3D): void {
 }
 additiveKeepsAlpha(scene);
 // what the lakes don't mirror: the grass's blades and the lights seen through the ground
-for (const o of [grass.mesh, ...creation.noReflect]) o.layers.set(NO_MIRROR_LAYER);
+for (const o of [grass.mesh, blooms.mesh, ...creation.noReflect]) o.layers.set(NO_MIRROR_LAYER);
 
 /* ============ QUALITY ============ */
 let dpr = 1;
@@ -362,7 +364,7 @@ input.onAction = () => {
     seaLife.bubbles(player.pos, 10);
   } else player.jump();
 };
-input.onTap = (x, y) => {
+input.onTap = (x, y, touch) => {
   if (S.mode !== "play") return;
   // an orb or a fruit under the tap: its narration begins (never by itself)
   const v = vessels.pick(x, y, camera);
@@ -370,7 +372,9 @@ input.onTap = (x, y) => {
     playArchive(v.narration);
     return;
   }
-  if (sitting.phase === "seated") return;
+  // a finger's tap never sends the wanderer walking (as in Sky: the stick walks, a tap on the
+  // right side was only ever a glance around); a mouse click still does
+  if (sitting.phase === "seated" || touch) return;
   const p = groundPoint(x, y);
   if (!p) return;
   player.target = new THREE.Vector2(p.x, p.z);
@@ -456,9 +460,9 @@ function arrive(c: Choice, first: boolean): void {
   $("#menu-btn").hidden = false;
   if (MOBILE) $("#act").hidden = $("#joy").hidden = false;
   say(`You wake near ${c.place.label.replace(/^The /, "the ")}. Wander anywhere; the land answers as you pass.`);
-  window.setTimeout(() => whisper(MOBILE ? "Tap where you want to go, or use the stick" : "Click where you want to go, or use W A S D", 6500), 4000);
-  window.setTimeout(() => whisper(MOBILE ? "Hold the round button to fly; let go to drift down" : "Hold Space to fly; let go to drift down", 6000), 26000);
-  window.setTimeout(() => whisper(MOBILE ? "Push the stick to its edge to run" : "Hold Shift to run", 6000), 50000);
+  window.setTimeout(() => whisper(MOBILE ? "Put your thumb down anywhere on the lower left to walk" : "Click where you want to go, or use W A S D", 6500), 4000);
+  window.setTimeout(() => whisper(MOBILE ? "Tap the round button to jump, tap again to fly; hold it to rise" : "Space to jump, again to fly; hold it to rise", 6000), 26000);
+  window.setTimeout(() => whisper(MOBILE ? "Push the stick further to run" : "Hold Shift to run", 6000), 50000);
 }
 $("#begin").addEventListener("click", begin);
 const startMap = new StartMap();
@@ -750,17 +754,22 @@ tp.onChoose = (background) => {
   // "Just the music" is a rest, not a switch: the narrator comes back in a quarter of an hour
   if (!background) playlist.rest(900);
 };
-// the narrator, once the journey's voices are all heard: the nearest archive narration not yet heard
+// once the journey's voices are all heard, the archive never speaks by itself (it starts only on a
+// tap): now and then a quiet word points out where a voice not yet heard is waiting
+let lastHint = -1e9;
 playlist.onRunOut = () => {
+  if (S.t - lastHint < 240 || tp.active) return false;
   let best: (typeof vessels.vessels)[number] | null = null, bd = Infinity;
   for (const v of vessels.vessels) {
     if (archiveHeard.has(v.narration.id)) continue;
     const d = v.pos.distanceTo(player.pos);
     if (d < bd) (bd = d), (best = v);
   }
-  if (!best || tp.active) return false;
-  playArchive(best.narration);
-  return true;
+  if (!best) return false;
+  lastHint = S.t;
+  const high = best.pos.y - Math.max(heightAt(best.pos.x, best.pos.z), WATER_Y) > 30;
+  whisper(best.kind === "fruit" ? "A great tree nearby bears voices: tap a fruit to listen" : high && best.radius < 5 ? "A star overhead carries a voice: fly up and tap it" : "A planet in the sky carries a voice: tap it to listen", 6000);
+  return false;
 };
 // left unanswered, the end of an archive narration lets the background voices go on
 tp.onEndIdle = () => {
@@ -802,7 +811,7 @@ function guideDestinations(): { group: string; items: (Destination & { note?: st
   const newOrb = byDist(ORB_SITES.filter((o) => !archiveHeard.has(o.orb.id)).map((o) => ({ ...o })))[0];
   const fresh: (Destination & { note?: string })[] = [];
   if (newBeing) fresh.push({ ...being(newBeing.b), note: "an archetype you haven't met yet" });
-  if (newOrb) fresh.push({ label: newOrb.orb.title, x: newOrb.x, y: newOrb.y, z: newOrb.z, note: `${newOrb.realm === "star" ? "a star you haven't heard, high overhead" : `an orb you haven't heard${newOrb.realm === "sky" ? ", a planet in the sky" : newOrb.realm === "water" ? ", in the deep" : ""}`}` });
+  if (newOrb) fresh.push({ label: newOrb.orb.title, x: newOrb.x, y: newOrb.y, z: newOrb.z, note: newOrb.realm === "star" ? "a star you haven't heard, high overhead" : "a planet you haven't heard, in the sky" });
   const realm = (r: string) => beings.list.filter((b) => b.spec.realm === r).map(being);
   return [
     { group: "Somewhere new", items: fresh },
@@ -1083,7 +1092,7 @@ function readings(): string {
     `${quality.reason} · ${shadersReady ? "shaders ready" : "compiling shaders…"}`,
     `${ri.calls} draws · ${(ri.triangles / 1000).toFixed(0)}k tris`,
     `audio ${audio.ctx?.state ?? "off"} · session ${audio.sessionType} · voice ${narration.current ?? "-"}`,
-    `sky ${["night", "sunrise", "sunset", "deep", "twilight"].map((n, i) => `${n} ${(moods.weights[i] * 100).toFixed(0)}`).filter((x) => !x.endsWith(" 0")).join(" · ")}`,
+    `sky ${MOOD_NAMES.map((n, i) => `${n} ${(moods.weights[i] * 100).toFixed(0)}`).filter((x) => !x.endsWith(" 0")).join(" · ")}`,
     `pos ${player.pos.x.toFixed(1)}, ${player.pos.y.toFixed(1)}, ${player.pos.z.toFixed(1)} · ${player.pose} · lanterns ${lanterns.litCount}`,
   ].join("\n");
 }
@@ -1122,7 +1131,7 @@ function update(dt: number): void {
 
   if (S.mode === "play") {
     if (wanderer.gesture !== "none" && Math.hypot(input.move.x, input.move.y) > 0.2 && wanderer.gesture === "sit") wanderer.setGesture("none");
-    player.update(dt, { ...input.move, glide: input.boost, hold: input.hold, down: input.descend, pitch: follow.pitch }, follow.yaw);
+    player.update(dt, { ...input.move, glide: input.boost, run: input.run, hold: input.hold, down: input.descend, pitch: follow.pitch }, follow.yaw);
     // the one context word: "Land" high in the air, "Dive" on the water, "Surface" under it
     const ctx = $("#ctx");
     const high = player.flying && !player.landing && player.pos.y - Math.max(heightAt(player.pos.x, player.pos.z), WATER_Y) > 2.5;
@@ -1175,6 +1184,7 @@ function update(dt: number): void {
   if (S.mode !== "intro") {
     grass.update(life);
     flowers.update(life);
+    blooms.update(life);
     lanterns.update(life);
     butterflies.update(life);
   }
@@ -1213,7 +1223,7 @@ function update(dt: number): void {
   if (player.diving && Math.random() < dt * 0.6) seaLife.bubbles(player.pos, 1);
   wasSwimming = player.swimming;
 
-  follow.update(dt, player.pos, player.heading, player.speed > 0.5, t, S.reduced);
+  follow.update(dt, player.pos, player.heading, player.speed > 0.5, t, S.reduced, player.flying);
   // high in the air, the camera reaches farther (and keeps its depth precise)
   {
     const alt = Math.max(0, camera.position.y);
@@ -1250,9 +1260,12 @@ function update(dt: number): void {
   clouds.update(wt, camera.position);
   footprints.update(t);
 
-  // The starlight's shadow follows the wanderer.
-  star.target.position.copy(player.pos);
-  star.position.copy(player.pos).addScaledVector(starDir, 60);
+  // The starlight's shadow follows the wanderer, and stays on the land below them when they fly
+  // high (up there its small box hung in the air, and the ground beneath went dark and speckled).
+  const below = Math.max(heightAt(player.pos.x, player.pos.z), WATER_Y);
+  shadowAt.set(player.pos.x, Math.min(player.pos.y, below + 12), player.pos.z);
+  star.target.position.copy(shadowAt);
+  star.position.copy(shadowAt).addScaledVector(starDir, 60);
 
   saveTimer += dt;
   if (saveTimer > 4) {
@@ -1275,6 +1288,7 @@ function fillLightField(): void {
   if (S.mode !== "intro" && !player.swimming) add(player.pos.x, player.pos.z, 6, WANDERER_LIGHT, 0.4 / (1 + Math.max(0, player.pos.y - heightAt(player.pos.x, player.pos.z) - 1.5) * 0.3));
   lanterns.lights(add);
   flowers.lights(add);
+  blooms.lights(add);
   creation.lights(add);
   spirits.lights(add);
   for (const b of beings.list) {
@@ -1285,6 +1299,7 @@ function fillLightField(): void {
   }
 }
 
+const shadowAt = new THREE.Vector3();
 let last = performance.now();
 let realDt = 0;
 function frame(now: number): void {
@@ -1324,4 +1339,4 @@ renderer
     quality.hold(3);
   });
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input } });

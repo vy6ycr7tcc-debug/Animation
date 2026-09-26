@@ -1,8 +1,11 @@
-/* Input: keyboard + mouse on desktop. On touch: a classic 360° joystick that always sits in
-   the bottom-left corner, look-drag anywhere else, and one round button, as in Sky:
-   - the stick walks in any direction, as gently or as fully as the thumb pushes;
-   - push the thumb to the edge of the stick to run;
-   - tap the round button to jump; hold it to take off and rise; let go to drift down;
+/* Input: keyboard + mouse on desktop. On touch: a classic 360° joystick that rests in the
+   bottom-left corner, look-drag anywhere else, and one round button, as in Sky and Genshin:
+   - a thumb landing anywhere in the lower left takes the stick: it comes to the thumb (a
+     floating stick is quicker to find than a fixed one), and goes home when let go;
+   - the inner half of the stick walks, as gently as the thumb pushes; further out the walk
+     rises smoothly into a run (the ring turns gold), with no sudden step between them;
+   - tap the round button to jump, and tap again in the air to take off; hold it to take off
+     and rise; flying, a tap is a wingbeat; let go to glide down;
    - one small word appears only when it helps: "Land" in the air, "Dive" on the water,
      "Surface" under it;
    - in the water, the round button's tap dives (at the surface) or strokes (under it), and
@@ -21,10 +24,12 @@ export class Input {
     return this.enabled && (this.keys.has(" ") || this.actHeld);
   }
   private actHeld = false;
-  /** Run: Shift, or the thumb pushed to the edge of the joystick. */
+  /** Run: Shift, or the thumb pushed out past the stick's inner half. */
   get boost(): boolean {
     return this.enabled && this.glide;
   }
+  /** How far into a run, 0..1 (Shift is a full run; the stick rises into it smoothly). */
+  run = 0;
   /** Sink (in the water, while held): C or Ctrl. */
   get descend(): boolean {
     return this.enabled && (this.keys.has("c") || this.keys.has("control"));
@@ -32,8 +37,8 @@ export class Input {
   /** The context word ("Land" in the air, "Dive" on the water, "Surface" under it): tapping it,
       or pressing L (or C in the air). */
   onLand: (() => void) | null = null;
-  /** A short tap or click without dragging: walk there. */
-  onTap: ((x: number, y: number) => void) | null = null;
+  /** A short tap or click without dragging (`touch` for a finger). */
+  onTap: ((x: number, y: number, touch: boolean) => void) | null = null;
   private downAt = new Map<number, { x: number; y: number; t: number }>();
   touchUsed = false;
   enabled = false;
@@ -45,6 +50,7 @@ export class Input {
   private joyCenter = { x: 0, y: 0 };
   private joyR = 56;
   private joyVec = { x: 0, y: 0 };
+  private joyRun = 0;
   private lookId: number | null = null;
   private lookLast = { x: 0, y: 0 };
   private mouseDown = false;
@@ -114,13 +120,27 @@ export class Input {
         this.lookId = null;
         return;
       }
-      // the stick: a touch on it (or just around it) takes it, and the knob goes straight to the thumb
+      // the stick: a touch on it (or just around it) takes it, and the knob goes straight to the
+      // thumb; a touch anywhere else in the lower left brings the whole stick to the thumb
       if (this.joyId === null && !this.joyEl.hidden) {
+        this.joyEl.style.transition = "none";
+        this.joyEl.style.transform = "";
         const r = this.joyEl.getBoundingClientRect();
-        this.joyCenter = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        const home = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
         this.joyR = r.width / 2 - 8;
-        if (Math.hypot(e.clientX - this.joyCenter.x, e.clientY - this.joyCenter.y) < r.width * 0.85) {
+        const near = Math.hypot(e.clientX - home.x, e.clientY - home.y) < r.width * 0.85;
+        const zone = e.clientX < innerWidth * 0.45 && e.clientY > innerHeight * 0.4;
+        if (near || zone) {
           this.joyId = e.pointerId;
+          if (near) this.joyCenter = home;
+          else {
+            const m = r.width / 2 + 6;
+            this.joyCenter = {
+              x: Math.min(Math.max(e.clientX, m), innerWidth - m),
+              y: Math.min(Math.max(e.clientY, m), innerHeight - m),
+            };
+            this.joyEl.style.transform = `translate(${this.joyCenter.x - home.x}px, ${this.joyCenter.y - home.y}px)`;
+          }
           this.stick(e.clientX, e.clientY);
           this.joyEl.classList.add("held");
           return;
@@ -161,7 +181,9 @@ export class Input {
     }
   }
 
-  /** Move the stick's knob toward the thumb: full 360°, analog, with a small rest in the middle. */
+  /** Move the stick's knob toward the thumb: full 360°, analog, with a small rest in the middle
+      (scaled, so movement starts smoothly from nothing rather than with a jolt). The inner half
+      walks from a gentle step to a full walk; beyond it the walk rises into a run. */
   private stick(x: number, y: number): void {
     const R = this.joyR;
     let dx = x - this.joyCenter.x, dy = y - this.joyCenter.y;
@@ -170,11 +192,14 @@ export class Input {
       dx *= R / d;
       dy *= R / d;
     }
-    const m = Math.min(1, d / R), dead = 0.12;
-    const k = m < dead ? 0 : (m - dead) / (1 - dead) / Math.max(m, 1e-6);
+    const m = Math.min(1, d / R), dead = 0.1, walked = 0.5;
+    const walk = m < dead ? 0 : Math.min(1, (m - dead) / (walked - dead));
+    const k = walk / Math.max(m, 1e-6);
     this.joyVec = { x: (dx / R) * k, y: (-dy / R) * k };
+    const t = Math.min(1, Math.max(0, (m - 0.55) / 0.35));
+    this.joyRun = t * t * (3 - 2 * t);
     this.knobEl.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-    this.joyEl.classList.toggle("run", m > 0.92);
+    this.joyEl.classList.toggle("run", this.joyRun > 0.5);
   }
 
   private up(e: PointerEvent): void {
@@ -182,15 +207,19 @@ export class Input {
     this.downAt.delete(e.pointerId);
     if (d && this.enabled && !this.pinch && e.type === "pointerup" && this.pointers.size <= 1 && e.pointerId !== this.joyId &&
         Math.hypot(e.clientX - d.x, e.clientY - d.y) < 10 && performance.now() - d.t < 350) {
-      this.onTap?.(e.clientX, e.clientY);
+      this.onTap?.(e.clientX, e.clientY, e.pointerType === "touch");
     }
     this.pointers.delete(e.pointerId);
     if (this.pinch && (e.pointerId === this.pinch.a || e.pointerId === this.pinch.b)) this.pinch = null;
     if (e.pointerId === this.joyId) {
       this.joyId = null;
       this.joyVec = { x: 0, y: 0 };
+      this.joyRun = 0;
       this.knobEl.style.transform = "translate(-50%,-50%)";
       this.joyEl.classList.remove("held", "run");
+      // home again, gently
+      this.joyEl.style.transition = "transform 0.2s ease-out";
+      this.joyEl.style.transform = "";
     }
     if (e.pointerId === this.lookId) this.lookId = null;
     if (e.pointerType !== "touch") this.mouseDown = false;
@@ -209,14 +238,17 @@ export class Input {
       const l = Math.hypot(x, y);
       this.move = { x: x / l, y: y / l };
       this.glide = k.has("shift");
+      this.run = this.glide ? 1 : 0;
     } else {
       this.move = { ...this.joyVec };
-      // Pushing the thumb to the edge becomes a run.
-      this.glide = Math.hypot(this.joyVec.x, this.joyVec.y) > 0.9;
+      // pushing the thumb out past the inner half rises into a run
+      this.run = this.joyRun;
+      this.glide = this.joyRun > 0.5;
     }
     if (!this.enabled) {
       this.move = { x: 0, y: 0 };
       this.glide = false;
+      this.run = 0;
     }
   }
 

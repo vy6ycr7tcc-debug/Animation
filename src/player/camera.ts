@@ -39,16 +39,17 @@ export class FollowCamera {
     this.target.set(pos.x, pos.y + 1.3, pos.z);
   }
 
-  update(dt: number, player: THREE.Vector3, heading: number, moving: boolean, t: number, reduced: boolean): void {
+  update(dt: number, player: THREE.Vector3, heading: number, moving: boolean, t: number, reduced: boolean, flying = false): void {
     this.sinceLook += dt;
     this.follow += (this.followGoal - this.follow) * Math.min(1, dt * 0.7);
     // back above the water, the view settles to its usual range
     if (!this.underwater && this.pitch < -0.15) this.pitch += (-0.15 - this.pitch) * Math.min(1, dt * 2);
-    // Ease behind the wanderer while they walk, unless the viewer is looking around.
-    if (moving && this.sinceLook > 1.5) {
+    // Ease behind the wanderer while they move, unless the viewer is looking around; in flight
+    // sooner and more firmly, so steering with the stick turns the view with you (as in Sky).
+    if (moving && this.sinceLook > (flying ? 0.8 : 1.2)) {
       let d = heading - this.yaw;
       d = Math.atan2(Math.sin(d), Math.cos(d));
-      this.yaw += d * Math.min(1, dt * 0.9);
+      this.yaw += d * Math.min(1, dt * (flying ? 1.6 : 1.0));
     }
     this.target.lerp(new THREE.Vector3(player.x, player.y + 1.3, player.z), Math.min(1, dt * 5));
 

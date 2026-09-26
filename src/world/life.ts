@@ -420,9 +420,10 @@ export class Lanterns {
     this.pos = this.cloud.attrs.position.array as Float32Array;
     this.glow = this.cloud.attrs.aGlow.array as Float32Array;
     const { position, aGlow } = this.cloud.nodes;
-    mat.sizeNode = clamp(aGlow.mul(80).add(26).div(max(viewDepth(position), 0.5)).mul(6), float(3).div(this.uDpr), 160);
+    // a bright core in a small, contained halo (never a spreading glare)
+    mat.sizeNode = clamp(aGlow.mul(50).add(22).div(max(viewDepth(position), 0.5)).mul(6), float(3).div(this.uDpr), 90);
     const r = length(pointUV.sub(0.5)).mul(2);
-    const core = smoothstep(0.18, 0, r), halo = exp(r.mul(r).mul(-5)).mul(0.35);
+    const core = smoothstep(0.2, 0, r), halo = exp(r.mul(r).mul(-9)).mul(0.22);
     mat.colorNode = vec4(vec3(1.0, 0.78, 0.48).mul(core.mul(aGlow.mul(2.4).add(0.4)).add(halo.mul(aGlow.mul(1.3).add(0.12)))), 1);
     this.points = this.cloud.sprite;
     this.cloud.setCount(0);

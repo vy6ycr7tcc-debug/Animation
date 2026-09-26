@@ -1,8 +1,8 @@
 /* Narration in the background: sparing, and never repeating.
    - Each of the journey's voices is heard once per journey. What you've heard is kept on this
-     device, so coming back you hear what you haven't yet. When all have been heard, the narrator
-     goes on with the archive's narrations you haven't heard, nearest first (Samuel: the narrator
-     "is repeating the same thing over and over", and later: "there is no narration anymore").
+     device, so coming back you hear what you haven't yet (Samuel: the narrator "is repeating the
+     same thing over and over"). When all have been heard, the narrator rests; the archive's
+     narrations never begin by themselves (only on a tap), but `onRunOut` may point one out.
    - A long quiet stretch between voices (a minute or two), so the world can speak for itself.
    - Where you choose to begin decides which voice comes first; the rest follow in order.
    - The archetypes' own voices (arriving, stepping close, sitting with them, the passages on the
@@ -54,8 +54,8 @@ export class Playlist {
     return this.heard.has(id);
   }
 
-  /** When the journey's own voices have all been heard: offer something else to hear (the
-      archive's narrations); true if something began. */
+  /** When the journey's own voices have all been heard: a chance to point out something else
+      to hear; true if something began speaking. */
   onRunOut: (() => boolean) | null = null;
 
   /** Quiet for a while ("Just the music"), then the voices return. */
@@ -129,7 +129,7 @@ export class Playlist {
         break;
       }
     }
-    // every journey voice heard: the archive's narrations carry on, nearest first
+    // every journey voice heard: point out where another voice is waiting
     if (!spoke && this.on && !this.held && !this.quiet && !this.narration.current) spoke = this.onRunOut?.() ?? false;
     this.wait = spoke ? gap() : 60;
     this.starting = false;

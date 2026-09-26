@@ -37,9 +37,10 @@ function atlas(): { tex: THREE.CanvasTexture; size: { w: number; h: number; base
       l.pts.forEach((p, i) => (i ? g.lineTo(X(p.x), Y(p.y)) : g.moveTo(X(p.x), Y(p.y))));
       g.stroke();
     }
+    // the crown's glints, small as on the living trees (larger, they read as white puffs)
     for (const t of tips) {
-      const grd = g.createRadialGradient(X(t.x), Y(t.y), 0, X(t.x), Y(t.y), 0.9 * scale);
-      grd.addColorStop(0, "rgba(255,236,200,0.9)");
+      const grd = g.createRadialGradient(X(t.x), Y(t.y), 0, X(t.x), Y(t.y), 0.45 * scale);
+      grd.addColorStop(0, "rgba(255,236,200,0.6)");
       grd.addColorStop(1, "rgba(255,236,200,0)");
       g.fillStyle = grd;
       g.fillRect(X(t.x) - scale, Y(t.y) - scale, 2 * scale, 2 * scale);

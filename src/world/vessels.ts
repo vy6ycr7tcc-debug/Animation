@@ -170,17 +170,19 @@ export class Vessels {
   private buildOrb(site: OrbSite, i: number): void {
     if (site.realm === "star") return this.buildStar(site, i);
     const a = colourFor(i * 5 + 2), b = colourFor(i * 5 + 5).offsetHSL(0.08, 0, -0.1);
-    // a planet in the sky is large, a world of its own seen from the ground; the others are small
-    const r = site.realm === "sky" ? 12 + (i % 3) * 4 : 0.7;
+    // a planet in the sky, large: a world of its own seen from the ground
+    const r = 18 + (i % 3) * 6;
     const group = new THREE.Group();
     group.position.set(site.x, site.y, site.z);
     const mat = planetMaterial(a, b, (i * 0.137) % 1);
     const planet = new THREE.Mesh(new THREE.SphereGeometry(r, 40, 28), mat);
     const moon = new THREE.Mesh(new THREE.SphereGeometry(r * 0.16, 16, 12), new THREE.MeshBasicMaterial({ color: a.clone().lerp(new THREE.Color(1, 1, 1), 0.6) }));
-    const glow = halo(a.clone().lerp(new THREE.Color(1, 1, 1), 0.3), r * (site.realm === "sky" ? 3.2 : 7));
+    // a thin, contained rim of air, never a spreading glare
+    const glow = halo(a.clone().lerp(new THREE.Color(1, 1, 1), 0.3), r * 2.3);
+    glow.material.opacity = 0.55;
     group.add(planet, moon, glow);
-    if (i % 3 === 1 || site.realm === "sky") {
-      // a few carry a faint ring
+    {
+      // each carries a faint ring
       const ring = new THREE.Mesh(
         new THREE.RingGeometry(r * 1.45, r * 1.75, 64).rotateX(-Math.PI / 2 + 0.35),
         new THREE.MeshBasicMaterial({ color: b.clone().lerp(new THREE.Color(1, 1, 1), 0.4), transparent: true, opacity: 0.35, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }),
@@ -199,10 +201,12 @@ export class Vessels {
     const col = colourFor(i * 7 + 3).lerp(new THREE.Color(1, 0.95, 0.85), 0.55);
     const group = new THREE.Group();
     group.position.set(site.x, site.y, site.z);
-    const core = new THREE.Mesh(new THREE.SphereGeometry(2.4, 24, 16), new THREE.MeshBasicMaterial({ color: col.clone().multiplyScalar(2.2), fog: false }));
-    const glow = halo(col, 70);
-    const rays = new THREE.Sprite(new THREE.SpriteMaterial({ map: RAYS, color: col, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
-    rays.scale.setScalar(120);
+    // bright but contained: a small halo and short rays, so it reads as a star, not a glare
+    const core = new THREE.Mesh(new THREE.SphereGeometry(2.4, 24, 16), new THREE.MeshBasicMaterial({ color: col.clone().multiplyScalar(1.3), fog: false }));
+    const glow = halo(col, 22);
+    glow.material.opacity = 0.7;
+    const rays = new THREE.Sprite(new THREE.SpriteMaterial({ map: RAYS, color: col, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false, opacity: 0.6 }));
+    rays.scale.setScalar(44);
     group.add(core, glow, rays);
     this.group.add(group);
     const vessel: Vessel = { kind: "orb", narration: site.orb, pos: group.position.clone(), radius: 3 };
@@ -242,7 +246,7 @@ export class Vessels {
       const mat = new THREE.MeshBasicMaterial({ color: accent.clone().lerp(new THREE.Color(1, 1, 1), 0.45).multiplyScalar(1.6) });
       const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.3, 24, 16), mat);
       mesh.position.copy(base);
-      const glow = halo(accent.clone().lerp(new THREE.Color(1, 1, 1), 0.2), 2.6);
+      const glow = halo(accent.clone().lerp(new THREE.Color(1, 1, 1), 0.2), 1.5);
       glow.position.copy(base);
       this.group.add(mesh, glow);
       const vessel: Vessel = { kind: "fruit", narration: ep, pos: base.clone(), radius: 0.3, grove: site };
@@ -263,7 +267,8 @@ export class Vessels {
     const w = innerWidth, h = innerHeight;
     for (const vs of this.vessels) {
       const d = vs.pos.distanceTo(camera.position);
-      if (d - vs.radius > 160) continue;
+      // things in the sky can be tapped from the ground below them
+      if (d - vs.radius > (vs.pos.y > camera.position.y + 30 ? 330 : 160)) continue;
       this.v.copy(vs.pos).project(camera);
       if (this.v.z > 1) continue;
       const sx = (this.v.x * 0.5 + 0.5) * w, sy = (-this.v.y * 0.5 + 0.5) * h;
@@ -304,20 +309,21 @@ export class Vessels {
       const r = o.vessel.radius;
       const a = t * 0.35 + o.phase;
       o.moon.position.set(Math.cos(a) * r * 2.1, Math.sin(a * 0.7) * r * 0.5, Math.sin(a) * r * 2.1);
-      // the halo is for finding it from afar; close up it steps back so the planet itself shows
-      o.glow.material.opacity = (0.5 - 0.35 * o.mat.uniforms.uNear.value) + playing * 0.15;
-      o.glow.scale.setScalar(r * (5 + (reduced ? 0 : Math.sin(t * 0.9 + o.phase)) * 0.4 + playing * 1.5));
+      // a thin rim of air that breathes a little (brighter while it speaks); close up it steps
+      // back so the planet itself shows. Contained: it never spreads over the sky around it
+      o.glow.material.opacity = (0.4 - 0.25 * o.mat.uniforms.uNear.value) + playing * 0.15;
+      o.glow.scale.setScalar(r * (2.3 + (reduced ? 0 : Math.sin(t * 0.9 + o.phase)) * 0.08 + playing * 0.25));
     }
     for (const st of this.stars) {
       const playing = this.playingId === st.vessel.narration.id ? 1 : 0;
       const tw = reduced ? 1 : 0.85 + 0.15 * Math.sin(t * 1.7 + st.phase);
       st.rays.material.rotation = reduced ? 0 : t * 0.03 + st.phase;
-      st.rays.material.opacity = (0.55 + playing * 0.35) * tw;
-      st.glow.material.opacity = (0.45 + playing * 0.3) * tw;
-      // up close it steps back, so the core itself shows
+      st.rays.material.opacity = (0.45 + playing * 0.3) * tw;
+      st.glow.material.opacity = (0.4 + playing * 0.25) * tw;
+      // small and contained; up close it steps back further, so the core itself shows
       const near = fade(player.distanceTo(st.group.position), 30, 160);
-      st.glow.scale.setScalar(70 - near * 45);
-      st.rays.scale.setScalar(120 - near * 70);
+      st.glow.scale.setScalar(22 - near * 8);
+      st.rays.scale.setScalar(44 - near * 16);
     }
     for (const g of this.groves) {
       for (const f of g.fruits) {
@@ -327,7 +333,7 @@ export class Vessels {
         f.vessel.pos.copy(f.mesh.position);
         const playing = this.playingId === f.vessel.narration.id;
         const pulse = 0.75 + 0.25 * Math.sin(t * 1.3 + f.phase);
-        f.glow.material.opacity = (0.5 + (playing ? 0.5 : 0)) * pulse;
+        f.glow.material.opacity = (0.45 + (playing ? 0.35 : 0)) * pulse;
         f.mesh.scale.setScalar(1 + (playing ? 0.25 : 0) + (reduced ? 0 : pulse * 0.08));
       }
     }
@@ -370,12 +376,12 @@ export class Vessels {
     for (const st of this.stars) {
       const d = player.distanceTo(st.vessel.pos);
       const el = this.label(st, line(st.vessel.narration), "orb");
-      this.place(el, this.v.copy(st.vessel.pos).add(new THREE.Vector3(0, 6, 0)), camera, fade(d, 80, 180));
+      this.place(el, this.v.copy(st.vessel.pos).add(new THREE.Vector3(0, 6, 0)), camera, fade(d, 120, 260));
     }
     for (const o of this.orbs) {
       const d = Math.max(0, player.distanceTo(o.vessel.pos) - o.vessel.radius);
       const el = this.label(o, line(o.vessel.narration), "orb");
-      this.place(el, this.v.copy(o.vessel.pos).add(new THREE.Vector3(0, o.vessel.radius + 0.5, 0)), camera, o.vessel.radius > 2 ? fade(d, 60, 140) : fade(d, 18, 40));
+      this.place(el, this.v.copy(o.vessel.pos).add(new THREE.Vector3(0, o.vessel.radius + 0.5, 0)), camera, o.vessel.radius > 2 ? fade(d, 150, 380) : fade(d, 18, 40));
     }
     for (const g of this.groves) {
       const d = Math.hypot(player.x - g.site.x, player.z - g.site.z);

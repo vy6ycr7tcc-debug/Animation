@@ -315,7 +315,7 @@ function buildProps(b: Being, world: THREE.Group, stone: THREE.Material): void {
       update: (_t, wake, greet) => {
         (core.material as THREE.MeshBasicMaterial).opacity = 0.7 + wake * 0.3;
         halo.material.opacity = 0.5 + wake * 0.4 + greet * 0.6;
-        halo.scale.setScalar(r * (9 + wake * 5 + greet * 10));
+        halo.scale.setScalar(r * (6 + wake * 3 + greet * 4));
       },
     });
   };
