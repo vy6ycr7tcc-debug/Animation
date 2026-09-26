@@ -235,6 +235,7 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
 - 2026-09-26: Samuel (screenshot, flying low over the land): soft coloured blobs over the ground, "very annoying… I think it's the galaxies reflection". It was: glossy things reflect `scene.environment`, baked from the full sky, and blurred, its nebulae, galaxies and bright star became blobs sliding over the land. The environment now bakes a plain sky (`buildSky(true)`, `skyColorPlain`: colours, low sun, moon glow, no night lights). The hand ribbons rest in flight (they trailed down like stilts while climbing).
 - 2026-09-26: Samuel: "when flying it should be more like a mermaid swimming". `flyPose` adds a dolphin kick: legs drawn together as one tail, a slow wave down the body (spine, thighs, shins, pointed feet, each later than the one above), faster and fuller when moving, slow when hovering; arms stay swept back.
 - 2026-09-26: Samuel: glare and a sheen over the ground, "it also makes the game choppy". The sky's reflection was re-baked (PMREM) every ~4 s while travelling between moods: a hitch on the phone and a jumping sheen. It is now baked once; the moods' lights carry the colour change; the sky's sheen is 0.7× as strong. The wanderer's own light is quieter (point light about half, its pool on the ground 3.5 m at half strength). Don't re-bake the environment per frame or per mood.
+- 2026-09-26: Samuel: "I don't see the player"; "remove subtitles". The half-moon now rests in view top right whenever you play (`tp.setResting`); with nothing playing its ▶ begins the first narration of the archive not yet heard (and » too), then it carries on as before; tapping a vessel opens the card, which folds itself after 10 s. Subtitles are gone (no menu switch; `subtitlesOn = false`), overriding the earlier "subtitles always on".
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.
@@ -270,11 +271,11 @@ Defaults Claude proposed on 2026-09-24 (Samuel said "go"):
 ## Audio
 - The bed is `water-bed.mp3` (from the package's `water-bed.wav`), looped with a crossfade, plus soft generated tones.
 - Narration ducks the bed (never mutes it). Leaving a narration fades it, never cuts it.
-- Subtitles are on by default and can be turned off.
+- No subtitles (Samuel, 2026-09-26: "remove subtitles").
 - iOS 17+: set `navigator.audioSession.type = "playback"`, so sound plays with the silent switch on.
 - Start audio inside the first tap ("Touch the water to begin").
 - Keep music above about 200 Hz; phone speakers lose the low end.
-- Narration voices: Aria is `avocado_v2:MAI_01` (warm female), Rowan is `avocado_v2:miles` (soothing male), speed 92. Subtitles are always on.
+- Narration voices: Aria is `avocado_v2:MAI_01` (warm female), Rowan is `avocado_v2:miles` (soothing male), speed 92.
 
 ## Quality bar
 - Lighting is the main character: dawn light, fog with depth, water that reflects the sky, bloom used with restraint.

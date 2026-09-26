@@ -33,7 +33,11 @@ export class TranscriptPlayer {
   onChange: ((id: string | null) => void) | null = null;
   /** The narration to follow `n` when it ends (or when "next" is asked for); null stops. */
   next: ((n: Narration) => Narration | null) | null = null;
-  subtitlesOn = true;
+  /** What the half-moon's play begins when nothing is playing. */
+  first: (() => Narration | null) | null = null;
+  /** The half-moon stays in view while you play (Samuel: "I don't see the player"). */
+  private resting = false;
+  subtitlesOn = false;
 
   private media = new Audio();
   private el = document.getElementById("tp") as HTMLDivElement;
@@ -69,7 +73,7 @@ export class TranscriptPlayer {
       });
       el.addEventListener("click", (e) => e.detail === 0 && fn());
     };
-    const toggle = () => (this.playing ? this.pause() : this.resume());
+    const toggle = () => (this.playing ? this.pause() : this.current ? this.resume() : this.startFirst());
     tap("tp-pause", toggle);
     tap("tp-back", () => this.back(15));
     tap("tp-next", () => this.skip());
@@ -145,8 +149,26 @@ export class TranscriptPlayer {
 
   /** On to the next narration now. */
   skip(): void {
-    const n = this.current && this.next?.(this.current);
+    if (!this.current) return this.startFirst();
+    const n = this.next?.(this.current);
     if (n) this.play(n);
+  }
+
+  private startFirst(): void {
+    const n = this.first?.();
+    if (n) this.play(n);
+  }
+
+  /** While you play, the half-moon stays in view even with nothing playing; its play button then
+      begins the next narration not yet heard. */
+  setResting(on: boolean): void {
+    this.resting = on;
+    if (!this.current) {
+      this.mini.hidden = !on;
+      this.mini.classList.toggle("idle", on);
+      this.showPlaying(false);
+      this.arc.style.strokeDashoffset = String(ARC);
+    }
   }
 
   close(): void {
@@ -159,6 +181,7 @@ export class TranscriptPlayer {
     this.el.hidden = true;
     this.mini.hidden = true;
     this.sub.classList.remove("on");
+    this.setResting(this.resting);
     this.audio.duck(false);
     this.showSource(false);
     if (navigator.mediaSession) navigator.mediaSession.metadata = null;
@@ -199,19 +222,21 @@ export class TranscriptPlayer {
 
   unfold(): void {
     window.clearTimeout(this.foldTimer);
+    if (!this.current) return;
+    this.mini.classList.remove("idle");
     this.el.hidden = false;
     this.mini.hidden = true;
+    // the card folds itself away after a moment, so the view stays open
+    this.foldTimer = window.setTimeout(() => this.fold(), 10000);
   }
 
   private render(n: Narration): void {
-    // a narration that follows another keeps the player as it was (folded or open)
+    // a narration that follows another keeps the player as it was (folded or open), and one
+    // begun from the resting half-moon stays folded
     const folded = !this.mini.hidden;
+    this.mini.classList.remove("idle");
     if (folded) this.el.hidden = true;
-    else {
-      this.unfold();
-      // the card folds itself away after a moment, so the view stays open
-      this.foldTimer = window.setTimeout(() => this.fold(), 10000);
-    }
+    else this.unfold();
     this.showPlaying(true);
     this.arc.style.strokeDashoffset = String(ARC);
     this.titleEl.textContent = n.title;

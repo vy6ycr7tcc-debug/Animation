@@ -294,7 +294,7 @@ if (saved) {
   player.heading = saved.heading;
   S.reducedPref = saved.settings?.reduced ?? null;
   audio.volume = saved.settings?.volume ?? 0.8;
-  narration.subtitlesOn = saved.settings?.subtitles ?? true;
+  narration.subtitlesOn = false; // no subtitles (Samuel: "remove subtitles")
   // (the older "narration" setting is not read: one tap on "Just the music" had silenced the
   // narrator for good; only the menu's own switch turns the voices off now)
   playlist.on = saved.settings?.voices ?? true;
@@ -458,6 +458,7 @@ function arrive(c: Choice, first: boolean): void {
   persist();
   if (!first) return;
   $("#menu-btn").hidden = false;
+  tp.setResting(true);
   if (MOBILE) $("#act").hidden = $("#joy").hidden = false;
   say(`You wake near ${c.place.label.replace(/^The /, "the ")}. Wander anywhere; the land answers as you pass.`);
   window.setTimeout(() => whisper(MOBILE ? "Put your thumb down anywhere on the lower left to walk" : "Click where you want to go, or use W A S D", 6500), 4000);
@@ -741,6 +742,7 @@ function playArchive(n: Parameters<TranscriptPlayer["play"]>[0]): void {
   narration.stop(1.5); // the journey's voice or an archetype's answer makes way
   playlist.held = true;
   tp.play(n);
+  tp.unfold(); // tapped on a vessel: its card shows
   say(`Playing: ${n.title}. ${TranscriptPlayer.caption(n).join(". ")}.`);
 }
 tp.onChange = (id) => {
@@ -754,6 +756,8 @@ tp.onChange = (id) => {
 // when one ends, the next follows by itself (the phone may be locked in a pocket by now): the
 // archive in its own order, episodes 1 to 86, those not yet heard first
 const ARCHIVE_ORDER = [...ARCHIVE.orbs, ...ARCHIVE.trees.flatMap((t) => t.episodes)];
+// the resting half-moon's play: the first narration of the archive not yet heard
+tp.first = () => ARCHIVE_ORDER.find((x) => !archiveHeard.has(x.id)) ?? ARCHIVE_ORDER[0] ?? null;
 tp.next = (n) => {
   const i = ARCHIVE_ORDER.findIndex((x) => x.id === n.id);
   for (let k = 1; k < ARCHIVE_ORDER.length; k++) {
@@ -970,13 +974,6 @@ awakeBox.addEventListener("change", () => {
   awake.set(awakeBox.checked);
   persist();
 });
-const subsBox = $<HTMLInputElement>("#subs");
-subsBox.checked = narration.subtitlesOn;
-subsBox.addEventListener("change", () => {
-  narration.subtitlesOn = subsBox.checked;
-  if (!subsBox.checked) narration.hideSub();
-  persist();
-});
 const reducedBox = $<HTMLInputElement>("#reduced");
 reducedBox.checked = S.reduced;
 reducedBox.addEventListener("change", () => {
@@ -1006,6 +1003,7 @@ $("#leave").addEventListener("click", () => {
   $("#rest").hidden = false;
   for (const id of ["#act", "#ctx", "#joy"]) $(id).hidden = true;
   $("#menu-btn").hidden = true;
+  tp.setResting(false);
   $<HTMLButtonElement>("#return").focus();
   say("Your place is kept.");
 });
@@ -1038,6 +1036,7 @@ $("#return").addEventListener("click", () => {
   input.enabled = true;
   $("#rest").hidden = true;
   $("#menu-btn").hidden = false;
+  tp.setResting(true);
   if (MOBILE || input.touchUsed) $("#act").hidden = $("#joy").hidden = false;
 });
 
