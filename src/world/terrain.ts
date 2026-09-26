@@ -267,8 +267,8 @@ export const groundUniforms = { uT: T.uniform(0) };
 
 const tmix = T.mix;
 const {
-  abs, attribute, cameraPosition, cameraViewMatrix, dot, exp, float, floor, Fn, fract, length, mat2, max, min, normalize, normalView,
-  positionWorld, pow, sin, smoothstep, step, texture, vec2, vec3, vec4,
+  abs, attribute, cameraPosition, cameraViewMatrix, dFdx, dFdy, dot, exp, float, floor, Fn, fract, length, max, min, normalize, normalView,
+  normalWorld, positionWorld, pow, sin, smoothstep, step, texture, vec2, vec3, vec4,
 } = T;
 const gH = (p: N): N => fract(sin(dot(p, vec2(127.1, 311.7))).mul(43758.5453));
 const cH2 = (p: N): N => fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))).mul(43758.5453));
@@ -296,7 +296,7 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
   // don't need to be ray tracing the floor")
   const m = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
   m.envMapIntensity = 0.35;
-  const [sand, meadow, rock] = [surface("sand"), surface("meadow"), surface("rock")];
+  const [sand, meadow, rock, cliff] = [surface("sand"), surface("meadow"), surface("rock"), surface("cliff")];
   const uT = groundUniforms.uT;
   const moon = vec3(...starDirection().toArray());
   // x: sky seen (1 open … darker in hollows), y: how sandy, z: how rocky
@@ -304,23 +304,52 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
   const vGW = positionWorld;
   const w = vec3(gr.y, gr.z, max(0, float(1).sub(gr.y).sub(gr.z))); // sand, rock, meadow
   const q = vGW.xz;
-  const R = mat2(0.8, 0.6, -0.6, 0.8); // column-major, as GLSL's mat2(0.8,-0.6,0.6,0.8)
-  const blend = smoothstep(0.25, 0.75, gN(q.mul(0.02))).mul(0.6);
-  // two scales of the same texture, blended by a slow noise, so no repeat ever shows
-  const samp = (t: THREE.Texture, s: number) => tmix(texture(t, q.div(s)), texture(t, R.mul(q).div(s * 3.7)), blend);
+  // No repeat ever shows (after Inigo Quilez's texture-repetition trick): a slow noise picks, for
+  // each stretch of ground, one of eight offsets of the scan, and neighbouring stretches blend
+  // into each other; both samples share the ground's own derivatives, so no seam shows either.
+  const pick = gN(q.mul(0.045)).mul(8);
+  const pa = floor(pick), pf = smoothstep(0.25, 0.75, fract(pick));
+  const offA = sin(vec2(3, 7).mul(pa)), offB = sin(vec2(3, 7).mul(pa.add(1)));
+  const samp = (t: THREE.Texture, s: number) => {
+    const u = q.div(s), dx = dFdx(u), dy = dFdy(u);
+    return tmix(texture(t, u.add(offA)).grad(dx, dy), texture(t, u.add(offB)).grad(dx, dy), pf);
+  };
   const camD = length(vGW.sub(cameraPosition));
 
-  const det0 = samp(sand.diff, 3).rgb.mul(1.9).mul(w.x).add(samp(rock.diff, 4).rgb.mul(2.2).mul(w.y)).add(samp(meadow.diff, 2.2).rgb.mul(2.6).mul(w.z));
+  // Steep ground is a cliff: the cliff scan wrapped around it from the side (triplanar), not
+  // smeared down its face from above as the flat layers would be.
+  const nW = normalize(normalWorld);
+  // steep ground, and the mountains (their gentle slopes too): rock
+  const steep = max(smoothstep(0.14, 0.42, float(1).sub(nW.y)), smoothstep(22, 60, vGW.y)).mul(step(0.5, vGW.y));
+  const bx = pow(abs(nW.x), 3), bz = pow(abs(nW.z), 3), bsum = max(bx.add(bz), 1e-4);
+  const CS = 7; // metres a repeat of the cliff scan
+  // near, the scan at its own scale; far, the same scan much larger, so its strata still read
+  // from a kilometre away (a small pattern averages to flat grey at that distance)
+  const farK = smoothstep(120, 600, camD);
+  const tri = (s: number) => texture(cliff.diff, vGW.zy.div(s)).rgb.mul(bx).add(texture(cliff.diff, vGW.xy.div(s)).rgb.mul(bz)).div(bsum);
+  const cliffC = tmix(tri(CS), tri(CS * 9), farK);
+
+  const flat0 = samp(sand.diff, 3).rgb.mul(1.9).mul(w.x).add(samp(rock.diff, 4).rgb.mul(2.2).mul(w.y)).add(samp(meadow.diff, 2.2).rgb.mul(2.6).mul(w.z));
+  // snowfields keep their white: only a trace of the rock beneath shows through
+  const snowK = smoothstep(0.32, 0.6, dot(T.vertexColor().rgb, vec3(0.3, 0.5, 0.2)));
+  const det0 = tmix(flat0, tmix(cliffC.mul(2.3), tmix(vec3(1), cliffC.mul(2.3), 0.25), snowK), steep);
   // keep the moonlit palette: mostly the scan's light and shade, a little of its colour
   const det = tmix(vec3(dot(det0, vec3(0.3, 0.5, 0.2))), det0, 0.5);
-  const fade = float(1).sub(smoothstep(150, 520, camD));
-  m.colorNode = vec4(tmix(vec3(1), det, fade).mul(gr.x), 1);
+  // the scans' detail reaches far now (mipmapped, it doesn't shimmer), and cliffs to the mountains
+  const fade = float(1).sub(smoothstep(tmix(float(300), float(1400), steep), tmix(float(1100), float(2400), steep), camD));
+  // broad variation over the land, so the far country is never one flat colour
+  const macro = tmix(float(0.86), float(1.1), gN(q.mul(0.0035))).mul(tmix(float(0.93), float(1.05), gN(q.mul(0.021).add(7))));
+  m.colorNode = vec4(tmix(vec3(1), det, fade).mul(macro).mul(gr.x), 1);
 
   // the scans' relief: each surface's normal map, blended as the ground is
   const near = float(1).sub(smoothstep(30, 160, camD));
   const nm = (t: THREE.Texture, s: number) => samp(t, s).xy.mul(2).sub(1);
   const pn = nm(sand.nor, 3).mul(w.x).mul(0.9).add(nm(rock.nor, 4).mul(w.y).mul(1.2)).add(nm(meadow.nor, 2.2).mul(w.z).mul(0.7));
-  const dW = vec3(pn.x, 0, pn.y.negate()).mul(near).mul(1.35);
+  const dFlat = vec3(pn.x, 0, pn.y.negate()).mul(near).mul(1.35);
+  // on a cliff, each side's normal map turns about its own plane (x-facing: z and y; z-facing: x and y)
+  const nX = texture(cliff.nor, vGW.zy.div(CS)).xy.mul(2).sub(1), nZ = texture(cliff.nor, vGW.xy.div(CS)).xy.mul(2).sub(1);
+  const dCliff = vec3(0, nX.y, nX.x).mul(bx).add(vec3(nZ.x, nZ.y, 0).mul(bz)).div(bsum).mul(float(1).sub(smoothstep(60, 400, camD))).mul(1.6);
+  const dW = tmix(dFlat, dCliff, steep);
   m.normalNode = normalize(normalView.add(cameraViewMatrix.mul(vec4(dW, 0)).xyz));
 
   m.emissiveNode = Fn(() => {
