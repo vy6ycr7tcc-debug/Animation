@@ -21,7 +21,9 @@ export const MOBILE =
   matchMedia("(pointer:coarse)").matches || Math.min(screen.width, screen.height) < 700;
 
 export const TIERS: Tier[] = [
-  { name: "full", dpr: 3, shadow: 2048, bloom: true, particles: MOBILE ? 1200 : 1800, ao: true, rays: true, reflection: true },
+  // on a phone the ambient occlusion rests even at the top: at native resolution it cost the most
+  // of any effect for the least seen (Samuel's iPhone ran at ~43 fps with it)
+  { name: "full", dpr: 3, shadow: 2048, bloom: true, particles: MOBILE ? 1200 : 1800, ao: !MOBILE, rays: true, reflection: true },
   { name: "high", dpr: 3, shadow: 2048, bloom: true, particles: 1100, ao: false, rays: true, reflection: true },
   { name: "medium", dpr: 2.5, shadow: 1024, bloom: true, particles: 900, ao: false, rays: false, reflection: true },
   { name: "light", dpr: 2, shadow: 1024, bloom: true, particles: 700, ao: false, rays: false, reflection: false },
@@ -99,7 +101,7 @@ export class AdaptiveQuality {
     // Low Power Mode caps Safari at a steady 30 fps: that is a power setting, not a slow phone
     const capped30 = stats.fps > 27 && stats.fps < 32 && stats.worstMs < 45;
     const canScaleDown = Math.min(devicePixelRatio || 1, this.current.dpr) * (this.scale - 0.1) >= Math.min(devicePixelRatio || 1, MOBILE ? 2 : 1) - 1e-3;
-    if (stats.fps < 45 && !capped30) {
+    if (stats.fps < 50 && !capped30) {
       this.good = 0;
       if (++this.bad >= 3) {
         if (canScaleDown && this.scale > 0.7) this.setScale(this.scale - 0.1, "slow: render scale down");

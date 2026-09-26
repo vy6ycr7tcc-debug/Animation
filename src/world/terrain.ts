@@ -377,8 +377,8 @@ export class Terrain {
       }
       innerMoved = innerMoved || moved;
     });
-    // a few tiles per frame, so walking never stutters
-    const n = force ? this.queue.length : 2;
+    // a tile a frame, so walking never stutters
+    const n = force ? this.queue.length : 1; // one tile a frame (~10 ms of work each on a phone)
     for (let i = 0; i < n && this.queue.length; i++) this.queue.shift()!();
   }
 
