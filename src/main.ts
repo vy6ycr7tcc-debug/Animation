@@ -561,7 +561,7 @@ function templeFrame(dt: number): void {
     // the air inside: warm, dim, a little dust in the light
     fogUniforms.color.value.setRGB(0.09, 0.065, 0.045);
     fogUniforms.glow.value.setRGB(0.3, 0.22, 0.15);
-    fogUniforms.density.value = 0.006;
+    fogUniforms.density.value = 0.004;
     post.starVis.value = 0;
     post.raysOn.value = 0;
     return;

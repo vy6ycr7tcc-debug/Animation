@@ -6,6 +6,7 @@
 
 ## Textures and scanned rocks (CC0, Poly Haven — polyhaven.com)
 - Ground and stone surfaces: `coast_sand_01`, `sparse_grass`, `rock_face_03`; tree bark: `bark_willow` (colour and normal maps, 1k, re-encoded) — `public/textures/`.
+- The temple's stone: `sandstone_blocks_08` (walls, by Rob Tuytel), `sandstone_blocks_05` (the pylon, Rob Tuytel), `sandstone_cracks` (columns, ceiling, niches, Rob Tuytel), `red_sandstone_pavement` (floor, Amal Kumar) — colour, normal and AO/roughness maps, 1k, re-encoded — `public/textures/temple/`.
 - Boulders: `namaqualand_boulder_02`, `namaqualand_boulder_03`, `rock_09` (simplified to ~0.5–2k triangles with 512 px maps by `tools/build-rocks.mjs`) — `public/models/rocks.glb`.
 
 ## Ambient occlusion
