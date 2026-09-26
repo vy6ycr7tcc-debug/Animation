@@ -337,7 +337,8 @@ input, textarea { -webkit-user-select: text; user-select: text; }
   background: rgba(14, 12, 34, 0.55); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); animation: rise 0.6s ease;
 }
 #tp-mini[hidden] { display: none; }
-#tp-mini.idle #tp-mini-back, #tp-mini.idle #tp-mini-open { opacity: 0.25; pointer-events: none; }
+#tp-mini.idle #tp-mini-back { opacity: 0.25; pointer-events: none; }
+#tp-row button[hidden] { display: none; }
 #tp-mini svg { position: absolute; left: 0; top: 0; width: 152px; height: 76px; overflow: visible; pointer-events: none; }
 #tp-mini path { fill: none; stroke-width: 2; }
 #tp-arc-bg { stroke: rgba(244, 239, 230, 0.14); }
