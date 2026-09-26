@@ -204,7 +204,8 @@ void beings.load("models/wanderer.glb");
 // the voices of the archive, present while they speak
 const presences = new Presences();
 scene.add(presences.group);
-void presences.load("models/wanderer.glb");
+// the entities' figures are left out: one walked beside the wanderer through every narration
+// (Samuel: "remove that annoying chasing character")
 scene.add(sparks.points, grass.mesh, flowers.mesh, blooms.mesh, wilds.group, lanterns.points, butterflies.points, gliders.group);
 // The whole creation: trees and their roots, rocks, crystals, spirits, and the light through them.
 creationUniforms.uFogC.value.copy(FOG_COLOR);
@@ -750,8 +751,7 @@ tp.onChange = (id) => {
   if (id) archiveHeard.add(id);
   else playlist.held = false; // closed: the journey's own voices may speak again
   const who = id ? tp.current?.sources[0]?.entity ?? null : null;
-  presences.show(who && !/^unknown/i.test(who) ? who : null);
-  if (who && presences.entity) whisper(who, 3500);
+  if (who && !/^unknown/i.test(who)) whisper(who, 3500);
 };
 // when one ends, the next follows by itself (the phone may be locked in a pocket by now): the
 // archive in its own order, episodes 1 to 86, those not yet heard first
