@@ -472,6 +472,14 @@ export class Creation {
   private v = new V();
   private sc = new V();
 
+  /** Where the trees and crystal clusters stand now (for the genesis web). */
+  standing(): { p: THREE.Vector3; great: boolean }[] {
+    return [
+      ...this.activeTrees.map((t) => ({ p: new THREE.Vector3(t.x, t.y + 2.5 * t.scale, t.z), great: false })),
+      ...this.activeClusters.map((c) => ({ p: new THREE.Vector3(c.x, c.y + 0.8, c.z), great: c.great })),
+    ];
+  }
+
   constructor(private sparks: Sparks) {
     this.buildTrees();
     this.leaves = this.buildLeaves();

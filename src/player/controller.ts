@@ -130,6 +130,7 @@ export class Controller {
     let dx = fx * input.y + rx * input.x;
     let dz = fz * input.y + rz * input.x;
     let mag = Math.min(1, Math.hypot(dx, dz));
+    let courseRun = 0;
     if (mag > 0.1) this.target = null;
     else if (this.target) {
       // Walk toward the tapped point, easing in as it arrives.
@@ -140,6 +141,7 @@ export class Controller {
         dx = tx;
         dz = tz;
         mag = Math.min(1, d / 1.2);
+        courseRun = THREE.MathUtils.smoothstep(d, 10, 28); // a far place: run there, walking in the last metres
       }
     }
     // In the air with the stick let go, the wanderer glides on ahead (as in Sky), sinking gently.
@@ -154,7 +156,7 @@ export class Controller {
       dx /= len;
       dz /= len;
     }
-    const run = input.run ?? (input.glide ? 1 : 0);
+    const run = Math.max(input.run ?? (input.glide ? 1 : 0), courseRun);
     const lerp = THREE.MathUtils.lerp;
     const top = this.flying
       ? lerp(FLY, FLY_FAST, run)

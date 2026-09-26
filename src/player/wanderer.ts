@@ -11,7 +11,7 @@ import { softPoints, spriteCloud, T, type SpriteCloud } from "../gpu/tsl";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { floatAttributes, loadBytes } from "../core/assets";
-import { Flame } from "./flame";
+import { GeoForm } from "./geoform";
 import { FluidBody, SEGMENTS } from "./fluidBody";
 import { lightBodyMaterial, tickLightBody } from "./lightBody";
 
@@ -294,7 +294,7 @@ export class Wanderer {
   private orb = new THREE.Group();
   private orbCore: THREE.MeshBasicMaterial;
   private ribbons = [new Ribbon(30, 0.035), new Ribbon(30, 0.035), new Ribbon(22, 0.05)];
-  private flame = new Flame();
+  private geo = new GeoForm();
   private halo: THREE.Sprite;
   private light: THREE.PointLight;
   private k = { swim: 0, water: 0, glide: 0, move: 0, air: 0, sit: 0, reach: 0, fly: 0, soar: 0 };
@@ -328,7 +328,7 @@ export class Wanderer {
     this.root.add(this.orb);
     // the fluid body is no longer drawn; its capsules still guide the motes over the figure
     this.fluid.mesh.visible = false;
-    this.fx.add(this.motes.points, ...this.ribbons.map((r) => r.mesh), this.flame.points, this.flame.core);
+    this.fx.add(this.motes.points, ...this.ribbons.map((r) => r.mesh), this.geo.group);
   }
 
   /** Ray-march budget for the body (lower on slow devices). */
@@ -467,10 +467,10 @@ export class Wanderer {
     this.halo.position.y = 1.1 + swim * 0.2 - sit * 0.4;
     this.halo.scale.multiplyScalar(1 - swim * 0.4);
     this.halo.material.opacity *= 1 - water; // the water would slice it into a box
-    // in flight the body becomes a flame (Samuel), as in the water it becomes an orb
+    // in flight the body becomes a geometric being (Samuel), as in the water it becomes an orb
     const flameK = THREE.MathUtils.smoothstep(fly, 0.15, 0.85) * (1 - water);
     this.halo.material.opacity *= 1 - flameK;
-    this.flame.update(dt, this.tmp.a.copy(this.root.position).add(this.tmp.b.set(0, 1.05, 0)), flameK, t, dpr, reduced);
+    this.geo.update(dt, this.tmp.a.copy(this.root.position).add(this.tmp.b.set(0, 1.05, 0)), flameK, t, reduced);
     // the body fades into an orb in the water, and forms again on the shore
     this.skin.opacity = (1 - water) * (1 - flameK) * f;
     for (const m of this.skinMeshes) m.visible = this.skin.opacity > 0.01;

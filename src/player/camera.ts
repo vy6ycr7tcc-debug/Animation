@@ -7,6 +7,8 @@ export class FollowCamera {
   yaw = 0;
   pitch = 0.36; // slightly high
   dist = 7;
+  /** 0..1: drawn back and up to take in the land (genesis). */
+  lift = 0;
   private target = new THREE.Vector3();
   private sinceLook = 99;
   private effDist = 7; // shortened when a hillside would block the view
@@ -54,14 +56,15 @@ export class FollowCamera {
     this.target.lerp(new THREE.Vector3(player.x, player.y + 1.3, player.z), Math.min(1, dt * 5));
 
     const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
-    const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
+    const pitch = this.pitch + (0.98 - this.pitch) * this.lift, dist = this.dist * (1 + 4.5 * this.lift);
+    const cp = Math.cos(pitch), sp = Math.sin(pitch);
     // Pull in when the ground would come between the camera and the wanderer.
-    let clear = this.dist;
+    let clear = dist;
     for (let k = 1; k <= 10; k++) {
-      const d = (this.dist * k) / 10;
+      const d = (dist * k) / 10;
       const px = this.target.x - fx * cp * d, pz = this.target.z - fz * cp * d, py = this.target.y + sp * d;
       if (py < Math.max(heightAt(px, pz), this.underwater ? -1e9 : WATER_Y) + 0.4) {
-        clear = Math.max(1.6, (this.dist * (k - 1)) / 10);
+        clear = Math.max(1.6, (dist * (k - 1)) / 10);
         break;
       }
     }
