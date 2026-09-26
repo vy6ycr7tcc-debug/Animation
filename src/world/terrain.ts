@@ -2,7 +2,8 @@
    meshes all agree. Water level is y = 0; wherever the land dips below it, there is a lake.
    - Rolling hills, soft dunes and hollows that hold lakes.
    - A gentle meadow where the wanderer wakes.
-   - Mountains rising far out, so the world has an edge you see but never reach.
+   - Mountains rising far out, so the world has an edge you see but never reach, and five
+     snow-capped massifs standing within it.
    The ground is streamed in square chunks around the wanderer. */
 import * as THREE from "three/webgpu";
 import { T, type N } from "../gpu/tsl";
@@ -38,6 +39,31 @@ export const smooth = (a: number, b: number, x: number) => {
 };
 const mix = (a: number, b: number, t: number) => a + (b - a) * t;
 
+/** Snow-capped mountains standing within the world (Samuel: "mountains with snow"), each a
+    massif of ridges running down from its summit, well away from the archetypes' homes. */
+export const PEAKS: { x: number; z: number; r: number; h: number }[] = [
+  { x: 1650, z: -1550, r: 720, h: 330 },
+  { x: -950, z: 1550, r: 640, h: 260 },
+  { x: 2650, z: 650, r: 700, h: 300 },
+  { x: -2650, z: -1600, r: 760, h: 380 },
+  { x: 350, z: 2250, r: 620, h: 240 },
+];
+function peaks(x: number, z: number): number {
+  let h = 0;
+  for (const p of PEAKS) {
+    const dx = x - p.x, dz = z - p.z;
+    if (Math.abs(dx) > p.r || Math.abs(dz) > p.r) continue;
+    const d = Math.hypot(dx, dz) / p.r;
+    if (d >= 1) continue;
+    // ridges and gullies running down from the summit, and a craggy surface
+    const ca = dx / (d * p.r + 1e-6), sa = dz / (d * p.r + 1e-6);
+    const ridge = 1 - Math.abs(vnoise(ca * 2.6 + p.x * 0.01, sa * 2.6 + d * 5) * 2 - 1);
+    const t = 1 - d;
+    h += p.h * t * t * (0.7 + 0.42 * ridge) + (vnoise(x * 0.025, z * 0.025) - 0.5) * 16 * t;
+  }
+  return h;
+}
+
 function rawHeight(x: number, z: number): number {
   const n1 = fbm(x * 0.0035, z * 0.0035);
   const n2 = fbm(x * 0.012 + 31, z * 0.012 - 17);
@@ -51,8 +77,9 @@ function rawHeight(x: number, z: number): number {
   h = mix(h, 2.4 + (n2 - 0.5) * 1.6, smooth(70, 18, ds));
   // broad highlands and lowlands, a kilometre or two across, with great lakes between
   h += (fbm(x * 0.0005 + 3, z * 0.0005 - 7) - 0.5) * 36 * smooth(60, 250, ds);
-  // mountains far out: the edge of the world
+  // mountains far out: the edge of the world; and the snowy massifs within it
   h += smooth(WORLD_R - 700, WORLD_R + 300, Math.hypot(x, z)) * (60 + n2 * 70);
+  h += peaks(x, z);
   // deep water: the shallows by the shore stay gentle, and the lakes fall away to real depths
   if (h < 0) h *= 1 + 1.6 * smooth(0.5, 6, -h);
   return h;
@@ -155,6 +182,33 @@ export function heightAt(x: number, z: number): number {
   return h;
 }
 
+/** Caves in the steep hillsides (Samuel: "caves"): where the ground climbs sharply, away from
+    the homes, the shore and each other. `face` is the direction the mouth opens, downhill. */
+export const CAVE_SITES: { x: number; z: number; y: number; face: number }[] = (() => {
+  const out: { x: number; z: number; y: number; face: number }[] = [];
+  const GA = Math.PI * (3 - Math.sqrt(5));
+  for (let i = 0; i < 14 && out.length < 7; i++) {
+    const a = i * GA * 2.9 + 0.4, r = 320 + ((i * 0.618) % 1) * 1150;
+    const hx = Math.cos(a) * r, hz = Math.sin(a) * r;
+    search: for (let rr = 0; rr <= 320; rr += 20) {
+      const n = rr === 0 ? 1 : Math.round((rr * 2 * Math.PI) / 30);
+      for (let k = 0; k < n; k++) {
+        const b = (k / n) * Math.PI * 2;
+        const x = hx + Math.cos(b) * rr, z = hz + Math.sin(b) * rr;
+        const h = heightAt(x, z);
+        if (h < 5 || h > 45 || Math.hypot(x - SPAWN.x, z - SPAWN.z) < 150) continue;
+        const gx = heightAt(x + 8, z) - heightAt(x - 8, z), gz = heightAt(x, z + 8) - heightAt(x, z - 8);
+        if (Math.hypot(gx, gz) < 5) continue; // a real slope: the cave runs into the hill
+        if (LANDMARK_SITES.some(([lx, lz]) => Math.hypot(x - lx, z - lz) < 80)) continue;
+        if (out.some((c) => Math.hypot(c.x - x, c.z - z) < 400)) continue;
+        out.push({ x, z, y: h, face: Math.atan2(-gz, -gx) });
+        break search;
+      }
+    }
+  }
+  return out;
+})();
+
 /** Which kind of ground this is, 0–1 each: meadow (for grass and flowers), sand, stone. */
 export function groundKind(x: number, z: number, h = heightAt(x, z)): { meadow: number; sand: number; stone: number } {
   const sand = smooth(1.2, 0.2, h);
@@ -197,6 +251,7 @@ const C = {
   meadowC: new THREE.Color("#6d5268"), // rose
   stone: new THREE.Color("#4b4563"),
   snow: new THREE.Color("#bcb9da"),
+  snowHigh: new THREE.Color("#e2e4f2"), // the high snowfields, whiter
   earth: new THREE.Color("#5e4a3c"), // bare, warm earth
   loam: new THREE.Color("#46382f"),
 };
@@ -405,7 +460,7 @@ export class Terrain {
       const k = groundKind(x, z, h);
       const region = fbm(x * 0.004 + 9, z * 0.004 - 4);
       this.col.copy(C.meadowA).lerp(C.meadowB, smooth(0.35, 0.6, region)).lerp(C.meadowC, smooth(0.6, 0.78, region));
-      this.col.lerp(this.tmp.copy(C.sand), k.sand).lerp(C.stone, k.stone).lerp(C.snow, smooth(40, 70, h));
+      this.col.lerp(this.tmp.copy(C.sand), k.sand).lerp(C.stone, k.stone).lerp(C.snow, smooth(40, 70, h)).lerp(C.snowHigh, smooth(110, 190, h));
       // broad stretches of bare earth, warm and deeply textured
       const earth = smooth(0.42, 0.62, fbm(x * 0.005 + 123, z * 0.005 - 7)) * (1 - k.sand) * smooth(0.6, 2.5, h);
       this.tmp.copy(C.earth).lerp(C.loam, smooth(0.3, 0.7, fbm(x * 0.03 - 9, z * 0.03 + 4)));

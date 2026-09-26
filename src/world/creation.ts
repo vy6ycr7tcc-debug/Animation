@@ -23,7 +23,7 @@ import { GROVE_SITES } from "./sites";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { floatAttributes, loadBytes } from "../core/assets";
-import { colliders, fbm, groundKind, heightAt, LANDMARK_SITES, SPAWN, smooth, WATER_Y, type Collider } from "./terrain";
+import { CAVE_SITES, colliders, fbm, groundKind, heightAt, LANDMARK_SITES, SPAWN, smooth, WATER_Y, type Collider } from "./terrain";
 
 /** Shared by every shader here; main.ts copies the scene's fog in. */
 export const creationUniforms = {
@@ -71,6 +71,7 @@ function clearOf(x: number, z: number, spawnR: number, padR: number): boolean {
   if (Math.hypot(x - SPAWN.x, z - SPAWN.z) < spawnR) return false;
   for (const [lx, lz] of LANDMARK_SITES) if (Math.hypot(x - lx, z - lz) < padR) return false;
   for (const g of GROVE_SITES) if (Math.hypot(x - g.x, z - g.z) < padR + 6) return false;
+  for (const c of CAVE_SITES) if (Math.hypot(x - c.x, z - c.z) < 12) return false;
   return true;
 }
 
@@ -348,7 +349,7 @@ export function barkMaterial(accent?: THREE.Color, seed: number | null = null): 
 }
 
 /* ================================================================ crystals */
-function prismGeometry(): THREE.BufferGeometry {
+export function prismGeometry(): THREE.BufferGeometry {
   // A six-sided column with a pointed tip; facets flat-shaded. aY is 0 at the base, 1 at the tip.
   const pos: number[] = [], ys: number[] = [];
   const r = 0.2, body = 0.74;
@@ -371,6 +372,37 @@ function prismGeometry(): THREE.BufferGeometry {
   g.setAttribute("aY", new THREE.Float32BufferAttribute(ys, 1));
   g.computeVertexNormals();
   return g;
+}
+
+/** The crystals' glassy light (instanced; each instance's `aC` is hue, glow, seed): a core of
+    colour, the light split into a rainbow that shifts as you walk around, light rising through
+    the stone, a glint of the star off a facet, and the vibration when you stand before one. */
+export function crystalMaterial(): THREE.MeshBasicNodeMaterial {
+  const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: false });
+  mat.colorNode = Fn(() => {
+    const vW = positionWorld, vY = attribute("aY", "float"), vCv = attribute("aC", "vec3");
+    const n = normalize(normalWorldGeometry), v = normalize(cameraPosition.sub(vW));
+    const ndv = abs(dot(n, v));
+    const fres = pow(float(1).sub(ndv), 2.2);
+    const hue = vCv.x, glow = vCv.y, seed = vCv.z;
+    const core = mix(vec3(0.45, 0.55, 1.0), vec3(1.0, 0.72, 0.92), hue);
+    // the light is split: a rainbow that shifts as you walk around it
+    const split = spectrum(ndv.mul(1.4).add(vY.mul(0.4)).add(hue).add(U.uT.mul(0.02)));
+    // light rising through the stone
+    const rise = pow(fract(vY.mul(1.3).sub(U.uT.mul(0.22)).add(seed)), 8);
+    // the starlight glints off a facet
+    const glint = pow(max(0, dot(reflect(v.negate(), n), U.uStar)), 40);
+    const c = core.mul(vY.mul(0.3).add(0.08)).add(split.mul(fres).mul(0.8)).add(core.mul(rise).mul(0.7)).add(vec3(1.0, 0.95, 0.9).mul(glint).mul(2.5))
+      .mul(glow.mul(1.6).add(1)).toVar();
+    // vibrating: light pulses up through the crystal and races out from it
+    const vd = distance(vW, vibeUniforms.uVibePos);
+    const on = float(1).sub(smoothstep(vibeUniforms.uVibeR.mul(1.1), vibeUniforms.uVibeR.mul(1.6).add(0.8), vd));
+    const wave = pow(sin(vd.mul(8).sub(U.uT.mul(10))).mul(0.5).add(0.5), 5);
+    c.addAssign(split.mul(1.2).add(core).mul(wave).mul(on).mul(vibeUniforms.uVibeK).mul(1.5));
+    const d = length(vW.sub(cameraPosition));
+    return vec4(c.mul(float(1).sub(fogF(d).mul(0.85))), 1);
+  })();
+  return mat;
 }
 
 /* ================================================================ placement records */
@@ -601,30 +633,7 @@ export class Creation {
     const c = new THREE.InstancedBufferAttribute(new Float32Array(MAX_PRISMS * 3), 3); // hue, glow, seed
     c.setUsage(THREE.DynamicDrawUsage);
     geo.setAttribute("aC", c);
-    const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: false });
-    mat.colorNode = Fn(() => {
-      const vW = positionWorld, vY = attribute("aY", "float"), vCv = attribute("aC", "vec3");
-      const n = normalize(normalWorldGeometry), v = normalize(cameraPosition.sub(vW));
-      const ndv = abs(dot(n, v));
-      const fres = pow(float(1).sub(ndv), 2.2);
-      const hue = vCv.x, glow = vCv.y, seed = vCv.z;
-      const core = mix(vec3(0.45, 0.55, 1.0), vec3(1.0, 0.72, 0.92), hue);
-      // the light is split: a rainbow that shifts as you walk around it
-      const split = spectrum(ndv.mul(1.4).add(vY.mul(0.4)).add(hue).add(U.uT.mul(0.02)));
-      // light rising through the stone
-      const rise = pow(fract(vY.mul(1.3).sub(U.uT.mul(0.22)).add(seed)), 8);
-      // the starlight glints off a facet
-      const glint = pow(max(0, dot(reflect(v.negate(), n), U.uStar)), 40);
-      const c = core.mul(vY.mul(0.3).add(0.08)).add(split.mul(fres).mul(0.8)).add(core.mul(rise).mul(0.7)).add(vec3(1.0, 0.95, 0.9).mul(glint).mul(2.5))
-        .mul(glow.mul(1.6).add(1)).toVar();
-      // vibrating: light pulses up through the crystal and races out from it
-      const vd = distance(vW, vibeUniforms.uVibePos);
-      const on = float(1).sub(smoothstep(vibeUniforms.uVibeR.mul(1.1), vibeUniforms.uVibeR.mul(1.6).add(0.8), vd));
-      const wave = pow(sin(vd.mul(8).sub(U.uT.mul(10))).mul(0.5).add(0.5), 5);
-      c.addAssign(split.mul(1.2).add(core).mul(wave).mul(on).mul(vibeUniforms.uVibeK).mul(1.5));
-      const d = length(vW.sub(cameraPosition));
-      return vec4(c.mul(float(1).sub(fogF(d).mul(0.85))), 1);
-    })();
+    const mat = crystalMaterial();
     const m = new THREE.InstancedMesh(geo, mat, MAX_PRISMS);
     m.count = 0;
     m.renderOrder = 2;

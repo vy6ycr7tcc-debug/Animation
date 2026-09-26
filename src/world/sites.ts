@@ -5,10 +5,14 @@
      planets and orbs need to be on the sky"), planets and stars in turn. An episode marked
      "planet" or "star" leaves its tree for the sky.
    - A sky planet can be tapped from the ground below it; fly up to hear a star.
+   - A grove whose place is stony (a stone circle, a cliff, an observatory hill, white sand…)
+     grows as a garden of crystals, each crystal an episode (Samuel: tap "the artifact that
+     stores it (planets, crystals, trees)"); a grove may also name its vessel, `"vessel":
+     "tree" | "crystal"`.
    - Each grove stands where its `suggested_biome` fits (meadow, water, hills, sand, forest,
      "near the starting shore", ...), well apart from the others, the landmarks and the shore. */
 import data from "../../content/transcript_orbs.json";
-import { fbm, groundKind, heightAt, LANDMARK_SITES, SPAWN, WATER_Y, WORLD_R } from "./terrain";
+import { CAVE_SITES, fbm, groundKind, heightAt, LANDMARK_SITES, SPAWN, WATER_Y, WORLD_R } from "./terrain";
 
 export interface Source {
   entity: string;
@@ -29,6 +33,7 @@ export interface GroveData {
   id: string;
   name: string;
   suggested_biome?: string;
+  vessel?: "tree" | "crystal";
   episodes: Narration[];
 }
 export const ARCHIVE = data as unknown as { orbs: Narration[]; trees: GroveData[] };
@@ -44,6 +49,8 @@ export interface OrbSite {
 export interface GroveSite {
   grove: GroveData;
   index: number;
+  /** A garden of crystals rather than a great tree. */
+  crystal: boolean;
   x: number;
   y: number;
   z: number;
@@ -55,6 +62,7 @@ const MAX_R = WORLD_R - 900; // stay inside the ring of mountains
 function awayFromLandmarks(x: number, z: number, r: number): boolean {
   if (Math.hypot(x - SPAWN.x, z - SPAWN.z) < 35) return false;
   for (const [lx, lz] of LANDMARK_SITES) if (Math.hypot(x - lx, z - lz) < r) return false;
+  for (const c of CAVE_SITES) if (Math.hypot(x - c.x, z - c.z) < 40) return false;
   return true;
 }
 
@@ -149,7 +157,8 @@ function placeGroves(trees: GroveData[]): GroveSite[] {
       if (bestFit > 0.9 && rr > 60) break;
     }
     const [x, z] = best ?? [hx, hz];
-    out.push({ grove, index, x, y: heightAt(x, z), z });
+    const crystal = grove.vessel ? grove.vessel === "crystal" : /stone|rock|cliff|observatory|sand|crystal/.test(hint.toLowerCase());
+    out.push({ grove, index, crystal, x, y: heightAt(x, z), z });
   });
   return out;
 }

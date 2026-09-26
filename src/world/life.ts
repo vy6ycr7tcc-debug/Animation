@@ -141,7 +141,10 @@ export class LightGrass {
     // bend away from the wanderer
     const d = aBase.xz.sub(U.uPlayer.xz), dl = length(d).add(1e-3);
     const bend = d.div(dl).mul(smoothstep(1.5, 0, dl)).mul(0.45).mul(y2);
-    const w = vec3(w0.x.add(wind.x).add(bend.x), w0.y.sub(smoothstep(1.2, 0, dl).mul(0.15).mul(y2).mul(hgt)), w0.z.add(wind.y).add(bend.y));
+    // tall grass arcs over under its own length, the taller the more, and sways wider
+    const tallK = smoothstep(0.7, 1.8, hgt);
+    const arc = vec2(sn.negate(), c).mul(tallK.mul(hgt).mul(0.32).mul(y2)).add(wind.mul(tallK.mul(1.5)));
+    const w = vec3(w0.x.add(wind.x).add(bend.x).add(arc.x), w0.y.sub(smoothstep(1.2, 0, dl).mul(0.15).mul(y2).mul(hgt)).sub(tallK.mul(hgt).mul(0.08).mul(y2)), w0.z.add(wind.y).add(bend.y).add(arc.y));
     mat.positionNode = w;
     // brighten where the wanderer has just walked
     const glowV = varying(Fn(() => {
@@ -156,14 +159,15 @@ export class LightGrass {
     })());
     const camD = length(w.sub(cameraPosition));
     const fadeV = varying(float(1).sub(smoothstep(32, 50, length(aBase.xz.sub(cameraPosition.xz)))).mul(smoothstep(1.2, 4, camD))); // never a blade in your face
-    const wV = varying(w);
+    const wV = varying(w), vTall = varying(tallK);
     const vY = tuv().y;
     mat.colorNode = Fn(() => {
       // fade out by dissolving, so the blades stay solid and sort correctly
       If(fract(sin(dot(screenCoordinate.xy, vec2(12.9898, 78.233))).mul(43758.5453)).greaterThan(fadeV), () => {
         Discard();
       });
-      const base = mix(vec3(0.07, 0.075, 0.14), vec3(0.36, 0.4, 0.6), vY).add(vec3(0.35, 0.28, 0.24).mul(pow(vY, 4)).mul(0.35)); // moonlight on the tips
+      const base = mix(vec3(0.07, 0.075, 0.14), vec3(0.36, 0.4, 0.6), vY).add(vec3(0.35, 0.28, 0.24).mul(pow(vY, 4)).mul(0.35)) // moonlight on the tips
+        .mul(mix(1, 0.45, vTall)); // the tall grass stands darker, a field of shadow with pale heads
       const glow = vec3(1.0, 0.82, 0.52).mul(glowV).mul(vY).mul(1.2);
       return vec4(withFog(base.add(glow), wV), 1);
     })();
@@ -186,7 +190,9 @@ export class LightGrass {
       if (h < WATER_Y + 0.25) continue;
       const m = groundKind(x, z, h).meadow;
       if (R() > m * 1.6 + 0.08) continue;
-      const tall = 0.3 + R() * 0.3;
+      // drifts of tall grass, waist to head high, that part around you as you wade through
+      const drift = Math.min(1, Math.max(0, (fbm(x * 0.011 + 57, z * 0.011 - 21) - 0.52) / 0.12));
+      const tall = (0.3 + R() * 0.3) * (1 + drift * drift * 3.2);
       for (let b = 0; b < 5; b++) {
         const a = R() * 6.28, r = R() * 0.12;
         out.push(x + Math.cos(a) * r, h, z + Math.sin(a) * r, tall * (0.7 + R() * 0.5), R() * Math.PI, R() * 6.28);

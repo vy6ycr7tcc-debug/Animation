@@ -1,19 +1,23 @@
-/* The archive's vessels: orbs and groves (content/transcript_orbs.json, placed by sites.ts).
-   - An orb is a small planet of light: soft bands and seas turning slowly, an atmosphere that
-     glows at its rim, a tiny moon, bobbing where it floats (in the sky, underwater, over land).
+/* The archive's vessels: planets, stars, trees and crystals (content/transcript_orbs.json,
+   placed by sites.ts).
+   - An orb is a planet of light in the sky: soft bands and seas turning slowly, a thin rim of
+     air, a small moon, a faint ring; or a star far overhead.
    - A grove is one great tree, its own shape and colour, bearing a glowing fruit for each of
      its narrations. Fruits pulse gently and can be tapped one by one.
+   - A crystal garden (a grove in a stony place): a great crystal rising in the middle, and
+     around it a ring of crystals leaning outward, one for each narration; the one speaking
+     burns brighter.
    Approach shows quiet labels (they fade with distance); tapping one plays its narration
    (see ui/transcriptPlayer.ts). Nothing here ever plays by itself. */
 import * as THREE from "three/webgpu";
 import { T, withFog, worldPoints, type N } from "../gpu/tsl";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { barkMaterial, grow, tubes, type TreeShape } from "./creation";
+import { barkMaterial, crystalMaterial, grow, prismGeometry, tubes, type TreeShape } from "./creation";
 import { GROVE_SITES, ORB_SITES, type GroveSite, type Narration, type OrbSite } from "./sites";
-import { colliders } from "./terrain";
+import { colliders, heightAt } from "./terrain";
 
 export interface Vessel {
-  kind: "orb" | "fruit";
+  kind: "orb" | "fruit" | "crystal";
   narration: Narration;
   /** Live world position (orbs bob; fruits sway). */
   pos: THREE.Vector3;
@@ -131,6 +135,12 @@ interface GroveView {
   fruits: FruitView[];
   labelAt: THREE.Vector3;
 }
+interface GardenView {
+  site: GroveSite;
+  aC: THREE.InstancedBufferAttribute; // hue, glow, seed per crystal (the heart last)
+  crystals: { vessel: Vessel; phase: number }[];
+  labelAt: THREE.Vector3;
+}
 
 function groveShape(i: number): TreeShape {
   const r = (k: number) => {
@@ -157,6 +167,7 @@ export class Vessels {
   private orbs: OrbView[] = [];
   private stars: { site: OrbSite; group: THREE.Group; glow: THREE.Sprite; rays: THREE.Sprite; vessel: Vessel; phase: number }[] = [];
   private groves: GroveView[] = [];
+  private gardens: GardenView[] = [];
   private labels = document.getElementById("labels") as HTMLDivElement;
   private labelEls = new Map<object, HTMLDivElement>();
   private playingId: string | null = null;
@@ -164,7 +175,7 @@ export class Vessels {
 
   constructor() {
     ORB_SITES.forEach((site, i) => this.buildOrb(site, i));
-    GROVE_SITES.forEach((site) => this.buildGrove(site));
+    GROVE_SITES.forEach((site) => (site.crystal ? this.buildGarden(site) : this.buildGrove(site)));
   }
 
   private buildOrb(site: OrbSite, i: number): void {
@@ -256,6 +267,43 @@ export class Vessels {
     this.groves.push({ site, group, fruits, labelAt: new THREE.Vector3(site.x, site.y + 3.2, site.z) });
   }
 
+  /** A garden of crystals: the great one in the middle, and one leaning out around it for each
+      narration, as the world's own crystals are made (their light, their rainbow, their glint). */
+  private buildGarden(site: GroveSite): void {
+    const eps = site.grove.episodes, n = eps.length;
+    const geo = prismGeometry();
+    const aC = new THREE.InstancedBufferAttribute(new Float32Array((n + 1) * 3), 3).setUsage(THREE.DynamicDrawUsage);
+    geo.setAttribute("aC", aC);
+    const mesh = new THREE.InstancedMesh(geo, crystalMaterial(), n + 1);
+    mesh.renderOrder = 2;
+    const hue0 = (site.index * 0.37) % 1;
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3();
+    const crystals: GardenView["crystals"] = [];
+    eps.forEach((ep, k) => {
+      const a = (k / n) * Math.PI * 2 + site.index;
+      const px = site.x + Math.cos(a) * 2.6, pz = site.z + Math.sin(a) * 2.6;
+      const len = 1.9 + ((k * 0.618 + site.index * 0.3) % 1) * 1.1;
+      q.setFromAxisAngle(p.set(Math.sin(a), 0, -Math.cos(a)), 0.28); // leaning outward
+      m.compose(p.set(px, heightAt(px, pz) - 0.15, pz), q, s.set(len * 0.52, len, len * 0.52));
+      mesh.setMatrixAt(k, m);
+      aC.setXYZ(k, (hue0 + k * 0.09) % 1, 0.25, (k * 0.37) % 1);
+      up.set(0, 1, 0).applyQuaternion(q);
+      const vessel: Vessel = { kind: "crystal", narration: ep, pos: new THREE.Vector3(px, heightAt(px, pz), pz).addScaledVector(up, len * 0.55), radius: 0.55, grove: site };
+      this.vessels.push(vessel);
+      crystals.push({ vessel, phase: k * 1.9 + site.index });
+    });
+    // the heart of the garden
+    const h0 = heightAt(site.x, site.z);
+    m.compose(p.set(site.x, h0 - 0.3, site.z), q.identity(), s.set(2.3, 4.6, 2.3));
+    mesh.setMatrixAt(n, m);
+    aC.setXYZ(n, hue0, 0.4, 0.5);
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.computeBoundingSphere();
+    this.group.add(mesh);
+    colliders.push({ x: site.x, z: site.z, r: 1.2, top: h0 + 4.5 });
+    this.gardens.push({ site, aC, crystals, labelAt: new THREE.Vector3(site.x, h0 + 5.6, site.z) });
+  }
+
   /** Which narration is playing (it glows a little brighter), or null. */
   setPlaying(id: string | null): void {
     this.playingId = id;
@@ -337,6 +385,14 @@ export class Vessels {
         f.mesh.scale.setScalar(1 + (playing ? 0.25 : 0) + (reduced ? 0 : pulse * 0.08));
       }
     }
+    for (const g of this.gardens) {
+      g.crystals.forEach((c, k) => {
+        const playing = this.playingId === c.vessel.narration.id;
+        const pulse = reduced ? 0 : 0.08 * Math.sin(t * 1.1 + c.phase);
+        g.aC.setY(k, playing ? 1.3 + 0.2 * Math.sin(t * 2) : 0.25 + pulse);
+      });
+      g.aC.needsUpdate = true;
+    }
     this.updateLabels(player, camera, show);
   }
 
@@ -391,6 +447,16 @@ export class Vessels {
         const df = player.distanceTo(f.vessel.pos);
         const fe = this.label(f, line(f.vessel.narration), "fruit");
         this.place(fe, this.v.copy(f.vessel.pos).add(new THREE.Vector3(0, 0.55, 0)), camera, fade(df, 9, 16));
+      }
+    }
+    for (const g of this.gardens) {
+      const d = Math.hypot(player.x - g.site.x, player.z - g.site.z);
+      const el = this.label(g, `<b>${esc(g.site.grove.name)}</b>`, "grove");
+      this.place(el, g.labelAt, camera, fade(d, 70, 130) * (1 - 0.6 * fade(d, 8, 14)));
+      for (const c of g.crystals) {
+        const dc = player.distanceTo(c.vessel.pos);
+        const ce = this.label(c, line(c.vessel.narration), "fruit");
+        this.place(ce, this.v.copy(c.vessel.pos).add(new THREE.Vector3(0, 1.2, 0)), camera, fade(dc, 4.5, 7.5)); // close, or the ring's names crowd together
       }
     }
   }
