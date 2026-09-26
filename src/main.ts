@@ -28,6 +28,7 @@ import { Beings } from "./world/beings";
 import { SeaFauna, SeaLife, UnderwaterEffect } from "./world/underwater";
 import { Post } from "./gpu/post";
 import { fogUniforms, gpuUniforms, ijFogNode } from "./gpu/tsl";
+import { newerBuild, reloadTo } from "./core/fresh";
 import { Presences } from "./world/presences";
 import { Guide, type Destination } from "./world/guide";
 import { ARCHIVE, GROVE_SITES, ORB_SITES } from "./world/sites";
@@ -37,7 +38,8 @@ import { Vessels } from "./world/vessels";
 import { TranscriptPlayer } from "./ui/transcriptPlayer";
 import { StartMap, type Choice, type Place } from "./ui/map";
 import { buildSky, skyUniforms, starDirection } from "./world/sky";
-import { groundUniforms, heightAt, LANDMARK_SITES, PEAKS, SPAWN, Terrain, WATER_Y } from "./world/terrain";
+import { groundUniforms, heightAt, LANDMARK_SITES, SPAWN, Terrain, WATER_Y } from "./world/terrain";
+import { Autofly } from "./player/autofly";
 import { Genesis } from "./world/genesis";
 import { cloudUniforms } from "./world/atmosphere";
 import { NO_MIRROR_LAYER, Water } from "./world/water";
@@ -327,6 +329,26 @@ follow.snapTo(player.pos);
 terrain.update(player.pos.x, player.pos.z, true);
 
 /* ============ UI ============ */
+// A newer build on the server (Samuel's phone kept an old copy for days: a Home Screen game is
+// only resumed, never reloaded). Before the journey begins, or on coming back to the game with no
+// archive narration playing, load it at once (your place is saved, and the map offers
+// "Continue where you were"); otherwise say so once.
+let toldNewer = false;
+function checkFresh(returning: boolean): void {
+  void newerBuild().then((live) => {
+    if (!live) return;
+    if (S.mode === "intro" || (returning && !tp.playing)) {
+      if (S.mode !== "intro") persist();
+      reloadTo(live);
+    } else if (!toldNewer) {
+      toldNewer = true;
+      whisper("A newer version of the game is ready. Close it and open it again to have it.", 8000);
+    }
+  });
+}
+checkFresh(false);
+addEventListener("visibilitychange", () => document.visibilityState === "visible" && checkFresh(true));
+
 function say(m: string): void {
   const l = $("#live");
   l.textContent = "";
@@ -375,10 +397,38 @@ input.onTap = (x, y, touch) => {
   if (sitting.phase === "seated") return;
   const p = groundPoint(x, y);
   if (!p) return;
+  if (autofly.active) setAutofly(false);
   player.target = new THREE.Vector2(p.x, p.z);
   if (p.y <= WATER_Y + 0.05) water.ripple(p.x, p.z, 0.6, S.t);
   else footprints.place(p.x, p.y, p.z, player.heading, S.t);
 };
+// Autofly (⋮ → Autofly, or P): the wanderer flies by itself, low over the land from place to
+// place, then up among the planets and stars, and down again (player/autofly.ts).
+const autofly = new Autofly(
+  [...GROVE_SITES.map((g) => ({ x: g.x, z: g.z })), ...LANDMARK_SITES.map(([x, z]) => ({ x, z }))],
+  ORB_SITES.map((o) => ({ x: o.x, z: o.z })),
+);
+function setAutofly(on: boolean): void {
+  if (on === autofly.active) return;
+  if (on) {
+    if (S.mode !== "play" || sitting.phase === "seated" || player.diving || genesis.active) return;
+    player.target = null;
+    autofly.start(player.pos, player.heading);
+    say("Autofly: the stick or the button takes you back.");
+  } else {
+    autofly.stop();
+    player.vy = 0;
+  }
+  $("#autofly").setAttribute("aria-pressed", String(on));
+}
+$("#autofly").addEventListener("click", () => {
+  setAutofly(!autofly.active);
+  setMenu(false);
+});
+addEventListener("keydown", (e) => {
+  if (e.key.toLowerCase() === "p" && !e.repeat && S.mode === "play" && !(e.target as HTMLElement)?.closest?.("input, #menu")) setAutofly(!autofly.active);
+});
+
 // Genesis: a long press on the wanderer's heart (or H). The world goes dark, lines of light
 // grow from the heart to all of creation, and creation rebuilds itself (world/genesis.ts).
 const genesis = new Genesis();
@@ -390,18 +440,16 @@ function heartAt(out: THREE.Vector3): THREE.Vector3 {
 }
 function beginGenesis(): void {
   if (S.mode !== "play" || genesis.active || sitting.phase === "seated" || player.flying || player.diving) return;
-  const targets = [
-    ...creation.standing(),
-    ...lanterns.standing().map((p) => ({ p, great: false })),
-    ...flowers.standing(player.pos, 45, 40).map((p) => ({ p, great: false })),
-    ...beings.list.map((b) => ({ p: b.root.position.clone().add(new THREE.Vector3(0, 1.2, 0)), great: true })),
-    ...ORB_SITES.map((o) => ({ p: new THREE.Vector3(o.x, o.y, o.z), great: true })),
-    ...GROVE_SITES.map((g) => ({ p: new THREE.Vector3(g.x, g.y + 4, g.z), great: false })),
-    ...LANDMARK_SITES.map(([x, z]) => ({ p: new THREE.Vector3(x, heightAt(x, z) + 2, z), great: false })),
-    ...PEAKS.map((k) => ({ p: new THREE.Vector3(k.x, heightAt(k.x, k.z) + 4, k.z), great: true })),
+  // the forms whose geometry lights up: the land gold, living things rose, the sky's vessels pale blue
+  const layers = [
+    { root: terrain.group, color: new THREE.Color(0.75, 0.58, 0.32) },
+    { root: creation.group, color: new THREE.Color(0.5, 0.33, 0.31) }, // dense forms: dimmer, their lines crowd
+    { root: wilds.group, color: new THREE.Color(0.55, 0.38, 0.3) },
+    { root: vessels.group, color: new THREE.Color(0.62, 0.8, 1.0) },
+    ...landmarks.list.map((st) => ({ root: st.group, color: new THREE.Color(0.9, 0.85, 1.0) })),
   ];
   player.target = null;
-  genesis.start(heartAt(new THREE.Vector3()), targets);
+  genesis.start(heartAt(new THREE.Vector3()), layers);
   genesisBells = 0;
   audio.duck(true);
   quality.hold(4);
@@ -413,7 +461,7 @@ input.onHold = (x, y) => {
 };
 input.onHeart = beginGenesis;
 function genesisFrame(dt: number): void {
-  const g = genesis.update(dt, camera, innerHeight);
+  const g = genesis.update(dt, camera, S.reduced);
   // the bells: one as the dark falls, two as creation comes back (all above ~200 Hz)
   const bells = [[0.2, 264], [18.5, 396], [21, 528]];
   while (genesisBells < bells.length && genesis.t >= bells[genesisBells][0]) audio.bell(bells[genesisBells++][1], 0.16, 7);
@@ -1195,8 +1243,14 @@ function update(dt: number): void {
 
   if (S.mode === "play") {
     if (wanderer.gesture !== "none" && Math.hypot(input.move.x, input.move.y) > 0.2 && wanderer.gesture === "sit") wanderer.setGesture("none");
+    if (autofly.active && (Math.hypot(input.move.x, input.move.y) > 0.25 || input.hold)) setAutofly(false); // the thumb takes over
     if (genesis.active) player.update(dt, { x: 0, y: 0, glide: false, run: 0, hold: false, down: false, pitch: follow.pitch }, follow.yaw);
-    else player.update(dt, { ...input.move, glide: input.boost, run: input.run, hold: input.hold, down: input.descend, pitch: follow.pitch }, follow.yaw);
+    else if (autofly.active) {
+      const r = autofly.update(dt, player.pos);
+      Object.assign(player, { heading: r.heading, speed: r.speed, vy: r.vy, flying: true, landing: false, grounded: false, swimming: false, gliding: false, pose: "fly", target: null });
+      player.vel.set(-Math.sin(r.heading), 0, -Math.cos(r.heading)).multiplyScalar(r.speed);
+      follow.pitch += (autofly.pitch - follow.pitch) * Math.min(1, dt * 0.6);
+    } else player.update(dt, { ...input.move, glide: input.boost, run: input.run, hold: input.hold, down: input.descend, pitch: follow.pitch }, follow.yaw);
     // the one context word: "Land" high in the air, "Dive" on the water, "Surface" under it
     const ctx = $("#ctx");
     const high = player.flying && !player.landing && player.pos.y - Math.max(heightAt(player.pos.x, player.pos.z), WATER_Y) > 2.5;
@@ -1394,4 +1448,4 @@ renderer
     quality.hold(3);
   });
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly } });

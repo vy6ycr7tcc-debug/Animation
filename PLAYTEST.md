@@ -23,7 +23,8 @@ A stick in the bottom-left corner and one round button in the bottom-right, as i
 | Fly out of the water | On the water, hold the round button | Hold Space |
 | Look around | Drag anywhere off the stick | Drag with the mouse |
 | Zoom | Pinch | Scroll wheel |
-| Genesis | Touch and hold the wanderer's heart (about a second): the world goes dark, lines of light grow from the heart to all of creation, then creation rebuilds itself (~30 s). Not while flying or under water | H |
+| Genesis | Touch and hold the wanderer's heart (about a second): the world goes dark; thin geometric shapes burst out of the heart (circles, triangles, hexagons, the hexagram, the seed of life, the Platonic solids) while the world's own geometry lights up as fine lines, spreading outward; then creation rebuilds itself over its lines (~30 s). Not while flying or under water | H |
+| Autofly | ⋮ → Autofly: the wanderer flies by itself, low over the land and lakes from grove to home, then up among the planets and stars, then down again somewhere new. Touch the stick or the button to take over | P |
 | Sit with an archetype, stand up | Tap "Sit with…" | E |
 | Hear an orb or a fruit | Tap it | Click it, or Enter when near |
 | Turn inward | Stand still for a moment | Stand still |
