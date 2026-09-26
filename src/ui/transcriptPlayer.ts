@@ -33,6 +33,9 @@ export class TranscriptPlayer {
   onChange: ((id: string | null) => void) | null = null;
   /** The narration to follow `n` when it ends (or when "next" is asked for); null stops. */
   next: ((n: Narration) => Narration | null) | null = null;
+  /** "Only nature": every voice rests (the game's own too), and only the world is heard. */
+  onQuiet: ((on: boolean) => void) | null = null;
+  private quiet = false;
   /** What the half-moon's play begins when nothing is playing. */
   first: (() => Narration | null) | null = null;
   /** The half-moon stays in view while you play (Samuel: "I don't see the player"). */
@@ -78,6 +81,11 @@ export class TranscriptPlayer {
     tap("tp-back", () => this.back(15));
     tap("tp-next", () => this.skip());
     tap("tp-fold", () => this.fold());
+    tap("tp-quiet", () => {
+      this.setQuiet(!this.quiet);
+      if (this.quiet && this.current) this.close();
+      this.onQuiet?.(this.quiet);
+    });
     tap("tp-mini-play", toggle);
     tap("tp-mini-back", () => this.back(15));
     tap("tp-mini-next", () => this.skip());
@@ -147,6 +155,14 @@ export class TranscriptPlayer {
     if (this.current && isFinite(this.media.duration)) this.media.currentTime = Math.min(this.media.duration - 0.5, this.media.currentTime + seconds);
   }
 
+  /** Show whether only nature is heard (the button reads what it will do). */
+  setQuiet(on: boolean): void {
+    this.quiet = on;
+    const b = document.getElementById("tp-quiet")!;
+    b.textContent = on ? "Voices again" : "Only nature";
+    b.setAttribute("aria-pressed", String(on));
+  }
+
   /** On to the next narration now. */
   skip(): void {
     if (!this.current) return this.startFirst();
@@ -212,17 +228,34 @@ export class TranscriptPlayer {
     if (this.current) this.audio.duck(on);
   }
 
+  private foldIdle(): void {
+    window.clearTimeout(this.foldTimer);
+    this.el.hidden = true;
+    this.setResting(this.resting);
+  }
+
   /** Fold the card away into the half-moon. */
   fold(): void {
     window.clearTimeout(this.foldTimer);
-    if (!this.current) return;
+    if (!this.current) return this.foldIdle();
     this.el.hidden = true;
     this.mini.hidden = false;
   }
 
   unfold(): void {
     window.clearTimeout(this.foldTimer);
-    if (!this.current) return;
+    if (!this.current) {
+      // nothing playing: the card offers to begin, or to keep only nature's sounds
+      this.titleEl.textContent = "The archive's voices";
+      this.captionEl.replaceChildren();
+      this.pauseBtn.textContent = "Play";
+      for (const id of ["tp-back", "tp-next", "tp-src"]) document.getElementById(id)!.hidden = true;
+      this.el.hidden = false;
+      this.mini.hidden = true;
+      this.foldTimer = window.setTimeout(() => this.foldIdle(), 10000);
+      return;
+    }
+    for (const id of ["tp-back", "tp-next", "tp-src"]) document.getElementById(id)!.hidden = false;
     this.mini.classList.remove("idle");
     this.el.hidden = false;
     this.mini.hidden = true;

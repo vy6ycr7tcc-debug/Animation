@@ -46,6 +46,7 @@ import { Forest } from "./world/forest";
 import { RisingFlowers } from "./world/blooms";
 import { Wilds } from "./world/wilds";
 
+declare const __BUILD__: string;
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
 
 /** If anything fails on the phone, say so quietly on screen (for a screenshot), instead of the
@@ -464,7 +465,7 @@ const startMap = new StartMap();
 startMap.sky = skyMarks();
 // Meeting an archetype: it greets you, and its voice begins (the Threshold).
 beings.onMeet = (a) => {
-  playlist.meet(a.narration);
+  if (playlist.on) playlist.meet(a.narration); // "only nature": the archetypes keep quiet too
   whisper(`${a.numeral} · ${a.name}`, 5000);
   say(`${a.name} turns toward you.`);
 };
@@ -957,8 +958,18 @@ vol.addEventListener("input", () => {
 });
 const voiceBox = $<HTMLInputElement>("#voice");
 voiceBox.checked = playlist.on;
+tp.setQuiet(!playlist.on);
+// "Only nature" in the player: every voice rests, and only the world is heard (Samuel: "I was
+// underwater enjoying the sound and the lady started talking"); the menu's Narration is the same switch
+tp.onQuiet = (on) => {
+  playlist.setOn(!on);
+  narration.stop(1.5);
+  voiceBox.checked = !on;
+  persist();
+};
 voiceBox.addEventListener("change", () => {
   playlist.setOn(voiceBox.checked);
+  tp.setQuiet(!voiceBox.checked);
   persist();
 });
 const awakeBox = $<HTMLInputElement>("#awake");
@@ -1078,7 +1089,7 @@ function readings(): string {
   const ri = renderer.info.render;
   const px = Math.round(innerWidth * dpr) + "×" + Math.round(innerHeight * dpr);
   return [
-    `${rendererName}`,
+    `${rendererName} · build ${__BUILD__}`,
     `fps ${stats.fps.toFixed(1)} · avg ${stats.avgMs.toFixed(1)} ms · worst ${stats.worstMs.toFixed(0)} ms`,
     `tier ${quality.current.name} · dpr ${dpr.toFixed(2)} of ${devicePixelRatio} · scale ${quality.scale.toFixed(1)} · ${px}`,
     `${quality.reason} · ${shadersReady ? "shaders ready" : "compiling shaders…"}`,
