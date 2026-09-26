@@ -8,14 +8,45 @@
      now another.
    Contained, as every glow here: only thin edges and a soft core. */
 import * as THREE from "three/webgpu";
-import { T } from "../gpu/tsl";
+import { gpuUniforms, T } from "../gpu/tsl";
 
-const { abs, cameraPosition, dot, float, mix, normalize, normalWorld, positionGeometry, positionWorld, pow, sin, uniform, vec3, vec4 } = T;
+const { abs, attribute, cameraPosition, cameraProjectionMatrix, dot, float, mix, modelViewMatrix, normalize, normalWorld, positionGeometry, positionWorld, pow, sin, uniform, vec2, vec3, vec4 } = T;
 
-function edges(g: THREE.BufferGeometry, color: THREE.Color, uK: ReturnType<typeof uniform>): THREE.LineSegments {
-  const m = new THREE.LineBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
-  m.colorNode = vec4(vec3(color.r, color.g, color.b).mul(uK), 1);
-  return new THREE.LineSegments(new THREE.EdgesGeometry(g), m);
+/** A solid's edges as ribbons a few pixels wide (a line is one device pixel: on a 3x phone
+    screen it vanished, and only the core showed, a white ball). */
+function edges(g: THREE.BufferGeometry, color: THREE.Color, uK: ReturnType<typeof uniform>, px: number): THREE.Mesh {
+  const e = new THREE.EdgesGeometry(g).attributes.position.array as Float32Array;
+  const segs = e.length / 6;
+  const pos = new Float32Array(segs * 12), other = new Float32Array(segs * 12), side = new Float32Array(segs * 4);
+  const idx: number[] = [];
+  for (let s = 0; s < segs; s++) {
+    const A = e.subarray(s * 6, s * 6 + 3), B = e.subarray(s * 6 + 3, s * 6 + 6);
+    // corners: (A,-1) (A,+1) (B,+1) (B,-1); `other` is the far end of the edge, flipped for B's
+    // corners so that the side stays on the same hand
+    [[A, B, -1], [A, B, 1], [B, A, -1], [B, A, 1]].forEach(([P, Q, sd], c) => {
+      pos.set(P as Float32Array, (s * 4 + c) * 3);
+      other.set(Q as Float32Array, (s * 4 + c) * 3);
+      side[s * 4 + c] = sd as number;
+    });
+    idx.push(s * 4, s * 4 + 1, s * 4 + 2, s * 4 + 1, s * 4 + 3, s * 4 + 2);
+  }
+  const rg = new THREE.BufferGeometry();
+  rg.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  rg.setAttribute("aO", new THREE.BufferAttribute(other, 3));
+  rg.setAttribute("aSide", new THREE.BufferAttribute(side, 1));
+  rg.setIndex(idx);
+  const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
+  // widen on the screen: across the edge's direction as seen, by px at any distance
+  const vA = modelViewMatrix.mul(vec4(positionGeometry, 1)), vB = modelViewMatrix.mul(vec4(attribute("aO", "vec3"), 1));
+  const dir = normalize(vB.xy.div(vB.z.negate()).sub(vA.xy.div(vA.z.negate())).add(vec2(1e-6, 0)));
+  const sd = attribute("aSide", "float");
+  const off = vec2(dir.y.negate(), dir.x).mul(sd).mul(vA.z.negate().mul(px).div(gpuUniforms.px));
+  m.vertexNode = cameraProjectionMatrix.mul(vec4(vA.xy.add(off), vA.z, 1));
+  const soft = float(1).sub(sd.mul(sd)).mul(1.8).min(1); // soft at both edges
+  m.colorNode = vec4(vec3(color.r, color.g, color.b).mul(uK).mul(soft).mul(0.55), 1);
+  const mesh = new THREE.Mesh(rg, m);
+  mesh.frustumCulled = false;
+  return mesh;
 }
 
 export class GeoForm {
@@ -23,9 +54,9 @@ export class GeoForm {
   private uT = uniform(0);
   private uK = uniform(0);
   private core: THREE.Mesh;
-  private inner: THREE.LineSegments;
-  private outer: THREE.LineSegments;
-  private heartEdges: THREE.LineSegments;
+  private inner: THREE.Mesh;
+  private outer: THREE.Mesh;
+  private heartEdges: THREE.Mesh;
 
   constructor() {
     // the core: an icosahedron, one facet per face (non-indexed, so each facet is flat)
@@ -42,13 +73,13 @@ export class GeoForm {
     // each facet its own pale colour, brighter at the rims (glass seen edge-on)
     const n = normalize(normalWorld), v = normalize(cameraPosition.sub(positionWorld));
     const rim = pow(float(1).sub(abs(dot(n, v))), 2);
-    const hue = mix(vec3(0.55, 0.75, 1.0), vec3(1.0, 0.78, 0.95), n.y.mul(0.5).add(0.5)).mul(mix(1, 0.8, abs(n.x)));
-    m.colorNode = vec4(hue.mul(rim.mul(0.75).add(0.05)).mul(this.uK), rim.mul(0.55).add(0.08).mul(this.uK));
+    const hue = mix(vec3(0.35, 0.6, 1.0), vec3(1.0, 0.55, 0.85), n.y.mul(0.5).add(0.5)).mul(mix(1, 0.7, abs(n.x)));
+    m.colorNode = vec4(hue.mul(rim.mul(0.5).add(0.03)).mul(this.uK), rim.mul(0.5).add(0.06).mul(this.uK));
     this.core = new THREE.Mesh(g, m);
     this.core.scale.setScalar(0.3);
-    this.inner = edges(new THREE.OctahedronGeometry(1, 0), new THREE.Color(1.0, 0.86, 0.6), this.uK);
-    this.outer = edges(new THREE.DodecahedronGeometry(1, 0), new THREE.Color(0.7, 0.85, 1.0), this.uK);
-    this.heartEdges = edges(new THREE.TetrahedronGeometry(1, 0), new THREE.Color(1.0, 0.95, 0.85), this.uK);
+    this.inner = edges(new THREE.OctahedronGeometry(1, 0), new THREE.Color(1.0, 0.8, 0.5), this.uK, 1.7);
+    this.outer = edges(new THREE.DodecahedronGeometry(1, 0), new THREE.Color(0.55, 0.78, 1.0), this.uK, 1.4);
+    this.heartEdges = edges(new THREE.TetrahedronGeometry(1, 0), new THREE.Color(1.0, 0.6, 0.75), this.uK, 1.4);
     this.group.add(this.core, this.inner, this.outer, this.heartEdges);
     this.group.visible = false;
   }
@@ -61,7 +92,7 @@ export class GeoForm {
     this.group.visible = k > 0.01;
     if (!this.group.visible) return;
     this.group.position.copy(at);
-    this.group.scale.setScalar(0.4 + 0.6 * k); // it unfolds out of the body
+    this.group.scale.setScalar(0.5 + 0.8 * k); // it unfolds out of the body
     // the solids turn against each other, and swell and shrink in turn
     this.core.rotation.set(s * 0.31, s * 0.47, s * 0.13);
     this.inner.rotation.set(-s * 0.52, s * 0.21, s * 0.37);
