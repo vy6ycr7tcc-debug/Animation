@@ -1,7 +1,8 @@
 name: Deploy to GitHub Pages
 
 # The game (main) is published at the site's root. The last game before the WebGPU port
-# (commit a57c46f, "Phase 0") stays beside it at /classic/, for comparison on the phone.
+# ("Phase 0") stays beside it at /classic/, for comparison on the phone. If that older build
+# ever fails, the game still deploys.
 
 on:
   push:
@@ -22,11 +23,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          ref: a57c46f
-          path: classic-src
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -34,11 +30,14 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Build /classic/ (the game before WebGPU)
+        continue-on-error: true
         run: |
-          cd classic-src
+          git fetch --no-tags --depth=1 origin a57c46ff723fa2918d73f01c445de5902f71b779
+          git worktree add ../classic-src a57c46ff723fa2918d73f01c445de5902f71b779
+          cd ../classic-src
           npm ci
           npm run build
-          cp -r dist ../dist/classic
+          cp -r dist "$GITHUB_WORKSPACE/dist/classic"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
