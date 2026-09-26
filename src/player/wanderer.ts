@@ -478,7 +478,7 @@ export class Wanderer {
     // Place the fluid body along the skeleton.
     this.root.updateMatrixWorld(true);
     this.meditate(this.meditation * (1 - water));
-    this.flyPose(fly, soar);
+    this.flyPose(fly, soar, reduced ? t * 0.4 : t);
     if (this.ready) {
       SEGS.forEach((s, i) => {
         const put = (e: End, out: THREE.Vector3) => (typeof e === "string" ? this.bonePos(e, out) : this.bonePos(e[0], out, e[1]));
@@ -544,16 +544,29 @@ export class Wanderer {
     this.turnBone(F, rot, k);
   }
 
-  /** Flight: the body lies along the line of flight and the arms sweep back along the sides,
-      a little out and lifted, like a diver's glide (Samuel: "arms back for flying"); the legs
-      trail together. Hovering, the arms rest a little out from the sides. */
-  private flyPose(k: number, soar: number): void {
+  /** Flight, like a mermaid swimming through the air (Samuel): the body lies along the line of
+      flight, the arms swept back along the sides (his "arms back for flying"), the legs held
+      together as one tail, and a slow wave runs down the body from the chest to the pointed
+      feet, a dolphin's kick. Hovering, the wave slows and the arms rest a little out. */
+  private flyPose(k: number, soar: number, t: number): void {
     if (k < 0.001 || !this.ready) return;
     this.body.updateMatrixWorld(true);
     const along = new THREE.Vector3(0, 1, 0).applyQuaternion(this.body.getWorldQuaternion(new THREE.Quaternion())); // head-ward
     const h = this.root.rotation.y;
     const right = new THREE.Vector3(Math.cos(h), 0, -Math.sin(h));
     const back = new THREE.Vector3().crossVectors(right, along).normalize(); // the body's back
+    // the tail's wave: each part a little later than the one above it, strongest at the feet
+    const amp = 0.35 + 0.65 * soar, w = t * (1.4 + 1.2 * soar);
+    const qa = new THREE.Quaternion();
+    const bend = (name: string, angle: number, axis = right) => this.turnBone(this.bones[key(name)], qa.setFromAxisAngle(axis, angle), k);
+    bend("DEF-spine.002", 0.07 * amp * Math.sin(w + 1.1));
+    bend("DEF-spine.001", 0.1 * amp * Math.sin(w + 0.4));
+    for (const [side, sgn] of [["L", 1], ["R", -1]] as const) {
+      bend(`DEF-thigh.${side}`, 0.08 * sgn, along); // drawn together
+      bend(`DEF-thigh.${side}`, 0.26 * amp * Math.sin(w - 0.6) - 0.08);
+      bend(`DEF-shin.${side}`, 0.34 * amp * Math.sin(w - 1.5) + 0.12);
+      bend(`DEF-foot.${side}`, 0.4 * amp * Math.sin(w - 2.4) - 0.9); // pointed, a fluke
+    }
     for (const [side, sgn] of [["L", -1], ["R", 1]] as const) {
       const shoulder = this.bonePos(`DEF-upper_arm.${side}`, new THREE.Vector3());
       // soaring: swept back toward the hips, out from the sides, lifted a little over the back
