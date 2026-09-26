@@ -40,6 +40,7 @@ import { buildSky, skyUniforms, starDirection } from "./world/sky";
 import { groundUniforms, heightAt, SPAWN, Terrain, WATER_Y } from "./world/terrain";
 import { NO_MIRROR_LAYER, Water } from "./world/water";
 import { FOG } from "./world/fog";
+import { Moods } from "./world/moods";
 
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
 
@@ -91,17 +92,21 @@ skyUniforms.uStar.value.copy(starDir);
 const sky = buildSky();
 sky.layers.set(NO_MIRROR_LAYER); // the lakes mirror the world; the sky they draw themselves
 scene.add(sky);
-/** The sky as light for glossy things (after the renderer is ready). */
+/** The sky as light for glossy things (after the renderer is ready; again as the mood changes). */
+const envScene = new THREE.Scene();
+envScene.add(buildSky());
+let envBakedAt = -99;
 function bakeEnvironment(): void {
   const pmrem = new THREE.PMREMGenerator(renderer);
-  const envScene = new THREE.Scene();
-  envScene.add(buildSky());
+  const old = scene.environment;
   scene.environment = pmrem.fromScene(envScene, 0, 0.1, 1100).texture;
-  scene.environmentIntensity = 1.5;
+  old?.dispose();
   pmrem.dispose();
+  envBakedAt = performance.now();
 }
 
-scene.add(new THREE.HemisphereLight(0x7a86d0, 0x221a36, 0.85));
+const hemi = new THREE.HemisphereLight(0x7a86d0, 0x221a36, 0.85);
+scene.add(hemi);
 const star = new THREE.DirectionalLight(0xffe0bc, 1.8);
 star.castShadow = true;
 star.shadow.camera.left = -26;
@@ -173,8 +178,10 @@ void presences.load("models/wanderer.glb");
 scene.add(sparks.points, grass.mesh, flowers.mesh, lanterns.points, butterflies.points, gliders.group);
 // The whole creation: trees and their roots, rocks, crystals, spirits, and the light through them.
 creationUniforms.uFogC.value.copy(FOG_COLOR);
-creationUniforms.uFogD.value = FOG.density;
+creationUniforms.uFogD.value = FOG.density * 0.9;
 creationUniforms.uStar.value.copy(starDir);
+// the sky's moods, which change as you travel
+const moods = new Moods({ hemi, star, scene, creationFog: creationUniforms.uFogC.value });
 const creation = new Creation(sparks);
 const spirits = new Spirits(creation, MOBILE ? 10 : 14);
 scene.add(creation.group, spirits.group);
@@ -1119,7 +1126,7 @@ function update(dt: number): void {
   if (S.mode !== "intro") creatures.update(wt, dt, player.pos, medK, player.speed > 3 || player.gliding, S.reduced);
   const camUnder = camera.position.y < WATER_Y - 0.05;
   post.under.value = camUnder ? 1 : 0;
-  post.raysOn.value = camUnder ? 0 : 1;
+  post.raysOn.value = camUnder ? 0 : 1 - 0.7 * moods.weights[3]; // the deep night keeps the star's glow small
   post.aoOn.value = camUnder ? 0 : 1;
   audio.underwater(camUnder);
   groundUniforms.uT.value = wt;
@@ -1162,6 +1169,12 @@ function update(dt: number): void {
   glow.set(player.pos.x, S.mode === "intro" ? 0 : 1, player.pos.z);
   water.update(camera.position.x, camera.position.z, glow);
   skyUniforms.uT.value = wt;
+  moods.update(player.pos, dt);
+  // glossy things reflect the sky: bake it again when the mood has moved on
+  if (moods.drift > 0.12 && performance.now() - envBakedAt > 4000 && shadersReady) {
+    moods.drift = 0;
+    bakeEnvironment();
+  }
   etchUniforms.uEtchT.value = wt;
   mandala.rotation.y = S.reduced ? 0 : wt * 0.01;
   center.set(camera.position.x, 0, camera.position.z);
@@ -1217,4 +1230,4 @@ renderer
     quality.hold(3);
   });
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, fauna, presences, guide, terrain, water, grass, seaLife } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife } });

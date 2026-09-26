@@ -57,6 +57,16 @@ export const gpuUniforms = {
   dpr: uniform(1),
 };
 
+/** The air's colours, set each frame by the moods (world/moods.ts): its own colour, and the glow
+    it takes on toward the moon or the low sun. */
+export const fogUniforms = {
+  color: uniform(new THREE.Color().copy(FOG.color)),
+  glow: uniform(new THREE.Color().copy(FOG.moon)),
+  glowDir: uniform(new THREE.Vector3(MOON.x, MOON.y, MOON.z)),
+  /** How thick the air is at the water's surface (per metre). */
+  density: uniform(FOG.density),
+};
+
 /** The colour of the air along the ray to `p` (rgb) and how much of it there is (a). */
 export const ijFog = Fn(([p]: N[]) => {
   const rd0 = p.sub(cameraPosition);
@@ -65,10 +75,10 @@ export const ijFog = Fn(([p]: N[]) => {
   const a = float(FOG.falloff);
   const k = a.mul(rd.y).mul(d);
   const integ = abs(k).greaterThan(1e-3).select(float(1).sub(exp(k.negate())).div(k), float(1).sub(k.mul(0.5)));
-  const depth = float(FOG.density).mul(d).mul(exp(a.negate().mul(max(cameraPosition.y, 0)))).mul(integ).add(float(FOG.haze).mul(d));
+  const depth = fogUniforms.density.mul(d).mul(exp(a.negate().mul(max(cameraPosition.y, 0)))).mul(integ).add(float(FOG.haze).mul(d));
   const f = max(float(1).sub(exp(depth.negate())), smoothstep(1700, 2450, d)); // the far land melts into the haze
-  const moon = pow(max(dot(rd, vec3(MOON.x, MOON.y, MOON.z)), 0), 5);
-  const col = mix(vec3(FOG.color.r, FOG.color.g, FOG.color.b), vec3(FOG.moon.r, FOG.moon.g, FOG.moon.b), moon.mul(0.7))
+  const moon = pow(max(dot(rd, fogUniforms.glowDir), 0), 5);
+  const col = mix(fogUniforms.color, fogUniforms.glow, moon.mul(0.7))
     .mul(float(1).add(exp(max(p.y, 0).mul(-0.08)).mul(0.1)));
   return vec4(col, clamp(f, 0, 1));
 });

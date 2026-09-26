@@ -18,6 +18,8 @@ export type Pose = "idle" | "walk" | "glide" | "swim" | "air" | "fly" | "hover";
 export type Gesture = "none" | "sit" | "reach";
 
 export const HEIGHT = 1.65;
+/** Height of the hips, the pivot the body turns about when it flies (metres). */
+const HIP = 1.0;
 const WALK_NATURAL = 1.35; // metres per second each cycle covers at timeScale 1 (after scaling)
 const JOG_NATURAL = 3.2;
 const SWIM_NATURAL = 2.4;
@@ -283,7 +285,7 @@ export class Wanderer {
   private ribbons = [new Ribbon(30, 0.035), new Ribbon(30, 0.035), new Ribbon(22, 0.05)];
   private halo: THREE.Sprite;
   private light: THREE.PointLight;
-  private k = { swim: 0, water: 0, glide: 0, move: 0, air: 0, sit: 0, reach: 0 };
+  private k = { swim: 0, water: 0, glide: 0, move: 0, air: 0, sit: 0, reach: 0, fly: 0, soar: 0 };
   private form = 0;
   private flow = 0;
   private landT = 9;
@@ -396,9 +398,12 @@ export class Wanderer {
 
     const ease = (key: keyof typeof this.k, target: number, rate: number) =>
       (this.k[key] += (target - this.k[key]) * Math.min(1, dt * rate));
-    // "swim" blends the swimming clips: used in water, and (without the orb) while flying
+    // "swim" blends the swimming clips, in the water only; flight is held as a pose (flyPose)
     const water = ease("water", pose === "swim" ? 1 : 0, 2.5);
-    const swim = ease("swim", pose === "swim" || pose === "fly" || pose === "hover" ? 1 : 0, 2.5);
+    const swim = ease("swim", pose === "swim" ? 1 : 0, 2.5);
+    const fly = ease("fly", pose === "fly" || pose === "hover" ? 1 : 0, 3);
+    // stretched out flat when moving, upright when hovering
+    const soar = ease("soar", pose === "fly" ? THREE.MathUtils.smoothstep(speed, 1.5, 5) : 0, 2);
     const glide = ease("glide", pose === "glide" ? 1 : 0, 3);
     const air = ease("air", pose === "air" ? 1 : 0, 8);
     const sit = ease("sit", this.gesture === "sit" ? 1 : 0, 2.2);
@@ -410,7 +415,7 @@ export class Wanderer {
       this.landT += dt;
       const landing = Math.max(0, 1 - this.landT / 0.55) * (1 - swim);
       const still = (1 - sit) * (1 - reach);
-      const ground = (1 - swim) * (1 - air) * (1 - landing);
+      const ground = (1 - swim) * (1 - air) * (1 - landing) * (1 - fly);
       const wJog = THREE.MathUtils.smoothstep(sp, 2.0, 3.0);
       const wWalk = THREE.MathUtils.smoothstep(sp, 0.08, 0.8) * (1 - wJog);
       const wIdle = Math.max(0, 1 - wWalk - wJog);
@@ -418,10 +423,10 @@ export class Wanderer {
       const sitIn = this.act.sitIn ? Math.max(0, 1 - this.act.sitIn.time / Math.max(0.01, this.act.sitIn.getClip().duration)) : 0;
       const reachIn = this.act.reachIn ? Math.max(0, 1 - this.act.reachIn.time / Math.max(0.01, this.act.reachIn.getClip().duration)) : 0;
       const W: Partial<Record<ActName, number>> = {
-        idle: wIdle * ground * still,
+        idle: wIdle * ground * still + fly,
         walk: wWalk * ground,
         jog: wJog * ground,
-        air: air * (1 - swim),
+        air: air * (1 - swim) * (1 - fly),
         land: landing,
         swim: swim * swimMove,
         tread: swim * (1 - swimMove),
@@ -438,7 +443,10 @@ export class Wanderer {
       if (this.act.idle) this.act.idle.timeScale = reduced ? 0.5 : 0.85;
       if (this.act.tread) this.act.tread.timeScale = reduced ? 0.5 : 0.8;
       this.mixer.update(dt);
-      this.body.position.y = water * (swimMove * 0.28 + (1 - swimMove) * 0.35);
+      // flying: the body tips forward about the hips until it lies along the line of flight
+      const tilt = -1.42 * soar * fly;
+      this.body.rotation.x = tilt;
+      this.body.position.set(0, water * (swimMove * 0.28 + (1 - swimMove) * 0.35) + HIP * (1 - Math.cos(tilt)), -HIP * Math.sin(tilt));
     }
 
     const breathe = reduced ? 0 : Math.sin(t * 0.63);
@@ -460,6 +468,7 @@ export class Wanderer {
     // Place the fluid body along the skeleton.
     this.root.updateMatrixWorld(true);
     this.meditate(this.meditation * (1 - water));
+    this.flyPose(fly, soar);
     if (this.ready) {
       SEGS.forEach((s, i) => {
         const put = (e: End, out: THREE.Vector3) => (typeof e === "string" ? this.bonePos(e, out) : this.bonePos(e[0], out, e[1]));
@@ -522,6 +531,26 @@ export class Wanderer {
     H.getWorldPosition(w);
     rot.setFromUnitVectors(w.clone().sub(e).normalize(), target.clone().sub(e).normalize());
     this.turnBone(F, rot, k);
+  }
+
+  /** Flight, like Superman: arms reach ahead of the head, the legs trail together. Hovering,
+      the arms rest a little out from the sides. */
+  private flyPose(k: number, soar: number): void {
+    if (k < 0.001 || !this.ready) return;
+    this.body.updateMatrixWorld(true);
+    const along = new THREE.Vector3(0, 1, 0).applyQuaternion(this.body.getWorldQuaternion(new THREE.Quaternion())); // head-ward
+    const h = this.root.rotation.y;
+    const right = new THREE.Vector3(Math.cos(h), 0, -Math.sin(h));
+    const back = new THREE.Vector3().crossVectors(right, along).normalize(); // the body's back
+    for (const [side, sgn] of [["L", -1], ["R", 1]] as const) {
+      const shoulder = this.bonePos(`DEF-upper_arm.${side}`, new THREE.Vector3());
+      // soaring: both arms stretched ahead, a hand's width apart; hovering: low and a little out
+      const ahead = shoulder.clone().addScaledVector(along, 0.6).addScaledVector(right, 0.05 * sgn).addScaledVector(back, 0.06);
+      const rest = shoulder.clone().addScaledVector(along, -0.5).addScaledVector(right, 0.22 * sgn);
+      const target = rest.lerp(ahead, soar);
+      const pole = back.clone().multiplyScalar(-1).addScaledVector(right, 0.5 * sgn);
+      this.reachTo(side, target, pole, k);
+    }
   }
 
   private meditate(k: number): void {

@@ -23,6 +23,12 @@ const fbm5 = Fn(([p0]: unknown[]) => {
   return s;
 });
 
+/** The clouds' shaded and lit colours, set by the sky's mood (moods.ts). */
+export const cloudUniforms = {
+  shade: uniform(new THREE.Color(0.13, 0.12, 0.26)),
+  light: uniform(new THREE.Color(0.62, 0.54, 0.52)),
+};
+
 export class Clouds {
   mesh: THREE.Mesh;
   private uniforms = { uT: uniform(0), uMoon: uniform(starDirection()), uCam: uniform(new THREE.Vector3()) };
@@ -56,8 +62,8 @@ export class Clouds {
     const nrm = normalize(vRight.mul(q.x).add(up.mul(q.y).mul(0.8)).add(viewDir.mul(max(0.2, body))));
     const lit = max(dot(nrm, U.uMoon), 0).mul(0.55).add(0.45);
     const behind = pow(max(dot(viewDir.negate(), U.uMoon), 0), 5);
-    let c = mix(vec3(0.13, 0.12, 0.26), vec3(0.62, 0.54, 0.52), lit.mul(lit).mul(0.8));
-    c = c.add(vec3(0.9, 0.8, 0.7).mul(behind).mul(float(1).sub(d)).mul(d).mul(1.6)); // a silver lining when the moon is behind
+    let c = mix(cloudUniforms.shade, cloudUniforms.light, lit.mul(lit).mul(0.8));
+    c = c.add(cloudUniforms.light.mul(1.4).mul(behind).mul(float(1).sub(d)).mul(d).mul(1.6)); // a silver lining when the moon is behind
     mat.colorNode = mix(c, withFog(c, vW), 0.7);
     mat.opacityNode = d.mul(0.9);
     mat.alphaTest = 0.009;

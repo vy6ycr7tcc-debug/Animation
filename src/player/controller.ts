@@ -19,6 +19,8 @@ const UNDER = 3.0; // swimming under the water
 const STROKE = 6.0; // the burst of one stroke
 const FLY = 6.0;
 const FLY_FAST = 13.0; // flying while holding Run
+const FLY_GLIDE = 7.5; // flying with the stick let go: a steady glide straight ahead
+const GLIDE_SINK = 1.6; // how fast that glide comes down
 const CLIMB = 4.5; // rising or sinking while flying
 const CEILING = 12000; // effectively none: up among the clouds and beyond
 const GRAVITY = 16;
@@ -127,6 +129,13 @@ export class Controller {
         mag = Math.min(1, d / 1.2);
       }
     }
+    // In the air with the stick let go, the wanderer glides on ahead (as in Sky), sinking gently.
+    const glideOn = this.flying && mag < 0.05 && !this.landing;
+    if (glideOn) {
+      dx = -Math.sin(this.heading);
+      dz = -Math.cos(this.heading);
+      mag = FLY_GLIDE / FLY;
+    }
     if (mag > 0.001) {
       const len = Math.hypot(dx, dz);
       dx /= len;
@@ -135,7 +144,7 @@ export class Controller {
     const top = this.flying
       ? input.glide ? FLY_FAST : FLY
       : this.swimming ? (input.glide ? SWIM_FAST : SWIM) : this.gliding && !this.grounded ? AIR_GLIDE : input.glide ? RUN : WALK;
-    const target = mag * top;
+    const target = Math.min(1, mag) * (glideOn ? FLY_GLIDE : top);
     const accel = this.flying ? 2.2 : this.grounded || this.swimming ? (input.glide ? 3.5 : 7) : this.gliding ? 3 : 2;
     this.vel.x += (dx * target - this.vel.x) * Math.min(1, dt * accel);
     this.vel.z += (dz * target - this.vel.z) * Math.min(1, dt * accel);
@@ -167,7 +176,11 @@ export class Controller {
       if (input.hold) this.landing = false;
       this.climbHeld = input.hold ? this.climbHeld + dt : 0;
       const surge = 1 + Math.min(8, this.climbHeld * this.climbHeld * 0.35); // up to ~40 m/s after a few seconds
-      const wantVy = input.hold ? CLIMB * surge * (input.glide ? 1.8 : 1) : this.landing ? -Math.min(14, 3 + (this.pos.y - ground) * 0.25) : -1.1;
+      const wantVy = input.hold
+        ? CLIMB * surge * (input.glide ? 1.8 : 1)
+        : this.landing
+          ? -Math.min(14, 3 + (this.pos.y - ground) * 0.25)
+          : glideOn ? -GLIDE_SINK : -1.1;
       this.vy += (wantVy - this.vy) * Math.min(1, dt * (input.hold ? 2.5 : 1.8));
       this.pos.y = Math.min(CEILING, this.pos.y + this.vy * dt);
       const floor = Math.max(ground, WATER_Y - SWIM_DEPTH);
@@ -182,7 +195,7 @@ export class Controller {
       if (this.flying) {
         this.grounded = false;
         this.swimming = false;
-        if (mag > 0.05) {
+        if (mag > 0.05 && !glideOn) {
           const want2 = Math.atan2(-dx, -dz);
           let dh = want2 - this.heading;
           dh = Math.atan2(Math.sin(dh), Math.cos(dh));

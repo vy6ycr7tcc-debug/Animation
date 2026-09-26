@@ -196,6 +196,8 @@ const C = {
   meadowC: new THREE.Color("#6d5268"), // rose
   stone: new THREE.Color("#4b4563"),
   snow: new THREE.Color("#bcb9da"),
+  earth: new THREE.Color("#5e4a3c"), // bare, warm earth
+  loam: new THREE.Color("#46382f"),
 };
 
 /** The ground's material: real scanned sand, grass and rock (tinted to the moonlit palette),
@@ -247,15 +249,15 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
 
   const det0 = samp(sand.diff, 3).rgb.mul(1.9).mul(w.x).add(samp(rock.diff, 4).rgb.mul(2.2).mul(w.y)).add(samp(meadow.diff, 2.2).rgb.mul(2.6).mul(w.z));
   // keep the moonlit palette: mostly the scan's light and shade, a little of its colour
-  const det = tmix(vec3(dot(det0, vec3(0.3, 0.5, 0.2))), det0, 0.3);
-  const fade = float(1).sub(smoothstep(80, 260, camD));
+  const det = tmix(vec3(dot(det0, vec3(0.3, 0.5, 0.2))), det0, 0.5);
+  const fade = float(1).sub(smoothstep(150, 520, camD));
   m.colorNode = vec4(tmix(vec3(1), det, fade).mul(gr.x), 1);
 
   // the scans' relief: each surface's normal map, blended as the ground is
-  const near = float(1).sub(smoothstep(20, 90, camD));
+  const near = float(1).sub(smoothstep(30, 160, camD));
   const nm = (t: THREE.Texture, s: number) => samp(t, s).xy.mul(2).sub(1);
   const pn = nm(sand.nor, 3).mul(w.x).mul(0.9).add(nm(rock.nor, 4).mul(w.y).mul(1.2)).add(nm(meadow.nor, 2.2).mul(w.z).mul(0.7));
-  const dW = vec3(pn.x, 0, pn.y.negate()).mul(near);
+  const dW = vec3(pn.x, 0, pn.y.negate()).mul(near).mul(1.35);
   m.normalNode = normalize(normalView.add(cameraViewMatrix.mul(vec4(dW, 0)).xyz));
 
   m.emissiveNode = Fn(() => {
@@ -401,10 +403,16 @@ export class Terrain {
       const region = fbm(x * 0.004 + 9, z * 0.004 - 4);
       this.col.copy(C.meadowA).lerp(C.meadowB, smooth(0.35, 0.6, region)).lerp(C.meadowC, smooth(0.6, 0.78, region));
       this.col.lerp(this.tmp.copy(C.sand), k.sand).lerp(C.stone, k.stone).lerp(C.snow, smooth(40, 70, h));
+      // broad stretches of bare earth, warm and deeply textured
+      const earth = smooth(0.42, 0.62, fbm(x * 0.005 + 123, z * 0.005 - 7)) * (1 - k.sand) * smooth(0.6, 2.5, h);
+      this.tmp.copy(C.earth).lerp(C.loam, smooth(0.3, 0.7, fbm(x * 0.03 - 9, z * 0.03 + 4)));
+      this.col.lerp(this.tmp, earth * 0.8);
       if (h < 0.1) this.col.lerp(C.wet, smooth(0.1, -0.6, h));
       col.setXYZ(v, this.col.r, this.col.g, this.col.b);
       const sandy = Math.min(1, k.sand + smooth(0.45, 0.62, fbm(x * 0.01 - 30, z * 0.01 + 12)) * (1 - k.stone) * 0.6);
-      gr.setXYZ(v, sky, sandy, Math.min(1 - sandy, k.stone + smooth(0.5, 1.0, 1 - nor.getY(v)) * 0.8));
+      // the earth takes the rock scan's grit and the sand's grain
+      const rocky = Math.min(1 - sandy, k.stone + smooth(0.5, 1.0, 1 - nor.getY(v)) * 0.8 + earth * 0.55);
+      gr.setXYZ(v, sky, Math.min(1 - rocky, sandy + earth * 0.3), rocky);
     }
     pos.needsUpdate = nor.needsUpdate = col.needsUpdate = gr.needsUpdate = true;
     g.computeBoundingSphere();
