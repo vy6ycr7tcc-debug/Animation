@@ -14,7 +14,6 @@ import { floatAttributes, loadBytes } from "../core/assets";
 import { GeoForm } from "./geoform";
 import { FluidBody, SEGMENTS } from "./fluidBody";
 import { lightBodyMaterial, tickLightBody } from "./lightBody";
-import { buildRobe, plainSkin } from "./robe";
 
 export type Pose = "idle" | "walk" | "glide" | "swim" | "air" | "fly" | "hover";
 export type Gesture = "none" | "sit" | "reach";
@@ -292,10 +291,7 @@ export class Wanderer {
   private motes = new BodyMotes(70, this.fluid);
   private skin = lightBodyMaterial();
   private skinMeshes: THREE.Mesh[] = [];
-  private robe: THREE.SkinnedMesh[] = [];
-  private plain = plainSkin();
-  /** In the temple: robed, and without light of its own. */
-  robed = false;
+
   private orb = new THREE.Group();
   private orbCore: THREE.MeshBasicMaterial;
   private ribbons = [new Ribbon(30, 0.035), new Ribbon(30, 0.035), new Ribbon(22, 0.05)];
@@ -361,12 +357,6 @@ export class Wanderer {
       }
       if ((o as THREE.Bone).isBone) this.bones[key(o.name)] = o as THREE.Bone;
     });
-    // the robe for the temple, made from the figure itself (player/robe.ts)
-    const skinned = this.skinMeshes.filter((m) => (m as THREE.SkinnedMesh).isSkinnedMesh) as THREE.SkinnedMesh[];
-    if (skinned[0]?.parent) {
-      this.robe = buildRobe(skinned);
-      skinned[0].parent.add(...this.robe);
-    }
     model.rotation.y = Math.PI; // face -z like the rest of the game
     model.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(model, true);
@@ -388,12 +378,6 @@ export class Wanderer {
       this.act[key] = a;
     }
     this.ready = true;
-  }
-
-  /** Put on the robe (in the temple) or take it off: the body plain and unlit beneath it. */
-  setRobed(on: boolean): void {
-    this.robed = on;
-    for (const m of this.skinMeshes) m.material = on ? this.plain : this.skin;
   }
 
   /** Touch down after a jump: play the landing once. */
@@ -491,14 +475,12 @@ export class Wanderer {
     // the body fades into an orb in the water, and forms again on the shore
     this.skin.opacity = (1 - water) * (1 - flameK) * f;
     for (const m of this.skinMeshes) m.visible = this.skin.opacity > 0.01;
-    for (const m of this.robe) m.visible = this.robed && this.skin.opacity > 0.01;
-    if (this.robed) this.halo.material.opacity = 0; // no light of its own in the temple
     tickLightBody(this.skin, t);
     const orbK = THREE.MathUtils.smoothstep(water, 0.2, 1);
     this.orb.scale.setScalar(Math.max(0.001, orbK * (1 + (reduced ? 0 : Math.sin(t * 2.2) * 0.05))));
     this.orb.position.y = 1.22 + (reduced ? 0 : Math.sin(t * 1.3) * 0.04);
     this.orbCore.opacity = orbK;
-    this.motes.points.visible = water < 0.5 && flameK < 0.5 && !this.robed;
+    this.motes.points.visible = water < 0.5 && flameK < 0.5;
     this.light.intensity = 0;
 
     // Place the fluid body along the skeleton.
@@ -523,7 +505,7 @@ export class Wanderer {
     // Ribbons trail from the hands and the crown, stronger in motion.
     const cam = this.tmp.cam.copy(this.camera.position);
     // in flight they rest: climbing, they trailed straight down from the hands like stilts
-    const strength = Math.min(1, 0.25 + this.flow * 0.4 + reach * 0.5) * f * (1 - water) * (1 - 0.9 * this.k.fly) * (this.robed ? 0 : 1);
+    const strength = Math.min(1, 0.25 + this.flow * 0.4 + reach * 0.5) * f * (1 - water) * (1 - 0.9 * this.k.fly);
     if (this.ready) {
       this.ribbons[0].update(dt, this.bonePos("DEF-hand.L", this.tmp.a, 0.12), cam, strength);
       this.ribbons[1].update(dt, this.bonePos("DEF-hand.R", this.tmp.a, 0.12), cam, strength);
