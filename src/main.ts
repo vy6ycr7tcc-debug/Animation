@@ -395,7 +395,7 @@ input.onAction = () => {
   } else player.jump();
 };
 input.onTap = (x, y, touch) => {
-  if (S.mode !== "play" || genesis.active) return;
+  if (S.mode !== "play" || genesis.active || temple.cardsOpen) return;
   // an orb or a fruit under the tap: its narration begins (never by itself)
   const v = vessels.pick(x, y, camera);
   if (v) {
@@ -432,6 +432,7 @@ function setInside(inside: boolean): void {
     for (const [o] of hiddenWorld) o.visible = false;
     temple.show(true);
     temple.reset();
+    wanderer.setRobed(true);
     const e = temple.entry();
     player.pos.set(e.x, temple.floorAt(e.x, e.z), e.z);
     player.heading = e.heading;
@@ -440,6 +441,8 @@ function setInside(inside: boolean): void {
   } else {
     for (const [o, v] of hiddenWorld) o.visible = v;
     hiddenWorld = [];
+    closeCards();
+    wanderer.setRobed(false);
     temple.show(false);
     const o = temple.outside();
     player.pos.set(o.x, heightAt(o.x, o.z), o.z);
@@ -467,12 +470,94 @@ function crossTemple(inside: boolean): void {
     }, 250);
   }, 650);
 }
+// The cards, at the centre of the sanctuary: all twenty-two, each in three dimensions on the
+// altar; ‹ › (or a swipe, or the arrow keys) to go through them, the strip to jump to one.
+let cardIndex = 0;
+const cardsEl = $("#cards"), cardsStrip = $("#cards-strip");
+for (let i = 0; i < 22; i++) {
+  if (i === 7 || i === 14 || i === 21) cardsStrip.append(Object.assign(document.createElement("span"), { className: "gap" }));
+  const b = document.createElement("button");
+  b.type = "button";
+  b.textContent = temple.cardInfo(i).numeral;
+  b.setAttribute("aria-label", `${temple.cardInfo(i).numeral}, ${temple.cardInfo(i).name}`);
+  b.addEventListener("click", () => setCard(i));
+  cardsStrip.append(b);
+}
+function setCard(i: number): void {
+  cardIndex = (i + 22) % 22;
+  temple.showCard(cardIndex);
+  const c = temple.cardInfo(cardIndex);
+  $("#cards-title").textContent = `${c.numeral} · ${c.name}`;
+  $("#cards-sub").textContent = c.realm ? `The ${c.place} of the ${c.realm}` : c.place;
+  cardsStrip.querySelectorAll("button").forEach((b, k) => {
+    b.setAttribute("aria-current", String(k === cardIndex));
+    if (k === cardIndex) b.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  });
+  audio.bell(330 + (cardIndex % 7) * 33, 0.05, 3);
+}
+function openCards(): void {
+  if (!temple.inside || temple.cardsOpen) return;
+  temple.cardsOpen = true;
+  player.target = null;
+  cardsEl.hidden = false;
+  $("#cards-offer").hidden = true;
+  setCard(cardIndex);
+}
+function closeCards(): void {
+  if (!temple.cardsOpen) return;
+  temple.cardsOpen = false;
+  cardsEl.hidden = true;
+}
+$("#cards-offer").addEventListener("click", openCards);
+$("#cards-close").addEventListener("click", closeCards);
+$("#cards-prev").addEventListener("click", () => setCard(cardIndex - 1));
+$("#cards-next").addEventListener("click", () => setCard(cardIndex + 1));
+addEventListener("keydown", (e) => {
+  if (!temple.cardsOpen) return;
+  if (e.key === "ArrowLeft") setCard(cardIndex - 1);
+  else if (e.key === "ArrowRight") setCard(cardIndex + 1);
+  else if (e.key === "Escape") closeCards();
+});
+{
+  // a swipe across the view turns to the next card or the one before
+  let sx = 0, sy = 0, sid = -1;
+  addEventListener("pointerdown", (e) => {
+    if (!temple.cardsOpen || (e.target as HTMLElement)?.closest?.("#cards, #menu, #tp, #tp-mini")) return;
+    (sx = e.clientX), (sy = e.clientY), (sid = e.pointerId);
+  });
+  addEventListener("pointerup", (e) => {
+    if (e.pointerId !== sid) return;
+    sid = -1;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) setCard(cardIndex + (dx < 0 ? 1 : -1));
+  });
+}
+// the view moves to the altar while the cards are open, and back after
+let cardsView = 0;
+const cardCam = { pos: new THREE.Vector3(), target: new THREE.Vector3() };
+const cardLook = new THREE.PerspectiveCamera(); // a camera, so lookAt turns its -z (not +z) to the target
+const followPos = new THREE.Vector3(), followQuat = new THREE.Quaternion();
+function cardsCamera(dt: number): void {
+  cardsView += ((temple.cardsOpen ? 1 : 0) - cardsView) * Math.min(1, dt * 1.8);
+  if (cardsView < 0.001) return;
+  temple.cardView(cardCam);
+  cardLook.position.copy(cardCam.pos);
+  cardLook.lookAt(cardCam.target);
+  followPos.copy(camera.position);
+  followQuat.copy(camera.quaternion);
+  const k = cardsView * cardsView * (3 - 2 * cardsView);
+  camera.position.lerpVectors(followPos, cardCam.pos, k);
+  camera.quaternion.slerpQuaternions(followQuat, cardLook.quaternion, k);
+}
+
 /** Each frame: through the pylon's door, in; out through the temple's door, out; the air inside. */
 function templeFrame(dt: number): void {
   temple.update(S.wt, dt, player.pos, S.reduced);
   if (S.mode !== "play") return;
   if (temple.inside) {
     if (temple.confine(player.pos) && !crossing) crossTemple(false);
+    if (player.flying) player.flying = false; // no flight in the temple: you walk here
+    $("#cards-offer").hidden = temple.cardsOpen || !temple.nearCards(player.pos) || crossing;
     // the air inside: warm, dim, a little dust in the light
     fogUniforms.color.value.setRGB(0.09, 0.065, 0.045);
     fogUniforms.glow.value.setRGB(0.3, 0.22, 0.15);
@@ -481,6 +566,7 @@ function templeFrame(dt: number): void {
     post.raysOn.value = 0;
     return;
   }
+  $("#cards-offer").hidden = true;
   const d = player.pos.distanceTo(temple.gateAt);
   if (!toldGate && d < 30) {
     toldGate = true;
@@ -1350,7 +1436,7 @@ function update(dt: number): void {
   if (S.mode === "play") {
     if (wanderer.gesture !== "none" && Math.hypot(input.move.x, input.move.y) > 0.2 && wanderer.gesture === "sit") wanderer.setGesture("none");
     if (autofly.active && (Math.hypot(input.move.x, input.move.y) > 0.25 || input.hold)) setAutofly(false); // the thumb takes over
-    if (genesis.active) player.update(dt, { x: 0, y: 0, glide: false, run: 0, hold: false, down: false, pitch: follow.pitch }, follow.yaw);
+    if (genesis.active || temple.cardsOpen) player.update(dt, { x: 0, y: 0, glide: false, run: 0, hold: false, down: false, pitch: follow.pitch }, follow.yaw);
     else if (autofly.active) {
       const r = autofly.update(dt, player.pos);
       Object.assign(player, { heading: r.heading, speed: r.speed, vy: r.vy, flying: true, landing: false, grounded: false, swimming: false, gliding: false, pose: "fly", target: null });
@@ -1453,6 +1539,7 @@ function update(dt: number): void {
   wasSwimming = player.swimming;
 
   follow.update(dt, player.pos, player.heading, player.speed > 0.5, t, S.reduced, player.flying);
+  cardsCamera(dt);
   // high in the air, the camera reaches farther (and keeps its depth precise)
   {
     const alt = Math.max(0, camera.position.y);
@@ -1558,4 +1645,4 @@ renderer
     quality.hold(3);
   });
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard } });
