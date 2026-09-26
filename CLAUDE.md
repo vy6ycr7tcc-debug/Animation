@@ -172,6 +172,12 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - Spirits drift (speed capped at 2.2–3 m/s) and, keeping company, circle above the head (radius 3.4 m, 2.8 m up).
   - Veils are thinner and softer, and their ribbon direction comes from the drawn curve, so they can't fold.
   - Spirits, veils and the stillness strokes fade near the lens and wherever they would pass between the camera and the wanderer (`outOfTheWay` in `creation.ts`, `vClear` in `communion.ts`). Keep new effects out of that corridor.
+- 2026-09-26: Samuel: "it's like pixeling… we want the maximum resolution" (iPhone 17); keep the screen awake; the narrator "is repeating the same thing over and over"; save the session locally; the map's "Wake here" didn't work ("should be a tap on the map"); the orb underwater "shines too much and kinda blinds the view".
+  - Resolution first (`src/core/quality.ts`): native (3x) on the top tier and never below 2x on a phone; the costly effects (AO, god rays, reflection, shadows, bloom) rest first. The controller ignores the first seconds and each arrival (`quality.hold`), treats a steady 30 fps (Low Power Mode) as a cap, and retries a tier after a long good run. The lakes' mirror renders at most 1.5x.
+  - Screen Wake Lock (`src/core/awake.ts`), a menu setting (on by default); let go on Leave, asked again on return.
+  - Background narration (`src/core/playlist.ts`): each voice once per journey, a minute or two of quiet between, then the narrator rests. Everything heard, the teachings and practices heard, passages spoken and archive narrations heard are saved (`SaveData.journey`); the start map offers "Continue where you were".
+  - The map: a tap on a place, on open land, or on a name in the list takes you there (no confirm step).
+  - Underwater: the orb is a soft light (dimmer core and halo, a faint lantern glow); kelp near the lens thins away (a bend-away displacement had smeared blades into slabs across the view).
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.

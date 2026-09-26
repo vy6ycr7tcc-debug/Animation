@@ -22,6 +22,7 @@ import { Input } from "./core/input";
 import { Narration } from "./core/narration";
 import { Playlist } from "./core/playlist";
 import { heartId, passageId, promptsFor, registerAnswers, registerTunnel, SPECTRUM, trackId, walkId } from "./core/dialogues";
+import { Awake } from "./core/awake";
 import { AdaptiveQuality, FrameStats, MOBILE, type Tier } from "./core/quality";
 import { clear, load, save, type SaveData } from "./core/save";
 import { FollowCamera } from "./player/camera";
@@ -247,7 +248,7 @@ function resize(): void {
   dpr = Math.min(devicePixelRatio || 1, quality.current.dpr);
   renderer.setPixelRatio(dpr);
   composer.setSize(w, h);
-  reflection.setSize(w * dpr, h * dpr);
+  reflection.setSize(w * Math.min(dpr, 1.5), h * Math.min(dpr, 1.5)); // the lakes' mirror needn't be as sharp as the world
   camera.aspect = w / h;
   camera.fov = h > w ? 66 : 55;
   camera.updateProjectionMatrix();
@@ -255,12 +256,13 @@ function resize(): void {
 /** What the quality tier allows; under the water, ambient occlusion and god rays rest. */
 const tierFx = { rays: true, ao: true };
 function applyTier(t: Tier, i: number = quality.tier): void {
-  tierFx.rays = tierFx.ao = i <= 1; // god rays and ambient occlusion on the two higher tiers only
+  tierFx.rays = t.rays;
+  tierFx.ao = t.ao;
   raysPass.enabled = tierFx.rays;
   aoPass.enabled = tierFx.ao;
-  reflection.enabled = i <= 1; // mirrored world in the lakes
+  reflection.enabled = t.reflection; // mirrored world in the lakes
   water.uniforms.uReflOn.value = reflection.enabled ? 1 : 0;
-  wanderer.setQuality([48, 40, 32, 24][i] ?? 32); // ray-march steps for the fluid body
+  wanderer.setQuality([48, 48, 40, 32, 24][i] ?? 32); // ray-march steps for the fluid body
   bloomPass.enabled = t.bloom;
   plainPass.enabled = !t.bloom;
   const sh = star.shadow;
@@ -270,7 +272,7 @@ function applyTier(t: Tier, i: number = quality.tier): void {
     sh.map = null;
   }
   motes.setCount(Math.round(t.particles / 2));
-  creation.setQuality(i);
+  creation.setQuality(Math.max(0, i - 1));
   resize();
 }
 applyTier(quality.current);
@@ -278,6 +280,8 @@ addEventListener("resize", resize);
 
 /* ============ SAVE ============ */
 const saved = load();
+const awake = new Awake();
+awake.on = saved?.settings?.awake ?? true;
 if (saved) {
   const [x, y, z] = saved.pos;
   player.pos.set(x, Math.max(y, heightAt(x, z)), z);
@@ -286,6 +290,11 @@ if (saved) {
   audio.volume = saved.settings?.volume ?? 0.8;
   narration.subtitlesOn = saved.settings?.subtitles ?? true;
   playlist.on = saved.settings?.narration ?? true;
+  playlist.restore(saved.journey?.heard ?? []);
+  for (const b of beings.list) {
+    b.walked = !!saved.journey?.walked.includes(b.spec.numeral);
+    b.hearted = !!saved.journey?.hearted.includes(b.spec.numeral);
+  }
 }
 let resetting = false;
 function persist(): void {
@@ -296,7 +305,15 @@ function persist(): void {
     heading: player.heading,
     heard: [],
     visited: [],
-    settings: { volume: audio.volume, reduced: S.reducedPref, subtitles: narration.subtitlesOn, narration: playlist.on },
+    settings: { volume: audio.volume, reduced: S.reducedPref, subtitles: narration.subtitlesOn, narration: playlist.on, awake: awake.on },
+    journey: {
+      heard: playlist.heardIds,
+      walked: beings.list.filter((b) => b.walked).map((b) => b.spec.numeral),
+      hearted: beings.list.filter((b) => b.hearted).map((b) => b.spec.numeral),
+      passed: [...passed],
+      archive: [...archiveHeard],
+    },
+    savedAt: Date.now(),
   };
   save(d);
 }
@@ -374,7 +391,9 @@ function begin(e?: Event): void {
   $("#title").classList.add("gone");
   $("#begin").hidden = true;
   // Then the map: where to begin decides whose voice comes first.
-  void startMap.open(places(), saved ? { x: saved.pos[0], z: saved.pos[2] } : null, false).then((c) => c && arrive(c, true));
+  awake.want();
+  const you = saved ? { x: saved.pos[0], z: saved.pos[2], heading: saved.heading } : null;
+  void startMap.open(places(), you, false, !!you).then((c) => c && arrive(c, true));
 }
 
 /** The places on the map: the shore, and the seven archetypes' homes. */
@@ -404,6 +423,7 @@ function arrive(c: Choice, first: boolean): void {
   player.target = null;
   player.heading = c.heading;
   terrain.update(c.x, c.z, true);
+  quality.hold(4); // a new place streams in: don't take its first moments as slowness
   follow.yaw = c.heading;
   follow.snapTo(player.pos);
   follow.startFollowing(true);
@@ -411,7 +431,6 @@ function arrive(c: Choice, first: boolean): void {
   wanderer.setGesture("none");
   beings.reset();
   lastMet = -1;
-  passed.clear();
   playlist.startWith(c.place.narration);
   input.enabled = true;
   S.mode = "play";
@@ -436,7 +455,8 @@ beings.onMeet = (a) => {
    Walk); sit with it (or, in the deep, rest still before it) and it speaks its practice (the
    Heart). When you leave it behind, the passage for the road onward is the next voice you hear. */
 let lastMet = -1;
-const passed = new Set<number>();
+const passed = new Set<number>(saved?.journey?.passed ?? []);
+const archiveHeard = new Set<string>(saved?.journey?.archive ?? []);
 function updateTunnel(): void {
   if (S.mode !== "play" || !playlist.on || playlist.held || tp.active) return;
   const n = beings.nearest(player.pos);
@@ -445,12 +465,14 @@ function updateTunnel(): void {
   const idle = !narration.current;
   if (b && b.met && !b.walked && idle && sitting.phase === "none" && n.d < (b.spec.under ? 5 : 3.4)) {
     b.walked = true;
+    playlist.mark(walkId(b.spec.numeral));
     void narration.play(walkId(b.spec.numeral));
     return;
   }
   const settled = sitting.phase === "seated" ? sitting.since > 1.2 && !sitting.asked : !!b?.spec.under && b.walked && n.d < 5 && stillFor > 2.5;
   if (b && b.met && !b.hearted && idle && settled && (sitting.phase !== "seated" || sitting.being === n.i)) {
     b.hearted = true;
+    playlist.mark(heartId(b.spec.numeral));
     void narration.play(heartId(b.spec.numeral));
     return;
   }
@@ -699,7 +721,10 @@ function playArchive(n: Parameters<TranscriptPlayer["play"]>[0]): void {
   void tp.play(n);
   say(`Playing: ${n.title}. ${TranscriptPlayer.caption(n).join(". ")}.`);
 }
-tp.onChange = (id) => vessels.setPlaying(id);
+tp.onChange = (id) => {
+  vessels.setPlaying(id);
+  if (id) archiveHeard.add(id);
+};
 tp.onChoose = (background) => {
   playlist.setOn(background);
   voiceBox.checked = background;
@@ -783,6 +808,12 @@ voiceBox.addEventListener("change", () => {
   playlist.setOn(voiceBox.checked);
   persist();
 });
+const awakeBox = $<HTMLInputElement>("#awake");
+awakeBox.checked = awake.on;
+awakeBox.addEventListener("change", () => {
+  awake.set(awakeBox.checked);
+  persist();
+});
 const subsBox = $<HTMLInputElement>("#subs");
 subsBox.checked = narration.subtitlesOn;
 subsBox.addEventListener("change", () => {
@@ -809,6 +840,7 @@ applyReduced();
 
 $("#leave").addEventListener("click", () => {
   persist();
+  awake.rest();
   setMenu(false);
   S.mode = "rest";
   input.enabled = false;
@@ -842,6 +874,7 @@ $("#restart").addEventListener("click", () => {
   location.reload();
 });
 $("#return").addEventListener("click", () => {
+  awake.want();
   audio.start();
   audio.fade(true);
   S.mode = "play";

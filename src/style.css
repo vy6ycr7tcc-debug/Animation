@@ -223,7 +223,8 @@ button:focus-visible, input:focus-visible { outline: 1px solid var(--gold); outl
 #map-pick { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; max-width: 40em; min-height: 44px; }
 #map-pick[hidden] { display: none; }
 #map-pick p { margin: 0; font-style: italic; text-align: center; }
-#map-go { border: 1px solid var(--gold); border-radius: 22px; min-height: 44px; padding: 8px 20px; color: var(--gold); }
+#map-continue[hidden] { display: none; }
+#map-go, #map-continue { border: 1px solid var(--gold); border-radius: 22px; min-height: 44px; padding: 8px 20px; color: var(--gold); }
 #map-places { display: flex; flex-direction: column; gap: 0.3rem; max-width: 44em; width: 100%; }
 .map-group { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 0.1rem 0.8rem; }
 .map-group-title { flex-basis: 100%; margin: 0.3rem 0 0; text-align: center; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); }

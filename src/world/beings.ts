@@ -1060,8 +1060,8 @@ export class Beings {
     });
   }
 
-  /** Forget who has been met (a new start). */
+  /** Arriving somewhere new: each greets you again (what they have told you stays told). */
   reset(): void {
-    for (const b of this.list) b.met = b.walked = b.hearted = false;
+    for (const b of this.list) b.met = false;
   }
 }

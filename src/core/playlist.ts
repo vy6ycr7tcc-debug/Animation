@@ -1,14 +1,21 @@
-/* Narration that is always there in the background: the recordings play one after another,
-   with a quiet stretch between them, whatever the wanderer is doing.
+/* Narration in the background: sparing, and never repeating.
+   - Each of the journey's voices is heard once per journey. What you've heard is kept on this
+     device, so coming back you hear what you haven't yet. When all have been heard, the narrator
+     rests, and there is only the water and the music (Samuel: the narrator "is repeating the same
+     thing over and over… that's really not the intention").
+   - A long quiet stretch between voices (a minute or two), so the world can speak for itself.
    - Where you choose to begin decides which voice comes first; the rest follow in order.
-   - Meeting an archetype's being begins its narration straight away (and it carries on as
-     you walk away).
+   - The archetypes' own voices (arriving, stepping close, sitting with them, the passages on the
+     road onward) are spoken once each, where they belong (the tunnel, in main.ts).
    - In the background, only tracks with audio in the voice Samuel likes are played. A track
      you ask for (by beginning at its place, or meeting its being) plays even without audio,
      as subtitles. */
 import type { Narration } from "./narration";
 
 export const ORDER = ["J01", "J02", "J03", "J04", "J05", "J06", "J07", "J08", "J09", "J10", "J11"];
+
+/** The quiet after a voice: a minute or two, a little different every time. */
+const gap = () => 70 + Math.random() * 60;
 
 export class Playlist {
   on = true;
@@ -26,17 +33,37 @@ export class Playlist {
 
   constructor(private narration: Narration) {}
 
+  /** Everything heard on this journey (kept on this device). */
+  get heardIds(): string[] {
+    return [...this.heard];
+  }
+  /** Coming back: what was heard before stays heard. */
+  restore(ids: string[]): void {
+    for (const id of ids) this.heard.add(id);
+  }
+  /** Begin again: forget it all. */
+  forget(): void {
+    this.heard.clear();
+    this.next_ = null;
+  }
+  /** A voice spoken elsewhere (an archetype's teaching, its practice): it counts as heard. */
+  mark(id: string): void {
+    this.heard.add(id);
+  }
+  has(id: string): boolean {
+    return this.heard.has(id);
+  }
+
   setOn(on: boolean): void {
     this.on = on;
     if (!on) this.narration.stop(2);
     else this.wait = Math.min(this.wait, 3);
   }
 
-  /** A new beginning: this voice first, then onward in order. */
+  /** Wake somewhere: this voice first (unless it has been heard), then onward in order. */
   startWith(id: string, delay = 3): void {
-    this.heard.clear();
     this.next_ = null;
-    this.first = id;
+    this.first = this.heard.has(id) ? null : id;
     this.i = Math.max(0, ORDER.indexOf(id));
     this.wait = delay;
     this.narration.stop(1.5);
@@ -46,7 +73,7 @@ export class Playlist {
   queueNext(id: string): void {
     if (this.heard.has(id)) return;
     this.next_ = id;
-    this.wait = Math.min(this.wait, 4);
+    this.wait = Math.min(this.wait, 6);
   }
 
   /** The wanderer has met the archetype whose narration this is. */
@@ -54,8 +81,9 @@ export class Playlist {
     if (!this.on || this.held || this.narration.current === id || this.heard.has(id)) return;
     this.heard.add(id);
     this.narration.play(id);
-    this.i = (ORDER.indexOf(id) + 1) % ORDER.length;
-    this.wait = 22 + Math.random() * 20;
+    const k = ORDER.indexOf(id);
+    if (k >= 0) this.i = (k + 1) % ORDER.length;
+    this.wait = gap();
   }
 
   update(dt: number): void {
@@ -72,11 +100,11 @@ export class Playlist {
       this.next_ = null;
       this.heard.add(asked);
       if (this.on && !this.held && !this.quiet && !this.narration.current) this.narration.play(asked);
-      this.wait = 22 + Math.random() * 20;
+      this.wait = gap();
       this.starting = false;
       return;
     }
-    if (ORDER.every((id) => this.heard.has(id))) for (const id of ORDER) this.heard.delete(id);
+    let spoke = false;
     for (let tries = 0; tries < ORDER.length; tries++) {
       const id = ORDER[this.i];
       this.i = (this.i + 1) % ORDER.length;
@@ -88,11 +116,12 @@ export class Playlist {
         this.first = null;
         this.heard.add(id);
         this.narration.play(id);
+        spoke = true;
         break;
       }
     }
-    // a quiet stretch after each voice, a little different every time
-    this.wait = 22 + Math.random() * 20;
+    // after a voice, a long quiet; when every voice has been heard, the narrator rests
+    this.wait = spoke ? gap() : 240;
     this.starting = false;
   }
 }

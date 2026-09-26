@@ -28,9 +28,11 @@ A stick in the bottom-left corner and one round button in the bottom-right, as i
 | Turn inward | Stand still for a moment | Stand still |
 | Settings, Map, About | ⋮ top right | Esc |
 
+The screen stays awake while you play (⋮ → Keep the screen awake). Your journey is kept on this device: where you are, and every voice you've heard, so nothing repeats.
+
 ## What it is
 There is no island and no path. After "Touch the water to begin", a map unfolds: the land drawn in gold contour lines, with the shore and the homes of all twenty-two archetypes marked. From there you can go anywhere. ⋮ → Map lets you travel again.
-- **The map:** drag to move it; pinch, scroll or use − / + / All to come closer or see everything. Tap a place (or its name in the list below the map), or any spot on the land, then **Wake here**. Each group has its own mark: the Mind a circle, the Body a diamond, the Spirit a triangle, the Choice a star. A wave under a mark means that home is in the deep; you wake on the water above it and dive.
+- **The map:** drag to move it; pinch, scroll or use − / + / All to come closer or see everything. Tap a place (or its name in the list below the map), or any spot on the land, and you go there. Coming back, **Continue where you were** picks up your journey. Each group has its own mark: the Mind a circle, the Body a diamond, the Spirit a triangle, the Choice a star. A wave under a mark means that home is in the deep; you wake on the water above it and dive.
 - **Where they live:** the Mind's seven around the shore where you wake; the Body's seven (VIII–XIV) out to the east; the Spirit's seven (XV–XXI) out to the west; the Choice (XXII) on a small island in the northern lake. The Moon (XVIII) and Judgement (XX) live on the floor of deep lakes, marked by a column of light and a ring on the water.
 - **The archetypes live in the world as beings you meet,** recreated from the Ra tarot cards. Each is a figure of flowing light in its own colour, posed as on its card:
   - I, the Magician: standing, holding out a sphere of light, beside a cube with a bird of light inside;
@@ -67,7 +69,7 @@ There is no island and no path. After "Touch the water to begin", a map unfolds:
   - **Rest in silence:** the stars come out and time slows.
   - **Offer light:** a stream of light flows from you to it, and it answers.
   - **Stand up,** or just move.
-- **Narration runs in the background.** It begins with the voice of the place you chose (the shore starts with J01). The rest follow in order, with a quiet gap of 20–40 s between them. You never have to stop and wait anywhere for it. Turn it off under ⋮ → Narration.
+- **Narration runs in the background, sparingly.** It begins with the voice of the place you chose (the shore starts with J01). The rest follow in order, each only once per journey, with a minute or two of quiet between them; when all have been heard, the narrator rests. You never have to stop and wait anywhere for it. Turn it off under ⋮ → Narration.
 - **The world answers as you pass:**
   - grass leans away from you and keeps a faint trail of light;
   - flowers open when you brush past, each with a note from one soft scale;
