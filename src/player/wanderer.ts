@@ -304,7 +304,7 @@ export class Wanderer {
   private light: THREE.PointLight;
   private k = { swim: 0, water: 0, glide: 0, move: 0, air: 0, sit: 0, reach: 0, fly: 0, soar: 0, touch: 0 };
   /** Set by touch.ts while the wanderer lays hands on something. */
-  touching = { pose: "palms" as TouchPose, contact: new THREE.Vector3(), centre: new THREE.Vector3(), r: 0.3, breath: 0 };
+  touching = { pose: "palms" as TouchPose, contact: new THREE.Vector3(), centre: new THREE.Vector3(), r: 0.3, breath: 0, lean: 0 };
   private form = 0;
   private flow = 0;
   private landT = 9;
@@ -471,7 +471,7 @@ export class Wanderer {
       const tilt = -1.42 * soar * fly;
       this.body.rotation.x = tilt;
       const settle = THREE.MathUtils.smoothstep(kneel, 0, 1);
-      this.body.position.set(0, water * (swimMove * 0.28 + (1 - swimMove) * 0.35) + HIP * (1 - Math.cos(tilt)) - KNEEL_DROP * settle, -HIP * Math.sin(tilt) - 0.24 * THREE.MathUtils.smoothstep(lean, 0, 1));
+      this.body.position.set(0, water * (swimMove * 0.28 + (1 - swimMove) * 0.35) + HIP * (1 - Math.cos(tilt)) - KNEEL_DROP * settle, -HIP * Math.sin(tilt) - this.touching.lean * THREE.MathUtils.smoothstep(lean, 0, 1));
     }
 
     const breathe = reduced ? 0 : Math.sin(t * 0.63);
@@ -703,13 +703,16 @@ export class Wanderer {
       bend("DEF-spine.003", -0.06);
       this.turnBone(this.bones[key("DEF-neck")], qa.setFromAxisAngle(up, 0.5), k);
       this.turnBone(this.bones[key("DEF-head")], qa.setFromAxisAngle(fwd, -0.18), k);
-      const near = this.root.position.clone().sub(T.centre).setY(0).normalize();
+      // the body is drawn in by `lean` toward the trunk, so measure from where it now stands
+      const body = this.bonePos("DEF-spine.003", new THREE.Vector3());
+      const near = body.clone().sub(T.centre).setY(0).normalize();
       const side = new THREE.Vector3().crossVectors(up, near).normalize(); // the wanderer's right, seen from the trunk
-      const R = T.r + 0.06;
+      const R = T.r + 0.07; // the palms on the bark, not in it
       for (const [s, sgn] of [["L", -1], ["R", 1]] as const) {
-        const a = Math.PI / 2 + (R < 0.35 ? 0.3 : 0.05);
-        const hand = T.centre.clone().addScaledVector(near, Math.cos(a) * R).addScaledVector(side, -sgn * Math.sin(a) * R).setY(foot + (sgn < 0 ? 1.28 : 1.12) + 0.015 * breath);
-        this.reachTo(s, hand, right.clone().multiplyScalar(sgn).addScaledVector(up, -0.15).addScaledVector(fwd, -0.3), k);
+        const a = Math.PI / 2 + (R < 0.3 ? 0.35 : 0.12); // just round the sides, a little behind
+        const hand = T.centre.clone().addScaledVector(near, Math.cos(a) * R).addScaledVector(side, sgn * Math.sin(a) * R).setY(T.centre.y + (sgn < 0 ? 0.12 : -0.06) + 0.015 * breath);
+        this.reachTo(s, hand, right.clone().multiplyScalar(sgn).addScaledVector(up, -0.2).addScaledVector(fwd, -0.4), k);
+        this.aimBone(`DEF-hand.${s}`, near.clone().multiplyScalar(-1).addScaledVector(side, -sgn * 0.6), k * 0.8); // fingers round the bark
       }
     } else {
       // standing, both palms laid on the stone

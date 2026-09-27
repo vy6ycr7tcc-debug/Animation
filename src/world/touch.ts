@@ -51,6 +51,8 @@ export class Touch {
   target: Target | null = null;
   /** For main.ts: a stone or crystal being touched vibrates with light (etching.ts vibe). */
   vibe = 0;
+  /** How far the body leans in toward a trunk it holds (metres). */
+  lean = 0;
   private t = 0;
   private cycle = 0;
   private answers = 0;
@@ -130,13 +132,29 @@ export class Touch {
     const centre = at.clone();
     const contact = new THREE.Vector3();
     if (kind === "tree") {
+      // the trunk where the arms go (at chest height; trunks lean, so not over the foot)
       centre.y = heightAt(at.x, at.z);
-      const trunk = r * 0.95;
+      const tr = this.creation.trunkAt(at.x, at.z, 1.2);
+      const chest = tr?.centre ?? new THREE.Vector3(at.x, centre.y + 1.2, at.z);
+      const R = tr?.r ?? r * 0.95;
+      away.set(p.x - chest.x, p.z - chest.z);
+      if (away.lengthSq() < 1e-4) away.set(0, 1);
+      away.normalize();
       pose = "hug";
-      standD = r * 1.1 + 0.31; // just clear of the trunk (its collider, plus the body)
-      contact.set(at.x + away.x * trunk, centre.y + 1.2, at.z + away.y * trunk);
+      // stand just clear of the trunk's foot (its collider holds the body off), the chest near it
+      const clear = r * 1.1 + 0.31;
+      let d = R + 0.3;
+      while (Math.hypot(chest.x + away.x * d - at.x, chest.z + away.y * d - at.z) < clear && d < 3) d += 0.05;
+      standD = d;
+      contact.set(chest.x + away.x * R, chest.y, chest.z + away.y * R);
+      centre.set(chest.x, chest.y, chest.z);
       hue.setRGB(1.0, 0.8, 0.5);
-      r = trunk;
+      r = R;
+      const stand = new THREE.Vector2(chest.x + away.x * standD, chest.z + away.y * standD);
+      const face = Math.atan2(-(chest.x - stand.x), -(chest.z - stand.y));
+      // how far the body may lean in: until the chest meets the bark, no further
+      this.lean = THREE.MathUtils.clamp(standD - (R + 0.24), 0, 0.35);
+      return { kind, pose, centre, r, contact, stand, face, hue };
     } else if (kind === "ground") {
       pose = "ground";
       standD = 0.55;
@@ -192,6 +210,7 @@ export class Touch {
         W.contact.copy(T0.contact);
         W.centre.copy(T0.centre);
         W.r = T0.r;
+        W.lean = T0.pose === "hug" ? this.lean : 0;
       } else if (!this.player.target) {
         // the walk was cut short (something else took the course): let go
         if (this.going > 0.3) this.stop();
