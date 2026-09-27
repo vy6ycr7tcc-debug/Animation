@@ -231,6 +231,9 @@ export class Moods {
     S.uStars.value = m.stars;
     S.uDeep.value = m.deep;
     S.uMoonK.value = m.moonK;
+    // the aurora: the deep north most, the home night some, the blue hour and dusk a little
+    const w = this.w;
+    S.uAurora.value = w[3] * 1.0 + w[0] * 0.55 + w[4] * 0.3 + w[6] * 0.2;
     fogUniforms.color.value.copy(m.fog);
     // the grade, blended as the moods are
     const G = gradeUniforms;
@@ -260,10 +263,10 @@ export class Moods {
     const L = this.t.star, H = this.t.hemi;
     const li = Math.max(m.light.r, m.light.g, m.light.b);
     L.color.copy(m.light).multiplyScalar(1 / li);
-    L.intensity = li;
+    L.intensity = li * 1.25; // a firmer key light, so the ground's relief casts its shade
     H.color.copy(m.hemiSky);
     H.groundColor.copy(m.hemiGround);
-    H.intensity = m.hemi;
+    H.intensity = m.hemi * 0.85;
     this.t.scene.environmentIntensity = m.env * 0.7; // a quieter sheen of sky on the land
   }
 }

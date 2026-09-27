@@ -142,7 +142,7 @@ export function etchedStone(
   // real scanned rock, projected from three sides (so it never stretches), unless the mesh
   // brings its own maps
   const triplanar = opts.triplanar ?? true;
-  const rock = surface("rock");
+  const rock = surface("cliff"); // a rock face (the ground's "rock" is rocky ground seen from above)
   const uLine = vec3(...new THREE.Color(line).toArray());
   const E = etchUniforms, V = vibeUniforms;
   const vEW = positionWorld, vEN = normalWorldGeometry;
@@ -154,14 +154,17 @@ export function etchedStone(
   if (triplanar) {
     const [a, b, c] = tri(rock.diff, 2.5);
     const det = a.rgb.mul(triW.x).add(b.rgb.mul(triW.y)).add(c.rgb.mul(triW.z)).mul(2.2);
-    m.colorNode = T.materialColor.mul(mix(vec3(dot(det, vec3(0.3, 0.5, 0.2))), det, 0.35));
+    // its occlusion deepens the cracks, as in the temple's stone
+    const [oa, ob, oc] = tri(rock.arm, 2.5);
+    const ao = mix(float(0.35), float(1.05), oa.r.mul(triW.x).add(ob.r.mul(triW.y)).add(oc.r.mul(triW.z)));
+    m.colorNode = T.materialColor.mul(mix(vec3(dot(det, vec3(0.3, 0.5, 0.2))), det, 0.55)).mul(ao);
   }
   // the scans' relief, then weathered stone: soft pits and swells, strongest up close
   let nView: N = opts.normalMap ? T.normalMap(texture(opts.normalMap), vec2(1.2)) : normalView;
   if (triplanar) {
     const [nx0, ny0, nz0] = tri(rock.nor, 2.5).map((t: N) => t.xyz.mul(2).sub(1));
     const dn = vec3(0, nx0.y, nx0.x).mul(triW.x).add(vec3(ny0.x, 0, ny0.y).mul(triW.y)).add(vec3(nz0.x, nz0.y, 0).mul(triW.z));
-    nView = nView.add(cameraViewMatrix.mul(vec4(dn.mul(1.1), 0)).xyz);
+    nView = nView.add(cameraViewMatrix.mul(vec4(dn.mul(1.5), 0)).xyz);
   }
   const sp = vEW.mul(2.3);
   const s0 = stoneN(sp);

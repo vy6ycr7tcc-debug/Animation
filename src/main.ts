@@ -801,6 +801,7 @@ function places(): Place[] {
 
 /** Wake at the chosen place. */
 function arrive(c: Choice, first: boolean): void {
+  busy(1.5);
   if (temple.inside) setInside(false);
   if (depths.inside) setDeep(false);
   if (pyramid.isInside) setPyr(false);
@@ -1211,6 +1212,23 @@ scene.add(pyramid.world, pyramid.inside);
 const sevenGroup = new THREE.Group();
 sevenGroup.add(...pyramid.seven);
 scene.add(sevenGroup);
+/* The loading mark (Samuel: "some sort of loading indicator… it makes the loading less choppy
+   because you expect it"): shown while a place is crossed into, a journey lands, the land is
+   still arriving around you, a recording is on its way, or the shaders are still compiling;
+   held a moment, so it never flickers. */
+const busyEl = $("#busy");
+let busyUntil = 0, backlogFor = 0;
+function busy(seconds: number): void {
+  busyUntil = Math.max(busyUntil, performance.now() + seconds * 1000);
+}
+function busyFrame(): void {
+  const now = performance.now();
+  // the land: only a real backlog that lasts (a journey, a fast flight far out), not a tile or two
+  backlogFor = terrain.pending > 24 ? backlogFor + realDt : 0;
+  if (crossing || backlogFor > 0.5 || tp.buffering || (!shadersReady && S.mode !== "intro")) busyUntil = Math.max(busyUntil, now + 500);
+  busyEl.classList.toggle("on", now < busyUntil && S.mode !== "intro");
+}
+
 /** In a place apart (the temple, the deep archive, the pyramid): the open world rests. */
 function apart(): boolean {
   return temple.inside || depths.inside || pyramid.isInside;
@@ -1961,6 +1979,7 @@ function update(dt: number): void {
   if (!apart()) moods.update(player.pos, dt);
   templeFrame(dt);
   pyramidFrame(dt);
+  busyFrame();
   if (genesis.active) genesisFrame(dt);
   // the sky's reflection is baked once: baking it again as the moods drifted (every few seconds
   // while travelling) hitched the frame on a phone and made the ground's sheen jump; the moods'
@@ -2062,7 +2081,6 @@ const OPENING_AFTER = [
 let loadingEnded = false;
 let opening: "loading" | "ready" | "playing" | "done" = "loading";
 const openingTimers: number[] = [];
-let openingVoice: HTMLAudioElement | null = null;
 window.setTimeout(endLoading, Math.max(0, 14000 - performance.now()));
 /** The world is ready: the light waits to be touched. */
 function endLoading(): void {
@@ -2101,38 +2119,30 @@ function startOpening(): void {
     e.stopPropagation();
     finishOpening();
   }, { once: true });
-  // his recorded voice, if it is there: unlocked inside this touch, spoken a moment later
-  const v = new Audio("audio/opening-intro.mp3");
-  v.preload = "auto";
-  v.volume = 0;
-  void v.play().then(() => {
-    v.pause();
-    v.currentTime = 0;
-    v.volume = 1;
-    openingVoice = v;
-  }).catch(() => (openingVoice = null));
+  // each line spoken as it appears (audio/opening/1–8.mp3, made with narration/piper.sh)
+  const clips: (AudioBuffer | null)[] = [];
+  [...OPENING, ...OPENING_AFTER].forEach((_, i) => void audio.clip(`audio/opening/${i + 1}.mp3`).then((b) => (clips[i] = b)));
+  const speak = (i: number) => {
+    const b = clips[i];
+    if (b && playlist.on) audio.playClip(b, 0.95);
+  };
   const t0 = 3000, per = 4200;
-  openingTimers.push(window.setTimeout(() => void openingVoice?.play().catch(() => undefined), t0 - 400));
-  OPENING.forEach((line, i) => openingTimers.push(window.setTimeout(() => openingLine(line), t0 + i * per)));
+  OPENING.forEach((line, i) => openingTimers.push(window.setTimeout(() => {
+    openingLine(line);
+    openingTimers.push(window.setTimeout(() => speak(i), 1300)); // as the words come into view
+  }, t0 + i * per)));
   const t1 = t0 + OPENING.length * per + 1200;
-  OPENING_AFTER.forEach((line, i) => openingTimers.push(window.setTimeout(() => openingLine(line, true), t1 + i * 6000)));
-  openingTimers.push(window.setTimeout(finishOpening, t1 + OPENING_AFTER.length * 6000 + 1500));
+  OPENING_AFTER.forEach((line, i) => openingTimers.push(window.setTimeout(() => {
+    openingLine(line, true);
+    openingTimers.push(window.setTimeout(() => speak(OPENING.length + i), 1300));
+  }, t1 + i * 7500)));
+  openingTimers.push(window.setTimeout(finishOpening, t1 + OPENING_AFTER.length * 7500 + 1500));
 }
 /** The dark lifts onto the night water; the title rises. */
 function finishOpening(): void {
   if (opening === "done") return;
   opening = "done";
   for (const t of openingTimers) clearTimeout(t);
-  const v = openingVoice;
-  if (v && !v.paused) {
-    const fade = window.setInterval(() => {
-      v.volume = Math.max(0, v.volume - 0.05);
-      if (v.volume <= 0) {
-        v.pause();
-        clearInterval(fade);
-      }
-    }, 80);
-  }
   $("#opening-skip").hidden = true;
   const el = $("#loading");
   el.classList.add("dawn", "done");

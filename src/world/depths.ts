@@ -17,6 +17,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { T, worldPoints, type N } from "../gpu/tsl";
 import { etchedStone } from "./etching";
 import { columnGeometry, scan, type ScanName } from "./temple";
+import { surface } from "./textures";
 import { heightAt, LANDMARK_KINDS, LANDMARK_SITES, SPAWN, WATER_Y } from "./terrain";
 
 const { abs, atan, cos, float, fract, length, max, mix, positionGeometry, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
@@ -40,7 +41,7 @@ export interface MouthSite { x: number; z: number; y: number; face: number }
 const deepHomes = LANDMARK_SITES.filter((_, i) => LANDMARK_KINDS[i] === "deep" || LANDMARK_KINDS[i] === "island");
 
 /** How tall each kind stands (metres), to keep it under the surface. */
-const RUIN_HEIGHT: Record<RuinKind, number> = { tower: 20, rotunda: 17, terraces: 11.5, arcade: 9, portals: 8.5 };
+const RUIN_HEIGHT: Record<RuinKind, number> = { tower: 20, rotunda: 17, terraces: 12.5, arcade: 9, portals: 8.5 };
 
 /** Ruins on flat stretches of lake floor, well under the water, apart from each other and the
     homes in the deep; nearer ones first, so the first lake you swim holds one. */
@@ -156,15 +157,16 @@ class Ring {
 }
 
 /* ---------------------------------------------------------------- stone: Egypt and Atlantis */
-const film = (h: N): N => cos(vec3(h).add(vec3(0, 0.33, 0.67)).mul(6.28318)).mul(0.5).add(0.5);
 
-/** Scanned sandstone (the temple's own, Poly Haven CC0) laid in the world from three sides, so no
-    scaled block stretches it; worn by the water. Over it, Atlantis (Samuel: "Egyptian rock made
-    and Atlantean iridescent style"): a thin-film sheen like mother-of-pearl where the stone turns
-    from you, and fine inlaid channels of the same shifting colour (bands at the drums' joints, a
-    lattice of glyph-lines on the blocks), glowing enough to read through the water. */
-function ruinStone(set: ScanName, inlay: "bands" | "grid" | "none", uT: N, painted = false, tint: [number, number, number] = [1, 1, 1]): THREE.MeshStandardNodeMaterial {
-  const m = new THREE.MeshStandardNodeMaterial({ metalness: 0, roughness: 0.85, side: THREE.DoubleSide });
+/** Real sunken stone (Samuel: the iridescent ruins "look like shit"; he loves the temple's
+    texture and light): the temple's scanned sandstone, laid from three sides, with its own relief
+    (normal map) and occlusion, then what the water has done to it: silt and sand settled on
+    every upward face, a soft green growth on tops and ledges, darker stains where water ran, the
+    base buried in the floor's sand. A little of its own colour is lifted as light (the moonlight
+    scattered in the water), so the forms still read through the murk, but nothing glows. */
+function ruinStone(set: ScanName, _inlay: "bands" | "grid" | "none", uT: N, painted = false, tint: [number, number, number] = [1, 1, 1]): THREE.MeshStandardNodeMaterial {
+  void _inlay, uT;
+  const m = new THREE.MeshStandardNodeMaterial({ metalness: 0, roughness: 0.9, side: THREE.DoubleSide });
   if (painted) m.vertexColors = true;
   const S = scan(set);
   const pw = T.positionWorld, n = T.normalWorldGeometry;
@@ -174,60 +176,36 @@ function ruinStone(set: ScanName, inlay: "bands" | "grid" | "none", uT: N, paint
   const tri = (t: THREE.Texture) =>
     T.texture(t, pw.zy.div(tile)).mul(w.x).add(T.texture(t, pw.xz.div(tile)).mul(w.y)).add(T.texture(t, pw.xy.div(tile)).mul(w.z));
   const arm = tri(S.arm);
-  let c: N = tri(S.diff).rgb.mul(T.mix(float(0.5), float(1), arm.r));
-  if (painted) c = c.mul(T.vertexColor().rgb.div(vec3(0.77, 0.64, 0.45)).mix(vec3(1), 0.45));
+  let c: N = tri(S.diff).rgb.mul(T.mix(float(0.4), float(1), arm.r));
+  if (painted) c = c.mul(T.vertexColor().rgb.div(vec3(0.77, 0.64, 0.45)).mix(vec3(1), 0.55));
   c = c.mul(vec3(...tint));
-  m.colorNode = vec4(c.mul(1.15), 1);
-  m.roughnessNode = T.clamp(arm.g, 0.4, 1);
-  const V = T.normalize(T.cameraPosition.sub(pw));
-  const ndv = T.max(T.dot(T.normalWorld, V), 0);
-  const drift = sin(pw.x.mul(0.21).add(sin(pw.z.mul(0.17)).mul(2))).mul(0.5).add(sin(pw.y.mul(0.4).add(pw.z.mul(0.13))).mul(0.5));
-  const f = film(ndv.mul(1.3).add(drift.mul(0.35)).add(uT.mul(0.015)));
-  // the pearl: strongest at grazing angles, faint face-on
-  const pearl = f.mul(T.pow(float(1).sub(ndv), 3).mul(0.3).add(0.025)).mul(float(1).sub(w.y.mul(0.85))); // on the sides, not across a floor
-  let lines: N = float(0);
-  if (inlay === "bands") {
-    const y = fract(pw.y.div(1.1).add(0.5)).sub(0.5).abs();
-    lines = smoothstep(0.03, 0.0, y).mul(float(1).sub(w.y)); // on the sides only, never a whole top
-  } else if (inlay === "grid") {
-    const g = (a: N) => smoothstep(0.018, 0.0, fract(a.div(0.9)).sub(0.5).abs().sub(0.48).abs());
-    const gx = g(pw.x).max(g(pw.z)).mul(float(1).sub(w.y)).add(g(pw.x).max(g(pw.z)).mul(w.y));
-    const gy = g(pw.y).mul(float(1).sub(w.y));
-    // only some channels are lit: the glyph-lines of a script no one reads now
-    const lit = smoothstep(0.8, 0.95, sin(T.floor(pw.x.div(0.9)).mul(12.9).add(T.floor(pw.y.div(0.9)).mul(7.1)).add(T.floor(pw.z.div(0.9)).mul(4.3))).mul(0.5).add(0.5));
-    lines = gx.max(gy).mul(lit);
-  }
-  const breath = sin(uT.mul(0.5).add(pw.x.mul(0.05))).mul(0.2).add(0.8);
-  m.emissiveNode = pearl.add(f.mul(lines).mul(inlay === "grid" ? 0.4 : 0.6).mul(breath)).add(c.mul(0.12));
+  // the water's work
+  const nz = (p: N) => T.mx_noise_float(p).mul(0.5).add(0.5);
+  const up = smoothstep(0.35, 0.85, n.y);
+  const silt = up.mul(smoothstep(0.35, 0.65, nz(pw.mul(0.9))));
+  const growth = up.mul(smoothstep(0.5, 0.75, nz(pw.mul(1.7).add(7)))).mul(0.8);
+  const stain = smoothstep(0.55, 0.8, nz(vec3(pw.x.mul(2.2), pw.y.mul(0.25), pw.z.mul(2.2)))).mul(float(1).sub(up)).mul(0.35);
+  const sand = T.texture(surface("sand").diff, pw.xz.div(2.2)).rgb.mul(vec3(1.05, 1.0, 0.9)).mul(1.6);
+  c = T.mix(c, sand, silt.mul(0.75));
+  c = T.mix(c, vec3(0.16, 0.26, 0.14).mul(nz(pw.mul(6)).mul(0.5).add(0.6)), growth);
+  c = c.mul(float(1).sub(stain));
+  m.colorNode = vec4(c.mul(1.1), 1);
+  m.roughnessNode = T.clamp(arm.g, 0.55, 1);
+  // its relief, from the scan's normal map, oriented per side (as the cliffs outside)
+  const nm = (t: THREE.Texture) => [T.texture(t, pw.zy.div(tile)), T.texture(t, pw.xz.div(tile)), T.texture(t, pw.xy.div(tile))].map((x: N) => x.xy.mul(2).sub(1));
+  const [nx, ny, nzz] = nm(S.nor);
+  const dn = vec3(0, nx.y, nx.x).mul(w.x).add(vec3(ny.x, 0, ny.y).mul(w.y)).add(vec3(nzz.x, nzz.y, 0).mul(w.z)).mul(float(1).sub(silt.mul(0.7)));
+  m.normalNode = T.normalize(T.normalView.add(T.cameraViewMatrix.mul(vec4(dn.mul(1.6), 0)).xyz));
+  m.emissiveNode = c.mul(0.14);
   return m;
 }
 
-/** Electrum capstones and crystals: all colour, shifting with the angle. */
-function iridescent(uT: N, k = 1): THREE.MeshBasicNodeMaterial {
-  const m = new THREE.MeshBasicNodeMaterial({ fog: false });
+/** Crystals left on the stones: clear, faintly lit from within; never a rainbow. */
+function iridescent(uT: N, k = 1): THREE.MeshStandardNodeMaterial {
+  const m = new THREE.MeshStandardNodeMaterial({ color: 0x9fc3c8, metalness: 0.1, roughness: 0.25, transparent: true, opacity: 0.85 });
   const V = T.normalize(T.cameraPosition.sub(T.positionWorld));
   const ndv = T.max(T.dot(T.normalWorld, V), 0);
-  const f = film(ndv.mul(1.8).add(uT.mul(0.03)).add(T.positionWorld.y.mul(0.08)));
-  m.colorNode = vec4(f.mul(float(0.25).add(T.pow(float(1).sub(ndv), 1.5).mul(0.9))).mul(k), 1);
-  return m;
-}
-
-/** Pearl and champagne metal (the Aether pictures): flowing terraces and tall polished arches.
-    Nothing here mirrors the sky (Samuel's rule): its sheen is thin-film colour and a soft light
-    along its curves, so it reads as polished without reflecting anything. */
-function pearlMetal(uT: N): THREE.MeshStandardNodeMaterial {
-  const m = new THREE.MeshStandardNodeMaterial({ metalness: 0.35, roughness: 0.32, side: THREE.DoubleSide });
-  const pw = T.positionWorld;
-  const champagne = vec3(0.8, 0.73, 0.62);
-  const brushed = sin(pw.y.mul(38).add(sin(pw.x.mul(0.7)).mul(3))).mul(0.025).add(1);
-  m.colorNode = vec4(champagne.mul(brushed), 1);
-  const V = T.normalize(T.cameraPosition.sub(pw));
-  const ndv = T.max(T.dot(T.normalWorld, V), 0);
-  const f = film(ndv.mul(1.1).add(pw.y.mul(0.05)).add(uT.mul(0.012)));
-  const edge = T.pow(float(1).sub(ndv), 2);
-  // a soft band of light running along the curves (as if lit from above through the water)
-  const band = smoothstep(0.55, 1.0, T.normalWorld.y.mul(0.5).add(0.5)).mul(0.12);
-  m.emissiveNode = f.mul(edge.mul(0.35).add(0.04)).add(champagne.mul(band.add(0.1)));
+  m.emissiveNode = vec3(0.55, 0.85, 0.9).mul(T.pow(float(1).sub(ndv), 2).mul(0.35).add(0.06)).mul(sin(uT.mul(0.6)).mul(0.15).add(0.85)).mul(k * 0.6);
   return m;
 }
 
@@ -246,25 +224,6 @@ function archSlab(w: number, h: number, t: number, ow: number, oh: number, bevel
   sh.closePath();
   const g = new THREE.ExtrudeGeometry(sh, { depth: t, bevelEnabled: bevel > 0, bevelSize: bevel, bevelThickness: bevel, bevelSegments: 3, curveSegments: 18 });
   g.translate(0, 0, -t / 2);
-  return g;
-}
-
-/** A flowing ring of a terrace: a closed wavering outline with a courtyard cut from it. */
-function flowingSlab(R: () => number, rOut: number, rIn: number, depth: number): THREE.BufferGeometry {
-  const outline = (r0: number, k: number) => {
-    const a1 = R() * 6.28, a2 = R() * 6.28;
-    const pts: THREE.Vector2[] = [];
-    for (let i = 0; i < 72; i++) {
-      const a = (i / 72) * Math.PI * 2;
-      const r = r0 * (1 + 0.16 * Math.sin(a * 2 + a1) * k + 0.08 * Math.sin(a * 3 + a2) * k);
-      pts.push(new THREE.Vector2(Math.cos(a) * r, Math.sin(a) * r));
-    }
-    return pts;
-  };
-  const sh = new THREE.Shape(outline(rOut, 1));
-  if (rIn > 0) sh.holes.push(new THREE.Path(outline(rIn, 0.6).reverse()));
-  const g = new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: true, bevelSize: 0.35, bevelThickness: 0.3, bevelSegments: 4, curveSegments: 12 });
-  g.rotateX(-Math.PI / 2); // lie flat, its top at y = depth + bevel
   return g;
 }
 
@@ -451,52 +410,53 @@ function buildRuin(s: Stones, mg: Merge, site: RuinSite, lights: number[]): void
     s.put("cap", L(0, 8.85, -1.8, 0, 0, 0, 0.7, 0.9, 0.7));
     light(L(0, 10, -1.8));
   } else if (site.kind === "terraces") {
-    // Aether: flowing rings of pearl-champagne terraces, stacked and stepping in, on slim
-    // pillars; one has slipped and lies tilted on the floor; a crystal at the heart
-    const radii = [14, 11.5, 9, 6.5];
-    radii.forEach((r0, k) => {
-      const y = 0.4 + k * 2.8, ox = (R() - 0.5) * 2, oz = (R() - 0.5) * 2;
-      const slipped = k === 2;
-      mg.add("pearl", flowingSlab(R, r0, r0 * 0.55, 0.35), slipped ? L(ox + 3, 0.4, oz + 2, R(), 0.18, 0.08) : L(ox, y, oz));
-      if (k > 0 && !slipped)
-        for (let j = 0; j < 7; j++) {
-          const a = (j / 7) * Math.PI * 2 + R();
-          const rr = r0 * 0.78;
-          s.put("drum", L(ox + Math.cos(a) * rr, y / 2, oz + Math.sin(a) * rr, 0, 0, 0, 0.28, y, 0.28));
-        }
+    // a stepped temple platform, four great courses of blocks, a stair up its front, and on its
+    // top a court of papyrus columns, some fallen; a shrine's doorway at the back
+    const steps = [[13, 1.6], [10.5, 1.6], [8, 1.6], [6, 1.4]] as const;
+    let y = 0;
+    steps.forEach(([half, h]) => {
+      for (const [sx, sz, lx, lz] of [[0, -1, half * 2, 1.4], [0, 1, half * 2, 1.4], [-1, 0, 1.4, half * 2], [1, 0, 1.4, half * 2]] as const)
+        s.put("block", L(sx * (half - 0.7), y + h / 2, sz * (half - 0.7), 0, 0, 0, lx, h, lz));
+      s.put("block", L(0, y + h / 2 - 0.05, 0, 0, 0, 0, half * 2 - 2.6, h - 0.1, half * 2 - 2.6));
+      y += h;
     });
-    s.put("crystal", L(0, 4.5, 0, 0.3, 0, 0, 1.0, 2.0, 1.0));
-    light(L(0, 7, 0));
-    light(L(6, 3.5, 0));
+    // the stair, up the front
+    for (let k = 0; k < 12; k++) s.put("block", L(0, 0.3 + k * 0.52, 14.2 - k * 0.62, 0, 0, 0, 3.6, 0.52, 0.7));
+    // the court
+    for (const [cx, cz] of [[-3.8, -3.8], [3.8, -3.8], [-3.8, 0], [3.8, 0], [-3.8, 3.8], [3.8, 3.8]]) {
+      if (R() < 0.3) {
+        s.put("column", L(cx + 2, y + 0.55, cz, R() * 3, 0, Math.PI / 2 - 0.05));
+        continue;
+      }
+      s.put("column", L(cx, y, cz, R() * 6));
+    }
+    const door = archSlab(4.2, 5.2, 1.0, 1.8, 3.4);
+    mg.add("stone", door, L(0, y, -5.6));
+    s.put("crystal", L(0, y + 1.2, -3.6, 0.3, 0, 0, 0.5, 1.0, 0.5));
+    light(L(0, y + 5, 0));
   } else {
-    // Aether: a row of tall polished arches along a gentle curve, and beyond, a lattice of pale
-    // stone, broken, some of its beams fallen
-    const slab = archSlab(4.2, 7.6, 0.3, 2.8, 6.2, 0.08);
+    // a colonnade of tall arches along a gentle curve (a cloister's walk), one fallen, and before
+    // it a row of papyrus columns, most of them broken
+    const slab = archSlab(4.2, 7.6, 0.9, 2.8, 6.2);
     for (let k = 0; k < 6; k++) {
       const a = -0.6 + k * 0.24;
       const x = Math.sin(a) * 22, z = -Math.cos(a) * 22 + 22;
       if (k === 4) {
-        mg.add("pearl", slab, L(x + 1.5, 0.5, z + 2, a + 0.3, Math.PI / 2 - 0.08, 0));
+        mg.add("stone", slab, L(x + 1.5, 0.5, z + 2, a + 0.3, Math.PI / 2 - 0.08, 0));
         continue;
       }
-      mg.add("pearl", slab, L(x, 0, z, -a + (R() - 0.5) * 0.08));
+      mg.add("stone", slab, L(x, 0, z, -a + (R() - 0.5) * 0.05));
     }
-    const C = 2.2, nx = 4, ny = 3, nz = 3, ox = -4.4, oz = 7, th = 0.16;
-    const beam = (x: number, y: number, z: number, sx: number, sy: number, sz: number) => {
-      if (R() < 0.18) return; // broken away
-      s.put("beam", L(ox + x, y + 0.2, oz + z, 0, 0, 0, sx, sy, sz));
-    };
-    for (let i = 0; i <= nx; i++)
-      for (let j = 0; j <= ny; j++)
-        for (let k = 0; k <= nz; k++) {
-          if (j > 1 && i > 2) continue; // the upper corner has fallen
-          if (i < nx) beam(i * C + C / 2, j * C, k * C, C + th, th, th);
-          if (j < ny) beam(i * C, j * C + C / 2, k * C, th, C + th, th);
-          if (k < nz) beam(i * C, j * C, k * C + C / 2, th, th, C + th);
-        }
-    for (let k = 0; k < 10; k++) s.put("beam", L(ox + 9 + R() * 4, 0.3, oz + R() * 6, R() * 3, 0, Math.PI / 2 * (R() < 0.5 ? 1 : 0), th, C, th));
+    for (let k = 0; k < 6; k++) {
+      const x = -8 + k * 3.2, z = 6.5;
+      const h = R();
+      if (h < 0.35) s.put("column", L(x, 0, z, R() * 6));
+      else if (h < 0.7) for (let d = 0; d < 1 + Math.floor(R() * 2); d++) s.put("drum", L(x, 0.5 + d * 1.0, z, R() * 3, 0, 0, 0.5, 1.0, 0.5));
+      else s.put("column", L(x + 1.8, 0.5, z + 1, R() * 3, 0, Math.PI / 2 - 0.05));
+    }
+    rubble(2, 9, 10, 8);
     light(L(0, 8.5, 0));
-    light(L(ox + 4, 7, oz + 3));
+    light(L(0, 5, 6.5));
   }
 }
 
@@ -571,7 +531,7 @@ export class Depths {
     const mats: Record<Mat, THREE.Material> = {
       stone: ruinStone("sandstone_cracks", "bands", this.uT),
       terracotta: ruinStone("red_sandstone_pavement", "none", this.uT, false, [1.2, 0.82, 0.62]),
-      pearl: pearlMetal(this.uT),
+      pearl: ruinStone("sandstone_blocks_08", "none", this.uT),
     };
     for (const k of Object.keys(mats) as Mat[]) {
       if (!mg.parts[k].length) continue;

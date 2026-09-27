@@ -275,6 +275,26 @@ export class AudioEngine {
     if (this.chant) this.ramp(this.chant.gain, on && chant ? 0.55 : 0, 1.5);
   }
 
+  /** A short recorded line (the opening's voice), decoded for playing on the voice bus. */
+  async clip(url: string): Promise<AudioBuffer | null> {
+    if (!this.ctx) return null;
+    try {
+      const r = await fetch(url);
+      if (!r.ok) return null;
+      return await this.ctx.decodeAudioData(await r.arrayBuffer());
+    } catch {
+      return null;
+    }
+  }
+  playClip(buf: AudioBuffer, gain = 1): void {
+    if (!this.ctx) return;
+    const s = this.ctx.createBufferSource(), g = this.ctx.createGain();
+    s.buffer = buf;
+    g.gain.value = gain;
+    s.connect(g).connect(this.voice);
+    s.start();
+  }
+
   /** One heartbeat, lub-dub (the Queen's Chamber, in the dark). */
   heartbeat(gain = 0.3): void {
     if (!this.ctx) return;

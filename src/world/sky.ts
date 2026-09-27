@@ -36,6 +36,8 @@ export const skyUniforms = {
   uDeep: uniform(0),
   /** The moon's glow in the haze. */
   uMoonK: uniform(1),
+  /** The aurora's strength (moods.ts: the deep north most, the home night some, dusk a little). */
+  uAurora: uniform(0),
 };
 
 /** Smooth 3D value noise in 0–1, and a few octaves of it (for the nebulae and the dust). */
@@ -105,6 +107,34 @@ function meteor(d: N, t: N, period: number, seed: number): N {
   return vec3(0.9, 0.95, 1.0).mul(exp(dist.mul(dist).mul(-1.8e6))).mul(h.mul(h)).mul(on).mul(2.2);
 }
 
+/** The aurora (Samuel: "aurora borealis… making the sky even more alive"): curtains of light
+    hung along the northern sky. Worked in angles (azimuth from north, elevation): each curtain
+    has a wandering lower hem, bright and green, fading upward into magenta and violet; fine
+    vertical rays run through it; slow folds break it into draperies that drift and brighten. */
+function aurora(d: N): N {
+  const U = skyUniforms;
+  const el = T.asin(d.y.clamp(-1, 1));
+  const az = T.atan(d.x, d.z.negate()); // 0 toward north (−z)
+  const t = U.uT;
+  const acc = vec3(0).toVar();
+  for (const [base, amp, speed, seed, k] of [[0.16, 0.07, 0.035, 0.0, 1.0], [0.3, 0.09, -0.025, 7.3, 0.7]] as const) {
+    // the hem: where the curtain begins, wandering along the sky
+    const hem = float(base).add(sin(az.mul(2.1).add(t.mul(speed)).add(seed)).mul(amp)).add(vnoise3(vec3(az.mul(1.6), t.mul(0.02), seed)).sub(0.5).mul(0.12));
+    const up = el.sub(hem);
+    const vertical = smoothstep(-0.015, 0.012, up).mul(exp(up.max(0).mul(-5.5)));
+    // rays: fine upright striations, shimmering
+    const rays = pow(vnoise3(vec3(az.mul(70), t.mul(0.35), seed)), 2).mul(0.7).add(0.3);
+    // draperies: the curtain gathers and thins along its length, drifting
+    const folds = smoothstep(0.35, 0.8, vnoise3(vec3(az.mul(2.6).add(t.mul(speed * 2)), t.mul(0.03), seed + 3.1)));
+    const green = vec3(0.2, 1.0, 0.55), magenta = vec3(0.85, 0.25, 0.75), violet = vec3(0.35, 0.3, 1.0);
+    const col = mix(mix(green, magenta, smoothstep(0.04, 0.2, up)), violet, smoothstep(0.18, 0.4, up));
+    acc.addAssign(col.mul(vertical).mul(rays).mul(folds).mul(k));
+  }
+  // mostly in the north, never low in the south
+  const north = smoothstep(2.4, 0.9, abs(az));
+  return acc.mul(north).mul(smoothstep(0.02, 0.1, el)).mul(0.16).mul(U.uAurora);
+}
+
 /** The colour of the sky in direction `d` (normalized). `detail` adds the finest work (nebulae,
     dust, galaxies); the water's reflection leaves it out. */
 function skyColorImpl(d: N, detail: boolean, plain = false): N {
@@ -121,7 +151,10 @@ function skyColorImpl(d: N, detail: boolean, plain = false): N {
   c.addAssign(
     U.uSunCol.mul(pow(sd, 5).mul(0.5).add(pow(sd, 48).mul(0.9)).add(pow(sd, 1600).mul(9)).add(exp(hy.mul(-7)).mul(side).mul(side).mul(0.45))).mul(U.uSunK),
   );
-  if (!plain) addNight(c, d, y, hy, above, detail);
+  if (!plain) {
+    addNight(c, d, y, hy, above, detail);
+    c.addAssign(aurora(d));
+  }
   const ss = max(dot(d, U.uStar), 0);
   // the moon's glow in the haze, matching the fog's light toward it
   c.assign(mix(c, vec3(0.55, 0.42, 0.34), pow(ss, 5).mul(0.7).mul(float(1).sub(smoothstep(0, 0.35, hy))).mul(U.uMoonK)));

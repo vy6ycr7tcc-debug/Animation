@@ -22,3 +22,7 @@
 - Some narrations in this world are interpretive adaptations of channeled material from the L/L Research archive, voiced by AI. They are artistic interpretations, not the channeling itself. This is an independent work, not affiliated with or endorsed by L/L Research. The complete archive is freely available at llresearch.org.
 - `public/audio/archetype_qa/` and `public/audio/passages/`: Samuel's archetype Q&A package (Aria): each archetype's teaching and practice, and the 21 passages between archetypes; transcripts in `content/archetype_qa.json` and `content/passages.json`.
 - `public/audio/orbs/`: the 86 "Voices from the Archive" narrations (Aria), ep01–ep86, with transcripts and sources in `content/transcript_orbs.json`.
+
+## Added 2026-09-27
+- Ground scans (CC0, Poly Haven): Coast Sand 01, Forrest Ground 01, Aerial Rocks 02, Cliff Side (colour, normal, AO/roughness), re-encoded and high-passed for tiling.
+- Voice: Piper text-to-speech (MIT, rhasspy/piper) with the "Cori" voice (en_GB-cori-high, from rhasspy/piper-voices; see its model card for its dataset licence).
