@@ -26,6 +26,7 @@ import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js
 import { floatAttributes, loadBytes } from "../core/assets";
 import { lightBodyMaterial, tickLightBody } from "../player/lightBody";
 import { HEIGHT, key } from "../player/wanderer";
+import { Rig, SIGNATURES, type Moment } from "../player/gestures";
 import type { Sparks } from "./life";
 import { etchedStone } from "./etching";
 import type { Station } from "./stations";
@@ -171,7 +172,16 @@ class Being {
   private yaw = Math.PI;
   private ring: THREE.Mesh;
   private ringMat: THREE.MeshBasicMaterial;
-  animated: { update(t: number, wake: number, greet: number): void }[] = [];
+  animated: { update(t: number, wake: number, greet: number, rite: number): void }[] = [];
+  /** A temple rite with it is under way (target 0 or 1; `riteK` eases toward it). */
+  rite = 0;
+  riteK = 0;
+  riteT = 0;
+  private rig: Rig | null = null;
+  /** Posed at least once (a being never updated would stand in its bind pose). */
+  private posed = false;
+  private moment: Moment = { t: 0, wake: 0, rite: 0, rt: 0, other: null, reduced: false };
+  private otherW = new THREE.Vector3();
 
   constructor(public spec: Spec, public station: Station) {
     this.U.uTint.value.set(...spec.tint);
@@ -209,6 +219,7 @@ class Being {
     this.scale = scale;
     this.body.add(m);
     this.mixer = new THREE.AnimationMixer(m);
+    this.rig = new Rig(this.bones, this.body);
     const want: Record<string, string> = { idle: "Idle_Loop", sit: "Sitting_Idle_Loop", offer: "Spell_Simple_Idle_Loop", greet: "Interact" };
     for (const [k, name] of Object.entries(want)) {
       const clip = clips.find((c) => c.name === name);
@@ -268,10 +279,19 @@ class Being {
     this.yaw += Math.atan2(Math.sin(target - this.yaw), Math.cos(target - this.yaw)) * Math.min(1, dt * 1.5);
     this.root.rotation.y = this.yaw;
 
+    this.riteK += (this.rite - this.riteK) * Math.min(1, dt * 0.6);
+    this.riteT = this.rite > 0 ? this.riteT + dt : 0;
+    this.U.uPulse.value += this.riteK * 0.35;
+    this.halo.material.opacity += this.riteK * 0.2;
     this.skin.emissiveIntensity = this.U.uPulse.value * Math.min(1, this.U.uForm.value);
     tickLightBody(this.skin, t);
-    for (const a of this.animated) a.update(t, this.wake, greet);
-    if (!show || !this.mixer) return; // only the nearest two keep moving
+    // the Hanged Man turns like a slow pendulum, and in the rite is still
+    if (this.spec.hang) this.body.rotation.z = Math.PI + (reduced ? 0 : 0.06 * Math.sin(t * 0.4) * (1 - this.riteK));
+    for (const a of this.animated) a.update(t, this.wake, greet, this.riteK);
+    // only the nearest two keep moving, and only within sight (in the temple each shrine is its own
+    // pair, so all twenty-two would): farther ones hold their last pose
+    if (!show || !this.mixer || (d0 > 40 && this.posed)) return;
+    this.posed = true;
 
     // the recorded pose, and for the standing ones a greeting when you arrive
     const g = this.acts.greet;
@@ -281,6 +301,19 @@ class Being {
     if (this.acts.idle) this.acts.idle.timeScale = reduced ? 0.4 : 0.7;
     this.mixer.update(dt);
     this.root.updateMatrixWorld(true);
+    // its own movement, from its card, over the recorded pose (player/gestures.ts)
+    const sig = SIGNATURES[this.spec.numeral];
+    if (sig && this.rig) {
+      const m = this.moment;
+      m.t = reduced ? t * 0.4 : t;
+      m.wake = this.wake;
+      m.rite = this.riteK;
+      m.rt = this.riteT;
+      m.reduced = reduced;
+      m.other = near && this.root.parent ? this.root.parent.localToWorld(this.otherW.copy(player).setY(player.y + 1.5)) : null;
+      this.rig.begin();
+      sig(this.rig, m, Math.min(1, this.U.uForm.value) * (1 - gw * 0.7));
+    }
     // what it holds follows its hand
     for (const h of this.held) {
       this.bonePos(h.bone, h.obj.position, h.along);
@@ -343,11 +376,12 @@ function buildProps(b: Being, world: THREE.Group, stone: THREE.Material): void {
     cube.position.set(0.75, 0.31, -0.35); // in front, at his right (the being's front is local −z)
     b.props.add(cube);
     b.animated.push({
-      update: (t, wake, greet) => {
-        const flap = Math.sin(t * (2 + wake * 4)) * (0.3 + wake * 0.5);
+      update: (t, wake, greet, rite) => {
+        const flap = Math.sin(t * (2 + wake * 4 + rite * 3)) * (0.3 + wake * 0.5);
         wl.rotation.z = flap;
         wr.rotation.z = -flap;
-        bird.position.y = Math.sin(t * 0.8) * 0.04 + wake * 0.08 + greet * 0.1;
+        bird.position.y = Math.sin(t * 0.8) * 0.04 + wake * 0.08 + greet * 0.1 + rite * (0.9 + Math.sin(t * 0.6) * 0.15);
+        bird.position.x = rite * Math.sin(t * 0.4) * 0.25;
       },
     });
   }
@@ -357,7 +391,7 @@ function buildProps(b: Being, world: THREE.Group, stone: THREE.Material): void {
     const c = new THREE.Line(new THREE.BufferGeometry().setFromPoints(circle(0.16, 48)), lines(tint, 0.9));
     c.position.set(0, 1.28, -0.05);
     b.props.add(c);
-    b.animated.push({ update: (t, wake) => ((c.material as THREE.LineBasicMaterial).opacity = 0.5 + wake * 0.5 + Math.sin(t) * 0.1) });
+    b.animated.push({ update: (t, wake, _g, rite) => (((c.material as THREE.LineBasicMaterial).opacity = 0.5 + wake * 0.5 + Math.sin(t) * 0.1), c.scale.setScalar(1 + rite * 0.5)) });
   }
 
   if (n === "III") {
@@ -380,9 +414,9 @@ function buildProps(b: Being, world: THREE.Group, stone: THREE.Material): void {
     disc.position.set(0, 1.12, 0.28); // behind her head
     b.props.add(disc);
     b.animated.push({
-      update: (t, wake, greet) => {
-        disc.rotation.z = t * 0.03;
-        disc.scale.setScalar(1 + wake * 0.25 + greet * 0.3);
+      update: (t, wake, greet, rite) => {
+        disc.rotation.z = t * (0.03 + rite * 0.05);
+        disc.scale.setScalar(1 + wake * 0.25 + greet * 0.3 + rite * 0.45);
         rayMat.opacity = 0.35 + wake * 0.4;
       },
     });
@@ -418,7 +452,7 @@ function buildProps(b: Being, world: THREE.Group, stone: THREE.Material): void {
     };
     kneel(-0.75);
     kneel(0.75);
-    b.animated.push({ update: (t, wake) => rings.forEach((r, k) => (r.rotation.y = t * (0.3 + k * 0.2) * (1 + wake))) });
+    b.animated.push({ update: (t, wake, _g, rite) => rings.forEach((r, k) => ((r.rotation.y = t * (0.3 + k * 0.2) * (1 + wake + rite * 2)), (r.position.y = 1.75 + k * (0.17 + rite * 0.12)))) });
   }
 
   if (n === "VI") {
@@ -436,10 +470,11 @@ function buildProps(b: Being, world: THREE.Group, stone: THREE.Material): void {
       f.rotation.y = x > 0 ? -0.35 : 0.35;
       b.props.add(f);
       b.animated.push({
-        update: (t, wake, greet) => {
+        update: (t, wake, greet, rite) => {
           m.uniforms.uT.value = t;
-          m.uniforms.uS.value = 0.9 + wake * 0.7 + greet * 0.6;
+          m.uniforms.uS.value = 0.9 + wake * 0.7 + greet * 0.6 + rite * 0.5;
           f.position.y = Math.sin(t * 0.7 + x) * 0.03;
+          f.rotation.y = (x > 0 ? -0.35 : 0.35) * (1 + rite * 2.5);
         },
       });
     };
@@ -461,7 +496,7 @@ function buildProps(b: Being, world: THREE.Group, stone: THREE.Material): void {
     bow.position.set(-0.5, 3.6, 0);
     bow.rotation.z = -0.6;
     b.props.add(bow);
-    b.animated.push({ update: (t, wake) => (bow.position.y = 3.6 + Math.sin(t * 0.5) * 0.1 + wake * 0.3) });
+    b.animated.push({ update: (t, wake, _g, rite) => ((bow.position.y = 3.6 + Math.sin(t * 0.5) * 0.1 + wake * 0.3 + rite * 0.8), (bow.rotation.z = -0.6 + rite * 0.6)) });
   }
 
   if (n === "VII") {
@@ -493,10 +528,11 @@ function buildProps(b: Being, world: THREE.Group, stone: THREE.Material): void {
       f.position.set(x, -0.38, -1.8);
       b.props.add(f);
       b.animated.push({
-        update: (t, wake) => {
+        update: (t, wake, _g, rite) => {
           m.uniforms.uT.value = t;
-          m.uniforms.uS.value = (light ? 1.0 : 0.8) + wake * 0.6;
-          head.position.y = 0.55 + wake * 0.08;
+          m.uniforms.uS.value = (light ? 1.0 : 0.8) + wake * 0.6 + rite * 0.4;
+          head.position.y = 0.55 + wake * 0.08 + rite * 0.12;
+          f.position.z = -1.8 - rite * Math.sin(t * 0.8) * 0.04;
         },
       });
     };
@@ -638,7 +674,14 @@ function buildMoreProps(b: Being, world: THREE.Group, stone: THREE.Material): vo
     }
     head.add(mane);
     mane.position.z = 0.05;
-    b.animated.push({ update: (t, wake) => ((mane.rotation.z = Math.sin(t * 0.3) * 0.1), (maneMat.opacity = 0.45 + wake * 0.45)) });
+    b.animated.push({
+      update: (t, wake, _g, rite) => {
+        mane.rotation.z = Math.sin(t * 0.3) * 0.1;
+        maneMat.opacity = 0.45 + wake * 0.45 + rite * 0.2;
+        lion.scale.set(1, 1 + Math.sin(t * 0.45) * 0.03, 1); // breathing with her
+        head.position.y = 0.62 * 1.25 - rite * 0.2;
+      },
+    });
   }
 
   if (n === "IX") {
@@ -651,7 +694,7 @@ function buildMoreProps(b: Being, world: THREE.Group, stone: THREE.Material): vo
     lamp.add(polyline([V(0, 0.1, 0), V(0, 0.22, 0)], lines(pearl, 0.7)));
     hold(lamp, "R", 0.1, -0.18);
     const glowS = flame.children[1] as THREE.Sprite;
-    b.animated.push({ update: (t, wake) => glowS.scale.setScalar(0.4 + wake * 0.5 + Math.sin(t * 5.3) * 0.03) });
+    b.animated.push({ update: (t, wake, _g, rite) => glowS.scale.setScalar(0.4 + wake * 0.5 + rite * 0.8 + Math.sin(t * 5.3) * 0.03) });
     // two small spirals of life at his feet, as on the card
     for (const x of [0.35, 0.55]) {
       const pts = Array.from({ length: 40 }, (_, i) => {
@@ -684,8 +727,9 @@ function buildMoreProps(b: Being, world: THREE.Group, stone: THREE.Material): vo
     frame.add(watcher);
     watcher.position.y = R * 2 + 0.6;
     b.animated.push({
-      update: (t, wake) => {
-        const a = t * (0.12 + wake * 0.15);
+      update: (t, wake, _g, rite) => {
+        const a = t * (0.12 + wake * 0.15 + rite * 0.5);
+        wheel.rotation.z = -a;
         riders[0].position.set(Math.cos(a) * R, Math.sin(a) * R, 0.02);
         riders[1].position.set(Math.cos(a + Math.PI) * R, Math.sin(a + Math.PI) * R, 0.02);
       },
@@ -703,6 +747,7 @@ function buildMoreProps(b: Being, world: THREE.Group, stone: THREE.Material): vo
       scales.add(pan);
     }
     hold(scales, "L", 0.12, 0.05);
+    b.animated.push({ update: (t, _w, _g, rite) => (scales.rotation.z = Math.sin(t * 0.55) * 0.12 * (1 - rite)) });
     const sword = new THREE.Group();
     const blade = Array.from({ length: 16 }, (_, i) => V(Math.sin((i / 15) * 1.2) * 0.12, (i / 15) * 0.85, 0));
     sword.add(polyline(blade, lines(pearl, 0.95)), polyline([V(-0.1, 0, 0), V(0.1, 0, 0)], lines(gold, 0.9)));
@@ -754,6 +799,7 @@ function buildMoreProps(b: Being, world: THREE.Group, stone: THREE.Material): vo
     const hues = [[1, 0.45, 0.45], [1, 0.7, 0.4], [1, 0.95, 0.5], [0.5, 1, 0.6], [0.45, 0.75, 1], [0.6, 0.5, 1], [0.85, 0.5, 1]];
     hues.forEach((h, k) => bow.add(polyline(circle(4.2 - k * 0.12, 64, 0, 0, Math.PI).map((p) => V(p.x, p.z, 0)), lines(new THREE.Color(...(h as [number, number, number])), 0.28))));
     add(bow, 0, 0.3, 1.6);
+    b.animated.push({ update: (_t, _w, _g, rite) => bow.children.forEach((l) => (((l as THREE.Line).material as THREE.LineBasicMaterial).opacity = 0.28 + rite * 0.4)) });
   }
 
   if (n === "XIV") {
@@ -788,11 +834,14 @@ function buildMoreProps(b: Being, world: THREE.Group, stone: THREE.Material): vo
     for (const x of [-0.7, 0.7]) {
       const f = figure(new THREE.Color(0.85, 0.7, 1.0), 0.8);
       add(f, x, 0, -1.2).rotation.y = x > 0 ? 0.5 : -0.5;
+      b.animated.push({ update: (_t, _w, _g, rite) => f.position.set(x * (1 + rite * 0.5), 0, -1.2 - rite * 0.5) });
       const cord = Array.from({ length: 20 }, (_, i) => {
         const u = i / 19;
         return V(x * u, 0.55 * (1 - u) + 0.1 - Math.sin(u * Math.PI) * 0.2, -1.2 * (1 - u) - 0.05);
       });
-      b.props.add(dashed(cord, new THREE.Color(0.7, 0.55, 0.85), 0.5, 0.06));
+      const cl = dashed(cord, new THREE.Color(0.7, 0.55, 0.85), 0.5, 0.06);
+      b.props.add(cl);
+      b.animated.push({ update: (_t, _w, _g, rite) => ((cl.material as THREE.LineDashedMaterial).opacity = 0.5 * (1 - rite)) });
     }
     b.animated.push({ update: (t, wake) => ((w.mat.opacity = 0.3 + wake * 0.3), (flame.scale.setScalar(1 + Math.sin(t * 6.1) * 0.12))) });
   }
@@ -815,13 +864,13 @@ function buildMoreProps(b: Being, world: THREE.Group, stone: THREE.Material): vo
     const falling = [orb(pearl, 0.06), orb(tint, 0.06)];
     falling.forEach((o) => tw.add(o));
     b.animated.push({
-      update: (t, wake) => {
-        const flash = Math.max(0, Math.sin(t * 0.9) - 0.9) * 10;
+      update: (t, wake, _g, rite) => {
+        const flash = Math.max(0, Math.sin(t * 0.9) - 0.9) * 10 + rite * Math.max(0, Math.sin(t * 2.3) - 0.8) * 5;
         boltMat.opacity = Math.min(1, flash + wake * 0.15);
         cap.rotation.y = t * 0.1;
         falling.forEach((o, k) => {
           const u = (t * 0.08 + k * 0.5) % 1;
-          o.position.set((k ? 1 : -1) * (0.9 + u * 0.6), 5.8 - u * 5.4, 0.2);
+          o.position.set((k ? 1 : -1) * (0.9 + u * 0.6), 5.8 - u * 5.4 * (1 - rite * 0.4), 0.2);
         });
       },
     });
@@ -850,7 +899,7 @@ function buildMoreProps(b: Being, world: THREE.Group, stone: THREE.Material): vo
     const below = (side: "L" | "R") => () => b.bonePos(`DEF-hand.${side}`, new THREE.Vector3(), 0.12).setY(station.y + 0.1).add(new THREE.Vector3(0, 0, 0));
     stream(hand("L", 0.14), below("L"), new THREE.Color(0.75, 0.85, 1.2), 20, -0.02);
     stream(hand("R", 0.14), below("R"), new THREE.Color(0.75, 0.85, 1.2), 20, -0.02);
-    b.animated.push({ update: (t, wake) => ((star.rotation.z = Math.sin(t * 0.2) * 0.05), star.scale.setScalar(1 + wake * 0.2)) });
+    b.animated.push({ update: (t, wake, _g, rite) => ((star.rotation.z = Math.sin(t * 0.2) * 0.05), star.scale.setScalar(1 + wake * 0.2 + rite * 0.5)) });
   }
 
   if (n === "XVIII") {
@@ -868,7 +917,7 @@ function buildMoreProps(b: Being, world: THREE.Group, stone: THREE.Material): vo
     const moon = orb(new THREE.Color(0.85, 0.88, 1.1), 0.35);
     moon.add(polyline(circle(0.42, 48, 0, -1.2, 1.2).map((p) => V(p.x - 0.12, p.z, 0.02)), lines(pearl, 0.9)));
     add(moon, 0, 4.6, 1.6);
-    b.animated.push({ update: (t, wake) => (moon.position.y = 4.6 + Math.sin(t * 0.3) * 0.15 + wake * 0.3) });
+    b.animated.push({ update: (t, wake, _g, rite) => ((moon.position.y = 4.6 + Math.sin(t * 0.3) * 0.15 + wake * 0.3 + rite * 0.8), moon.scale.setScalar(1 + rite * 0.3)) });
   }
 
   if (n === "XIX") {
@@ -894,7 +943,7 @@ function buildMoreProps(b: Being, world: THREE.Group, stone: THREE.Material): vo
       ring.add(bloom, polyline([V(Math.cos(a) * 1.9, 0, Math.sin(a) * 1.9), V(Math.cos(a) * 1.9, 0.1, Math.sin(a) * 1.9)], lines(tint, 0.6)));
     }
     add(ring, 0.4, 0, 0);
-    b.animated.push({ update: (t, wake) => ((sun.rotation.z = t * 0.03), sun.scale.setScalar(1 + wake * 0.15)) });
+    b.animated.push({ update: (t, wake, _g, rite) => ((sun.rotation.z = t * (0.03 + rite * 0.06)), sun.scale.setScalar(1 + wake * 0.15 + rite * 0.45)) });
   }
 
   if (n === "XX") {
@@ -907,9 +956,9 @@ function buildMoreProps(b: Being, world: THREE.Group, stone: THREE.Material): vo
     add(polyline(horn, lines(gold, 0.85)));
     add(polyline(circle(0.18, 24).map((p) => V(0.2 + p.x * 0.3, 4.3 + p.z, 0.3)), lines(gold, 0.85)));
     b.animated.push({
-      update: (t, wake) => {
+      update: (t, wake, _g, rite) => {
         risers.forEach((r, k) => {
-          const u = (t * 0.035 + k / 3) % 1;
+          const u = (t * (0.035 + rite * 0.03) + k / 3) % 1;
           r.position.y = 0.4 + u * 9;
           r.scale.setScalar(Math.sin(u * Math.PI) * (0.8 + wake * 0.2) + 0.001);
         });
@@ -943,7 +992,7 @@ function buildMoreProps(b: Being, world: THREE.Group, stone: THREE.Material): vo
     harp.add(polyline(frame, lines(gold, 0.85)));
     for (let k = 1; k < 7; k++) harp.add(polyline([V(-0.15 + k * 0.04, 0.05, 0), V(-0.15 + k * 0.04, 0.2 + k * 0.13, 0)], lines(pearl, 0.5)));
     add(harp, 0.3, 0.2, -0.55);
-    b.animated.push({ update: (t, wake) => ((wreath.rotation.z = Math.sin(t * 0.15) * 0.04), (dove.position.y = Math.sin(t * 0.8) * 0.05 + wake * 0.05)) });
+    b.animated.push({ update: (t, wake, _g, rite) => ((wreath.rotation.z = Math.sin(t * 0.15) * 0.04 + rite * t * 0.05), (dove.position.y = Math.sin(t * 0.8) * 0.05 + wake * 0.05 + rite * 0.5)) });
   }
 
   if (n === "XXII") {
@@ -965,7 +1014,7 @@ function buildMoreProps(b: Being, world: THREE.Group, stone: THREE.Material): vo
     const ecl = new THREE.Group();
     ecl.add(bright, dark);
     add(ecl, -0.3, 4.3, 0.5);
-    b.animated.push({ update: (t, wake) => (dark.position.set(Math.sin(t * 0.07) * 0.45 - 0.1, Math.cos(t * 0.05) * 0.08, 0.05), ecl.scale.setScalar(1 + wake * 0.15)) });
+    b.animated.push({ update: (t, wake, _g, rite) => (dark.position.set(Math.sin(t * 0.07) * 0.45 - 0.1 + rite * 0.9, Math.cos(t * 0.05) * 0.08, 0.05), ecl.scale.setScalar(1 + wake * 0.15 + rite * 0.2)) });
   }
 }
 

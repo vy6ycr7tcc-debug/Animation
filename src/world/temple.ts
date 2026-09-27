@@ -375,6 +375,12 @@ export class Temple {
   gateHeading = 0;
   private shrines: { beings: Beings; pivot: THREE.Group; numeral: string; name: string }[] = [];
   private centreShaft: THREE.Mesh[] = [];
+  /** Where to stand before each shrine (temple frame), facing it. */
+  private spots: { x: number; z: number; heading: number }[] = [];
+  /** A lamp at each shrine, lit by its rite. */
+  private lamps: { core: THREE.Sprite; glow: THREE.Sprite; lit: number; k: number; tint: THREE.Color }[] = [];
+  /** The altar's answer when a place is lit in all three realms. */
+  private synth = { k: 0, t: 99, color: new THREE.Color(), glow: null as THREE.Sprite | null };
   private plainStone!: THREE.Material;
   private firePits: THREE.Vector3[] = [];
   private dust!: { pos: THREE.InstancedBufferAttribute; base: Float32Array };
@@ -672,7 +678,9 @@ export class Temple {
 
   private buildShrines(sparks: Sparks): void {
     // one Beings each (a being and the objects it holds), in a pivot turned to face the hall
-    const place = (i: number, x: number, y: number, z: number, face: number) => {
+    const place = (i: number, x: number, y: number, z: number, face: number, stand = 3.6) => {
+      // where you stand to be with it: before it, facing it (its front is +z of its pivot)
+      this.spots[i] = { x: x + Math.sin(face) * stand, z: z + Math.cos(face) * stand, heading: face };
       const pivot = new THREE.Group();
       pivot.position.set(x, y, z);
       pivot.rotation.y = face;
@@ -681,6 +689,10 @@ export class Temple {
       stations[i] = { center: new THREE.Vector3(0, 0, 0) } as unknown as Station;
       const beings = new Beings(stations, sparks);
       for (const b of beings.list) b.spec.under = false;
+      // each stood off-centre in its landmark (the Magician 1.9 m aside, into the niche's wall):
+      // in its shrine it stands in the middle, as on its card (its height is kept: XII hangs)
+      const [ox, , oz] = beings.list[0].spec.at;
+      beings.group.position.set(-ox, 0, -oz);
       pivot.add(beings.group);
       this.group.add(pivot);
       const b = beings.list[0];
@@ -715,12 +727,118 @@ export class Temple {
       this.group.add(label);
       this.collide(x, z, 1.9);
     });
-    const { label } = place(21, CENTRE.x, 1.8, SANCT_Z1 + 2.6, 0);
+    const { label } = place(21, CENTRE.x, 1.8, SANCT_Z1 + 2.6, 0, 5.2);
     label.scale.setScalar(0.6);
     label.position.set(CENTRE.x, 2.6, SANCT_Z1 + 5.15);
     this.group.add(label);
     this.collide(CENTRE.x, SANCT_Z1 + 2.6, 4.2);
     this.collide(CENTRE.x, CENTRE.z, 1.5); // the altar
+    this.buildLamps();
+  }
+
+  /** A small lamp on the floor before each shrine, between you and it: a dim ember until its
+      rite is done, then a steady flame in the archetype's own colour. */
+  private buildLamps(): void {
+    const tex = (() => {
+      const [c, g] = canvas(64, 64);
+      const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      grd.addColorStop(0, "rgba(255,245,225,1)");
+      grd.addColorStop(0.25, "rgba(255,210,150,0.45)");
+      grd.addColorStop(1, "rgba(255,190,120,0)");
+      g.fillStyle = grd;
+      g.fillRect(0, 0, 64, 64);
+      return canvasTexture(c, false);
+    })();
+    const bowl = new THREE.MeshStandardNodeMaterial({ color: 0x8a6a3a, roughness: 0.45, metalness: 0.7 });
+    const bowlGeo = new THREE.LatheGeometry([[0.001, 0], [0.12, 0.02], [0.16, 0.08], [0.15, 0.12], [0.001, 0.1]].map(([r, y]) => new THREE.Vector2(r, y)), 20);
+    this.spots.forEach((sp, i) => {
+      const tint = new THREE.Color(...this.shrines[i].beings.list[0].spec.tint);
+      // halfway between where you stand and the shrine
+      const f = i === 21 ? 0.55 : 0.5;
+      const x = sp.x - Math.sin(sp.heading) * 3.6 * f, z = sp.z - Math.cos(sp.heading) * 3.6 * f;
+      const y = this.floorAt(TEMPLE_ORIGIN.x + x, TEMPLE_ORIGIN.z + z) - TEMPLE_ORIGIN.y;
+      const b = new THREE.Mesh(bowlGeo, bowl);
+      b.position.set(x, y, z);
+      this.group.add(b);
+      const mk = (size: number) => {
+        const sp2 = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: tint.clone(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
+        sp2.position.set(x, y + 0.2, z);
+        sp2.scale.setScalar(size);
+        this.group.add(sp2);
+        return sp2;
+      };
+      this.lamps.push({ core: mk(0.22), glow: mk(1.1), lit: 0, k: 0, tint });
+    });
+    const g = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0, fog: false }));
+    g.position.set(CENTRE.x, 4.5, CENTRE.z);
+    this.group.add(g);
+    this.synth.glow = g;
+  }
+
+  /** The shrine whose standing place you are at (within `r` metres), or −1. */
+  nearShrine(p: THREE.Vector3, r = 2.2): number {
+    const lx = p.x - TEMPLE_ORIGIN.x, lz = p.z - TEMPLE_ORIGIN.z;
+    let best = -1, bd = r;
+    this.spots.forEach((s, i) => {
+      const d = Math.hypot(lx - s.x, lz - s.z);
+      if (d < bd) (bd = d), (best = i);
+    });
+    return best;
+  }
+
+  /** Where to stand for shrine `i`, in the world, and the heading that faces it. */
+  standFor(i: number): { x: number; z: number; heading: number } {
+    const s = this.spots[i];
+    return { x: TEMPLE_ORIGIN.x + s.x, z: TEMPLE_ORIGIN.z + s.z, heading: s.heading };
+  }
+
+  shrineInfo(i: number): { numeral: string; name: string; tint: THREE.Color } {
+    const s = this.shrines[i];
+    return { numeral: s.numeral, name: s.name, tint: new THREE.Color(...s.beings.list[0].spec.tint) };
+  }
+
+  /** The being of shrine `i` begins or ends its rite. */
+  setRite(i: number, on: boolean): void {
+    const b = this.shrines[i]?.beings.list[0];
+    if (b) b.rite = on ? 1 : 0;
+  }
+
+  /** Light (or show as lit, on arriving) the lamp of shrine `i`. */
+  kindle(i: number, at = false): void {
+    const l = this.lamps[i];
+    if (!l) return;
+    l.lit = 1;
+    if (at) l.k = 1;
+    else this.sparks.emit(l.core.getWorldPosition(new THREE.Vector3()), 30, l.tint, 0.8);
+  }
+
+  /** The altar answers: a place lit in all three realms (the colours of its three), or all. */
+  synthesis(colors: THREE.Color[]): void {
+    this.synth.t = 0;
+    const c = this.synth.color.setRGB(0, 0, 0);
+    for (const k of colors) c.add(k);
+    c.multiplyScalar(1 / Math.max(1, colors.length));
+    for (let k = 0; k < 3; k++) this.sparks.emit(new THREE.Vector3(CENTRE.x, 3 + k, CENTRE.z).add(TEMPLE_ORIGIN), 40, colors[k % colors.length] ?? c, 1.4);
+  }
+
+  private updateLamps(t: number, dt: number, reduced: boolean): void {
+    this.lamps.forEach((l, i) => {
+      l.k += (l.lit - l.k) * Math.min(1, dt * 0.8);
+      const flick = reduced ? 1 : 0.9 + 0.07 * Math.sin(t * 9 + i * 1.7) + 0.04 * Math.sin(t * 23 + i);
+      l.core.material.opacity = (0.15 + 0.85 * l.k) * flick;
+      l.core.scale.setScalar((0.1 + 0.16 * l.k) * flick);
+      l.glow.material.opacity = (0.05 + 0.35 * l.k) * flick;
+      l.glow.scale.setScalar(0.5 + 0.9 * l.k);
+    });
+    const s = this.synth;
+    s.t += dt;
+    const k = s.t < 2 ? s.t / 2 : Math.max(0, 1 - (s.t - 2) / 9);
+    if (s.glow) {
+      s.glow.material.color.copy(s.color);
+      s.glow.material.opacity = k * 0.7;
+      s.glow.scale.setScalar(2 + k * 5);
+      s.glow.position.y = 3.5 + s.t * 0.25;
+    }
   }
 
   attach(m: BeingModel): void {
@@ -746,6 +864,8 @@ export class Temple {
   private plateTop!: THREE.Mesh;
   private plateBottom!: THREE.Mesh;
   cardsOpen = false;
+  /** A rite in the sanctuary: the card stands between the view and the shrine, so it rests. */
+  quietStage = false;
 
   private buildStage(sparks: Sparks): void {
     this.stage.position.set(CENTRE.x, 2.1, CENTRE.z);
@@ -824,6 +944,7 @@ export class Temple {
     if (i === this.cardShown) return;
     const old = this.cardBeings.get(this.cardShown);
     if (old) {
+      if (this.cardPrev && this.cardPrev !== old.pivot) this.cardPrev.visible = false; // turned quickly: the one still leaving goes at once
       this.cardPrev = old.pivot;
       this.cardPrevK = this.cardK;
     }
@@ -858,7 +979,7 @@ export class Temple {
   }
 
   private updateStage(t: number, dt: number, player: THREE.Vector3, reduced: boolean): void {
-    this.stage.visible = this.cardShown >= 0;
+    this.stage.visible = this.cardShown >= 0 && !this.quietStage;
     for (const m of this.centreShaft) m.visible = !this.cardsOpen; // it fell straight through the card
     if (!this.stage.visible) return;
     this.stage.rotation.y = reduced ? 0 : Math.sin(t * 0.25) * 0.38;
@@ -1154,8 +1275,9 @@ export class Temple {
       f.light.intensity = f.base * k;
     }
     this.updateStage(t, dt, player, reduced);
+    this.updateLamps(t, dt, reduced);
     for (const s of this.shrines) {
-      s.pivot.worldToLocal(this.local.copy(player));
+      s.beings.group.worldToLocal(this.local.copy(player));
       const wasMet = s.beings.list[0]?.met;
       s.beings.update(t, dt, this.local, reduced);
       if (!wasMet && s.beings.list[0]?.met) this.hooks.onMeet(s.numeral, s.name);

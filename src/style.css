@@ -353,6 +353,36 @@ body.loading #title h1, body.loading #title p { animation-play-state: paused; }
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   animation: rise 0.9s ease; text-align: center;
 }
+/* ---- a shrine in the temple: be with it, or ask it ---- */
+#shrine {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 6;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  width: min(92vw, 26em); padding: 8px 10px 6px; border-radius: 20px; text-align: center;
+  background: rgba(24, 16, 8, 0.55); border: 1px solid rgba(214, 170, 90, 0.3);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); animation: rise 1.2s ease;
+}
+#shrine[hidden], #rite-end[hidden] { display: none; }
+#shrine-title { margin: 0 0 4px; font-size: 16px; color: var(--gold); letter-spacing: 0.04em; }
+#shrine-be { font-size: 17px; font-style: italic; color: var(--gold); min-height: 44px; padding: 6px 20px; border-radius: 22px; border: 1px solid rgba(214, 170, 90, 0.45); }
+#shrine .row { display: flex; justify-content: center; gap: 2px; margin-top: 4px; flex-wrap: wrap; }
+#shrine .row button { font-size: 13px; font-style: italic; color: var(--dim); min-height: 40px; padding: 4px 9px; }
+#shrine .lit { color: var(--dim); font-size: 12px; font-style: italic; }
+/* the rite's words: low in the view, one line at a time, slow to come and go */
+#rite-words {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 7; margin: 0;
+  bottom: calc(150px + env(safe-area-inset-bottom, 0px)); width: min(88vw, 30em);
+  text-align: center; font-size: 19px; line-height: 1.45; font-style: italic; color: #f3e6cc;
+  text-shadow: 0 0 12px rgba(0, 0, 0, 0.9), 0 0 3px rgba(0, 0, 0, 0.8);
+  opacity: 0; transition: opacity 1.6s ease; pointer-events: none;
+}
+#rite-words.on { opacity: 1; }
+#rite-words.ask { color: var(--gold); font-size: 21px; }
+#rite-end {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 7;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  font-size: 14px; font-style: italic; color: var(--dim); padding: 6px 18px; min-height: 40px;
+  border-radius: 20px; border: 1px solid rgba(214, 170, 90, 0.25); background: rgba(24, 16, 8, 0.35);
+}
 #cards-offer[hidden], #cards[hidden], #temple-leave[hidden], #menu-temple-leave[hidden] { display: none; }
 #cards-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 #cards-head > div { flex: 1; }

@@ -19,6 +19,8 @@ export interface SaveData {
     hearted: string[]; // archetypes whose practice you've heard
     passed: number[]; // archetypes whose onward passage has been spoken (indices)
     archive: string[]; // archive narrations (orbs and fruits) you've heard
+    kindled?: string[]; // the temple's lamps lit by their rites (numerals)
+    synth?: number[]; // the places (0–6, 7 = all) whose synthesis the altar has spoken
   };
   savedAt?: number;
 }

@@ -4,6 +4,7 @@
 #                 ./piper.sh fetch
 # Speak a line:   ./piper.sh say "Some words." ../public/audio/out.mp3 [voice]
 # The opening:    ./piper.sh opening
+# Temple rites:   ./piper.sh rites   (FORCE=1 to redo all)
 set -euo pipefail
 cd "$(dirname "$0")"
 VOICES=${VOICES:-$HOME/.piper-voices}
@@ -44,5 +45,18 @@ This is a world of night and light to wander, with nothing to win and nowhere yo
 Touch what calls you. Rest where it is quiet. Listen.
 LINES
     ;;
-  *) echo "usage: $0 fetch | say TEXT OUT.mp3 [VOICE] | opening"; exit 1 ;;
+  rites) # the temple's rites and syntheses, from src/world/rites.ts
+    mkdir -p ../public/audio/rites
+    node -e '
+      const s = require("fs").readFileSync("../src/world/rites.ts", "utf8");
+      const q = (x) => JSON.parse(x);
+      for (const m of s.matchAll(/^  (\w+): \{ invite: ("(?:[^"\\]|\\.)*"), line: ("(?:[^"\\]|\\.)*"), ask: ("(?:[^"\\]|\\.)*") \},$/gm))
+        [m[2], m[3], m[4]].forEach((t, i) => console.log(`${m[1]}-${i + 1}\t${q(t)}`));
+      const syn = s.split("SYNTHESES: string[] = [")[1].split("];")[0];
+      [...syn.matchAll(/("(?:[^"\\]|\\.)*")/g)].forEach((m, i) => console.log(`synth-${i + 1}\t${q(m[1])}`));
+    ' | while IFS=$'\t' read -r name text; do
+      [ -f "../public/audio/rites/$name.mp3" ] && [ -z "${FORCE:-}" ] || say "$text" "../public/audio/rites/$name.mp3"
+    done
+    ;;
+  *) echo "usage: $0 fetch | say TEXT OUT.mp3 [VOICE] | opening | rites"; exit 1 ;;
 esac

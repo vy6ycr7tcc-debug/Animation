@@ -7,6 +7,7 @@
      and crown.
    - Sitting and reaching gestures are used at the stations. */
 import * as THREE from "three/webgpu";
+import { Rig, type Moment, type Signature } from "./gestures";
 import { softPoints, spriteCloud, T, type SpriteCloud } from "../gpu/tsl";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
@@ -304,6 +305,11 @@ export class Wanderer {
   private light: THREE.PointLight;
   private k = { swim: 0, water: 0, glide: 0, move: 0, air: 0, sit: 0, reach: 0, fly: 0, soar: 0, touch: 0 };
   /** Set by touch.ts while the wanderer lays hands on something. */
+  /** In a temple rite, the wanderer makes the archetype's gesture with it (player/gestures.ts):
+      `k` how fully (set each frame), `t` the gesture's clock. */
+  echo: { sig: Signature | null; k: number; t: number; rite: number; rt: number } = { sig: null, k: 0, t: 0, rite: 0, rt: 0 };
+  private rig: Rig | null = null;
+  private moment: Moment = { t: 0, wake: 1, rite: 0, rt: 0, other: null, reduced: false };
   touching = { pose: "palms" as TouchPose, contact: new THREE.Vector3(), centre: new THREE.Vector3(), r: 0.3, breath: 0, lean: 0 };
   private form = 0;
   private flow = 0;
@@ -499,6 +505,12 @@ export class Wanderer {
     this.meditate(this.meditation * (1 - water));
     this.flyPose(fly, soar, reduced ? t * 0.4 : t);
     this.touchPose(THREE.MathUtils.smoothstep(touch, 0, 1) * (1 - water) * (1 - fly));
+    if (this.echo.sig && this.echo.k > 0.001 && this.ready) {
+      this.rig ??= new Rig(this.bones, this.body);
+      Object.assign(this.moment, { t: this.echo.t, rite: this.echo.rite, rt: this.echo.rt, reduced });
+      this.rig.begin();
+      this.echo.sig(this.rig, this.moment, this.echo.k * (1 - water) * (1 - fly));
+    }
     if (this.ready) {
       SEGS.forEach((s, i) => {
         const put = (e: End, out: THREE.Vector3) => (typeof e === "string" ? this.bonePos(e, out) : this.bonePos(e[0], out, e[1]));

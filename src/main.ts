@@ -10,6 +10,8 @@ import { AudioEngine } from "./core/audio";
 import { Input } from "./core/input";
 import { Narration } from "./core/narration";
 import { Playlist } from "./core/playlist";
+import { RITES, riteAudio, SYNTHESES, synthAudio } from "./world/rites";
+import { SIGNATURES } from "./player/gestures";
 import { heartId, passageId, promptsFor, registerAnswers, registerTunnel, SPECTRUM, trackId, walkId } from "./core/dialogues";
 import { Awake } from "./core/awake";
 import { AdaptiveQuality, FrameStats, MOBILE, type Tier } from "./core/quality";
@@ -333,6 +335,8 @@ function persist(): void {
       hearted: beings.list.filter((b) => b.hearted).map((b) => b.spec.numeral),
       passed: [...passed],
       archive: [...archiveHeard],
+      kindled: [...kindled],
+      synth: [...synthDone],
     },
     savedAt: Date.now(),
   };
@@ -565,6 +569,188 @@ addEventListener("keydown", (e) => {
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) setCard(cardIndex + (dx < 0 ? 1 : -1));
   });
 }
+/* ---- The temple's rites (world/rites.ts; Samuel: "an exploratory place for the spirit") ----
+   Before each shrine: be with it (its rite), or hear it answer "Who are you?", its teaching, its
+   practice (Samuel's recordings). In a rite you stand before it and make its gesture with it,
+   while three things are said: an invitation, what it is, and a question to carry. Then its lamp
+   is lit. A place lit in mind, body and spirit alike (I, VIII, XV; II, IX, XVI; …) is answered
+   at the altar; when all twenty-one are lit, the Choice opens. Moving ends a rite, gently. */
+const kindled = new Set<string>(saved?.journey?.kindled ?? []);
+const synthDone = new Set<number>(saved?.journey?.synth ?? []);
+for (let i = 0; i < 22; i++) if (kindled.has(temple.shrineInfo(i).numeral)) temple.kindle(i, true);
+const shrineEl = $("#shrine"), riteWords = $("#rite-words"), riteEndBtn = $<HTMLButtonElement>("#rite-end");
+let shrineAt = -1;
+type TRite = { i: number; phase: "walk" | "on" | "after"; t: number; step: number; next: number; clips: (AudioBuffer | null)[]; voice: { stop(f?: number): void } | null };
+let trite: TRite | null = null;
+let wordsOff = 0;
+let riteDist = 7; // the view's distance before a rite, given back after
+let spoken: { stop(f?: number): void } | null = null;
+/** A line of the temple's words: shown low in the view, spoken if its recording is there. */
+function templeWords(text: string, clip: AudioBuffer | null, ask = false): number {
+  riteWords.textContent = text;
+  riteWords.classList.toggle("ask", ask);
+  riteWords.classList.add("on");
+  spoken?.stop(0.6);
+  spoken = clip ? audio.playClip(clip, 0.95) : null;
+  const dur = clip ? clip.duration : text.length / 14;
+  wordsOff = S.t + Math.max(5, dur + 2.2);
+  return dur;
+}
+const litCount = () => [...kindled].filter((n) => n !== "XXII").length;
+function beginTempleRite(i: number): void {
+  if (trite || !temple.inside) return;
+  const info = temple.shrineInfo(i);
+  if (info.numeral === "XXII" && litCount() < 21) {
+    whisper(`The Choice waits until the other lamps are lit. ${litCount()} of twenty-one.`, 5000);
+    return;
+  }
+  closeCards();
+  narration.stop(1);
+  if (tp.active) tp.close();
+  const st = temple.standFor(i);
+  player.target = new THREE.Vector2(st.x, st.z);
+  riteDist = follow.dist;
+  temple.quietStage = i >= 14;
+  trite = { i, phase: "walk", t: 0, step: 0, next: 0, clips: [null, null, null], voice: null };
+  const r = trite;
+  ([1, 2, 3] as const).forEach((k) => void audio.clip(riteAudio(info.numeral, k)).then((b) => (r.clips[k - 1] = b)));
+  shrineEl.hidden = true;
+  riteEndBtn.hidden = false;
+}
+function endTempleRite(done: boolean): void {
+  const r = trite;
+  if (!r) return;
+  trite = null;
+  temple.quietStage = false;
+  temple.setRite(r.i, false);
+  wanderer.echo.rite = 0;
+  follow.dist = riteDist;
+  riteEndBtn.hidden = true;
+  if (!done) {
+    spoken?.stop(1.5);
+    riteWords.classList.remove("on");
+    return;
+  }
+  const info = temple.shrineInfo(r.i);
+  temple.kindle(r.i);
+  audio.bell(396, 0.07, 6);
+  const fresh = !kindled.has(info.numeral);
+  kindled.add(info.numeral);
+  persist();
+  if (fresh) whisper(`The lamp of ${info.name} is lit.`, 4500);
+  // a place lit in all three realms: the altar answers (Ra's grouping, 88.24)
+  if (r.i < 21) {
+    const p = r.i % 7;
+    const three = [p, p + 7, p + 14];
+    if (!synthDone.has(p) && three.every((k) => kindled.has(temple.shrineInfo(k).numeral))) {
+      synthDone.add(p);
+      persist();
+      window.setTimeout(() => synthesis(p, three), 7000);
+    }
+  }
+}
+function synthesis(p: number, three: number[]): void {
+  temple.synthesis(three.map((k) => temple.shrineInfo(k).tint));
+  [294, 440, 587].forEach((f, k) => window.setTimeout(() => audio.bell(f, 0.06, 9), k * 700));
+  void audio.clip(synthAudio(p)).then((b) => templeWords(SYNTHESES[p], b));
+  if (litCount() >= 21 && !synthDone.has(7)) {
+    synthDone.add(7);
+    persist();
+    window.setTimeout(() => void audio.clip(synthAudio(7)).then((b) => templeWords(SYNTHESES[7], b, true)), 16000);
+  }
+}
+function riteFrame(dt: number): void {
+  if (S.t > wordsOff) riteWords.classList.remove("on");
+  const echo = wanderer.echo;
+  if (!trite) {
+    echo.k = Math.max(0, echo.k - dt * 0.8);
+    if (echo.k === 0) echo.sig = null;
+    const i = temple.inside && !temple.cardsOpen && !crossing ? temple.nearShrine(player.pos) : -1;
+    if (i !== shrineAt) {
+      shrineAt = i;
+      shrineEl.hidden = i < 0;
+      if (i >= 0) {
+        const info = temple.shrineInfo(i);
+        $("#shrine-title").textContent = `${info.numeral} · ${info.name}`;
+        const lit = kindled.has(info.numeral);
+        const locked = info.numeral === "XXII" && litCount() < 21;
+        $("#shrine-be").textContent = locked ? `Waiting · ${litCount()} of 21 lamps` : lit ? "Be with it again" : "Be with it";
+      }
+    }
+    return;
+  }
+  const r = trite;
+  r.t += dt;
+  const info = temple.shrineInfo(r.i);
+  const st = temple.standFor(r.i);
+  if (r.phase === "walk") {
+    const d = Math.hypot(player.pos.x - st.x, player.pos.z - st.z);
+    if (d < 0.35 || r.t > 7 || (player.target === null && d < 1.5)) {
+      player.pos.x = st.x;
+      player.pos.z = st.z;
+      player.target = null;
+      player.heading = st.heading;
+      follow.yaw = st.heading;
+      r.phase = "on";
+      r.t = 0;
+      r.next = 1.8;
+      temple.setRite(r.i, true);
+      audio.bell(264 + (r.i % 7) * 33, 0.06, 7);
+      // the Hanged Man is met in stillness; everyone else, by making their gesture with them
+      echo.sig = SIGNATURES[info.numeral === "XII" ? "II" : info.numeral] ?? null;
+    } else if (player.target === null) endTempleRite(false); // the stick took over
+    return;
+  }
+  // moving (the stick, the button, a tap on the floor) ends it, gently
+  if (Math.hypot(input.move.x, input.move.y) > 0.3 || input.hold || player.target) {
+    endTempleRite(r.step >= 3);
+    return;
+  }
+  player.heading = st.heading;
+  // the view settles behind you and a little above, both of you in it, the words on the floor
+  follow.yaw += Math.atan2(Math.sin(st.heading - follow.yaw), Math.cos(st.heading - follow.yaw)) * Math.min(1, dt * 0.8);
+  follow.pitch += (0.3 - follow.pitch) * Math.min(1, dt * 0.8);
+  follow.dist += (Math.max(riteDist, 5.5) - follow.dist) * Math.min(1, dt * 0.8);
+  echo.t = S.wt;
+  echo.rt = r.t;
+  echo.rite = Math.min(1, Math.max(0, (r.t - 4) / 4));
+  echo.k = Math.min(0.85, echo.k + dt * 0.25);
+  const rite = RITES[info.numeral];
+  if (r.phase === "on" && r.t >= r.next) {
+    if (r.step < 3) {
+      const text = [rite.invite, rite.line, rite.ask][r.step];
+      const dur = templeWords(text, r.clips[r.step], r.step === 2);
+      r.next = r.t + Math.max(r.step === 0 ? 9 : 8, dur + (r.step === 2 ? 7 : 3.5));
+      r.step++;
+    } else endTempleRite(true);
+  }
+}
+const shrineDo = (fn: (n: string) => void) => (e: Event) => {
+  e.preventDefault();
+  if (shrineAt < 0) return;
+  fn(temple.shrineInfo(shrineAt).numeral);
+};
+const shrineSpeak = (id: (n: string) => string) =>
+  shrineDo((n) => {
+    if (tp.active) tp.close();
+    const b = temple.shrineInfo(shrineAt);
+    whisper(`${b.numeral} · ${b.name}`, 3000);
+    void narration.play(id(n));
+  });
+$("#shrine-be").addEventListener("pointerdown", shrineDo(() => beginTempleRite(shrineAt)));
+$("#shrine-who").addEventListener("pointerdown", shrineSpeak((n) => trackId(n, "who")));
+$("#shrine-teach").addEventListener("pointerdown", shrineSpeak(walkId));
+$("#shrine-life").addEventListener("pointerdown", shrineSpeak(heartId));
+riteEndBtn.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  endTempleRite(false);
+});
+// the same from the keyboard (Enter or Space make a click with no pointer)
+for (const id of ["#shrine-be", "#shrine-who", "#shrine-teach", "#shrine-life", "#rite-end"])
+  $(id).addEventListener("click", (e) => {
+    if ((e as MouseEvent).detail === 0) $(id).dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
+  });
+
 // the view moves to the altar while the cards are open, and back after
 let cardsView = 0;
 const cardCam = { pos: new THREE.Vector3(), target: new THREE.Vector3() };
@@ -590,7 +776,8 @@ function templeFrame(dt: number): void {
   if (temple.inside) {
     if (temple.confine(player.pos) && !crossing) crossTemple(false);
     if (player.flying) player.flying = false; // no flight in the temple: you walk here
-    $("#cards-offer").hidden = temple.cardsOpen || !temple.nearCards(player.pos) || crossing;
+    riteFrame(dt);
+    $("#cards-offer").hidden = temple.cardsOpen || !temple.nearCards(player.pos) || crossing || shrineAt >= 0 || !!trite;
     $("#temple-leave").hidden = crossing || !temple.nearDoor(player.pos);
     $("#temple-leave").textContent = $("#menu-temple-leave").textContent = "Leave the temple";
     $("#menu-temple-leave").hidden = false;
@@ -608,6 +795,8 @@ function templeFrame(dt: number): void {
     return;
   }
   $("#cards-offer").hidden = true;
+  if (trite) endTempleRite(false);
+  if (shrineAt >= 0) (shrineAt = -1), (shrineEl.hidden = true);
   if (depths.inside || pyramid.isInside) return; // the deep archive and the pyramid keep their own
   $("#temple-leave").hidden = true;
   $("#menu-temple-leave").hidden = true;
@@ -2213,4 +2402,4 @@ function finishOpening(): void {
   window.setTimeout(() => el.remove(), 4200);
 }
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision } });
