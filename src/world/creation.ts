@@ -480,6 +480,8 @@ export class Creation {
   private web: THREE.LineSegments;
   private mine: Collider[] = [];
   private stones: { p: THREE.Vector3; r: number; crystal: boolean }[] = [];
+  /** Each kind's trunk as grown (local), for finding where a trunk really is at a height. */
+  private trunkCurves: { curve: THREE.CatmullRomCurve3; r0: number; r1: number }[] = [];
   private cx = Infinity;
   private cz = Infinity;
   private m4 = new THREE.Matrix4();
@@ -525,6 +527,7 @@ export class Creation {
     this.group.add(this.rootLines);
     SHAPES.forEach((shape, kind) => {
       const { limbs, roots, tips } = grow(shape, 0.137 + kind * 0.211);
+      this.trunkCurves[kind] = { curve: new THREE.CatmullRomCurve3(limbs[0].pts), r0: limbs[0].r0, r1: limbs[0].r1 };
       const geo = mergeGeometries([tubes(limbs), tubes(roots, -0.2)]);
       const seeds = new THREE.InstancedBufferAttribute(new Float32Array(MAX_TREES), 1);
       seeds.setUsage(THREE.DynamicDrawUsage);
@@ -1083,6 +1086,32 @@ export class Creation {
     }
   }
   private lightCol = new THREE.Color();
+
+  /** Where a tree's trunk is at `above` metres over its foot (trunks lean and curve), and how
+      thick it is there (with the flare at the foot). */
+  trunkAt(x: number, z: number, above: number): { centre: THREE.Vector3; r: number } | null {
+    let best: TreeDef | null = null, bd = 1.5;
+    for (const t of this.activeTrees) {
+      const d = Math.hypot(t.x - x, t.z - z);
+      if (d < bd) {
+        bd = d;
+        best = t;
+      }
+    }
+    const tc = best && this.trunkCurves[best.kind];
+    if (!best || !tc) return null;
+    const q = new THREE.Quaternion().setFromAxisAngle(new V(0, 1, 0), best.rot);
+    const p = new V();
+    let u = 0;
+    for (let i = 0; i <= 40; i++) {
+      u = i / 40;
+      tc.curve.getPointAt(u, p);
+      if (p.y * best.scale >= above) break;
+    }
+    const centre = p.multiplyScalar(best.scale).applyQuaternion(q).add(new V(best.x, best.y, best.z));
+    const r = (tc.r0 + (tc.r1 - tc.r0) * u) * (1 + 0.9 * (1 - u) ** 6) * best.scale;
+    return { centre, r };
+  }
 
   /** What the wanderer can lay hands on nearby: trunks, rocks of some size, crystal clusters. */
   touchables(): { kind: "tree" | "rock" | "crystal"; x: number; y: number; z: number; r: number; h: number }[] {
