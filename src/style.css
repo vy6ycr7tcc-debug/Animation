@@ -77,17 +77,30 @@ button:focus-visible, input:focus-visible { outline: 1px solid var(--gold); outl
   padding: 8px 16px; min-height: 40px; font-style: italic; color: var(--dim); opacity: 0.7;
 }
 #opening-skip[hidden] { display: none; }
-#loading .seed { width: min(34vw, 150px); height: auto; overflow: visible; }
-#loading .seed .turn { animation: seed-turn 60s linear infinite; transform-origin: 0 0; }
+/* While the game boots, the page's own thread is busy for seconds (the code, the world, the
+   shaders), so anything it has to animate stands still. The seed is therefore drawn whole, and
+   all the movement is transforms the compositor runs by itself: the seed turning, and a thin
+   ring of gold spinning round it until the world is ready. */
+#loading .seed-wrap {
+  position: relative; width: min(34vw, 150px); aspect-ratio: 1;
+  animation: seed-turn 40s linear infinite; will-change: transform;
+}
+#loading .seed { width: 100%; height: 100%; overflow: visible; display: block; }
 #loading .seed circle:not(.heart), #loading .seed polygon {
   fill: none; stroke: var(--gold); stroke-width: 0.5; stroke-linecap: round;
-  stroke-dasharray: 100; stroke-dashoffset: 100;
-  animation: seed-draw 9s ease-in-out infinite;
 }
-#loading .seed .ring { stroke-opacity: 0.45; animation-delay: 0s; }
-#loading .seed .hex { stroke: #a9c4e8; stroke-opacity: 0.5; animation-delay: 0.6s; }
-#loading .seed .petal { stroke-opacity: 0.75; animation-delay: calc(1.2s + var(--i) * 0.35s); }
-#loading .seed .heart { fill: #fff3d6; animation: seed-breathe 5s ease-in-out infinite; transform-origin: 0 0; }
+#loading .seed .ring { stroke-opacity: 0.45; }
+#loading .seed .hex { stroke: #a9c4e8; stroke-opacity: 0.5; }
+#loading .seed .petal { stroke-opacity: 0.75; }
+#loading .seed .heart { fill: #fff3d6; }
+#loading.ready .seed .heart, #loading.opening .seed .heart { animation: seed-breathe 5s ease-in-out infinite; transform-origin: 0 0; }
+#loading .boot-ring {
+  position: absolute; inset: -16%; border-radius: 50%;
+  border: 1.5px solid rgba(226, 191, 126, 0.12); border-top-color: rgba(255, 226, 170, 0.9);
+  animation: boot-spin 1.3s linear infinite; will-change: transform; transition: opacity 1.2s ease;
+}
+#loading.ready .boot-ring, #loading.opening .boot-ring { opacity: 0; }
+@keyframes boot-spin { to { transform: rotate(360deg); } }
 #loading-line {
   margin: 0; max-width: 26em; min-height: 3em;
   font-style: italic; font-size: clamp(16px, 2.4vw, 19px); line-height: 1.55; color: var(--dim);
@@ -95,12 +108,11 @@ button:focus-visible, input:focus-visible { outline: 1px solid var(--gold); outl
 }
 #loading-line.on { opacity: 1; }
 body.loading #title h1, body.loading #title p { animation-play-state: paused; }
-@keyframes seed-draw { 0% { stroke-dashoffset: 100; } 40%, 70% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -100; } }
 @keyframes seed-turn { to { transform: rotate(360deg); } }
 @keyframes seed-breathe { 0%, 100% { opacity: 0.55; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.25); } }
 @media (prefers-reduced-motion: reduce) {
-  #loading .seed .turn, #loading .seed .heart { animation: none; }
-  #loading .seed circle:not(.heart), #loading .seed polygon { animation: none; stroke-dashoffset: 0; }
+  #loading .seed-wrap { animation: none; }
+  #loading .boot-ring { animation-duration: 4s; }
 }
 
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }

@@ -43,7 +43,7 @@ import { Temple } from "./world/temple";
 import { Autofly } from "./player/autofly";
 import { Genesis } from "./world/genesis";
 import { Touch } from "./world/touch";
-import { Depths, RUIN_SITES } from "./world/depths";
+import { Depths, RUIN_NAMES, RUIN_SITES } from "./world/depths";
 import { Pyramid } from "./world/pyramid";
 import { cloudUniforms } from "./world/atmosphere";
 import { NO_MIRROR_LAYER, Water } from "./world/water";
@@ -775,16 +775,34 @@ function skyMarks(): { x: number; z: number; kind: "planet" | "star" | "grove" |
   ];
 }
 
+/** Which way a place lies from the shore, in words (north is −z). */
+function compass(x: number, z: number): string {
+  const names = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"];
+  const a = Math.atan2(x - SPAWN.x, -(z - SPAWN.z));
+  return names[(Math.round(a / (Math.PI / 4)) + 8) % 8];
+}
+
 /** The places on the map: the shore, and the seven archetypes' homes. */
 function places(): Place[] {
   return [
     { numeral: "", label: "The shore", group: "Shore", x: SPAWN.x, z: SPAWN.z, narration: "J01", start: { x: SPAWN.x, z: SPAWN.z, heading: SPAWN.heading } },
     { numeral: "", label: "The temple", group: "Shore", x: temple.gateAt.x, z: temple.gateAt.z, narration: "J01", start: { ...temple.outside(), heading: temple.gateHeading } },
     { numeral: "", label: "The pyramid", group: "Shore" as const, x: pyramid.door.x, z: pyramid.door.z, narration: "J01", start: { x: pyramid.door.x, z: pyramid.door.z - 14, heading: Math.PI } },
-    // over the water above the nearest cave: dive, and swim into the light under the arch
+    // beneath the water: the sunken ruins, and the cave that leads to the deep archive (you wake
+    // on the water above; dive, and swim down to them)
+    ...RUIN_SITES.map((r) => {
+      const same = RUIN_SITES.filter((q) => q.kind === r.kind);
+      let label = RUIN_NAMES[r.kind];
+      if (same.length > 1) {
+        const dir = compass(r.x, r.z), d = Math.hypot(r.x - SPAWN.x, r.z - SPAWN.z);
+        const twin = same.some((q) => q !== r && compass(q.x, q.z) === dir && Math.hypot(q.x - SPAWN.x, q.z - SPAWN.z) < d);
+        label += `, ${twin ? "further " : ""}${dir}`;
+      }
+      return { numeral: "", label, group: "Deep" as const, x: r.x + 14, z: r.z + 14, narration: "J01", start: { x: r.x + 14, z: r.z + 14, heading: Math.atan2(14, 14) } };
+    }),
     ...depths.mouths.slice(0, 1).map((m) => {
       const o = depths.outside(m.site);
-      return { numeral: "", label: "The way to the deep archive", group: "Shore" as const, x: m.site.x, z: m.site.z, narration: "J01", start: { x: o.x, z: o.z, heading: o.heading + Math.PI } };
+      return { numeral: "", label: "The way to the deep archive", group: "Deep" as const, x: m.site.x, z: m.site.z, narration: "J01", start: { x: o.x, z: o.z, heading: o.heading + Math.PI } };
     }),
     ...beings.list.map((b, i) => ({
       numeral: b.spec.numeral,

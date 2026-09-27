@@ -13,7 +13,8 @@
 <body class="loading">
 <!-- While the world is built and its shaders compile: a seed of light drawing itself in the
      dark. Then the opening (main.ts): touch the light, and the words come out of the dark. -->
-<div id="loading" role="status" aria-live="polite">
+<div id="loading" role="status" aria-live="polite" aria-label="Preparing the world">
+  <div class="seed-wrap"><div class="boot-ring" aria-hidden="true"></div>
   <svg class="seed" viewBox="-64 -64 128 128" aria-hidden="true">
     <g class="turn">
       <circle class="ring" r="44" pathLength="100"/>
@@ -27,7 +28,7 @@
       <circle class="petal" style="--i:6" r="22" cx="-19.05" cy="-11" pathLength="100"/>
     </g>
     <circle class="heart" r="3"/>
-  </svg>
+  </svg></div>
   <p id="loading-line"></p>
   <button id="opening-skip" type="button" hidden>Skip</button>
 </div>
