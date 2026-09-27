@@ -308,7 +308,7 @@ export const groundUniforms = { uT: T.uniform(0) };
 const tmix = T.mix;
 const {
   abs, attribute, cameraPosition, cameraViewMatrix, dFdx, dFdy, dot, exp, float, floor, Fn, fract, length, max, min, normalize, normalView,
-  normalWorld, positionWorld, pow, sin, smoothstep, step, texture, vec2, vec3, vec4,
+  fwidth, normalWorld, positionWorld, pow, sin, smoothstep, step, texture, vec2, vec3, vec4,
 } = T;
 const gH = (p: N): N => fract(sin(dot(p, vec2(127.1, 311.7))).mul(43758.5453));
 const cH2 = (p: N): N => fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))).mul(43758.5453));
@@ -369,12 +369,19 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
   const tri = (s: number) => texture(cliff.diff, vGW.zy.div(s)).rgb.mul(bx).add(texture(cliff.diff, vGW.xy.div(s)).rgb.mul(bz)).div(bsum);
   const cliffC = tmix(tri(CS), tri(CS * 9), farK);
 
-  const flat0 = samp(sand.diff, 3).rgb.mul(1.9).mul(w.x).add(samp(rock.diff, 4).rgb.mul(2.2).mul(w.y)).add(samp(meadow.diff, 2.2).rgb.mul(2.6).mul(w.z));
+  // each scan at two scales, so no repeat reads as a grid across the ground
+  const two = (t: THREE.Texture, s0: number) => samp(t, s0).mul(0.6).add(samp(t, s0 * 2.618).mul(0.4));
+  const flat0 = two(sand.diff, 3).rgb.mul(1.9).mul(w.x).add(two(rock.diff, 4).rgb.mul(2.2).mul(w.y)).add(two(meadow.diff, 2.2).rgb.mul(2.6).mul(w.z));
+  // the scans' own occlusion: every pebble, crack and hollow darkens as in the temple's stone
+  // (the cliffs' from the side, as their colour)
+  const aoFlat = two(sand.arm, 3).r.mul(w.x).add(two(rock.arm, 4).r.mul(w.y)).add(two(meadow.arm, 2.2).r.mul(w.z));
+  const aoCliff = texture(cliff.arm, vGW.zy.div(CS)).r.mul(bx).add(texture(cliff.arm, vGW.xy.div(CS)).r.mul(bz)).div(bsum);
+  const ao = tmix(float(1), tmix(float(0.3), float(1.08), tmix(aoFlat, aoCliff, steep)), float(1).sub(smoothstep(40, 260, camD)));
   // snowfields keep their white: only a trace of the rock beneath shows through
   const snowK = smoothstep(0.32, 0.6, dot(T.vertexColor().rgb, vec3(0.3, 0.5, 0.2)));
   const det0 = tmix(flat0, tmix(cliffC.mul(2.3), tmix(vec3(1), cliffC.mul(2.3), 0.25), snowK), steep);
   // keep the moonlit palette: mostly the scan's light and shade, a little of its colour
-  const det = tmix(vec3(dot(det0, vec3(0.3, 0.5, 0.2))), det0, 0.5);
+  const det = tmix(vec3(dot(det0, vec3(0.3, 0.5, 0.2))), det0, 0.72).mul(ao);
   // the scans' detail reaches far now (mipmapped, it doesn't shimmer), and cliffs to the mountains
   const fade = float(1).sub(smoothstep(tmix(float(300), float(1400), steep), tmix(float(1100), float(2400), steep), camD));
   // broad variation over the land, so the far country is never one flat colour
@@ -384,8 +391,11 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
   // the scans' relief: each surface's normal map, blended as the ground is
   const near = float(1).sub(smoothstep(30, 160, camD));
   const nm = (t: THREE.Texture, s: number) => samp(t, s).xy.mul(2).sub(1);
-  const pn = nm(sand.nor, 3).mul(w.x).mul(0.9).add(nm(rock.nor, 4).mul(w.y).mul(1.2)).add(nm(meadow.nor, 2.2).mul(w.z).mul(0.7));
-  const dFlat = vec3(pn.x, 0, pn.y.negate()).mul(near).mul(1.35);
+  const pn = nm(sand.nor, 3).mul(w.x).mul(0.9).add(nm(rock.nor, 4).mul(w.y).mul(1.2)).add(nm(meadow.nor, 2.2).mul(w.z).mul(0.8));
+  // and close by, the same scans again at a finer scale: grit under the feet, never a blur
+  const close = float(1).sub(smoothstep(4, 16, camD));
+  const pn2 = nm(sand.nor, 0.9).mul(w.x).add(nm(rock.nor, 1.1).mul(w.y)).add(nm(meadow.nor, 0.7).mul(w.z)).mul(close).mul(0.55);
+  const dFlat = vec3(pn.x.add(pn2.x), 0, pn.y.add(pn2.y).negate()).mul(near).mul(1.8);
   // on a cliff, each side's normal map turns about its own plane (x-facing: z and y; z-facing: x and y)
   const nX = texture(cliff.nor, vGW.zy.div(CS)).xy.mul(2).sub(1), nZ = texture(cliff.nor, vGW.xy.div(CS)).xy.mul(2).sub(1);
   const dCliff = vec3(0, nX.y, nX.x).mul(bx).add(vec3(nZ.x, nZ.y, 0).mul(bz)).div(bsum).mul(float(1).sub(smoothstep(60, 400, camD))).mul(1.6);
@@ -394,7 +404,9 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
   const WIND = vec2(0.8, 0.6);
   const ripPh = dot(q, WIND).mul(6.3).add(gN(q.mul(0.25)).mul(7)), ripPh2 = dot(q, vec2(0.6, -0.8)).mul(15).add(gN(q.mul(0.9)).mul(4));
   const ripK = w.x.mul(float(1).sub(smoothstep(12, 45, camD))).mul(float(1).sub(steep));
-  const dRip = vec3(WIND.x, 0, WIND.y).mul(sin(ripPh).mul(0.13)).add(vec3(0.6, 0, -0.8).mul(sin(ripPh2).mul(0.06))).mul(ripK);
+  // each set fades where it grows finer than the pixels can show (it aliased into a diamond moiré)
+  const aa = (ph: N) => float(1).sub(smoothstep(0.6, 1.6, fwidth(ph)));
+  const dRip = vec3(WIND.x, 0, WIND.y).mul(sin(ripPh).mul(0.13).mul(aa(ripPh))).add(vec3(0.6, 0, -0.8).mul(sin(ripPh2).mul(0.06).mul(aa(ripPh2)))).mul(ripK);
   const dW = tmix(dFlat, dCliff, steep).add(dRip);
   m.normalNode = normalize(normalView.add(cameraViewMatrix.mul(vec4(dW, 0)).xyz));
 
@@ -469,6 +481,10 @@ export class Terrain {
   }
 
   private queue: { li: number; k: string }[] = [];
+  /** Tiles still to build (for the loading mark). */
+  get pending(): number {
+    return this.queue.length;
+  }
   private queued = new Set<string>();
 
   /** Queue building (or rebuilding) a tile; `last` moves it behind everything already waiting. */

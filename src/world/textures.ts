@@ -1,5 +1,7 @@
 /* Real surfaces: photo-scanned textures (CC0, Poly Haven; see CREDITS.md), each a colour map
-   and a normal map at 1024 px, shipped with the game (no network at runtime). */
+   and a normal map at 1024 px, shipped with the game (no network at runtime). The ground's four
+   (sand coast_sand_01, soil forrest_ground_01, rock aerial_rocks_02, cliff cliff_side) also
+   carry their occlusion and roughness (arm), as the temple's stone does. */
 import * as THREE from "three/webgpu";
 
 const loader = new THREE.TextureLoader();
@@ -18,7 +20,9 @@ function tex(path: string, colour: boolean): THREE.Texture {
 }
 
 export type SurfaceName = "sand" | "meadow" | "rock" | "bark" | "cliff";
-/** A surface's colour map and normal map. */
-export function surface(name: SurfaceName): { diff: THREE.Texture; nor: THREE.Texture } {
-  return { diff: tex(`textures/${name}_diff.jpg`, true), nor: tex(`textures/${name}_nor.jpg`, false) };
+/** A surface's colour map and normal map, and (the ground's scans, like the temple's) its packed
+    occlusion / roughness / metal map. */
+export function surface(name: SurfaceName): { diff: THREE.Texture; nor: THREE.Texture; arm: THREE.Texture } {
+  const arm = name === "bark" ? "textures/sand_arm.jpg" : `textures/${name}_arm.jpg`;
+  return { diff: tex(`textures/${name}_diff.jpg`, true), nor: tex(`textures/${name}_nor.jpg`, false), arm: tex(arm, false) };
 }

@@ -43,6 +43,8 @@ export class TranscriptPlayer {
   subtitlesOn = false;
 
   private media = new Audio();
+  /** A recording asked for and still arriving. */
+  buffering = false;
   private el = document.getElementById("tp") as HTMLDivElement;
   private titleEl = document.getElementById("tp-title") as HTMLParagraphElement;
   private captionEl = document.getElementById("tp-caption") as HTMLDivElement;
@@ -62,6 +64,9 @@ export class TranscriptPlayer {
     this.media.addEventListener("play", () => this.showPlaying(true));
     this.media.addEventListener("pause", () => this.showPlaying(false));
     this.media.addEventListener("ended", () => this.ended());
+    // waiting on the network (for the loading mark)
+    this.media.addEventListener("waiting", () => (this.buffering = true));
+    for (const ev of ["playing", "pause", "canplay", "error", "ended"]) this.media.addEventListener(ev, () => (this.buffering = false));
     this.media.addEventListener("loadedmetadata", () => this.timeCues());
     this.media.addEventListener("error", () => {
       if (this.current && this.media.error) this.titleEl.textContent = `${this.current.title} (the recording can't be played)`;
