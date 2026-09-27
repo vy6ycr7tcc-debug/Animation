@@ -6,7 +6,7 @@
    for a stroke (a burst that eases off; taps in rhythm keep the glide going); hold to rise; let
    go and you sink slowly toward the floor. No breath, no current, nothing to fear. */
 import * as THREE from "three/webgpu";
-import { colliders, heightAt, WATER_Y } from "../world/terrain";
+import { colliders, standAt as heightAt, WATER_Y } from "../world/terrain";
 import type { Pose } from "./wanderer";
 
 // A stroll, not a run. Swimming is buoyant and unhurried.

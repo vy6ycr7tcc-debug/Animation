@@ -164,12 +164,44 @@ export const LANDMARK_KINDS: SiteKind[] = WISHED_SITES.map((w) => w.kind);
 
 // each home's ground is levelled: dry homes a little above the water, deep ones on the floor,
 // and the island raised out of the lake
+/** The pyramid (world/pyramid.ts), after the Great Pyramid as Ra describes it: its proportions
+    (faces at 51.84°, an apex angle near 76° 18′, Ra 56.4), one side parallel to north (58.8,
+    north here is −z), on broad level ground 380–900 m from the shore, away from the homes. */
+export const PYRAMID = (() => {
+  const HALF = 55, HEIGHT = 70;
+  const GA = Math.PI * (3 - Math.sqrt(5));
+  let best: { x: number; z: number; h: number } | null = null, bestScore = Infinity;
+  for (let i = 0; i < 400; i++) {
+    const r = 380 + ((i * 0.618034) % 1) * 520, a = i * GA + 1.1;
+    const x = SPAWN.x + Math.cos(a) * r, z = SPAWN.z + Math.sin(a) * r;
+    const h = rawHeight(x, z);
+    if (h < 3 || h > 18) continue;
+    if (LANDMARK_SITES.some(([lx, lz]) => Math.hypot(x - lx, z - lz) < 170)) continue;
+    let dev = 0;
+    for (let k = 0; k < 12; k++) {
+      const b = (k / 12) * Math.PI * 2;
+      for (const rr of [40, 75]) dev = Math.max(dev, Math.abs(rawHeight(x + Math.cos(b) * rr, z + Math.sin(b) * rr) - h));
+    }
+    if (dev < bestScore) {
+      bestScore = dev;
+      best = { x, z, h };
+    }
+  }
+  const b = best ?? { x: 520, z: 260, h: 6 };
+  return { x: b.x, z: b.z, y: Math.max(2.5, b.h), half: HALF, height: HEIGHT };
+})();
+/** Places the growing things keep clear of (the pyramid's plaza). */
+export const KEEP_CLEAR: { x: number; z: number; r: number }[] = [{ x: PYRAMID.x, z: PYRAMID.z, r: PYRAMID.half * 1.5 }];
+export const keptClear = (x: number, z: number, pad = 0) => KEEP_CLEAR.some((k) => Math.hypot(x - k.x, z - k.z) < k.r + pad);
+
 const PADS = LANDMARK_SITES.map(([x, z], i) => {
   const kind = LANDMARK_KINDS[i], raw = rawHeight(x, z);
   const h = kind === "deep" ? raw : kind === "island" ? 1.6 : Math.max(1.2, raw);
   const [outer, inner] = kind === "island" ? [26, 12] : kind === "deep" ? [15, 9] : [11, 6.5];
   return { x, z, h, outer, inner };
 });
+// the pyramid's plaza, levelled
+PADS.push({ x: PYRAMID.x, z: PYRAMID.z, h: PYRAMID.y, outer: PYRAMID.half * 2.1, inner: PYRAMID.half * 1.45 });
 
 /** Ground height at (x, z). Below WATER_Y means water. */
 /** A place apart, beyond the world's edge (the temple): its own floor. */
@@ -184,6 +216,14 @@ export function heightAt(x: number, z: number): number {
     if (d < p.outer) h = mix(h, p.h, smooth(p.outer, p.inner, d));
   }
   return h;
+}
+
+/** Where the wanderer stands: the ground, or the pyramid's faces (you can climb to its apex). */
+export function standAt(x: number, z: number): number {
+  const h = heightAt(x, z);
+  if (x > 20000) return h;
+  const m = Math.max(Math.abs(x - PYRAMID.x), Math.abs(z - PYRAMID.z));
+  return m < PYRAMID.half ? Math.max(h, PYRAMID.y + PYRAMID.height * (1 - m / PYRAMID.half)) : h;
 }
 
 /** Caves in the steep hillsides (Samuel: "caves"): where the ground climbs sharply, away from

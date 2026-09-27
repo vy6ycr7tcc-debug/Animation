@@ -23,7 +23,7 @@ import { GROVE_SITES } from "./sites";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { floatAttributes, loadBytes } from "../core/assets";
-import { CAVE_SITES, colliders, fbm, groundKind, heightAt, LANDMARK_SITES, SPAWN, smooth, WATER_Y, type Collider } from "./terrain";
+import { CAVE_SITES, colliders, fbm, keptClear, groundKind, heightAt, LANDMARK_SITES, SPAWN, smooth, WATER_Y, type Collider } from "./terrain";
 
 /** Shared by every shader here; main.ts copies the scene's fog in. */
 export const creationUniforms = {
@@ -77,6 +77,7 @@ function clearOf(x: number, z: number, spawnR: number, padR: number): boolean {
   for (const [lx, lz] of LANDMARK_SITES) if (Math.hypot(x - lx, z - lz) < padR) return false;
   for (const g of GROVE_SITES) if (Math.hypot(x - g.x, z - g.z) < padR + 6) return false;
   for (const c of CAVE_SITES) if (Math.hypot(x - c.x, z - c.z) < 12) return false;
+  if (keptClear(x, z, 6)) return false;
   return true;
 }
 

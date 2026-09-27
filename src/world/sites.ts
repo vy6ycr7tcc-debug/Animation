@@ -12,7 +12,7 @@
    - Each grove stands where its `suggested_biome` fits (meadow, water, hills, sand, forest,
      "near the starting shore", ...), well apart from the others, the landmarks and the shore. */
 import data from "../../content/transcript_orbs.json";
-import { CAVE_SITES, fbm, groundKind, heightAt, LANDMARK_SITES, SPAWN, WATER_Y, WORLD_R } from "./terrain";
+import { CAVE_SITES, keptClear, fbm, groundKind, heightAt, LANDMARK_SITES, SPAWN, WATER_Y, WORLD_R } from "./terrain";
 
 export interface Source {
   entity: string;
@@ -63,6 +63,7 @@ function awayFromLandmarks(x: number, z: number, r: number): boolean {
   if (Math.hypot(x - SPAWN.x, z - SPAWN.z) < 35) return false;
   for (const [lx, lz] of LANDMARK_SITES) if (Math.hypot(x - lx, z - lz) < r) return false;
   for (const c of CAVE_SITES) if (Math.hypot(x - c.x, z - c.z) < 40) return false;
+  if (keptClear(x, z, 30)) return false;
   return true;
 }
 
