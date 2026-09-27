@@ -287,13 +287,28 @@ export class AudioEngine {
       return null;
     }
   }
-  playClip(buf: AudioBuffer, gain = 1): void {
-    if (!this.ctx) return;
-    const s = this.ctx.createBufferSource(), g = this.ctx.createGain();
+  /** Play a clip on the voice bus; `stop` fades it out. */
+  playClip(buf: AudioBuffer, gain = 1): { stop(fade?: number): void } | null {
+    const ctx = this.ctx;
+    if (!ctx) return null;
+    const s = ctx.createBufferSource(), g = ctx.createGain();
     s.buffer = buf;
     g.gain.value = gain;
     s.connect(g).connect(this.voice);
     s.start();
+    return {
+      stop: (fade = 1) => {
+        const t = ctx.currentTime;
+        g.gain.cancelScheduledValues(t);
+        g.gain.setValueAtTime(g.gain.value, t);
+        g.gain.linearRampToValueAtTime(0, t + fade);
+        try {
+          s.stop(t + fade + 0.05);
+        } catch {
+          /* already ended */
+        }
+      },
+    };
   }
 
   /* ---------- the temple's own ambience (Samuel: "focus on the ambient sound of a temple") ----------
