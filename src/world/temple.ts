@@ -19,7 +19,7 @@ import { Beings, type BeingModel } from "./beings";
 import type { Sparks } from "./life";
 import type { Station } from "./stations";
 import { surface } from "./textures";
-import { colliders, heightAt, LANDMARK_SITES, SPAWN, WATER_Y, type Collider } from "./terrain";
+import { colliders, heightAt, keptClear, LANDMARK_SITES, SPAWN, WATER_Y, type Collider } from "./terrain";
 import { T, vnoise, worldPoints, type N } from "../gpu/tsl";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
@@ -1016,7 +1016,7 @@ export class Temple {
         let rough = 0;
         for (const [dx, dz] of [[8, 0], [-8, 0], [0, 8], [0, -8], [8, 8], [-8, -8]]) rough = Math.max(rough, Math.abs(heightAt(x + dx, z + dz) - h));
         const clear = Math.min(...LANDMARK_SITES.map(([lx, lz]) => Math.hypot(lx - x, lz - z)));
-        if (clear < 30) continue;
+        if (clear < 30 || keptClear(x, z, 25)) continue;
         const score = -rough * 3 - r * 0.03;
         if (score > best.score) best = { x, z, score };
       }
