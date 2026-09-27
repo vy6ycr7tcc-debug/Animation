@@ -46,6 +46,7 @@ import { Touch } from "./world/touch";
 import { Depths, RUIN_NAMES, RUIN_SITES } from "./world/depths";
 import { Pyramid } from "./world/pyramid";
 import { Monument } from "./world/monument";
+import { Vision } from "./world/vision";
 import { cloudUniforms } from "./world/atmosphere";
 import { NO_MIRROR_LAYER, Water } from "./world/water";
 import { FOG } from "./world/fog";
@@ -1244,6 +1245,9 @@ scene.add(pyramid.world, pyramid.inside);
 // the monument to the One Infinite Creator (world/monument.ts), in the middle of things
 const monument = new Monument();
 scene.add(monument.group);
+// and above it, the vision: creation as one flowing body of light (world/vision.ts)
+const vision = new Vision(monument.centre.clone().setY(monument.centre.y + 12.2), MOBILE ? 11000 : 16000);
+scene.add(vision.group);
 let toldMonument = false, lastStage = -2;
 const sevenGroup = new THREE.Group();
 sevenGroup.add(...pyramid.seven);
@@ -2019,6 +2023,7 @@ function update(dt: number): void {
   busyFrame();
   if (!apart()) {
     monument.update(dt, player.pos, S.reduced);
+    vision.update(monument.t, dt, player.pos.distanceTo(monument.centre) < 420, S.reduced);
     const md = player.pos.distanceTo(monument.centre);
     if (S.mode === "play" && md < 45 && !toldMonument) {
       toldMonument = true;
@@ -2199,4 +2204,4 @@ function finishOpening(): void {
   window.setTimeout(() => el.remove(), 4200);
 }
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, monument } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, monument, vision } });
