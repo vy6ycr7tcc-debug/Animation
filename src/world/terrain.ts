@@ -190,8 +190,36 @@ export const PYRAMID = (() => {
   const b = best ?? { x: 520, z: 260, h: 6 };
   return { x: b.x, z: b.z, y: Math.max(2.5, b.h), half: HALF, height: HEIGHT };
 })();
-/** Places the growing things keep clear of (the pyramid's plaza). */
-export const KEEP_CLEAR: { x: number; z: number; r: number }[] = [{ x: PYRAMID.x, z: PYRAMID.z, r: PYRAMID.half * 1.5 }];
+/** The monument to the One Infinite Creator (world/monument.ts): near the shore, in the middle
+    of things, on dry level ground you see soon after waking. */
+export const MONUMENT = (() => {
+  let best = { x: SPAWN.x + 70, z: SPAWN.z - 40, h: 3 }, bestScore = -Infinity;
+  for (let r = 55; r <= 150; r += 8)
+    for (let k = 0; k < 36; k++) {
+      const a = (k / 36) * Math.PI * 2, x = SPAWN.x + Math.sin(a) * r, z = SPAWN.z + Math.cos(a) * r;
+      const h = rawHeight(x, z);
+      if (h < 1.6 || h > 14) continue;
+      if (LANDMARK_SITES.some(([lx, lz]) => Math.hypot(x - lx, z - lz) < 45)) continue;
+      if (Math.hypot(x - PYRAMID.x, z - PYRAMID.z) < PYRAMID.half * 2.5) continue;
+      let rough = 0;
+      for (let j = 0; j < 8; j++) {
+        const b = (j / 8) * Math.PI * 2;
+        rough = Math.max(rough, Math.abs(rawHeight(x + Math.cos(b) * 14, z + Math.sin(b) * 14) - h));
+      }
+      const score = -rough * 3 - r * 0.02;
+      if (score > bestScore) {
+        bestScore = score;
+        best = { x, z, h };
+      }
+    }
+  return { x: best.x, z: best.z, y: Math.max(1.8, best.h), r: 12 };
+})();
+
+/** Places the growing things keep clear of (the pyramid's plaza, the monument's ground). */
+export const KEEP_CLEAR: { x: number; z: number; r: number }[] = [
+  { x: PYRAMID.x, z: PYRAMID.z, r: PYRAMID.half * 1.5 },
+  { x: MONUMENT.x, z: MONUMENT.z, r: MONUMENT.r + 4 },
+];
 export const keptClear = (x: number, z: number, pad = 0) => KEEP_CLEAR.some((k) => Math.hypot(x - k.x, z - k.z) < k.r + pad);
 
 const PADS = LANDMARK_SITES.map(([x, z], i) => {
@@ -202,6 +230,7 @@ const PADS = LANDMARK_SITES.map(([x, z], i) => {
 });
 // the pyramid's plaza, levelled
 PADS.push({ x: PYRAMID.x, z: PYRAMID.z, h: PYRAMID.y, outer: PYRAMID.half * 2.1, inner: PYRAMID.half * 1.45 });
+PADS.push({ x: MONUMENT.x, z: MONUMENT.z, h: MONUMENT.y, outer: MONUMENT.r * 2.2, inner: MONUMENT.r * 1.3 });
 
 /** Ground height at (x, z). Below WATER_Y means water. */
 /** A place apart, beyond the world's edge (the temple): its own floor. */
