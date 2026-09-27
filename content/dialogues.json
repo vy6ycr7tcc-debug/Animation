@@ -1,10 +1,13 @@
 {
  "note": [
   "What you can say when you sit with an archetype, and what it answers.",
-  "prompts: the three questions offered at every archetype. An archetype can have its own list: add \"prompts\": [...] inside its entry under answers.",
-  "spectrum: 'How is your heart right now?' — one draggable gradient from shadow to light with five anchors. Releasing the drag plays the nearest anchor's answer.",
-  "answers: for each archetype (by numeral) and each prompt or anchor id: the recording's file (under public/) and its transcript. Subtitles are timed to the recording by sentence; add \"cues\": [{\"t\": seconds, \"text\": \"...\"}] for exact timing.",
-  "The question recordings come from Samuel's archetype-qa-audio package (Q1 who, Q2 teaching, Q3 practice). The five heart-spectrum anchors are still to be recorded: until then they show a placeholder line."
+  "prompts: who/teach/life are questions; lost/afraid/still/bright/radiant are the heart-spectrum feelings ('How is your heart right now?').",
+  "answers: for each archetype (by numeral) and each prompt id: the recording's file, its exact transcript, and its source record.",
+  "source.kind: 'quote' = verbatim channeled words (overlay: 'Quoting X'); 'paraphrase' = writer's words after a channeled passage (overlay: 'After X'); 'synthesis' = original dramatic interpretation (overlay shows no entity/date).",
+  "source.entity/date/session_label always describe the ORIGINAL channeling — never a later re-quoting. 'via' notes where the writer found the words.",
+  "See scripts/ATTRIBUTION_OVERLAY_PROMPT.md for the overlay spec, and scripts/DIALOGUE_SOURCES.json for the full audit map.",
+  "An answer with no recording shows its transcript as subtitles; with no transcript either, a placeholder line.",
+  "2026-09-27 quote audit: all 9 clips formerly labeled 'quote' reclassified (6 -> paraphrase: original monologues containing short verified verbatim Ra phrases; 3 -> synthesis: fully original writing with no verbatim content). One one-word misquote corrected (XXII/radiant now matches Session 77's closing exactly). No remaining clip is presented as fully verbatim channeled words."
  ],
  "prompts": [
   {
@@ -21,23 +24,33 @@
    "id": "life",
    "kind": "question",
    "label": "Where do I meet you in my life?"
+  },
+  {
+   "id": "lost",
+   "kind": "feeling",
+   "label": "I feel lost."
+  },
+  {
+   "id": "afraid",
+   "kind": "feeling",
+   "label": "I feel afraid."
+  },
+  {
+   "id": "still",
+   "kind": "feeling",
+   "label": "still"
+  },
+  {
+   "id": "bright",
+   "kind": "feeling",
+   "label": "bright"
+  },
+  {
+   "id": "radiant",
+   "kind": "feeling",
+   "label": "radiant"
   }
  ],
- "spectrum": {
-  "id": "heart",
-  "label": "How is your heart right now?",
-  "ends": [
-   "shadow",
-   "light"
-  ],
-  "anchors": [
-   "lost",
-   "afraid",
-   "still",
-   "bright",
-   "radiant"
-  ]
- },
  "names": {
   "I": "The Magician",
   "II": "The High Priestess",
@@ -49,16 +62,16 @@
   "VIII": "Strength",
   "IX": "The Hermit",
   "X": "The Wheel of Fortune",
-  "XI": "Justice, the Enchantress",
+  "XI": "Justice",
   "XII": "The Hanged Man",
   "XIII": "Death",
-  "XIV": "Temperance, the Alchemist",
+  "XIV": "Temperance",
   "XV": "The Devil",
-  "XVI": "The Lightning-Struck Tower",
-  "XVII": "The Star, called Faith",
+  "XVI": "The Tower",
+  "XVII": "The Star",
   "XVIII": "The Moon",
   "XIX": "The Sun",
-  "XX": "Judgement, the Sarcophagus",
+  "XX": "Judgement",
   "XXI": "The World",
   "XXII": "The Fool"
  },
@@ -68,7 +81,7 @@
     "file": "audio/answers/I/who.mp3",
     "transcript": "I am the Magician. I am consciousness itself, before anything has happened to it — the aware self, the watcher at the beginning of the journey. I am, as Ra says, 'full of the magic of that which is to come.' Nothing has been made yet. Everything is possible. It begins with attention.",
     "source": {
-     "kind": "quote",
+     "kind": "paraphrase",
      "entity": "Ra",
      "session_label": "Ra Contact, Session 78",
      "date": "February 19, 1982",
@@ -79,7 +92,7 @@
        "date": "February 19, 1982",
        "session_label": "Ra Contact, Session 78",
        "archive_ref": "archive:352201",
-       "kind": "quote"
+       "kind": "paraphrase"
       }
      ]
     }
@@ -231,7 +244,7 @@
     "file": "audio/answers/II/who.mp3",
     "transcript": "I am the High Priestess. I am the unconscious — what Ra calls 'a vast realm of potential in the mind.' I am veiled, and the veil is part of the teaching. What you seek is seeking you. Be still enough to be found.",
     "source": {
-     "kind": "quote",
+     "kind": "paraphrase",
      "entity": "Ra",
      "session_label": "Ra Contact, Session 78",
      "date": "February 19, 1982",
@@ -242,7 +255,7 @@
        "date": "February 19, 1982",
        "session_label": "Ra Contact, Session 78",
        "archive_ref": "archive:351989",
-       "kind": "quote"
+       "kind": "paraphrase"
       }
      ]
     }
@@ -251,7 +264,7 @@
     "file": "audio/answers/II/teach.mp3",
     "transcript": "I teach the depths. The most important part of you is the part you cannot see — what Ra calls 'a vast realm of potential in the mind.' I teach that mystery is not a problem to be solved but a depth to be entered. Sit still. Wait. What you seek is seeking you, and it arrives only in silence.",
     "source": {
-     "kind": "quote",
+     "kind": "paraphrase",
      "entity": "Ra",
      "session_label": "Ra Contact, Session 78",
      "date": "February 19, 1982",
@@ -262,7 +275,7 @@
        "date": "February 19, 1982",
        "session_label": "Ra Contact, Session 78",
        "archive_ref": "archive:351989",
-       "kind": "quote"
+       "kind": "paraphrase"
       }
      ]
     }
@@ -2256,7 +2269,7 @@
     "file": "audio/answers/XIV/teach.mp3",
     "transcript": "I teach the Great Way of the Body — and I will give you Ra's precise point, not the common blur: I am the mirror image of the mind's activity. The body is the creature of the mind, the instrument through which the fruits of mind and spirit are made manifest. What the mind reaches for, I carry into the world. So tend the mind — and watch how faithfully the body follows. The pouring in my card is only the picture of that service.",
     "source": {
-     "kind": "quote",
+     "kind": "paraphrase",
      "entity": "Ra",
      "session_label": "Ra Contact, Session 81",
      "date": "March 22, 1982",
@@ -2267,7 +2280,7 @@
        "date": "March 22, 1982",
        "session_label": "Ra Contact, Session 81",
        "archive_ref": "archive:353519",
-       "kind": "quote"
+       "kind": "paraphrase"
       }
      ]
     }
@@ -3074,18 +3087,18 @@
     "file": "audio/answers/XIX/teach.mp3",
     "transcript": "I teach joy — not joy earned, not joy explained: joy without reason, without achievement, without permission. After the Moon's illusions, I am the correction: the truth was never hidden. It was shining the whole time. You are the sun's idea of itself, walking around in a garden.",
     "source": {
-     "kind": "quote",
-     "entity": "Ra",
-     "session_label": "Ra Contact, Sessions 78–79",
-     "date": "February 19, 1982 – February 24, 1982",
+     "kind": "synthesis",
+     "entity": null,
+     "session_label": null,
+     "date": null,
      "via": null,
      "all_sources": [
       {
-       "entity": "Ra",
-       "date": "February 19, 1982 – February 24, 1982",
-       "session_label": "Ra Contact, Sessions 78–79",
+       "entity": null,
+       "date": null,
+       "session_label": null,
        "archive_ref": null,
-       "kind": "quote"
+       "kind": "synthesis"
       }
      ]
     }
@@ -3407,26 +3420,26 @@
     "file": "audio/answers/XXI/teach.mp3",
     "transcript": "I teach completion: that the end of the journey discovers it was the journey. Every island, every storm, every stillness — gathered into a single dance. The Magician's attention and the Sun's joy are the same light. It was all one road. It was all you.",
     "source": {
-     "kind": "quote",
-     "entity": "Ra",
-     "session_label": "Ra Contact, Session 52",
-     "date": "May 19, 1981",
-     "via": "quoted by Q'uo, Saturday meditation, March 4, 2017",
+     "kind": "synthesis",
+     "entity": null,
+     "session_label": null,
+     "date": null,
+     "via": null,
      "all_sources": [
       {
-       "entity": "Ra",
-       "date": "May 19, 1981",
-       "session_label": "Ra Contact, Session 52",
-       "archive_ref": "archive:269417",
-       "kind": "quote",
-       "via": "quoted by Q'uo, Saturday meditation, March 4, 2017"
+       "entity": null,
+       "date": null,
+       "session_label": null,
+       "archive_ref": null,
+       "kind": "synthesis",
+       "via": null
       },
       {
-       "entity": "Ra",
-       "date": "February 19, 1982 – February 24, 1982",
-       "session_label": "Ra Contact, Sessions 78–79",
+       "entity": null,
+       "date": null,
+       "session_label": null,
        "archive_ref": null,
-       "kind": "quote"
+       "kind": "synthesis"
       }
      ]
     }
@@ -3536,19 +3549,19 @@
     "file": "audio/answers/XXI/radiant.mp3",
     "transcript": "Radiant — the dance at full glory, the wreath blazing, every island and storm and stillness woven into joy! This is the end that discovers it was the journey: the Magician's attention and the Sun's gladness, one light. Dance, then — there is nothing left to learn here except celebration. And when the music ends, begin again. The circle has no end.",
     "source": {
-     "kind": "quote",
-     "entity": "Ra",
-     "session_label": "Ra Contact, Session 52",
-     "date": "May 19, 1981",
-     "via": "quoted by Q'uo, Saturday meditation, March 4, 2017",
+     "kind": "synthesis",
+     "entity": null,
+     "session_label": null,
+     "date": null,
+     "via": null,
      "all_sources": [
       {
-       "entity": "Ra",
-       "date": "May 19, 1981",
-       "session_label": "Ra Contact, Session 52",
-       "archive_ref": "archive:269417",
-       "kind": "quote",
-       "via": "quoted by Q'uo, Saturday meditation, March 4, 2017"
+       "entity": null,
+       "date": null,
+       "session_label": null,
+       "archive_ref": null,
+       "kind": "synthesis",
+       "via": null
       }
      ]
     }
@@ -3639,7 +3652,7 @@
     "file": "audio/answers/XXII/afraid.mp3",
     "transcript": "Everyone thinks I am mad, stepping off cliffs. Everyone is wrong — the air holds. Your fear is the mind's last argument before the leap, and it is always eloquent and always mistaken. Do not look down. Look out, at the sunrise. Step off. And hear the words for the road: 'Go forth, therefore, rejoicing in the power and the peace of the One Infinite Creator.'",
     "source": {
-     "kind": "quote",
+     "kind": "paraphrase",
      "entity": "Ra",
      "session_label": "Ra Contact, Session 29",
      "date": "February 23, 1981",
@@ -3650,7 +3663,7 @@
        "date": "February 23, 1981",
        "session_label": "Ra Contact, Session 29",
        "archive_ref": "archive:338121",
-       "kind": "quote"
+       "kind": "paraphrase"
       }
      ]
     }
@@ -3697,9 +3710,9 @@
    },
    "radiant": {
     "file": "audio/answers/XXII/radiant.mp3",
-    "transcript": "Radiant — mid-leap, arms wide, the sunrise everywhere! This is the happiest moment in all the twenty-two: trust, total and vindicated, the air holding as promised. Laugh on the way down — there is no down, only forward into light. And carry these words with you always: 'Go forth, therefore, rejoicing in the power and the peace of the One Infinite Creator.'",
+    "transcript": "Radiant — mid-leap, arms wide, the sunrise everywhere! This is the happiest moment in all the twenty-two: trust, total and vindicated, the air holding as promised. Laugh on the way down — there is no down, only forward into light. And carry these words with you always: 'Go forth, therefore, rejoicing in the power and in the peace of the One Infinite Creator.'",
     "source": {
-     "kind": "quote",
+     "kind": "paraphrase",
      "entity": "Ra",
      "session_label": "Ra Contact, Session 77",
      "date": "February 10, 1982",
@@ -3710,14 +3723,14 @@
        "date": "February 10, 1982",
        "session_label": "Ra Contact, Session 77",
        "archive_ref": "archive:351708",
-       "kind": "quote"
+       "kind": "paraphrase"
       },
       {
        "entity": "Ra",
        "date": "February 23, 1981",
        "session_label": "Ra Contact, Session 29",
        "archive_ref": "archive:338121",
-       "kind": "quote"
+       "kind": "paraphrase"
       }
      ]
     }
