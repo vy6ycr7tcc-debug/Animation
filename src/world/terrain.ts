@@ -190,8 +190,8 @@ export const PYRAMID = (() => {
   const b = best ?? { x: 520, z: 260, h: 6 };
   return { x: b.x, z: b.z, y: Math.max(2.5, b.h), half: HALF, height: HEIGHT };
 })();
-/** The monument to the One Infinite Creator (world/monument.ts): near the shore, in the middle
-    of things, on dry level ground you see soon after waking. */
+/** Where the vision of creation stands (world/vision.ts): near the shore, in the middle of
+    things, on dry level ground you see soon after waking. */
 export const MONUMENT = (() => {
   let best = { x: SPAWN.x + 70, z: SPAWN.z - 40, h: 3 }, bestScore = -Infinity;
   for (let r = 55; r <= 150; r += 8)
@@ -215,7 +215,7 @@ export const MONUMENT = (() => {
   return { x: best.x, z: best.z, y: Math.max(1.8, best.h), r: 12 };
 })();
 
-/** Places the growing things keep clear of (the pyramid's plaza, the monument's ground). */
+/** Places the growing things keep clear of (the pyramid's plaza, the vision's ground). */
 export const KEEP_CLEAR: { x: number; z: number; r: number }[] = [
   { x: PYRAMID.x, z: PYRAMID.z, r: PYRAMID.half * 1.5 },
   { x: MONUMENT.x, z: MONUMENT.z, r: MONUMENT.r + 4 },

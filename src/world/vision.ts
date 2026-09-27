@@ -4,9 +4,8 @@
    finding its own way (a turning vortex between forms, the far ones last):
      atom → stone → crystal → molecule → plant → animal → primate → human →
      the social memory complex (six in a ring) → unity (a sphere) → one point → the burst → atom.
-   It hangs above the monument's golden sphere, as if unity were dreaming it, and keeps the
-   monument's own clock. Hologram in feel (points of light, a flicker, a slow scan of brightness
-   rising through it, a faint beam from the sphere) but contained: no spreading glow. */
+   It stands on the ground near the shore, in its own loop of 100 s. Hologram in feel (points of
+   light, a flicker, a slow scan of brightness rising through it) but contained: no spreading glow. */
 import * as THREE from "three/webgpu";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
@@ -193,7 +192,9 @@ export class Vision {
   private seed: Float32Array;
   private uScan = T.uniform(0);
   private uT = T.uniform(0);
-  private beam: THREE.Mesh;
+  private t = 0;
+  /** The form just gathering (for its name), −1 while none is. */
+  phase = -1;
 
   constructor(at: THREE.Vector3, n = 14000) {
     this.n = n;
@@ -238,18 +239,6 @@ export class Vision {
     }
     this.cloud.sprite.frustumCulled = false;
     this.group.add(this.cloud.sprite);
-    // the beam from the sphere below: a faint, narrow cone of light, rising
-    const bm = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
-    {
-      const { uv, smoothstep, vec3, vec4, sin } = T;
-      const u = uv();
-      const edge = smoothstep(0, 0.5, u.x).mul(smoothstep(1, 0.5, u.x));
-      const rise = sin(u.y.mul(18).sub(this.uT.mul(2))).mul(0.3).add(0.7);
-      bm.colorNode = vec4(vec3(1.0, 0.85, 0.55).mul(edge.mul(edge).mul(rise).mul(T.float(1).sub(u.y)).mul(0.07)), 1);
-    }
-    this.beam = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 0.25, 3.2, 24, 1, true), bm);
-    this.beam.position.y = -1.6;
-    this.group.add(this.beam);
     void this.loadLiving();
   }
 
@@ -323,10 +312,16 @@ export class Vision {
     this.shapes.set("many", many);
   }
 
-  /** Each frame near it: `t` the monument's clock (0–100 s). */
-  update(t: number, dt: number, near: boolean, reduced: boolean): void {
+  stageName(i: number): string {
+    return ["The atom", "The stone", "The crystal", "The molecule", "The plant", "The animal", "The primate", "The human", "The social memory complex", "Unity", "The one point"][i] ?? "";
+  }
+
+  /** Each frame near it: its own loop of 100 s. */
+  update(dt: number, near: boolean, reduced: boolean): void {
     this.group.visible = near;
     if (!near) return;
+    this.t = (this.t + dt * (reduced ? 0.6 : 1)) % 100;
+    const t = this.t;
     this.uT.value += dt;
     this.group.rotation.y += dt * (reduced ? 0.05 : 0.12);
     this.uScan.value = ((this.uT.value * 0.9) % (H + 3)) - 1.5;
@@ -338,6 +333,7 @@ export class Vision {
     const into = KEYS[next], from = KEYS[k];
     const p0 = (t - (tNext - into.dur)) / into.dur;
     let A = this.shapes.get(from.s)!, B = this.shapes.get(into.s)!, p = p0;
+    this.phase = p0 >= 0 && p0 < 0.25 ? STAGES.indexOf(into.s) : -1;
     if (p0 < 0) {
       // holding the present form
       B = A;
