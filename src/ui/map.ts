@@ -10,7 +10,7 @@
      home is in the deep: you wake on the water above it. */
 import { heightAt, WATER_Y } from "../world/terrain";
 
-export type Group = "Shore" | "Mind" | "Body" | "Spirit" | "Choice";
+export type Group = "Shore" | "Mind" | "Body" | "Spirit" | "Choice" | "Deep";
 export interface Place {
   numeral: string; // "" for the shore
   label: string;
@@ -35,6 +35,7 @@ const GROUPS: { g: Group; title: string }[] = [
   { g: "Body", title: "The Body" },
   { g: "Spirit", title: "The Spirit" },
   { g: "Choice", title: "The Choice" },
+  { g: "Deep", title: "Beneath the water" },
 ];
 const INK: Record<Group, string> = {
   Shore: "rgba(244,239,230,0.95)",
@@ -42,6 +43,7 @@ const INK: Record<Group, string> = {
   Body: "rgba(240,196,130,0.95)",
   Spirit: "rgba(206,170,255,0.95)",
   Choice: "rgba(255,246,228,0.98)",
+  Deep: "rgba(150,225,215,0.95)",
 };
 const SERIF = '"Iowan Old Style", Palatino, Georgia, serif';
 
@@ -389,6 +391,17 @@ export class StartMap {
         if (k) g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
         else g.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
       }
+    } else if (group === "Deep") {
+      // a ruined arch: two piers and the round head between them
+      g.moveTo(x - r, y + r);
+      g.lineTo(x - r, y - r * 0.1);
+      g.arc(x, y - r * 0.1, r, Math.PI, 0);
+      g.lineTo(x + r, y + r);
+      g.lineTo(x + r * 0.45, y + r);
+      g.lineTo(x + r * 0.45, y - r * 0.1);
+      g.arc(x, y - r * 0.1, r * 0.45, 0, Math.PI, true);
+      g.lineTo(x - r * 0.45, y + r);
+      g.closePath();
     } else g.arc(x, y, r, 0, Math.PI * 2);
   }
 

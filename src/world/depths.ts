@@ -40,6 +40,15 @@ export interface MouthSite { x: number; z: number; y: number; face: number }
 
 const deepHomes = LANDMARK_SITES.filter((_, i) => LANDMARK_KINDS[i] === "deep" || LANDMARK_KINDS[i] === "island");
 
+/** Their names on the map. */
+export const RUIN_NAMES: Record<RuinKind, string> = {
+  rotunda: "The drowned rotunda",
+  tower: "The leaning tower",
+  arcade: "The arcade by the sunken pool",
+  terraces: "The stepped temple",
+  portals: "The cloister of arches",
+};
+
 /** How tall each kind stands (metres), to keep it under the surface. */
 const RUIN_HEIGHT: Record<RuinKind, number> = { tower: 20, rotunda: 17, terraces: 12.5, arcade: 9, portals: 8.5 };
 
@@ -165,7 +174,7 @@ class Ring {
     base buried in the floor's sand. A little of its own colour is lifted as light (the moonlight
     scattered in the water), so the forms still read through the murk, but nothing glows. */
 function ruinStone(set: ScanName, _inlay: "bands" | "grid" | "none", uT: N, painted = false, tint: [number, number, number] = [1, 1, 1]): THREE.MeshStandardNodeMaterial {
-  void _inlay, uT;
+  void _inlay;
   const m = new THREE.MeshStandardNodeMaterial({ metalness: 0, roughness: 0.9, side: THREE.DoubleSide });
   if (painted) m.vertexColors = true;
   const S = scan(set);
@@ -189,14 +198,38 @@ function ruinStone(set: ScanName, _inlay: "bands" | "grid" | "none", uT: N, pain
   c = T.mix(c, sand, silt.mul(0.75));
   c = T.mix(c, vec3(0.16, 0.26, 0.14).mul(nz(pw.mul(6)).mul(0.5).add(0.6)), growth);
   c = c.mul(float(1).sub(stain));
-  m.colorNode = vec4(c.mul(1.1), 1);
   m.roughnessNode = T.clamp(arm.g, 0.55, 1);
   // its relief, from the scan's normal map, oriented per side (as the cliffs outside)
   const nm = (t: THREE.Texture) => [T.texture(t, pw.zy.div(tile)), T.texture(t, pw.xz.div(tile)), T.texture(t, pw.xy.div(tile))].map((x: N) => x.xy.mul(2).sub(1));
   const [nx, ny, nzz] = nm(S.nor);
   const dn = vec3(0, nx.y, nx.x).mul(w.x).add(vec3(ny.x, 0, ny.y).mul(w.y)).add(vec3(nzz.x, nzz.y, 0).mul(w.z)).mul(float(1).sub(silt.mul(0.7)));
+  // Carved friezes (after the Zeffo tombs of Jedi: Fallen Order, which Samuel pointed to):
+  // on the upright faces, bands of deep-cut geometric glyphs every few metres (circles, chevrons,
+  // stepped spirals, cells of a script), their cuts shadowed, and in the deepest a faint cold
+  // light, as if the stone remembered what it was for. Faint; never a line of neon.
+  const side = float(1).sub(up);
+  const along = pw.x.mul(w.z).add(pw.z.mul(w.x)); // along the face
+  const bandY = pw.y.div(3.4).add(0.3);
+  const inBand = smoothstep(0.03, 0.06, fract(bandY)).mul(smoothstep(0.33, 0.3, fract(bandY)));
+  const cellU = along.div(0.36), cellV = fract(bandY).div(0.32);
+  const cell = T.floor(cellU);
+  const q = vec2(fract(cellU).sub(0.5), cellV.sub(0.5).mul(1.6));
+  const kind = fract(sin(cell.mul(12.9898).add(T.floor(bandY).mul(78.233))).mul(43758.5453));
+  const rr = length(q);
+  const ring = abs(rr.sub(0.28)).sub(0.03);
+  const chevron = abs(abs(q.x).sub(q.y.mul(0.8)).sub(0.05)).sub(0.03);
+  const bar = abs(q.y).sub(0.06).max(abs(q.x).sub(0.34));
+  const dotC = rr.sub(0.1);
+  const glyph = kind.lessThan(0.3).select(ring, kind.lessThan(0.55).select(chevron, kind.lessThan(0.8).select(bar.min(dotC), ring.min(bar))));
+  // some cells carved, some worn away to blank stone
+  const cut = smoothstep(0.015, -0.01, glyph).mul(inBand).mul(side).mul(T.step(0.3, fract(kind.mul(7.1))));
+  // the band's ruled edges
+  const rule = smoothstep(0.012, 0.0, abs(fract(bandY).sub(0.02))).add(smoothstep(0.012, 0.0, abs(fract(bandY).sub(0.34)))).mul(side);
+  const cutK = cut.max(rule.mul(0.8)).mul(float(1).sub(silt));
+  m.colorNode = vec4(c.mul(1.1).mul(float(1).sub(cutK.mul(0.38))), 1);
   m.normalNode = T.normalize(T.normalView.add(T.cameraViewMatrix.mul(vec4(dn.mul(1.6), 0)).xyz));
-  m.emissiveNode = c.mul(0.14);
+  const remember = sin(uT.mul(0.35).add(pw.x.mul(0.07)).add(pw.z.mul(0.05))).mul(0.5).add(0.5);
+  m.emissiveNode = c.mul(0.14).add(vec3(0.45, 0.8, 0.9).mul(cut.mul(float(1).sub(silt)).mul(remember.mul(0.05).add(0.012))));
   return m;
 }
 
@@ -468,9 +501,33 @@ function buildMouth(site: MouthSite, stone: THREE.Material): { group: THREE.Grou
   const y = Math.max(heightAt(site.x, site.z), heightAt(site.x - Math.cos(site.face) * 1.5, site.z - Math.sin(site.face) * 1.5));
   g.position.set(site.x, y - 0.35, site.z);
   g.rotation.y = -site.face + Math.PI / 2; // local +z points out of the mouth
-  const arch = new THREE.Mesh(new THREE.TorusGeometry(3.6, 1.35, 10, 28, Math.PI), stone);
-  arch.position.y = 0;
-  g.add(arch);
+  // A Zeffo vault's door (after Jedi: Fallen Order): a frame of three great blocks, and in it a
+  // round door of stone carved in rings, rolled half aside into the hill, so light spills out
+  // through the gap. The way in is through that gap.
+  const blk = (w: number, h: number, d: number, x: number, y0: number, z: number) => {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), stone);
+    b.position.set(x, y0 + h / 2, z);
+    g.add(b);
+  };
+  blk(2.2, 8.6, 2.6, -4.6, -1.2, -0.6); // the jambs
+  blk(2.2, 8.6, 2.6, 4.6, -1.2, -0.6);
+  blk(11.6, 2.0, 3.0, 0, 7.2, -0.6); // the lintel
+  blk(7.2, 0.6, 3.0, 0, -0.9, -0.6); // the threshold
+  // the round door: a thick disc carved in rings on its face, rolled to one side
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 3.5, 1.0, 48), stone);
+  disc.rotation.x = Math.PI / 2;
+  disc.position.set(3.4, 3.1, -1.2);
+  g.add(disc);
+  for (const [r0, r1] of [[3.0, 3.25], [2.1, 2.3], [1.1, 1.3]] as const) {
+    const ring = new THREE.Mesh(new THREE.RingGeometry(r0, r1, 48), stone);
+    ring.position.set(3.4, 3.1, -0.69);
+    g.add(ring);
+  }
+  // the glyph at its centre: a small round boss
+  const boss = new THREE.Mesh(new THREE.SphereGeometry(0.55, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), stone);
+  boss.rotation.x = Math.PI / 2;
+  boss.position.set(3.4, 3.1, -0.7);
+  g.add(boss);
   // the hollow behind: a half tube running into the hill, closed at its back
   const hollow = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.2, 9, 20, 1, true, Math.PI / 2, Math.PI), stone);
   hollow.rotation.x = Math.PI / 2;
@@ -481,16 +538,16 @@ function buildMouth(site: MouthSite, stone: THREE.Material): { group: THREE.Grou
   const door = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
   const uT = uniform(0);
   (door as unknown as { timeU: typeof uT }).timeU = uT;
-  const p = uv().sub(vec2(0.5, 0)).mul(vec2(2, 1)), r = length(p);
-  const edge = smoothstep(1, 0.55, r).mul(smoothstep(0, 0.08, uv().y));
+  const p = uv().sub(vec2(0.5, 0.45)).mul(vec2(2, 1.3)), r = length(p);
+  const edge = smoothstep(1, 0.4, r).mul(smoothstep(0, 0.08, uv().y));
   const shimmer = sin(r.mul(14).sub(uT.mul(1.3))).mul(0.12).add(0.88);
   door.colorNode = vec4(mix(vec3(0.35, 0.75, 1.0), vec3(1.0, 0.85, 0.6), smoothstep(0.9, 0.2, r)).mul(edge.mul(shimmer).mul(2.2)), 1);
-  const plane = new THREE.Mesh(new THREE.PlaneGeometry(7, 4.4), door);
-  plane.position.set(0, 2.2, -1.5); // its foot on the threshold, filling the arch
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 6.8), door);
+  plane.position.set(-1.4, 2.9, -1.7); // in the gap the door has left open
   plane.renderOrder = 5;
   g.add(plane);
   g.updateMatrixWorld(true);
-  const portal = new V(0, 1.6, -1.5).applyMatrix4(g.matrixWorld);
+  const portal = new V(-1.4, 2.2, -1.7).applyMatrix4(g.matrixWorld);
   return { group: g, portal, door };
 }
 

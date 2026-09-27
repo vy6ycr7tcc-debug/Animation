@@ -386,7 +386,18 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
   const fade = float(1).sub(smoothstep(tmix(float(300), float(1400), steep), tmix(float(1100), float(2400), steep), camD));
   // broad variation over the land, so the far country is never one flat colour
   const macro = tmix(float(0.86), float(1.1), gN(q.mul(0.0035))).mul(tmix(float(0.93), float(1.05), gN(q.mul(0.021).add(7))));
-  m.colorNode = vec4(tmix(vec3(1), det, fade).mul(macro).mul(gr.x), 1);
+  // The lake floors (after the drowned tombs of Jedi: Fallen Order's Zeffo): fine grey-green
+  // silt settled over the sand, dark patches of growth, pebbles and shell-grit scattered, and
+  // the deeper, the more of it; a floor you'd want to swim low over, not a plain of sand.
+  const sea = smoothstep(-0.6, -3.5, vGW.y);
+  const siltN = gN(q.mul(0.35)).mul(0.6).add(gN(q.mul(1.3).add(9)).mul(0.4));
+  const silt = tmix(vec3(0.62, 0.66, 0.6), vec3(0.45, 0.5, 0.47), siltN).mul(samp(sand.diff, 1.6).rgb.mul(1.7));
+  const growth = smoothstep(0.58, 0.72, gN(q.mul(0.18).add(31))).mul(smoothstep(0.35, 0.65, gN(q.mul(0.9).add(4))));
+  const pc = floor(q.mul(2.4)), pbf = fract(q.mul(2.4)).sub(0.5);
+  const pebble = step(0.86, gH(pc)).mul(smoothstep(0.26, 0.12, length(pbf.add(vec2(gH(pc.add(3)), gH(pc.add(7))).sub(0.5).mul(0.4)))));
+  const floorC = tmix(tmix(silt, vec3(0.12, 0.2, 0.13), growth.mul(0.8)), vec3(0.78, 0.74, 0.66), pebble.mul(0.7)).mul(ao);
+  const ground = tmix(tmix(vec3(1), det, fade).mul(macro), floorC, sea.mul(float(1).sub(steep.mul(0.6))));
+  m.colorNode = vec4(ground.mul(gr.x), 1);
 
   // the scans' relief: each surface's normal map, blended as the ground is
   const near = float(1).sub(smoothstep(30, 160, camD));
