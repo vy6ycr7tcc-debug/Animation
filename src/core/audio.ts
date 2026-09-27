@@ -8,6 +8,9 @@
 
 import { loadBytes } from "./assets";
 
+/** The heartbeat shared by genesis's sound and its light: first beat, and the time between. */
+export const HEART_START = 0.3, HEART_PERIOD = 0.95;
+
 type AudioSessionNav = Navigator & { audioSession?: { type: string } };
 type WebkitWindow = Window & { webkitAudioContext?: typeof AudioContext };
 
@@ -261,13 +264,74 @@ export class AudioEngine {
   /* ---------- the temple ---------- */
   /** Into the temple (or out): the water and the night tones fall silent, the stone hall
       takes over, and a far chant begins; outside again, all as it was. */
-  setTemple(on: boolean): void {
+  setTemple(on: boolean, chant = true): void {
     if (!this.ctx || on === this.inTemple) return;
     this.inTemple = on;
     this.ramp(this.worldDry.gain, on ? 0 : 1, on ? 1.2 : 2.5);
     this.ramp(this.worldWet.gain, on ? 0 : 1, on ? 1.2 : 2.5);
     this.ramp(this.templeBus.gain, on ? 1 : 0, on ? 2 : 1);
-    if (on && !this.chant) this.startChant();
+    if (on && chant && !this.chant) this.startChant();
+    // the pyramid keeps its silence: no chant there
+    if (this.chant) this.ramp(this.chant.gain, on && chant ? 0.55 : 0, 1.5);
+  }
+
+  /** One heartbeat, lub-dub (the Queen's Chamber, in the dark). */
+  heartbeat(gain = 0.3): void {
+    if (!this.ctx) return;
+    const c = this.ctx, t = c.currentTime;
+    for (const [dt, a] of [[0, 1], [0.26, 0.6]] as const) {
+      const at = t + dt;
+      const o = c.createOscillator(), g = c.createGain();
+      o.frequency.setValueAtTime(95, at);
+      o.frequency.exponentialRampToValueAtTime(48, at + 0.14);
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(gain * a, at + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.28);
+      o.connect(g).connect(this.master);
+      o.start(at);
+      o.stop(at + 0.32);
+      const n = c.createBufferSource(), nf = c.createBiquadFilter(), ng = c.createGain();
+      n.buffer = this.noise;
+      nf.type = "lowpass";
+      nf.frequency.value = 260;
+      ng.gain.setValueAtTime(0, at);
+      ng.gain.linearRampToValueAtTime(gain * 0.7 * a, at + 0.008);
+      ng.gain.exponentialRampToValueAtTime(0.0001, at + 0.12);
+      n.connect(nf).connect(ng).connect(this.master);
+      n.start(at, Math.random() * 3, 0.15);
+    }
+  }
+
+  /** Everything but the heart falls silent (the Queen's Chamber), or comes back. */
+  hush(on: boolean, seconds = 3): void {
+    if (!this.ctx) return;
+    this.ramp(this.bed.gain, on ? 0 : 1, seconds);
+    this.ramp(this.templeBus.gain, on ? 0 : this.inTemple ? 1 : 0, seconds);
+  }
+
+  private reso: GainNode | null = null;
+  /** The resonating chamber's hum (0–1): a low tone and its overtones, slowly beating. */
+  resonance(k: number): void {
+    if (!this.ctx) return;
+    const c = this.ctx;
+    if (!this.reso) {
+      if (k < 0.01) return;
+      this.reso = c.createGain();
+      this.reso.gain.value = 0;
+      this.reso.connect(this.master);
+      this.reso.connect(this.hall);
+      for (const [f, a, d] of [[98, 0.6, 0], [196, 0.45, 1.5], [294, 0.3, -2], [392, 0.22, 2.5], [588, 0.1, -3]] as const) {
+        for (const det of [0, d]) {
+          const o = c.createOscillator(), g = c.createGain();
+          o.frequency.value = f;
+          o.detune.value = det;
+          g.gain.value = a * 0.5;
+          o.connect(g).connect(this.reso);
+          o.start();
+        }
+      }
+    }
+    this.reso.gain.setTargetAtTime(k * 0.08, c.currentTime, 0.6);
   }
 
   /** A footstep on stone: the soft slap of a bare sole and the hall answering. */
@@ -358,6 +422,143 @@ export class AudioEngine {
     voice(146.83, 5);
     voice(220.0, 0);
     voice(293.66, 3);
+  }
+
+  /* ---------- genesis: a cosmic crescendo (Samuel: "add some cosmic crescendo music") ---------- */
+  /** The 30 s score for genesis, in step with it: a heartbeat in the dark (lub-dub, ~63 a
+      minute, the same beat as the heart's light: `heartbeat`); an open chord of stacked fifths
+      swelling as its filter opens; glints that come faster and faster; a rising shimmer and far
+      voices; at 18 s, as creation comes back, a soft bloom and the chord resolving into D major,
+      high and bright, fading over the last ten seconds. Its own bus (the bed is ducked). */
+  genesisScore(): void {
+    if (!this.ctx) return;
+    const c = this.ctx, t0 = c.currentTime + 0.05;
+    const bus = c.createGain();
+    bus.gain.value = 0.9;
+    bus.connect(this.master);
+    const send = c.createGain();
+    send.gain.value = 0.55;
+    bus.connect(send).connect(this.rev);
+    const env = (g: GainNode, pts: [number, number][]) => {
+      g.gain.setValueAtTime(0, t0);
+      for (const [t, v] of pts) g.gain.linearRampToValueAtTime(v, t0 + t);
+    };
+    const tone = (f: number, type: OscillatorType, start: number, end: number, out: AudioNode, detune = 0) => {
+      const o = c.createOscillator();
+      o.type = type;
+      o.frequency.value = f;
+      o.detune.value = detune;
+      o.connect(out);
+      o.start(t0 + start);
+      o.stop(t0 + end);
+      return o;
+    };
+    // the heartbeat, in the dark and under the rising sound
+    for (let t = HEART_START; t < 17; t += HEART_PERIOD) {
+      const k = Math.min(1, (t + 0.5) / 2) * (1 - Math.max(0, (t - 12) / 5));
+      for (const [dt, a] of [[0, 1], [0.26, 0.6]] as const) {
+        const at = t0 + t + dt;
+        const o = c.createOscillator(), g = c.createGain();
+        o.frequency.setValueAtTime(95, at);
+        o.frequency.exponentialRampToValueAtTime(48, at + 0.14);
+        g.gain.setValueAtTime(0, at);
+        g.gain.linearRampToValueAtTime(0.32 * a * k, at + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001, at + 0.28);
+        o.connect(g).connect(bus);
+        o.start(at);
+        o.stop(at + 0.32);
+        // its body where a phone can play it: a soft, low knock
+        const n = c.createBufferSource(), nf = c.createBiquadFilter(), ng = c.createGain();
+        n.buffer = this.noise;
+        nf.type = "lowpass";
+        nf.frequency.value = 260;
+        ng.gain.setValueAtTime(0, at);
+        ng.gain.linearRampToValueAtTime(0.22 * a * k, at + 0.008);
+        ng.gain.exponentialRampToValueAtTime(0.0001, at + 0.12);
+        n.connect(nf).connect(ng).connect(bus);
+        n.start(at, Math.random() * 3, 0.15);
+      }
+    }
+    // the drone beneath
+    const drone = c.createGain();
+    env(drone, [[1, 0.02], [10, 0.05], [18, 0.07], [22, 0.04], [29.5, 0]]);
+    drone.connect(bus);
+    for (const f of [73.42, 110, 146.83]) tone(f, "sine", 0, 30, drone);
+    // the open chord of fifths, swelling as its filter opens
+    const padF = c.createBiquadFilter();
+    padF.type = "lowpass";
+    padF.Q.value = 0.8;
+    padF.frequency.setValueAtTime(260, t0);
+    padF.frequency.setValueAtTime(260, t0 + 3);
+    padF.frequency.exponentialRampToValueAtTime(4800, t0 + 17.5);
+    padF.frequency.exponentialRampToValueAtTime(1800, t0 + 21);
+    const pad = c.createGain();
+    env(pad, [[3, 0], [10, 0.01], [15, 0.03], [17.5, 0.055], [19.5, 0.0]]); // twelve voices
+    pad.connect(padF).connect(bus);
+    for (const f of [146.83, 220, 329.63, 493.88]) for (const d of [-9, 0, 8]) tone(f, "sawtooth", 3, 20, pad, d);
+    // the resolution: D major, open and high
+    const resF = c.createBiquadFilter();
+    resF.type = "lowpass";
+    resF.frequency.value = 5200;
+    const res = c.createGain();
+    env(res, [[17.8, 0], [19, 0.045], [23, 0.028], [29.8, 0]]); // fifteen voices
+    res.connect(resF).connect(bus);
+    for (const f of [146.83, 220, 293.66, 369.99, 440, 659.25]) for (const d of [-6, 6]) tone(f, "sawtooth", 17.8, 30, res, d);
+    for (const f of [587.33, 880, 1174.66]) tone(f, "sine", 17.8, 30, res);
+    // glints: high notes of D major's pentatonic, faster and faster, then a slow climb after
+    const glints = [587.33, 659.25, 739.99, 880, 987.77, 1174.66, 1318.51];
+    const pluck = (f: number, at: number, a: number) => {
+      const o = c.createOscillator(), g = c.createGain();
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0, t0 + at);
+      g.gain.linearRampToValueAtTime(a, t0 + at + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 1.6);
+      o.connect(g).connect(bus);
+      o.start(t0 + at);
+      o.stop(t0 + at + 1.7);
+    };
+    for (let t = 4; t < 17.8; t += Math.max(0.1, 0.62 - (t - 4) * 0.038)) pluck(glints[Math.floor(Math.random() * glints.length)], t, 0.012 + (t - 4) * 0.0012);
+    [293.66, 369.99, 440, 587.33, 739.99, 880, 1174.66, 1479.98, 1760, 2349.32].forEach((f, i) => pluck(f, 18.4 + i * 0.55, 0.03 - i * 0.002));
+    // a rising shimmer into the turn
+    const nz = c.createBufferSource(), nzf = c.createBiquadFilter(), nzg = c.createGain();
+    nz.buffer = this.noise;
+    nz.loop = true;
+    nzf.type = "bandpass";
+    nzf.Q.value = 2.5;
+    nzf.frequency.setValueAtTime(500, t0 + 9);
+    nzf.frequency.exponentialRampToValueAtTime(7000, t0 + 17.9);
+    env(nzg, [[9, 0], [17.6, 0.09], [18.1, 0]]);
+    nz.connect(nzf).connect(nzg).connect(bus);
+    nz.start(t0 + 9);
+    nz.stop(t0 + 18.5);
+    // far voices, "ah", swelling into the light
+    const vox = c.createGain();
+    env(vox, [[11, 0], [17.5, 0.035], [22, 0.045], [29.5, 0]]);
+    vox.connect(bus);
+    for (const [f, start] of [[220, 11], [293.66, 12.5], [369.99, 17.8], [440, 14]] as const) {
+      const src = c.createGain();
+      src.gain.value = 0.5;
+      for (const d of [-7, 7]) tone(f, "sawtooth", start, 30, src, d);
+      for (const [ff, q, a] of [[800, 6, 1], [1150, 7, 0.6], [2900, 9, 0.25]] as const) {
+        const bp = c.createBiquadFilter(), bg = c.createGain();
+        bp.type = "bandpass";
+        bp.frequency.value = ff;
+        bp.Q.value = q;
+        bg.gain.value = a;
+        src.connect(bp).connect(bg).connect(vox);
+      }
+    }
+    // the turn: a soft, deep bloom
+    const boom = c.createOscillator(), bg = c.createGain();
+    boom.frequency.setValueAtTime(110, t0 + 17.9);
+    boom.frequency.exponentialRampToValueAtTime(52, t0 + 19.5);
+    bg.gain.setValueAtTime(0, t0 + 17.9);
+    bg.gain.linearRampToValueAtTime(0.28, t0 + 18.0);
+    bg.gain.exponentialRampToValueAtTime(0.0001, t0 + 21);
+    boom.connect(bg).connect(bus);
+    boom.start(t0 + 17.9);
+    boom.stop(t0 + 21.2);
+    window.setTimeout(() => bus.disconnect(), 32000);
   }
 
   /* ---------- one-shots ---------- */

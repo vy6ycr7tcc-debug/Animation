@@ -236,6 +236,15 @@ body.loading #title h1, body.loading #title p { animation-play-state: paused; }
 }
 #journal textarea:focus-visible { outline: 1px solid var(--gold); }
 /* slow dissolves instead of cuts */
+/* the Queen's Chamber: the dark in which the senses rest; then a point of light grows */
+#rite-veil {
+  position: fixed; inset: 0; z-index: 35; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle at 50% 46%, rgba(255, 226, 170, 0) 0, #000 0);
+  transition: opacity 3s ease, background 4s ease;
+}
+#rite-veil.on { opacity: 1; }
+#rite-veil.light { background: radial-gradient(circle at 50% 46%, rgba(255, 236, 200, 0.95) 0, rgba(255, 200, 130, 0.35) 6vmin, rgba(0, 0, 0, 1) 38vmin); }
+.whisper { z-index: 36; }
 #fade { position: fixed; inset: 0; background: #07061a; opacity: 0; transition: opacity 1.3s ease; pointer-events: none; }
 #fade.on { opacity: 1; }
 #ending {

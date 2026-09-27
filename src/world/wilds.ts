@@ -12,7 +12,7 @@ import { outOfTheWay, T, withFog, worldPoints } from "../gpu/tsl";
 import { crystalMaterial, prismGeometry } from "./creation";
 import { etchedStone } from "./etching";
 import type { LifeFrame } from "./life";
-import { CAVE_SITES, colliders, fbm, groundKind, heightAt, LANDMARK_SITES, SPAWN, WATER_Y } from "./terrain";
+import { CAVE_SITES, colliders, fbm, groundKind, heightAt, keptClear, LANDMARK_SITES, SPAWN, WATER_Y } from "./terrain";
 
 const { attribute, cos, dot, float, fract, Fn, mix, normalWorld, positionLocal, positionWorld, sin, smoothstep, abs, screenCoordinate, step, uniform, vec2, vec3, vec4 } = T;
 const V = THREE.Vector3;
@@ -218,7 +218,7 @@ export class Wilds {
     if (h0 > WATER_Y + 0.15 && h0 < WATER_Y + 3.5 && groundKind(x0, z0, h0).sand > 0.3 && hash(i, j, 1) < 0.6) {
       let wet = false;
       for (let a = 0; a < 6.28 && !wet; a += 0.8) wet = heightAt(x0 + Math.cos(a) * 18, z0 + Math.sin(a) * 18) < WATER_Y - 0.3;
-      const clear = Math.hypot(x0 - SPAWN.x, z0 - SPAWN.z) > 20 && LANDMARK_SITES.every(([lx, lz]) => Math.hypot(x0 - lx, z0 - lz) > 16);
+      const clear = Math.hypot(x0 - SPAWN.x, z0 - SPAWN.z) > 20 && LANDMARK_SITES.every(([lx, lz]) => Math.hypot(x0 - lx, z0 - lz) > 16) && !keptClear(x0, z0, 4);
       if (wet && clear) {
         const n = 1 + Math.floor(hash(i, j, 2) * 3);
         for (let k = 0; k < n; k++) {

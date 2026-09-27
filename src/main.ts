@@ -44,6 +44,7 @@ import { Autofly } from "./player/autofly";
 import { Genesis } from "./world/genesis";
 import { Touch } from "./world/touch";
 import { Depths, RUIN_SITES } from "./world/depths";
+import { Pyramid } from "./world/pyramid";
 import { cloudUniforms } from "./world/atmosphere";
 import { NO_MIRROR_LAYER, Water } from "./world/water";
 import { FOG } from "./world/fog";
@@ -207,7 +208,7 @@ const temple = new Temple(sparks, {
   },
 });
 scene.add(temple.group, temple.gate);
-floorHook.fn = (x, z) => (x > 35000 ? depths.floorAt() : temple.floorAt(x, z));
+floorHook.fn = (x, z) => (x > 45000 ? pyramid.floorAt(x, z) : x > 35000 ? depths.floorAt() : temple.floorAt(x, z));
 void beings.load("models/wanderer.glb").then((m) => m && temple.attach(m));
 // the voices of the archive, present while they speak
 const presences = new Presences();
@@ -320,8 +321,8 @@ function persist(): void {
   if (S.mode === "intro" || resetting) return;
   const d: SaveData = {
     v: 1,
-    pos: temple.inside ? templeReturnPos() : depths.inside ? deepReturnPos() : [player.pos.x, player.pos.y, player.pos.z],
-    heading: temple.inside ? temple.outside().heading : depths.inside ? depths.outside(deepMouth ?? depths.mouths[0].site).heading : player.heading,
+    pos: temple.inside ? templeReturnPos() : depths.inside ? deepReturnPos() : pyramid.isInside ? [pyramid.outside().x, heightAt(pyramid.outside().x, pyramid.outside().z), pyramid.outside().z] : [player.pos.x, player.pos.y, player.pos.z],
+    heading: pyramid.isInside ? 0 : temple.inside ? temple.outside().heading : depths.inside ? depths.outside(deepMouth ?? depths.mouths[0].site).heading : player.heading,
     heard: [],
     visited: [],
     settings: { volume: audio.volume, reduced: S.reducedPref, subtitles: narration.subtitlesOn, voices: playlist.on, awake: awake.on },
@@ -532,6 +533,7 @@ const leaveTemple = (): void => {
   setMenu(false);
   if (temple.inside) crossTemple(false);
   else if (depths.inside) crossDeep(false);
+  else if (pyramid.isInside) crossPyr(false);
 };
 // on the touch itself (a phone sends no click while the other thumb holds the stick)
 $("#temple-leave").addEventListener("pointerdown", (e) => {
@@ -605,7 +607,7 @@ function templeFrame(dt: number): void {
     return;
   }
   $("#cards-offer").hidden = true;
-  if (depths.inside) return; // the deep archive keeps its own (deepFrame)
+  if (depths.inside || pyramid.isInside) return; // the deep archive and the pyramid keep their own
   $("#temple-leave").hidden = true;
   $("#menu-temple-leave").hidden = true;
   const d = player.pos.distanceTo(temple.gateAt);
@@ -625,7 +627,7 @@ const autofly = new Autofly(
 function setAutofly(on: boolean): void {
   if (on === autofly.active) return;
   if (on) {
-    if (S.mode !== "play" || sitting.phase === "seated" || player.diving || genesis.active || temple.inside || depths.inside) return;
+    if (S.mode !== "play" || sitting.phase === "seated" || player.diving || genesis.active || apart()) return;
     player.target = null;
     autofly.start(player.pos, player.heading);
     say("Autofly: the stick or the button takes you back.");
@@ -653,19 +655,21 @@ function heartAt(out: THREE.Vector3): THREE.Vector3 {
   return out.copy(player.pos).add(new THREE.Vector3(0, 1.15, 0));
 }
 function beginGenesis(): void {
-  if (S.mode !== "play" || genesis.active || sitting.phase === "seated" || player.flying || player.diving || temple.inside || depths.inside) return;
+  if (S.mode !== "play" || genesis.active || sitting.phase === "seated" || player.flying || player.diving || apart()) return;
   // the forms whose geometry lights up: the land gold, living things rose, the sky's vessels pale blue
   const layers = [
     { root: terrain.group, color: new THREE.Color(0.75, 0.58, 0.32) },
     { root: creation.group, color: new THREE.Color(0.5, 0.33, 0.31) }, // dense forms: dimmer, their lines crowd
     { root: wilds.group, color: new THREE.Color(0.55, 0.38, 0.3) },
     { root: vessels.group, color: new THREE.Color(0.62, 0.8, 1.0) },
+    { root: pyramid.world, color: new THREE.Color(0.95, 0.75, 0.42) },
     ...landmarks.list.map((st) => ({ root: st.group, color: new THREE.Color(0.9, 0.85, 1.0) })),
   ];
   player.target = null;
   genesis.start(heartAt(new THREE.Vector3()), layers);
   genesisBells = 0;
   audio.duck(true);
+  audio.genesisScore();
   quality.hold(4);
 }
 input.onHold = (x, y) => {
@@ -684,7 +688,7 @@ const touch = new Touch(creation, wanderer, player, {
 scene.add(touch.points);
 let toldTouch = false;
 function canTouch(): boolean {
-  return S.mode === "play" && player.grounded && !player.swimming && !player.flying && !temple.inside && !genesis.active &&
+  return S.mode === "play" && player.grounded && !player.swimming && !player.flying && !apart() && !genesis.active &&
     !autofly.active && sitting.phase === "none" && !startMap.isOpen;
 }
 function beginTouch(x: number, y: number): void {
@@ -739,7 +743,7 @@ player.onLand = () => {
   const y = Math.max(heightAt(player.pos.x, player.pos.z), WATER_Y);
   footprints.place(player.pos.x - 0.1, y, player.pos.z, player.heading, S.t);
   footprints.place(player.pos.x + 0.1, y, player.pos.z, player.heading, S.t);
-  if (temple.inside) audio.stepStone();
+  if (temple.inside || pyramid.isInside) audio.stepStone();
   else audio.step(false);
 };
 lanterns.onKindle = () => say("Lanterns kindle around you.");
@@ -776,6 +780,7 @@ function places(): Place[] {
   return [
     { numeral: "", label: "The shore", group: "Shore", x: SPAWN.x, z: SPAWN.z, narration: "J01", start: { x: SPAWN.x, z: SPAWN.z, heading: SPAWN.heading } },
     { numeral: "", label: "The temple", group: "Shore", x: temple.gateAt.x, z: temple.gateAt.z, narration: "J01", start: { ...temple.outside(), heading: temple.gateHeading } },
+    { numeral: "", label: "The pyramid", group: "Shore" as const, x: pyramid.door.x, z: pyramid.door.z, narration: "J01", start: { x: pyramid.door.x, z: pyramid.door.z - 14, heading: Math.PI } },
     // over the water above the nearest cave: dive, and swim into the light under the arch
     ...depths.mouths.slice(0, 1).map((m) => {
       const o = depths.outside(m.site);
@@ -798,6 +803,7 @@ function places(): Place[] {
 function arrive(c: Choice, first: boolean): void {
   if (temple.inside) setInside(false);
   if (depths.inside) setDeep(false);
+  if (pyramid.isInside) setPyr(false);
   standUp();
   player.pos.set(c.x, Math.max(heightAt(c.x, c.z), WATER_Y - 1), c.z);
   player.vel.set(0, 0, 0);
@@ -1196,6 +1202,183 @@ function crossDeep(inside: boolean): void {
     }, 250);
   }, 650);
 }
+/* The pyramid (world/pyramid.ts), after what Ra says of it: walk in through its door on the
+   north face, or climb to its apex. Inside: the resonating chamber below, the Queen's Chamber
+   (initiation: the senses rest in the dark, and another life begins), the Grand Gallery, the
+   King's Chamber (healing: light through you in seven colours). All said here is paraphrase. */
+const pyramid = new Pyramid();
+scene.add(pyramid.world, pyramid.inside);
+const sevenGroup = new THREE.Group();
+sevenGroup.add(...pyramid.seven);
+scene.add(sevenGroup);
+/** In a place apart (the temple, the deep archive, the pyramid): the open world rests. */
+function apart(): boolean {
+  return temple.inside || depths.inside || pyramid.isInside;
+}
+let pyrHidden: [THREE.Object3D, boolean][] = [];
+const toldPyr = new Set<string>();
+function tellPyr(key: string, text: string, ms = 7000): void {
+  if (toldPyr.has(key)) return;
+  toldPyr.add(key);
+  whisper(text, ms);
+}
+function setPyr(inside: boolean): void {
+  if (inside === pyramid.isInside) return;
+  if (inside) {
+    const keep = new Set<THREE.Object3D>([pyramid.inside, sevenGroup, wanderer.root, wanderer.fx, camera]);
+    pyrHidden = scene.children.filter((o) => !keep.has(o)).map((o) => [o, o.visible]);
+    for (const [o] of pyrHidden) o.visible = false;
+    pyramid.show(true);
+    audio.setTemple(true, false);
+    const e = pyramid.entry();
+    player.pos.set(e.x, pyramid.floorAt(e.x, e.z), e.z);
+    player.heading = e.heading;
+    follow.yaw = e.heading;
+    follow.pitch = 0.15;
+  } else {
+    for (const [o, v] of pyrHidden) o.visible = v;
+    pyrHidden = [];
+    pyramid.show(false);
+    audio.setTemple(false);
+    audio.resonance(0);
+    endRite();
+    const o = pyramid.outside();
+    player.pos.set(o.x, heightAt(o.x, o.z), o.z);
+    player.heading = o.heading;
+    follow.yaw = o.heading;
+    terrain.update(o.x, o.z, true);
+  }
+  Object.assign(player, { flying: false, landing: false, grounded: true, swimming: false, vy: 0, target: null });
+  player.vel.set(0, 0, 0);
+  follow.snapTo(player.pos);
+  quality.hold(3);
+}
+function crossPyr(inside: boolean): void {
+  if (crossing) return;
+  crossing = true;
+  if (autofly.active) setAutofly(false);
+  fadeEl.classList.add("on");
+  audio.bell(inside ? 293.66 : 440, 0.1, 6);
+  window.setTimeout(() => {
+    setPyr(inside);
+    if (inside) whisper("Ra's pyramid, built from thought of living stone, for healing and for initiation, one work. Later its power was kept by a few, which was never meant. Enter as one who seeks.", 10000);
+    else whisper("Ra called such shapes training wheels: in time the heart holds, without them, what they gather.", 8000);
+    window.setTimeout(() => {
+      fadeEl.classList.remove("on");
+      crossing = false;
+    }, 250);
+  }, 650);
+}
+// the rites: the Queen's Chamber (in the dark, only the heart) and the King's (seven colours)
+let rite: { kind: "queen" | "king"; t: number; beats: number; step: number } | null = null;
+let stillIn = 0, lastRite = -1e9;
+const riteVeil = Object.assign(document.createElement("div"), { id: "rite-veil" });
+document.body.append(riteVeil);
+function endRite(): void {
+  if (!rite) return;
+  if (rite.kind === "queen") {
+    riteVeil.classList.remove("on", "light");
+    audio.hush(false, 2.5);
+  }
+  for (const sp of pyramid.seven) sp.visible = false;
+  rite = null;
+  lastRite = S.t;
+}
+const SEVEN_NOTES = [293.66, 329.63, 369.99, 392, 440, 493.88, 554.37];
+const SEVEN_AT = [0.86, 0.98, 1.12, 1.28, 1.45, 1.57, 1.72]; // the energy centres, above the feet
+function pyramidFrame(dt: number): void {
+  const near = !pyramid.isInside && player.pos.distanceTo(pyramid.apex) < 700;
+  const pitK = pyramid.isInside ? pyramid.nearPit(player.pos) : 0;
+  const atApex = !pyramid.isInside && pyramid.atApex(player.pos);
+  pyramid.update(S.wt, near, pitK, rite?.kind === "king" && rite.t > 10.5 ? 1 : 0, atApex ? 1.25 : 0.6, S.reduced);
+  audio.resonance(pitK);
+  if (S.mode !== "play") return;
+  if (!pyramid.isInside) {
+    if (player.pos.distanceTo(pyramid.door) < 90) tellPyr("near", "A pyramid. Its door is on the north face; or climb its faces to the apex.", 6000);
+    if (atApex) tellPyr("apex", "At the apex. Ra spoke of a third spiral leaving it, like a candle flame.", 7000);
+    if (!crossing && !autofly.active && !genesis.active && !player.flying && pyramid.atDoor(player.pos)) crossPyr(true);
+    return;
+  }
+  // inside: the rooms are close, so the camera stays near
+  if (follow.dist > 3.6) follow.dist = 3.6;
+  if (pyramid.confine(player.pos) && !crossing) crossPyr(false);
+  if (player.flying) player.flying = false;
+  const ch = pyramid.chamber(player.pos);
+  if (ch === "pit") tellPyr("pit", "The resonating chamber. Its floor lies open to the earth below.");
+  if (ch === "queen") tellPyr("queen", "The Queen's Chamber: the place of initiation, and of resurrection. Stand at its centre and be still.");
+  if (ch === "gallery") tellPyr("gallery", "Light is drawn in at the base, and spirals upward toward the apex.");
+  if (ch === "king") tellPyr("king", "The King's Chamber: the place of healing, where the spiral is strongest. Stand by the coffer and be still.");
+  const leave = $("#temple-leave");
+  leave.hidden = crossing || ch !== "entry" || player.pos.z - pyramid.entry().z > 6;
+  leave.textContent = $("#menu-temple-leave").textContent = "Leave the pyramid";
+  $("#menu-temple-leave").hidden = false;
+  fogUniforms.color.value.setRGB(0.06, 0.045, 0.03);
+  fogUniforms.density.value = 0.012;
+  gradeUniforms.shadow.value.setRGB(0.015, 0.008, 0.0);
+  gradeUniforms.high.value.setRGB(1.05, 0.98, 0.9);
+  gradeUniforms.sat.value = 1.05;
+  gradeUniforms.contrast.value = 1.12;
+  post.starVis.value = 0;
+  post.raysOn.value = 0;
+  // stillness at the centre of a chamber begins its rite
+  const still = player.speed < 0.15 && Math.hypot(input.move.x, input.move.y) < 0.05 && !input.hold;
+  const place = pyramid.atQueenCentre(player.pos) ? "queen" : pyramid.inCoffer(player.pos) ? "king" : null;
+  stillIn = still && place ? stillIn + dt : 0;
+  if (!rite && place && stillIn > 2.5 && S.t - lastRite > 20) {
+    rite = { kind: place, t: 0, beats: 0, step: 0 };
+    if (place === "queen") {
+      riteVeil.classList.add("on");
+      audio.hush(true, 3);
+    } else whisper("Light moves through you in seven colours.", 6000);
+  }
+  if (!rite) return;
+  rite.t += dt;
+  const moved = Math.hypot(input.move.x, input.move.y) > 0.3 || input.hold || place !== rite.kind;
+  if (rite.kind === "queen") {
+    // in the dark, only the heart; the senses rest; then a light, and the world again
+    const bpm = 0.95 + Math.min(0.35, rite.t * 0.02);
+    if (rite.t > 1 && rite.t < 15 && rite.t > 1 + rite.beats * bpm) {
+      rite.beats++;
+      audio.heartbeat(0.28);
+    }
+    if (rite.step === 0 && rite.t > 4.5) (rite.step = 1), whisper("Here the senses rest.", 4000);
+    if (rite.step === 1 && rite.t > 9) (rite.step = 2), whisper("In a sense the body sleeps as if dead, and another life begins.", 5000);
+    if (rite.step === 2 && rite.t > 13) {
+      rite.step = 3;
+      riteVeil.classList.add("light");
+      audio.bell(528, 0.06, 8);
+    }
+    if (rite.step === 3 && rite.t > 16.5) {
+      rite.step = 4;
+      riteVeil.classList.remove("on");
+      audio.hush(false, 4);
+    }
+    if (rite.t > 21 || (moved && rite.t > 3)) endRite();
+  } else {
+    // the seven colours, one by one, up through the body, then the crystal answers
+    const k = Math.floor((rite.t - 1) / 1.4);
+    if (rite.t > 1 && k >= rite.step && k < 7) {
+      rite.step = k + 1;
+      audio.bell(SEVEN_NOTES[k], 0.05, 5);
+    }
+    pyramid.seven.forEach((sp, i) => {
+      const on = rite!.t - 1 - i * 1.4;
+      sp.visible = on > 0;
+      if (on <= 0) return;
+      const m = sp.material as THREE.SpriteMaterial;
+      m.opacity = Math.min(1, on * 2) * (0.45 + 0.55 * Math.exp(-on * 1.2)) * (1 - THREE.MathUtils.smoothstep(rite!.t, 13, 16));
+      sp.position.set(player.pos.x, player.pos.y + SEVEN_AT[i], player.pos.z);
+      sp.scale.setScalar(0.34 + 0.3 * Math.exp(-on * 1.5));
+    });
+    if (rite.step === 7 && rite.t > 11) {
+      rite.step = 8;
+      audio.bell(587.33, 0.06, 8);
+      sparks.emit(pyramid.cofferTop().setY(player.pos.y + 1.8), 24, new THREE.Color(1, 0.95, 0.85), 0.5);
+    }
+    if (rite.t > 16.5 || (moved && rite.t > 2)) endRite();
+  }
+}
+
 /** Each frame: the caves' mouths, the grotto's walls and way out, and the rings of stillness. */
 function deepFrame(dt: number, wt: number, inWater: boolean): void {
   const nearWater = heightAt(player.pos.x, player.pos.z) < WATER_Y - 2 && player.pos.y < 12;
@@ -1668,7 +1851,7 @@ function update(dt: number): void {
       const ox = Math.cos(player.heading) * 0.11 * printSide, oz = -Math.sin(player.heading) * 0.11 * printSide;
       const gy = heightAt(player.pos.x, player.pos.z);
       footprints.place(player.pos.x + ox, gy, player.pos.z + oz, player.heading, t);
-      if (temple.inside) audio.stepStone(); // on the temple's stone, and the hall answers
+      if (temple.inside || pyramid.isInside) audio.stepStone(); // on the temple's stone, and the hall answers
       else {
         audio.step(false);
         if (gy < 0.15) water.ripple(player.pos.x, player.pos.z, 0.5, t);
@@ -1679,13 +1862,13 @@ function update(dt: number): void {
       water.ripple(player.pos.x, player.pos.z, 0.8, t);
       audio.step(true);
     }
-    playlist.quiet = sitting.phase === "seated" || temple.inside || depths.inside;
+    playlist.quiet = sitting.phase === "seated" || apart();
     playlist.update(realDt); // real time: a slow frame rate never stretches the quiet
   }
   narration.update();
 
   // The world streams around the wanderer and answers them.
-  const world = !temple.inside && !depths.inside; // inside the temple or the deep archive, the open world rests
+  const world = !apart(); // inside the temple, the deep archive or the pyramid, the open world rests
   if (world) terrain.update(player.pos.x, player.pos.z);
   life.t = wt;
   life.dt = dt;
@@ -1716,7 +1899,7 @@ function update(dt: number): void {
   if (world) updateStillness(dt, wt);
   if (S.mode === "play") {
     const letGo = Math.hypot(input.move.x, input.move.y) > 0.2 || input.hold || (touch.phase === "touching" && !!player.target) ||
-      startMap.isOpen || temple.inside || depths.inside || genesis.active || autofly.active || sitting.phase !== "none";
+      startMap.isOpen || apart() || genesis.active || autofly.active || sitting.phase !== "none";
     touch.update(dt, dpr, letGo, S.reduced);
     // a stone or crystal in the hands vibrates with light, as it does before stillness
     if (touch.vibe > 0.01 && touch.target) {
@@ -1775,8 +1958,9 @@ function update(dt: number): void {
   glow.set(player.pos.x, S.mode === "intro" ? 0 : 1, player.pos.z);
   water.update(camera.position.x, camera.position.z, glow);
   skyUniforms.uT.value = wt;
-  if (!temple.inside && !depths.inside) moods.update(player.pos, dt);
+  if (!apart()) moods.update(player.pos, dt);
   templeFrame(dt);
+  pyramidFrame(dt);
   if (genesis.active) genesisFrame(dt);
   // the sky's reflection is baked once: baking it again as the moods drifted (every few seconds
   // while travelling) hitched the frame on a phone and made the ground's sheen jump; the moods'
@@ -1957,4 +2141,4 @@ function finishOpening(): void {
   window.setTimeout(() => el.remove(), 4200);
 }
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr } });

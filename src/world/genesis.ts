@@ -12,6 +12,7 @@
    - 18–30 s: creation comes back out of the dark over its lines, nearest first (the air thins
      from the heart outward), then the sky; the lines fade into it. */
 import * as THREE from "three/webgpu";
+import { HEART_PERIOD, HEART_START } from "../core/audio";
 import { ribbonGeometry, ribbonMaterial } from "../gpu/ribbons";
 import { T } from "../gpu/tsl";
 
@@ -220,7 +221,13 @@ export class Genesis {
     const dark = ss(0, 3, t);
     const veil = dark * (1 - ss(18, 21, t));
     this.uVeil.value = veil;
-    this.uHeart.value = ss(0.5, 2.5, t) * (1 - ss(22, 28, t)) * (0.85 + 0.15 * Math.sin(t * 2.2));
+    // the heart beats (lub-dub), in time with the heartbeat in the music (audio.ts genesisScore),
+    // and after the turn it settles into a slow glow
+    const ph = t - HEART_START, beating = ph >= 0 && t < 17;
+    const m = ((ph % HEART_PERIOD) + HEART_PERIOD) % HEART_PERIOD;
+    const beat = beating ? Math.exp(-m * 16) + 0.6 * Math.exp(-Math.max(0, m - 0.26) * 16) * (m > 0.26 ? 1 : 0) : 0;
+    const calmK = ss(12, 17, t);
+    this.uHeart.value = ss(0.5, 2.5, t) * (1 - ss(22, 28, t)) * (0.62 + 0.5 * beat * (1 - calmK) + calmK * (0.3 + 0.08 * Math.sin(t * 2.2)));
     // the wave: slow near the heart, then faster, out to ~700 m by 17 s
     const u = Math.min(1, Math.max(0, (t - 3) / 14));
     this.uFront.value = 3 + 700 * Math.pow(u, 1.8);
