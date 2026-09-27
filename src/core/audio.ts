@@ -271,6 +271,7 @@ export class AudioEngine {
     this.ramp(this.worldWet.gain, on ? 0 : 1, on ? 1.2 : 2.5);
     this.ramp(this.templeBus.gain, on ? 1 : 0, on ? 2 : 1);
     if (on && chant && !this.chant) this.startChant();
+    if (on && !this.roomOn) this.startRoom();
     // the pyramid keeps its silence: no chant there
     if (this.chant) this.ramp(this.chant.gain, on && chant ? 0.55 : 0, 1.5);
   }
@@ -293,6 +294,101 @@ export class AudioEngine {
     g.gain.value = gain;
     s.connect(g).connect(this.voice);
     s.start();
+  }
+
+  /* ---------- the temple's own ambience (Samuel: "focus on the ambient sound of a temple") ----------
+     The stillness of a great stone room: a low, hollow room tone that breathes; air moving through
+     the clerestory grilles high above, in slow swells; now and then a drop of water falling far
+     off in the dark, and the hall answering; and once in a long while a singing bowl struck
+     somewhere deep inside. All of it through the hall's long dark reverb, all soft, all above
+     ~200 Hz so a phone's speaker keeps it. */
+  private roomOn = false;
+  private startRoom(): void {
+    const c = this.ctx!;
+    this.roomOn = true;
+    const noise = () => {
+      const s = c.createBufferSource();
+      s.buffer = this.noise;
+      s.loop = true;
+      s.start(0, Math.random() * 3);
+      return s;
+    };
+    // the room tone: the hall's hum, two resonances of its length and height, slowly breathing
+    for (const [f, q, g, rate] of [[240, 6, 0.028, 0.05], [410, 8, 0.016, 0.037], [620, 10, 0.008, 0.029]] as const) {
+      const bp = c.createBiquadFilter(), a = c.createGain(), lfo = c.createOscillator(), lg = c.createGain();
+      bp.type = "bandpass";
+      bp.frequency.value = f;
+      bp.Q.value = q;
+      a.gain.value = g;
+      lfo.frequency.value = rate;
+      lg.gain.value = g * 0.5;
+      lfo.connect(lg).connect(a.gain);
+      lfo.start();
+      noise().connect(bp).connect(a);
+      a.connect(this.templeBus);
+      a.connect(this.hall);
+    }
+    // air through the grilles high above: a hollow whistle of wind that swells and falls away
+    {
+      const bp = c.createBiquadFilter(), a = c.createGain();
+      bp.type = "bandpass";
+      bp.frequency.value = 900;
+      bp.Q.value = 3;
+      a.gain.value = 0;
+      noise().connect(bp).connect(a);
+      a.connect(this.hall);
+      const swell = () => {
+        if (!this.ctx) return;
+        const t = this.ctx.currentTime, up = 4 + Math.random() * 5, hold = 2 + Math.random() * 4;
+        bp.frequency.setTargetAtTime(700 + Math.random() * 700, t, 3);
+        a.gain.setTargetAtTime(this.inTemple ? 0.012 + Math.random() * 0.012 : 0, t, up / 3);
+        a.gain.setTargetAtTime(0, t + up + hold, 3);
+        window.setTimeout(swell, (up + hold + 6 + Math.random() * 10) * 1000);
+      };
+      swell();
+    }
+    // a drop of water, far off in the dark
+    const drop = () => {
+      if (this.ctx && this.inTemple) {
+        const t = this.ctx.currentTime;
+        const o = c.createOscillator(), g = c.createGain();
+        const f = 1300 + Math.random() * 1500;
+        o.frequency.setValueAtTime(f, t);
+        o.frequency.exponentialRampToValueAtTime(f * 1.6, t + 0.05);
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(0.018 + Math.random() * 0.012, t + 0.004);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+        o.connect(g);
+        g.connect(this.hall);
+        const dry = c.createGain();
+        dry.gain.value = 0.25;
+        g.connect(dry).connect(this.templeBus);
+        o.start(t);
+        o.stop(t + 0.15);
+      }
+      window.setTimeout(drop, (4 + Math.random() * 11) * 1000);
+    };
+    window.setTimeout(drop, 3000);
+    // a singing bowl, struck deep inside, once in a long while
+    const bowl = () => {
+      if (this.ctx && this.inTemple) {
+        const t = this.ctx.currentTime, f = [293.66, 329.63, 392][Math.floor(Math.random() * 3)];
+        for (const [m, a, d] of [[1, 1, 14], [2.71, 0.4, 9], [5.15, 0.15, 5]] as const) {
+          for (const beat of [0, 1.8]) {
+            const o = c.createOscillator(), g = c.createGain();
+            o.frequency.value = f * m + beat;
+            g.gain.setValueAtTime(0, t);
+            g.gain.linearRampToValueAtTime(0.012 * a, t + 0.03);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+            o.connect(g).connect(this.hall);
+            o.start(t);
+            o.stop(t + d + 0.1);
+          }
+        }
+      }
+      window.setTimeout(bowl, (35 + Math.random() * 40) * 1000);
+    };
+    window.setTimeout(bowl, 9000);
   }
 
   /** One heartbeat, lub-dub (the Queen's Chamber, in the dark). */
