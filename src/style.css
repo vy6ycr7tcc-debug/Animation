@@ -238,12 +238,15 @@ body.loading #title h1, body.loading #title p { animation-play-state: paused; }
 /* slow dissolves instead of cuts */
 /* the loading mark: a small turning seed of light, bottom centre, while something arrives */
 #busy {
-  position: fixed; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); width: 34px; height: 34px;
-  margin-left: -17px; z-index: 45; pointer-events: none; opacity: 0; transition: opacity 0.6s ease;
+  position: fixed; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px;
+  z-index: 45; pointer-events: none; opacity: 0; transition: opacity 0.8s ease;
+  border-radius: 50%; background: radial-gradient(circle, rgba(20, 16, 40, 0.55) 0, rgba(20, 16, 40, 0) 70%);
 }
-#busy.on { opacity: 0.85; }
-#busy svg { width: 100%; height: 100%; animation: seed-turn 3.5s linear infinite; }
-#busy circle { fill: none; stroke: var(--gold); stroke-width: 1.1; stroke-opacity: 0.8; }
+/* it appears at once (a fade-in would never play while the page is held still by the work it
+   announces), and fades away gently */
+#busy.on { opacity: 1; transition: none; }
+#busy svg { width: 100%; height: 100%; animation: seed-turn 3.5s linear infinite; filter: drop-shadow(0 0 4px rgba(255, 215, 150, 0.55)); }
+#busy circle { fill: none; stroke: var(--gold); stroke-width: 1.5; stroke-opacity: 0.95; }
 #busy .dot { fill: #fff3d6; stroke: none; animation: seed-breathe 1.6s ease-in-out infinite; transform-origin: 0 0; }
 @media (prefers-reduced-motion: reduce) { #busy svg { animation: none; } }
 
