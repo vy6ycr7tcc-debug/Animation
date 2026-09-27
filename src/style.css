@@ -502,3 +502,10 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 #guide-pick p { margin: 6px 0 10px; font-style: italic; text-align: center; }
 #guide-pick .row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 #guide-pick button, #map-guide { border: 1px solid var(--gold); border-radius: 22px; min-height: 44px; padding: 8px 16px; color: var(--gold); }
+
+/* calm: nothing touched for a while, or autofly: the controls and the half-moon fade away (an
+   animation, not a transition: the stick sets its own inline transition while it moves) */
+body.calm #joy, body.calm #act, body.calm #ctx, body.calm #menu-btn, body.calm #tp-mini {
+  animation: calm-out 1.4s ease forwards;
+}
+@keyframes calm-out { to { opacity: 0; } }
