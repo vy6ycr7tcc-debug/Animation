@@ -1244,7 +1244,6 @@ scene.add(pyramid.world, pyramid.inside);
 // many as one, unity, a point, and the burst that begins it again
 const vision = new Vision(new THREE.Vector3(MONUMENT.x, MONUMENT.y + 0.15, MONUMENT.z), MOBILE ? 11000 : 16000);
 scene.add(vision.group);
-let toldVision = false, lastStage = -2;
 const sevenGroup = new THREE.Group();
 sevenGroup.add(...pyramid.seven);
 scene.add(sevenGroup);
@@ -1264,6 +1263,25 @@ function busyFrame(): void {
   backlogFor = terrain.pending > 24 ? backlogFor + realDt : 0;
   if (crossing || backlogFor > 0.5 || tp.buffering || (!shadersReady && S.mode !== "intro")) busyUntil = Math.max(busyUntil, now + 500);
   busyEl.classList.toggle("on", now < busyUntil && (S.mode !== "intro" || fadeEl.classList.contains("on")));
+}
+
+/* Calm (Samuel: "hide controls if autofly or simply not touching the screen, collapse player
+   also"): after a few seconds with no touch, or while autofly carries you, the stick, the round
+   button, its word, ⋮ and the half-moon fade away, and an open narration card folds. Any touch
+   brings them back at once (they still answer that first touch). */
+let lastTouch = performance.now(), calm = false;
+for (const ev of ["pointerdown", "pointermove", "keydown", "wheel", "touchstart"])
+  addEventListener(ev, (e) => {
+    if (ev === "pointermove" && (e as PointerEvent).pointerType === "mouse" && !(e as PointerEvent).buttons) return;
+    lastTouch = performance.now();
+  }, { capture: true, passive: true });
+function calmFrame(): void {
+  const idle = performance.now() - lastTouch > 4500 && Math.hypot(input.move.x, input.move.y) < 0.05 && !input.hold;
+  const want = S.mode === "play" && !startMap.isOpen && $("#menu").hidden && (autofly.active || idle);
+  if (want === calm) return;
+  calm = want;
+  document.body.classList.toggle("calm", calm);
+  if (calm && !$("#tp").hidden) tp.fold();
 }
 
 /** In a place apart (the temple, the deep archive, the pyramid): the open world rests. */
@@ -2018,16 +2036,11 @@ function update(dt: number): void {
   templeFrame(dt);
   pyramidFrame(dt);
   busyFrame();
+  calmFrame();
   if (!apart()) {
     const vd = player.pos.distanceTo(vision.group.position);
     vision.update(dt, vd < 420, S.reduced);
-    if (S.mode === "play" && vd < 40 && !toldVision) {
-      toldVision = true;
-      whisper("Creation, flowing: atom, stone, crystal, molecule, plant, animal, the first people, the human, the many as one; back to unity, to one point, and again.", 9000);
-    }
-    // near it, each form's name as it gathers (once each time round)
-    if (S.mode === "play" && vd < 30 && vision.phase !== lastStage && vision.phase >= 0) whisper(vision.stageName(vision.phase), 2600);
-    lastStage = vision.phase;
+    // (no words: the forms speak for themselves; Samuel)
   }
   if (genesis.active) genesisFrame(dt);
   // the sky's reflection is baked once: baking it again as the moods drifted (every few seconds

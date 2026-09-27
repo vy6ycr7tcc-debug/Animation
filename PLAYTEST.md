@@ -38,7 +38,7 @@ A stick in the bottom-left corner and one round button in the bottom-right, as i
 | Settings, Map, Guide, About | ⋮ top right | Esc |
 | Ask the guide | ⋮ → Guide, or "Ask the guide" on the map | ⋮ → Guide |
 
-The screen stays awake while you play (⋮ → Keep the screen awake). Your journey is kept on this device: where you are, and every voice you've heard, so nothing repeats.
+Leave the screen untouched for a few seconds (or turn on Autofly) and the controls and the player fade away, leaving only the world; touch anywhere and they return. The screen stays awake while you play (⋮ → Keep the screen awake). Your journey is kept on this device: where you are, and every voice you've heard, so nothing repeats.
 
 ## What it is
 It begins in the dark: a seed of light turns, a thin gold ring spinning round it, while the world is prepared. Touch the light, and words come out of the dark one phrase at a time, spoken ("From the stillness of the heart, in the within of noise and the silence, the soul seeks to rediscover itself, experiencing creation, and the creator, all there is."), then two plain lines on what this world is, and the dark lifts like a dawn onto the night water and the title (Skip, bottom right, at any time). There is no island and no path. After "Touch the water to begin", a map unfolds: the land drawn in gold contour lines, with the shore and the homes of all twenty-two archetypes marked. From there you can go anywhere. ⋮ → Map lets you travel again.
