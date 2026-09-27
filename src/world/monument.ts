@@ -132,7 +132,7 @@ export class Monument {
   private uK = uniform(0);
   private mixers: THREE.AnimationMixer[] = [];
   private posers: (() => void)[] = [];
-  private t = 0;
+  t = 0; // the cycle's clock (the vision above follows it)
   /** The stage just waking (for whispers); −1 none, 9 unity. */
   phase = -1;
 
