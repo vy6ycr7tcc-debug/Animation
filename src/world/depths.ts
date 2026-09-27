@@ -13,6 +13,7 @@
      alcoves, one for each archetype (those you have met hold their light, and a touch lets them
      speak again). At its centre, a ring of stillness. Swim back out through the way you came. */
 import * as THREE from "three/webgpu";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { T, worldPoints, type N } from "../gpu/tsl";
 import { etchedStone } from "./etching";
 import { columnGeometry, scan, type ScanName } from "./temple";
@@ -31,18 +32,21 @@ function rng(seed: number): () => number {
 }
 
 /* ---------------------------------------------------------------- where */
-export type RuinKind = "ring" | "gate" | "stair";
+export type RuinKind = "rotunda" | "terraces" | "tower" | "arcade" | "portals";
 export interface RuinSite { x: number; z: number; y: number; kind: RuinKind; rot: number }
 export interface SpotSite { x: number; z: number; y: number; r: number }
 export interface MouthSite { x: number; z: number; y: number; face: number }
 
 const deepHomes = LANDMARK_SITES.filter((_, i) => LANDMARK_KINDS[i] === "deep" || LANDMARK_KINDS[i] === "island");
 
+/** How tall each kind stands (metres), to keep it under the surface. */
+const RUIN_HEIGHT: Record<RuinKind, number> = { tower: 20, rotunda: 17, terraces: 11.5, arcade: 9, portals: 8.5 };
+
 /** Ruins on flat stretches of lake floor, well under the water, apart from each other and the
     homes in the deep; nearer ones first, so the first lake you swim holds one. */
 export const RUIN_SITES: RuinSite[] = (() => {
   const out: RuinSite[] = [];
-  const kinds: RuinKind[] = ["ring", "gate", "stair"];
+  const kinds: RuinKind[] = ["rotunda", "terraces", "arcade", "tower", "portals"];
   const GA = Math.PI * (3 - Math.sqrt(5));
   for (let i = 0; i < 900 && out.length < 9; i++) {
     const r = 40 + Math.sqrt(i) * 70, a = i * GA;
@@ -54,7 +58,16 @@ export const RUIN_SITES: RuinSite[] = (() => {
     if (!flat) continue;
     if (deepHomes.some(([lx, lz]) => Math.hypot(x - lx, z - lz) < 70)) continue;
     if (out.some((o) => Math.hypot(o.x - x, o.z - z) < 220)) continue;
-    out.push({ x, z, y: h, kind: kinds[out.length % 3], rot: hash(i, 3, 11) * Math.PI * 2 });
+    out.push({ x, z, y: h, kind: kinds[out.length % kinds.length], rot: hash(i, 3, 11) * Math.PI * 2 });
+  }
+  // each site gets a kind that fits under its water, the least used of those, so all appear
+  const used: Record<RuinKind, number> = { rotunda: 0, terraces: 0, tower: 0, arcade: 0, portals: 0 };
+  for (const o of out) {
+    const room = -o.y - 3;
+    const fits = kinds.filter((k) => RUIN_HEIGHT[k] <= room).sort((a, b) => RUIN_HEIGHT[b] - RUIN_HEIGHT[a]); // a tie goes to the taller
+    const pool = fits.length ? fits : (["portals", "arcade"] as RuinKind[]);
+    o.kind = pool.reduce((a, b) => (used[b] < used[a] ? b : a));
+    used[o.kind]++;
   }
   return out;
 })();
@@ -62,7 +75,7 @@ export const RUIN_SITES: RuinSite[] = (() => {
 /** A ring of stillness beside each ruin (on the floor, a little way off). */
 export const SPOT_SITES: SpotSite[] = RUIN_SITES.map((r, i) => {
   const a = r.rot + 2.2 + hash(i, 1, 12);
-  const d = r.kind === "ring" ? 0 : 11; // the ring of columns holds its own at the centre
+  const d = r.kind === "rotunda" ? 0 : r.kind === "terraces" ? 18 : 13; // the rotunda holds its own at the centre, under the dome
   const x = r.x + Math.cos(a) * d, z = r.z + Math.sin(a) * d;
   return { x, z, y: heightAt(x, z), r: 2.6 };
 });
@@ -150,8 +163,8 @@ const film = (h: N): N => cos(vec3(h).add(vec3(0, 0.33, 0.67)).mul(6.28318)).mul
     and Atlantean iridescent style"): a thin-film sheen like mother-of-pearl where the stone turns
     from you, and fine inlaid channels of the same shifting colour (bands at the drums' joints, a
     lattice of glyph-lines on the blocks), glowing enough to read through the water. */
-function ruinStone(set: ScanName, inlay: "bands" | "grid" | "none", uT: N, painted = false): THREE.MeshStandardNodeMaterial {
-  const m = new THREE.MeshStandardNodeMaterial({ metalness: 0, roughness: 0.85 });
+function ruinStone(set: ScanName, inlay: "bands" | "grid" | "none", uT: N, painted = false, tint: [number, number, number] = [1, 1, 1]): THREE.MeshStandardNodeMaterial {
+  const m = new THREE.MeshStandardNodeMaterial({ metalness: 0, roughness: 0.85, side: THREE.DoubleSide });
   if (painted) m.vertexColors = true;
   const S = scan(set);
   const pw = T.positionWorld, n = T.normalWorldGeometry;
@@ -163,6 +176,7 @@ function ruinStone(set: ScanName, inlay: "bands" | "grid" | "none", uT: N, paint
   const arm = tri(S.arm);
   let c: N = tri(S.diff).rgb.mul(T.mix(float(0.5), float(1), arm.r));
   if (painted) c = c.mul(T.vertexColor().rgb.div(vec3(0.77, 0.64, 0.45)).mix(vec3(1), 0.45));
+  c = c.mul(vec3(...tint));
   m.colorNode = vec4(c.mul(1.15), 1);
   m.roughnessNode = T.clamp(arm.g, 0.4, 1);
   const V = T.normalize(T.cameraPosition.sub(pw));
@@ -198,22 +212,92 @@ function iridescent(uT: N, k = 1): THREE.MeshBasicNodeMaterial {
   return m;
 }
 
-type Kind = "drum" | "block" | "column" | "shaft" | "tower" | "cap" | "crystal";
+/** Pearl and champagne metal (the Aether pictures): flowing terraces and tall polished arches.
+    Nothing here mirrors the sky (Samuel's rule): its sheen is thin-film colour and a soft light
+    along its curves, so it reads as polished without reflecting anything. */
+function pearlMetal(uT: N): THREE.MeshStandardNodeMaterial {
+  const m = new THREE.MeshStandardNodeMaterial({ metalness: 0.35, roughness: 0.32, side: THREE.DoubleSide });
+  const pw = T.positionWorld;
+  const champagne = vec3(0.8, 0.73, 0.62);
+  const brushed = sin(pw.y.mul(38).add(sin(pw.x.mul(0.7)).mul(3))).mul(0.025).add(1);
+  m.colorNode = vec4(champagne.mul(brushed), 1);
+  const V = T.normalize(T.cameraPosition.sub(pw));
+  const ndv = T.max(T.dot(T.normalWorld, V), 0);
+  const f = film(ndv.mul(1.1).add(pw.y.mul(0.05)).add(uT.mul(0.012)));
+  const edge = T.pow(float(1).sub(ndv), 2);
+  // a soft band of light running along the curves (as if lit from above through the water)
+  const band = smoothstep(0.55, 1.0, T.normalWorld.y.mul(0.5).add(0.5)).mul(0.12);
+  m.emissiveNode = f.mul(edge.mul(0.35).add(0.04)).add(champagne.mul(band.add(0.1)));
+  return m;
+}
+
+/** A wall pierced by one round-headed arch, standing on y = 0, centred on x, `t` thick. */
+function archSlab(w: number, h: number, t: number, ow: number, oh: number, bevel = 0): THREE.BufferGeometry {
+  const r = ow / 2, spring = Math.max(0.1, oh - r);
+  const sh = new THREE.Shape();
+  sh.moveTo(-w / 2, 0);
+  sh.lineTo(-r, 0);
+  sh.lineTo(-r, spring);
+  sh.absarc(0, spring, r, Math.PI, 0, true);
+  sh.lineTo(r, 0);
+  sh.lineTo(w / 2, 0);
+  sh.lineTo(w / 2, h);
+  sh.lineTo(-w / 2, h);
+  sh.closePath();
+  const g = new THREE.ExtrudeGeometry(sh, { depth: t, bevelEnabled: bevel > 0, bevelSize: bevel, bevelThickness: bevel, bevelSegments: 3, curveSegments: 18 });
+  g.translate(0, 0, -t / 2);
+  return g;
+}
+
+/** A flowing ring of a terrace: a closed wavering outline with a courtyard cut from it. */
+function flowingSlab(R: () => number, rOut: number, rIn: number, depth: number): THREE.BufferGeometry {
+  const outline = (r0: number, k: number) => {
+    const a1 = R() * 6.28, a2 = R() * 6.28;
+    const pts: THREE.Vector2[] = [];
+    for (let i = 0; i < 72; i++) {
+      const a = (i / 72) * Math.PI * 2;
+      const r = r0 * (1 + 0.16 * Math.sin(a * 2 + a1) * k + 0.08 * Math.sin(a * 3 + a2) * k);
+      pts.push(new THREE.Vector2(Math.cos(a) * r, Math.sin(a) * r));
+    }
+    return pts;
+  };
+  const sh = new THREE.Shape(outline(rOut, 1));
+  if (rIn > 0) sh.holes.push(new THREE.Path(outline(rIn, 0.6).reverse()));
+  const g = new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: true, bevelSize: 0.35, bevelThickness: 0.3, bevelSegments: 4, curveSegments: 12 });
+  g.rotateX(-Math.PI / 2); // lie flat, its top at y = depth + bevel
+  return g;
+}
+
+/** A solid ring (entablature, a drum's lip): inner and outer radius, height. */
+const ringGeo = (ri: number, ro: number, h: number, seg = 40) =>
+  new THREE.LatheGeometry([new THREE.Vector2(ri, 0), new THREE.Vector2(ro, 0), new THREE.Vector2(ro, h), new THREE.Vector2(ri, h), new THREE.Vector2(ri, 0)], seg);
+/** A dome, open where `gap` of it has fallen in (0 = whole). */
+const domeGeo = (r: number, gap = 0) => new THREE.SphereGeometry(r, 40, 14, 0, Math.PI * 2 * (1 - gap), 0, Math.PI / 2);
+
+type Mat = "stone" | "terracotta" | "pearl";
+/** Geometry gathered per material and merged: one draw each for all the ruins. */
+class Merge {
+  parts: Record<Mat, THREE.BufferGeometry[]> = { stone: [], terracotta: [], pearl: [] };
+  add(mat: Mat, g: THREE.BufferGeometry, m: THREE.Matrix4): void {
+    const c = g.index ? g.toNonIndexed() : g.clone();
+    for (const a of Object.keys(c.attributes)) if (a !== "position" && a !== "normal") c.deleteAttribute(a);
+    c.applyMatrix4(m);
+    this.parts[mat].push(c);
+  }
+}
+
+type Kind = "drum" | "block" | "beam" | "column" | "shaft" | "cap" | "crystal";
 class Stones {
   meshes: Record<Kind, THREE.InstancedMesh>;
-  private n: Record<Kind, number> = { drum: 0, block: 0, column: 0, shaft: 0, tower: 0, cap: 0, crystal: 0 };
-  private m = new THREE.Matrix4();
-  private q = new THREE.Quaternion();
+  private n: Record<Kind, number> = { drum: 0, block: 0, beam: 0, column: 0, shaft: 0, cap: 0, crystal: 0 };
   constructor(uT: N) {
     const col = columnGeometry();
-    col.scale(0.5, 0.5, 0.5); // the temple's papyrus column at half its size: 5.25 m
+    col.scale(0.4, 0.4, 0.4); // the temple's papyrus column, 4.2 m tall
     const shaft = new THREE.CylinderGeometry(0.62 * Math.SQRT1_2, Math.SQRT1_2, 1, 4, 1).rotateY(Math.PI / 4);
-    shaft.computeVertexNormals();
-    const tower = new THREE.CylinderGeometry(0.78 * Math.SQRT1_2, Math.SQRT1_2, 1, 4, 1).rotateY(Math.PI / 4);
     const cap = new THREE.ConeGeometry(Math.SQRT1_2, 1, 4, 1).rotateY(Math.PI / 4);
-    const crystal = new THREE.OctahedronGeometry(1, 0);
     const blocks = ruinStone("sandstone_blocks_05", "grid", uT), drums = ruinStone("sandstone_cracks", "bands", uT);
-    const columns = ruinStone("sandstone_cracks", "none", uT, true), walls = ruinStone("sandstone_blocks_08", "grid", uT);
+    const columns = ruinStone("sandstone_cracks", "none", uT, true);
+    const white = ruinStone("sandstone_blocks_05", "none", uT, false, [1.55, 1.5, 1.45]);
     const mk = (g: THREE.BufferGeometry, mat: THREE.Material, max: number) => {
       const im = new THREE.InstancedMesh(g, mat, max);
       im.count = 0;
@@ -222,27 +306,20 @@ class Stones {
       return im;
     };
     this.meshes = {
-      drum: mk(new THREE.CylinderGeometry(1, 1.02, 1, 24), drums, 400),
-      block: mk(new THREE.BoxGeometry(1, 1, 1), blocks, 300),
-      column: mk(col, columns, 80),
+      drum: mk(new THREE.CylinderGeometry(1, 1.02, 1, 24), drums, 500),
+      block: mk(new THREE.BoxGeometry(1, 1, 1), blocks, 400),
+      beam: mk(new THREE.BoxGeometry(1, 1, 1), white, 500),
+      column: mk(col, columns, 120),
       shaft: mk(shaft, blocks, 20),
-      tower: mk(tower, walls, 20),
       cap: mk(cap, iridescent(uT, 1.2), 20),
-      crystal: mk(crystal, iridescent(uT, 1.6), 40),
+      crystal: mk(new THREE.OctahedronGeometry(1, 0), iridescent(uT, 1.6), 40),
     };
   }
-  put(kind: Kind, x: number, y: number, z: number, sx: number, sy: number, sz: number, rx = 0, ry = 0, rz = 0): void {
-    this.q.setFromEuler(new THREE.Euler(rx, ry, rz));
+  put(kind: Kind, m: THREE.Matrix4): void {
     const im = this.meshes[kind];
     if (this.n[kind] >= im.instanceMatrix.count) return;
-    im.setMatrixAt(this.n[kind]++, this.m.compose(new V(x, y, z), this.q, new V(sx, sy, sz)));
+    im.setMatrixAt(this.n[kind]++, m);
     im.count = this.n[kind];
-  }
-  drum(x: number, y: number, z: number, r: number, h: number, rx = 0, ry = 0, rz = 0): void {
-    this.put("drum", x, y, z, r, h, r, rx, ry, rz);
-  }
-  block(x: number, y: number, z: number, sx: number, sy: number, sz: number, ry = 0, rx = 0, rz = 0): void {
-    this.put("block", x, y, z, sx, sy, sz, rx, ry, rz);
   }
   done(): void {
     for (const im of Object.values(this.meshes)) {
@@ -252,117 +329,174 @@ class Stones {
   }
 }
 
-/** One ruin, laid out around its centre (local x along `rot`). */
-function buildRuin(s: Stones, site: RuinSite, lights: number[]): void {
-  const R = rng(Math.abs(site.x * 7 + site.z * 13) % 1000);
-  const cs = Math.cos(site.rot), sn = Math.sin(site.rot);
-  const at = (lx: number, lz: number) => [site.x + lx * cs - lz * sn, site.z + lx * sn + lz * cs] as const;
-  const floor = (x: number, z: number) => heightAt(x, z);
-  const light = (x: number, y: number, z: number) => lights.push(x, y, z);
-  /** An obelisk: standing, leaning, or fallen along the floor; its pyramidion of electrum. */
-  const obelisk = (x: number, z: number, h: number, fate: number, dir: number) => {
-    const fy = floor(x, z);
-    if (fate < 0.5) {
-      const lean = fate < 0.25 ? 0 : 0.14;
-      s.put("shaft", x, fy + h / 2 - 0.3, z, 1.1, h, 1.1, lean, dir, 0);
-      s.put("cap", x + Math.sin(lean) * h * Math.sin(dir), fy + h - 0.3 + 0.45, z + Math.sin(lean) * h * Math.cos(dir), 0.7, 0.9, 0.7, lean, dir, 0);
-      light(x, fy + h + 1.2, z);
-    } else {
-      const cx = x + Math.cos(dir) * h * 0.5, cz = z + Math.sin(dir) * h * 0.5;
-      s.put("shaft", cx, floor(cx, cz) + 0.5, cz, 1.1, h, 1.1, Math.PI / 2 - 0.05, 0, -dir + Math.PI / 2);
-      const tx = x + Math.cos(dir) * (h + 0.4), tz = z + Math.sin(dir) * (h + 0.4);
-      s.put("cap", tx, floor(tx, tz) + 0.4, tz, 0.7, 0.9, 0.7, 0.3, dir, 1.2);
+/** One ruin (Samuel's pictures: Atlantean domes, arcades, towers; the Aether's flowing terraces,
+    polished arches and lattices), in Egyptian stone, laid out around its centre. */
+function buildRuin(s: Stones, mg: Merge, site: RuinSite, lights: number[]): void {
+  const R = rng(Math.abs(Math.round(site.x * 7 + site.z * 13)) % 1000 + 1);
+  // shrunk if need be, so it never breaks the surface
+  const k = Math.min(1, Math.max(0.45, (-site.y - 2.5) / RUIN_HEIGHT[site.kind]));
+  const base = new THREE.Matrix4().compose(new V(site.x, heightAt(site.x, site.z) - 0.35, site.z), new THREE.Quaternion().setFromAxisAngle(new V(0, 1, 0), site.rot), new V(k, k, k));
+  const e = new THREE.Euler(), q = new THREE.Quaternion();
+  /** A local placement → world matrix. */
+  const L = (x: number, y: number, z: number, ry = 0, rx = 0, rz = 0, sx = 1, sy = 1, sz = 1, frame = base) =>
+    frame.clone().multiply(new THREE.Matrix4().compose(new V(x, y, z), q.setFromEuler(e.set(rx, ry, rz, "YXZ")), new V(sx, sy, sz)));
+  const light = (m: THREE.Matrix4) => {
+    const p = new V().setFromMatrixPosition(m);
+    lights.push(p.x, p.y, p.z);
+  };
+  /** Stones fallen about a spot. */
+  const rubble = (cx: number, cz: number, spread: number, n: number) => {
+    for (let k = 0; k < n; k++) {
+      const x = cx + (R() - 0.5) * spread, z = cz + (R() - 0.5) * spread;
+      s.put("block", L(x, 0.35, z, R() * 3, (R() - 0.5) * 0.5, (R() - 0.5) * 0.5, 0.8 + R() * 1.2, 0.5 + R() * 0.5, 0.7 + R() * 0.8));
     }
   };
-  if (site.kind === "ring") {
-    // a stepped round floor; papyrus columns around it: some standing whole, some broken, some fallen
-    const [cx, cz] = at(0, 0);
-    const fy = floor(cx, cz);
-    s.drum(cx, fy + 0.1, cz, 9.2, 0.6);
-    s.drum(cx, fy + 0.5, cz, 7.9, 0.4);
-    const n = 10, R0 = 7.2;
-    const whole: boolean[] = [];
+  /** An arcade of arches round a circle (between columns), some fallen. */
+  const arcadeRing = (Rr: number, n: number, colH: number, fallen: number, frame = base) => {
+    const chord = 2 * Rr * Math.sin(Math.PI / n);
+    const ow = chord - 1.1, top = colH + ow / 2 + 0.9;
+    const slab = archSlab(chord + 0.2, top, 0.8, ow, colH + ow / 2);
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2;
-      const [x, z] = at(Math.cos(a) * R0, Math.sin(a) * R0);
-      const base = fy + 0.7;
-      const fate = R();
-      if (fate < 0.5) {
-        s.put("column", x, base, z, 1, 1, 1, 0, R() * 6, 0);
-        whole.push(true);
-        if (R() < 0.35) s.put("crystal", x, base + 6.3, z, 0.35, 0.6, 0.35, 0, R() * 3, 0); // a crystal left on the capital
-      } else if (fate < 0.8) {
-        const k0 = 1 + Math.floor(R() * 2);
-        for (let k = 0; k < k0; k++) s.drum(x, base + 0.5 + k * 1.02, z, 0.6, 1.0, 0, R() * 3, 0);
-        const out = a + (R() - 0.5) * 0.8;
-        for (let k = 0; k < 4 - k0; k++) {
-          const d = 1.6 + k * 1.05 + R() * 0.3;
-          const fx = x + Math.cos(out) * d, fz = z + Math.sin(out) * d;
-          s.drum(fx, floor(fx, fz) + 0.5, fz, 0.6, 1.0, Math.PI / 2, 0, -out + (R() - 0.5) * 0.3);
-        }
-        whole.push(false);
-      } else {
-        // fallen whole across the floor
-        const out = a + Math.PI / 2 + (R() - 0.5);
-        const cxx = x + Math.cos(out) * 2.6, czz = z + Math.sin(out) * 2.6;
-        s.put("column", cxx - Math.cos(out) * 2.6, Math.max(floor(cxx, czz), base - 0.4) + 0.55, czz - Math.sin(out) * 2.6, 1, 1, 1, 0, 0, 0);
-        const im = s.meshes.column;
-        // lay the one just placed on its side, pointing along `out`
-        const m4 = new THREE.Matrix4().compose(new V(x, Math.max(floor(cxx, czz), base - 0.4) + 0.55, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -out, -Math.PI / 2 + 0.04, "YXZ")), new V(1, 1, 1));
-        im.setMatrixAt(im.count - 1, m4);
-        whole.push(false);
+      s.put("column", L(Math.cos(a) * Rr, 0, Math.sin(a) * Rr, R() * 6, 0, 0, 1, colH / 4.2, 1, frame));
+      if (R() < fallen) {
+        rubble(Math.cos(a + 0.3) * (Rr + 2.5), Math.sin(a + 0.3) * (Rr + 2.5), 3, 3);
+        continue;
       }
+      const am = a + Math.PI / n, rm = Rr * Math.cos(Math.PI / n);
+      mg.add("stone", slab, L(Math.cos(am) * rm, 0, Math.sin(am) * rm, -am - Math.PI / 2, 0, 0, 1, 1, 1, frame));
     }
-    for (let i = 0; i < n; i++) {
-      if (!whole[i] || !whole[(i + 1) % n]) continue;
-      const a = ((i + 0.5) / n) * Math.PI * 2;
-      const [x, z] = at(Math.cos(a) * R0, Math.sin(a) * R0);
-      s.block(x, fy + 0.7 + 5.6, z, 4.6, 0.7, 1.2, -a + Math.PI / 2);
+    return top;
+  };
+  if (site.kind === "rotunda") {
+    // a round temple: steps, an arcade of papyrus columns and arches, a drum, and a ribbed dome
+    // of terracotta half fallen in; its lantern lies on the floor where the dome broke
+    s.put("drum", L(0, 0.3, 0, 0, 0, 0, 9, 0.6, 9));
+    s.put("drum", L(0, 0.75, 0, 0, 0, 0, 8.1, 0.4, 8.1));
+    const f0 = new THREE.Matrix4().copy(base).multiply(new THREE.Matrix4().makeTranslation(0, 0.95, 0));
+    const Rr = 6.4, top = arcadeRing(Rr, 10, 4.2, 0.2, f0);
+    mg.add("stone", ringGeo(Rr - 0.7, Rr + 0.9, 1.0), L(0, 0.95 + top, 0));
+    mg.add("stone", ringGeo(Rr - 0.2, Rr + 0.4, 1.6), L(0, 0.95 + top + 1.0, 0));
+    const dy = 0.95 + top + 2.6, gap = 0.22;
+    mg.add("terracotta", domeGeo(Rr + 0.4, gap), L(0, dy, 0));
+    // the ribs, where the dome still stands
+    const rib = new THREE.TorusGeometry(Rr + 0.45, 0.16, 6, 22, Math.PI / 2);
+    for (let k = 0; k < 16; k++) {
+      const b = (k / 16) * Math.PI * 2; // world angle of the rib
+      const phi = ((Math.PI - b) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+      if (phi > Math.PI * 2 * (1 - gap) - 0.1) continue;
+      mg.add("terracotta", rib, L(0, dy, 0, -b));
     }
-    light(cx, fy + 7, cz);
-  } else if (site.kind === "gate") {
-    // a pylon gateway: two battered towers (one broken lower), the lintel between, a threshold;
-    // an obelisk fallen before it and an electrum crystal hanging in the doorway
-    for (const side of [-1, 1]) {
-      const [x, z] = at(side * 4.4, 0);
-      const fy = floor(x, z);
-      const h = side < 0 ? 10 : 6.5 + R() * 1.5;
-      s.put("tower", x, fy + h / 2 - 0.4, z, 4.6, h, 2.8, 0, -site.rot, 0);
-      light(x, fy + h + 0.6, z);
-    }
-    const [gx, gz] = at(0, 0);
-    const gy = floor(gx, gz);
-    s.block(gx, gy + 6.6, gz, 4.8, 1.2, 2.2, -site.rot);
-    s.block(gx, gy + 0.15, gz, 3.6, 0.3, 2.2, -site.rot);
-    s.put("crystal", gx, gy + 3.6, gz, 0.6, 1.1, 0.6, 0, R() * 3, 0);
-    const [ox, oz] = at(-3, 7);
-    obelisk(ox, oz, 9, 0.8, site.rot + 0.4);
+    // the fallen lantern and the dome's broken pieces
+    const la = Math.PI - Math.PI * 2 * (1 - gap / 2);
+    const lx = Math.cos(la) * 3.5, lz = Math.sin(la) * 3.5;
+    mg.add("terracotta", domeGeo(1.6), L(lx, 1.6, lz, R() * 3, 1.1, 0.3));
+    mg.add("stone", ringGeo(1.1, 1.6, 1.4, 16), L(lx + 1.8, 1.0, lz - 0.6, 0, 1.4, 0.4));
+    rubble(lx, lz, 5, 6);
+    s.put("crystal", L(lx, 2.8, lz, 0, 0.5, 0.2, 0.4, 0.8, 0.4));
+    light(L(0, dy + Rr * 0.6, 0));
+    light(L(lx, 3.5, lz));
+  } else if (site.kind === "tower") {
+    // a tall round tower, leaning a little: a battered base, a loggia of arches, a drum with
+    // blind arches, a ribbed dome and its cupola; a stump of its twin beside it
+    const lean = new THREE.Matrix4().copy(base).multiply(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0.07, 0, 0.05)));
+    mg.add("stone", new THREE.CylinderGeometry(3.1, 3.5, 8, 32, 1), L(0, 4, 0, 0, 0, 0, 1, 1, 1, lean));
+    mg.add("stone", ringGeo(2.2, 3.6, 0.7), L(0, 8, 0, 0, 0, 0, 1, 1, 1, lean));
+    const f1 = new THREE.Matrix4().copy(lean).multiply(new THREE.Matrix4().makeTranslation(0, 8.7, 0));
+    const top = arcadeRing(2.8, 8, 2.6, 0, f1);
+    mg.add("stone", ringGeo(2.0, 3.4, 0.8), L(0, 8.7 + top, 0, 0, 0, 0, 1, 1, 1, lean));
+    const y3 = 9.5 + top;
+    mg.add("stone", new THREE.CylinderGeometry(2.1, 2.1, 3, 28, 1), L(0, y3 + 1.5, 0, 0, 0, 0, 1, 1, 1, lean));
+    const blind = archSlab(1.3, 2.6, 0.25, 0.8, 2.2);
     for (let k = 0; k < 6; k++) {
-      const [x, z] = at((R() - 0.5) * 16, (R() - 0.5) * 12);
-      s.block(x, floor(x, z) + 0.4, z, 1.2 + R(), 0.8 + R() * 0.4, 1.0 + R() * 0.6, R() * 3, (R() - 0.5) * 0.4, (R() - 0.5) * 0.4);
+      const a = (k / 6) * Math.PI * 2;
+      mg.add("stone", blind, L(Math.cos(a) * 2.15, y3 + 0.2, Math.sin(a) * 2.15, -a - Math.PI / 2, 0, 0, 1, 1, 1, lean));
     }
+    mg.add("terracotta", domeGeo(2.4), L(0, y3 + 3, 0, 0, 0, 0, 1, 1, 1, lean));
+    const rib = new THREE.TorusGeometry(2.45, 0.1, 5, 16, Math.PI / 2);
+    for (let k = 0; k < 12; k++) mg.add("terracotta", rib, L(0, y3 + 3, 0, (k / 12) * Math.PI * 2, 0, 0, 1, 1, 1, lean));
+    mg.add("stone", new THREE.CylinderGeometry(0.6, 0.6, 1.2, 12, 1), L(0, y3 + 5.9, 0, 0, 0, 0, 1, 1, 1, lean));
+    mg.add("terracotta", domeGeo(0.75), L(0, y3 + 6.5, 0, 0, 0, 0, 1, 1, 1, lean));
+    s.put("crystal", L(0, y3 + 7.9, 0, 0, 0, 0, 0.35, 0.7, 0.35, lean));
+    light(L(0, y3 + 8.6, 0, 0, 0, 0, 1, 1, 1, lean));
+    mg.add("stone", new THREE.CylinderGeometry(2.2, 2.5, 3.2, 28, 1), L(8, 1.6, 3));
+    rubble(9, 5, 7, 8);
+  } else if (site.kind === "arcade") {
+    // two arcades facing each other across a long pool, domed pavilions at its ends, and an
+    // obelisk standing at the far end of the water
+    const slab = archSlab(3.8, 6.4, 0.9, 2.6, 5.2);
+    for (const side of [-1, 1])
+      for (let k = 0; k < 7; k++) {
+        const x = (k - 3) * 3.8;
+        if (R() < 0.22) {
+          rubble(x, side * 7.5, 3, 3);
+          continue;
+        }
+        mg.add("stone", slab, L(x, 0, side * 6.5, 0));
+        if (R() < 0.7) s.put("block", L(x, 6.75, side * 6.5, 0, 0, 0, 3.8, 0.7, 1.3));
+      }
+    // the pool's rim
+    for (const side of [-1, 1]) {
+      s.put("block", L(0, 0.3, side * 3.6, 0, 0, 0, 22, 0.6, 0.6));
+      s.put("block", L(side * 11.2, 0.3, 0, 0, 0, 0, 0.6, 0.6, 7.8));
+    }
+    for (const side of [-1, 1]) {
+      const px = side * 15;
+      for (const [cx, cz] of [[-1.8, -1.8], [1.8, -1.8], [-1.8, 1.8], [1.8, 1.8]]) s.put("column", L(px + cx, 0, cz, R() * 6, 0, 0, 1, 1, 1));
+      mg.add("stone", ringGeo(2.0, 3.0, 0.8, 24), L(px, 4.2, 0));
+      mg.add("terracotta", domeGeo(2.6, side > 0 ? 0.3 : 0), L(px, 5.0, 0));
+      light(L(px, 7.2, 0));
+    }
+    s.put("shaft", L(0, 4.2, -1.8 + 0, 0, 0, 0, 1.0, 8.4, 1.0));
+    s.put("cap", L(0, 8.85, -1.8, 0, 0, 0, 0.7, 0.9, 0.7));
+    light(L(0, 10, -1.8));
+  } else if (site.kind === "terraces") {
+    // Aether: flowing rings of pearl-champagne terraces, stacked and stepping in, on slim
+    // pillars; one has slipped and lies tilted on the floor; a crystal at the heart
+    const radii = [14, 11.5, 9, 6.5];
+    radii.forEach((r0, k) => {
+      const y = 0.4 + k * 2.8, ox = (R() - 0.5) * 2, oz = (R() - 0.5) * 2;
+      const slipped = k === 2;
+      mg.add("pearl", flowingSlab(R, r0, r0 * 0.55, 0.35), slipped ? L(ox + 3, 0.4, oz + 2, R(), 0.18, 0.08) : L(ox, y, oz));
+      if (k > 0 && !slipped)
+        for (let j = 0; j < 7; j++) {
+          const a = (j / 7) * Math.PI * 2 + R();
+          const rr = r0 * 0.78;
+          s.put("drum", L(ox + Math.cos(a) * rr, y / 2, oz + Math.sin(a) * rr, 0, 0, 0, 0.28, y, 0.28));
+        }
+    });
+    s.put("crystal", L(0, 4.5, 0, 0.3, 0, 0, 1.0, 2.0, 1.0));
+    light(L(0, 7, 0));
+    light(L(6, 3.5, 0));
   } else {
-    // a stair up to a platform where an obelisk still stands, capped in electrum; papyrus
-    // column stumps at its corners
-    const [px, pz] = at(0, -4.5);
-    const py = floor(px, pz);
-    s.block(px, py + 2.6, pz, 7, 0.5, 6, -site.rot);
-    s.block(px, py + 1.2, pz, 6.6, 2.4, 5.6, -site.rot);
-    for (let k = 0; k < 7; k++) {
-      const [x, z] = at(0, -1.2 + k * 0.75);
-      s.block(x, py + 2.4 - k * 0.36 - 0.18, z, 4.2, 0.36, 0.75, -site.rot);
+    // Aether: a row of tall polished arches along a gentle curve, and beyond, a lattice of pale
+    // stone, broken, some of its beams fallen
+    const slab = archSlab(4.2, 7.6, 0.3, 2.8, 6.2, 0.08);
+    for (let k = 0; k < 6; k++) {
+      const a = -0.6 + k * 0.24;
+      const x = Math.sin(a) * 22, z = -Math.cos(a) * 22 + 22;
+      if (k === 4) {
+        mg.add("pearl", slab, L(x + 1.5, 0.5, z + 2, a + 0.3, Math.PI / 2 - 0.08, 0));
+        continue;
+      }
+      mg.add("pearl", slab, L(x, 0, z, -a + (R() - 0.5) * 0.08));
     }
-    const [ox, oz] = at(0, -5.2);
-    s.put("shaft", ox, py + 2.85 + 4.5, oz, 1.2, 9, 1.2, 0, -site.rot, 0);
-    s.put("cap", ox, py + 2.85 + 9 + 0.45, oz, 0.84, 0.9, 0.84, 0, -site.rot, 0);
-    light(ox, py + 13.6, oz);
-    for (const [sx, sz] of [[-2.8, -2.2], [2.8, -2.2], [-2.8, -6.8], [2.8, -6.8]]) {
-      const [x, z] = at(sx, sz);
-      const h = 1 + Math.floor(R() * 2);
-      for (let k = 0; k < h; k++) s.drum(x, py + 2.85 + 0.5 + k * 1.0, z, 0.5, 1.0, 0, R() * 3, 0);
-    }
-    const [fx, fz] = at(5, 3);
-    obelisk(fx, fz, 7, 0.9, site.rot - 0.8);
+    const C = 2.2, nx = 4, ny = 3, nz = 3, ox = -4.4, oz = 7, th = 0.16;
+    const beam = (x: number, y: number, z: number, sx: number, sy: number, sz: number) => {
+      if (R() < 0.18) return; // broken away
+      s.put("beam", L(ox + x, y + 0.2, oz + z, 0, 0, 0, sx, sy, sz));
+    };
+    for (let i = 0; i <= nx; i++)
+      for (let j = 0; j <= ny; j++)
+        for (let k = 0; k <= nz; k++) {
+          if (j > 1 && i > 2) continue; // the upper corner has fallen
+          if (i < nx) beam(i * C + C / 2, j * C, k * C, C + th, th, th);
+          if (j < ny) beam(i * C, j * C + C / 2, k * C, th, C + th, th);
+          if (k < nz) beam(i * C, j * C, k * C + C / 2, th, th, C + th);
+        }
+    for (let k = 0; k < 10; k++) s.put("beam", L(ox + 9 + R() * 4, 0.3, oz + R() * 6, R() * 3, 0, Math.PI / 2 * (R() < 0.5 ? 1 : 0), th, C, th));
+    light(L(0, 8.5, 0));
+    light(L(ox + 4, 7, oz + 3));
   }
 }
 
@@ -429,11 +563,23 @@ export class Depths {
   private uT = uniform(0);
 
   constructor(items: ArchiveItem[], beings: Being[]) {
-    const s = new Stones(this.uT);
+    const s = new Stones(this.uT), mg = new Merge();
     const lights: number[] = [];
-    for (const r of RUIN_SITES) buildRuin(s, r, lights);
+    for (const r of RUIN_SITES) buildRuin(s, mg, r, lights);
     s.done();
     this.group.add(...Object.values(s.meshes));
+    const mats: Record<Mat, THREE.Material> = {
+      stone: ruinStone("sandstone_cracks", "bands", this.uT),
+      terracotta: ruinStone("red_sandstone_pavement", "none", this.uT, false, [1.2, 0.82, 0.62]),
+      pearl: pearlMetal(this.uT),
+    };
+    for (const k of Object.keys(mats) as Mat[]) {
+      if (!mg.parts[k].length) continue;
+      const mesh = new THREE.Mesh(mergeGeometries(mg.parts[k]), mats[k]);
+      mesh.frustumCulled = false;
+      mesh.receiveShadow = true;
+      this.group.add(mesh);
+    }
     // soft lights settled on the stones
     if (lights.length) {
       const pts = worldPoints(new Float32Array(lights), { color: new THREE.Color(0.75, 0.95, 1.0), size: 1.1, opacity: 0.55 });
