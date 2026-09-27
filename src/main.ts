@@ -801,7 +801,18 @@ function places(): Place[] {
 
 /** Wake at the chosen place. */
 function arrive(c: Choice, first: boolean): void {
+  // the land to build is heavy work that holds the page still: first a soft dark with the
+  // loading mark, painted, then the work, then the dark lifts
   busy(1.5);
+  input.enabled = false;
+  fadeEl.classList.add("on");
+  requestAnimationFrame(() => requestAnimationFrame(() => window.setTimeout(() => {
+    arriveNow(c, first);
+    busy(0.8);
+    window.setTimeout(() => fadeEl.classList.remove("on"), 150);
+  }, 60)));
+}
+function arriveNow(c: Choice, first: boolean): void {
   if (temple.inside) setInside(false);
   if (depths.inside) setDeep(false);
   if (pyramid.isInside) setPyr(false);
@@ -1220,13 +1231,14 @@ const busyEl = $("#busy");
 let busyUntil = 0, backlogFor = 0;
 function busy(seconds: number): void {
   busyUntil = Math.max(busyUntil, performance.now() + seconds * 1000);
+  busyEl.classList.add("on"); // at once, before any heavy work holds the page still
 }
 function busyFrame(): void {
   const now = performance.now();
   // the land: only a real backlog that lasts (a journey, a fast flight far out), not a tile or two
   backlogFor = terrain.pending > 24 ? backlogFor + realDt : 0;
   if (crossing || backlogFor > 0.5 || tp.buffering || (!shadersReady && S.mode !== "intro")) busyUntil = Math.max(busyUntil, now + 500);
-  busyEl.classList.toggle("on", now < busyUntil && S.mode !== "intro");
+  busyEl.classList.toggle("on", now < busyUntil && (S.mode !== "intro" || fadeEl.classList.contains("on")));
 }
 
 /** In a place apart (the temple, the deep archive, the pyramid): the open world rests. */
