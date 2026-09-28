@@ -153,13 +153,18 @@ function paintPhoto(img: HTMLImageElement, canvas: HTMLCanvasElement): void {
   ctx.restore();
 }
 
-/** Shared sampler/color setup for every card texture. */
+/** Shared sampler/color setup for every card texture.
+    NOTE (2026-09-28): mipmaps are OFF for card textures. Safari's WebGPU
+    mipmap generation for textures created at runtime (photo arrivals
+    mid-tour) throws "Invalid CommandEncoder" intermittently; cards are
+    small planes viewed mostly head-on, so LinearFilter costs nothing
+    visible and removes the entire hazard class. */
 function finalizeCardTexture(tex: THREE.CanvasTexture, idx: number): THREE.CanvasTexture {
   tex.name = `tarot-${idx}`;
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.minFilter = THREE.LinearFilter;
   tex.magFilter = THREE.LinearFilter;
-  tex.generateMipmaps = true;
+  tex.generateMipmaps = false;
   tex.anisotropy = 4;
   tex.needsUpdate = true;
   return tex;
