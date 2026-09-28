@@ -1,6 +1,9 @@
 /* The tarot cards live here as small lit rooms.
-   Their linework is drawn on canvas by tour/tarotArt, then laid
-   on a plane backed by a soft additive halo, like breath behind glass.
+   Their imagery is the user's photographed Egyptian tarot (22 PNGs,
+   512x768 with transparent margins) where a photo exists; the corner
+   stations keep the procedural linework drawn on canvas by tour/tarotArt.
+   Either way it lands on a plane backed by a soft additive halo, like
+   breath behind glass.
    A narration cue ignites one: a flare of gold, a shimmer, a steady lamp.
    Every brightness is a pure function of narration seconds —
    one leap or a hundred small steps find the same card, so seeking,
@@ -8,7 +11,7 @@
 import * as THREE from "three/webgpu";
 import { T } from "../gpu/tsl";
 
-import { drawCard } from "../tour/tarotArt";
+import { CARD_H, CARD_W, drawCard } from "../tour/tarotArt";
 
 const { texture, uniform, vec3 } = T;
 
@@ -65,6 +68,95 @@ export function ignitionGlow(dt: number): number {
 }
 
 /* ------------------------------------------------------------------ *
+ * Real card photos (async, non-blocking)
+ * ------------------------------------------------------------------ */
+
+/**
+ * 22 photographed Egyptian-tarot cards (512x768 PNG with transparent
+ * margins), keyed by station/card index. Stations 0, 8, 16 and 25 have
+ * no photo and keep the procedural `drawCard` canvas permanently.
+ */
+const PHOTO_FILES = new Map<number, string>([
+  [1, "card-01-magician.png"],
+  [2, "card-02-high-priestess.png"],
+  [3, "card-03-empress.png"],
+  [4, "card-04-emperor.png"],
+  [5, "card-05-hierophant.png"],
+  [6, "card-06-lovers.png"],
+  [7, "card-07-chariot.png"],
+  [9, "card-09-strength.png"],
+  [10, "card-10-hermit.png"],
+  [11, "card-11-wheel.png"],
+  [12, "card-12-justice.png"],
+  [13, "card-13-hanged-man.png"],
+  [14, "card-14-death.png"],
+  [15, "card-15-temperance.png"],
+  [17, "card-17-devil.png"],
+  [18, "card-18-tower.png"],
+  [19, "card-19-star.png"],
+  [20, "card-20-moon.png"],
+  [21, "card-21-sun.png"],
+  [22, "card-22-judgement.png"],
+  [23, "card-23-world.png"],
+  [24, "card-24-fool.png"],
+]);
+
+interface PhotoState {
+  img: HTMLImageElement;
+  /** True once `onload` has fired; false while pending or after a failed load. */
+  loaded: boolean;
+  /** Canvases awaiting an in-place repaint once the photo arrives. */
+  pending: Map<HTMLCanvasElement, THREE.CanvasTexture>;
+}
+
+const photoStates = new Map<number, PhotoState>();
+
+/** Paint `img` over the whole 512x768 canvas (transparent margins stay clear). */
+function paintPhoto(img: HTMLImageElement, canvas: HTMLCanvasElement): void {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  // The fallback canvas may carry sticky 2d state from drawCard's Pen
+  // (gold shadowBlur/shadowColor in tour/tarotArt) — reset it, or drawImage
+  // would cast a phantom gold shadow of the photo onto its transparent margins.
+  ctx.save();
+  ctx.globalCompositeOperation = "source-over";
+  ctx.globalAlpha = 1;
+  ctx.shadowColor = "rgba(0,0,0,0)";
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+  ctx.filter = "none";
+  ctx.clearRect(0, 0, CARD_W, CARD_H);
+  ctx.drawImage(img, 0, 0, CARD_W, CARD_H);
+  ctx.restore();
+}
+
+/* Kick off every photo load at module scope — `img.src` is async, so
+   module evaluation is never blocked. Each finished photo repaints any
+   canvases already waiting on it, exactly once. */
+for (const [idx, file] of PHOTO_FILES) {
+  const state: PhotoState = {
+    img: new Image(),
+    loaded: false,
+    pending: new Map(),
+  };
+  state.img.onload = () => {
+    state.loaded = true;
+    for (const [canvas, tex] of state.pending) {
+      paintPhoto(state.img, canvas);
+      tex.needsUpdate = true;
+    }
+    state.pending.clear();
+  };
+  state.img.onerror = () => {
+    // keep the procedural fallback; drop waiters so nothing leaks
+    state.pending.clear();
+  };
+  state.img.src = `textures/temple/cards/${file}`;
+  photoStates.set(idx, state);
+}
+
+/* ------------------------------------------------------------------ *
  * Textures (cached)
  * ------------------------------------------------------------------ */
 
@@ -83,7 +175,19 @@ export function cardTexture(i: number): THREE.CanvasTexture {
   const cached = texCache.get(idx);
   if (cached) return cached;
 
-  const canvas = drawCard(idx);
+  const photo = photoStates.get(idx);
+  let canvas: HTMLCanvasElement;
+  if (photo && photo.loaded) {
+    // photo already in: paint it instead of the procedural card
+    canvas = document.createElement("canvas");
+    canvas.width = CARD_W;
+    canvas.height = CARD_H;
+    paintPhoto(photo.img, canvas);
+  } else {
+    // no photo yet (or none at all): procedural fallback
+    canvas = drawCard(idx);
+  }
+
   const tex = new THREE.CanvasTexture(canvas);
   tex.name = `tarot-${idx}`;
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -93,6 +197,12 @@ export function cardTexture(i: number): THREE.CanvasTexture {
   tex.anisotropy = 4;
   tex.needsUpdate = true;
 
+  if (photo && !photo.loaded) {
+    // when the photo arrives, repaint THIS canvas in place and re-upload
+    // the SAME texture — no texture-object swap, no material pop
+    photo.pending.set(canvas, tex);
+  }
+
   texCache.set(idx, tex);
   return tex;
 }
@@ -101,6 +211,7 @@ export function cardTexture(i: number): THREE.CanvasTexture {
 export function disposeCardTextures(): void {
   for (const t of texCache.values()) t.dispose();
   texCache.clear();
+  for (const p of photoStates.values()) p.pending.clear();
 }
 
 /** Single soft radial halo texture, shared by every card. */
