@@ -1,9 +1,11 @@
-/* The tarot cards live here as small lit rooms.
+/* The tarot cards live here as small lit rooms — holograms, not prints.
    Their imagery is the user's photographed Egyptian tarot (22 PNGs,
    512x768 with transparent margins) where a photo exists; the corner
    stations keep the procedural linework drawn on canvas by tour/tarotArt.
-   Either way it lands on a plane backed by a soft additive halo, like
-   breath behind glass.
+   Either way the imagery is PROJECTED, never pasted: the card is a
+   leaning-additive sheet of gold light — a light-field rim that flares
+   at grazing angles, fine scanlines, a slow shimmer and a faint flicker —
+   backed by a soft halo, like a museum hologram you can almost feel.
    A narration cue ignites one: a flare of gold, a shimmer, a steady lamp.
    Every brightness is a pure function of narration seconds —
    one leap or a hundred small steps find the same card, so seeking,
@@ -13,11 +15,11 @@
    first-use path, and live materials are repointed at the new texture
    between frames. No canvas is ever repainted after upload. */
 import * as THREE from "three/webgpu";
-import { T } from "../gpu/tsl";
+import { T, gpuUniforms } from "../gpu/tsl";
 
 import { CARD_H, CARD_W, drawCard } from "../tour/tarotArt";
 
-const { texture, uniform, vec3 } = T;
+const { abs, cameraPosition, dot, float, length, min, mix, normalize, normalWorldGeometry, positionWorld, pow, sin, smoothstep, texture, uniform, uv, vec3, vec4 } = T;
 
 /* ------------------------------------------------------------------ *
  * Constants + ignition curve
@@ -25,7 +27,7 @@ const { texture, uniform, vec3 } = T;
 
 export const CARD_COUNT = 26;
 
-/** Brightness of an un-ignited card's linework. */
+/** Brightness of an un-ignited card's projection. */
 const DORMANT = 0.28;
 /** Settled brightness of a lit card. */
 const LIT = 1.0;
@@ -38,13 +40,15 @@ const DECAY = 0.62;
 /** dt at which a card is considered "fully lit". */
 const SETTLE = RISE + 1.4;
 
-/** Warm gold multiplier applied to every card's linework. */
+/** Warm gold multiplier applied to every card's projection. */
 const GOLD_TINT = /* @__PURE__ */ vec3(1.0, 0.93, 0.76);
+/** Hotter gold for the hologram's light-field rim. */
+const RIM_TINT = /* @__PURE__ */ vec3(1.0, 0.9, 0.62);
 
 const clamp01 = (x: number): number => (x < 0 ? 0 : x > 1 ? 1 : x);
 
 /**
- * Card linework brightness for a given `dt = uT - igniteAt`.
+ * Card projection brightness for a given `dt = uT - igniteAt`.
  * Dormant -> fast flare (ease-out) -> damped shimmer -> settled gold.
  */
 export function ignitionBrightness(dt: number): number {
@@ -154,18 +158,15 @@ function paintPhoto(img: HTMLImageElement, canvas: HTMLCanvasElement): void {
 }
 
 /** Shared sampler/color setup for every card texture.
-    NOTE (2026-09-28): mipmaps are OFF for card textures. Safari's WebGPU
-    mipmap generation for textures created at runtime (photo arrivals
-    mid-tour) throws "Invalid CommandEncoder" intermittently; cards are
-    small planes viewed mostly head-on, so LinearFilter costs nothing
-    visible and removes the entire hazard class. */
+    iOS Safari WebGPU hotfix — NO mipmaps on these runtime-created textures:
+    `minFilter = LinearFilter` and `generateMipmaps = false` exactly. Mipmaps
+    here crash Safari's WebGPU with "Invalid CommandEncoder". Non-negotiable. */
 function finalizeCardTexture(tex: THREE.CanvasTexture, idx: number): THREE.CanvasTexture {
   tex.name = `tarot-${idx}`;
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.minFilter = THREE.LinearFilter;
   tex.magFilter = THREE.LinearFilter;
   tex.generateMipmaps = false;
-  tex.anisotropy = 4;
   tex.needsUpdate = true;
   return tex;
 }
@@ -296,6 +297,7 @@ function glowTexture(): THREE.CanvasTexture {
   glowTex.colorSpace = THREE.SRGBColorSpace;
   glowTex.minFilter = THREE.LinearFilter;
   glowTex.magFilter = THREE.LinearFilter;
+  glowTex.generateMipmaps = false; // same Safari no-mipmap rule as the cards
   glowTex.needsUpdate = true;
 
   return glowTex;
@@ -310,7 +312,7 @@ export interface CardUserData {
   igniteAt: number;
   /** True once the flare has settled into the lit gold state. */
   lit: boolean;
-  /** Brightness uniform driven by `updateCards`. */
+  /** Projection brightness uniform driven by `updateCards`. */
   uBright?: { value: number };
   /** Halo strength uniform driven by `updateCards`. */
   uGlow?: { value: number };
@@ -319,8 +321,10 @@ export interface CardUserData {
 }
 
 /**
- * A tarot card: textured plane (MeshBasicNodeMaterial, transparent) backed
- * by a soft additive glow plane. Both are driven purely from `updateCards`.
+ * A tarot card as a hologram: the imagery is projected as a leaning-additive
+ * sheet of gold light (never an opaque print) — a fresnel light-field rim,
+ * fine scanlines, a slow shimmer and faint two-sine flicker — backed by a
+ * soft additive halo. Both layers are driven purely from `updateCards`.
  */
 export function cardMesh(i: number, w = 2.2, h = 3.4): THREE.Group {
   const idx = normIndex(i);
@@ -347,13 +351,78 @@ export function cardMesh(i: number, w = 2.2, h = 3.4): THREE.Group {
 
   const uBright = uniform(DORMANT);
 
+  /* --- the hologram shader ---------------------------------------- */
+
+  const time = gpuUniforms.time; // the world clock main.ts keeps current
+  const uvN = uv();
+  const img = cardTexNode;
+  // per-card phase spread by the golden angle: no two holograms shimmer in step
+  const ph = idx * 2.39996323;
+
+  // 1. Projected body: the photo AS light — luminance pulled toward the
+  //    temple's gold so no flat print survives — over a faint sheet of
+  //    light that keeps dark areas reading as projection, not paper.
+  //    Scaled to 0.55: the additive blend means 1.0 would blow out; the
+  //    ignition flare (uBright up to 2.8) provides the peak brightness.
+  const lum = dot(img.rgb, vec3(0.299, 0.587, 0.114));
+  const body = mix(img.rgb, GOLD_TINT.mul(lum.add(0.05)), 0.42)
+    .add(GOLD_TINT.mul(0.06))
+    .mul(0.55);
+
+  // 2. Fine scanlines — the hologram's own texture. They drift slowly and
+  //    fade with distance so they never read as noise, only as light.
+  const dist = length(cameraPosition.sub(positionWorld));
+  const scanAmp = smoothstep(dist, 16, 4).mul(0.09).add(0.05); // ±2.5% far, ±7% near
+  const scan = sin(uvN.y.mul(110).add(time.mul(0.45).add(ph))).mul(0.5).add(0.5);
+  const scanMod = scan.sub(0.5).mul(scanAmp).add(1);
+
+  // 3. A slow luminance wave travels down the projection; a faint flicker
+  //    from two sines at an irrational ratio keeps the light alive. Slow,
+  //    tiny, unhurried — a temple, not a sci-fi prop.
+  const wave = sin(uvN.y.mul(2.2).sub(time.mul(0.5)).add(ph)).mul(0.05).add(1);
+  const flick = sin(time.mul(7.13).add(ph))
+    .mul(sin(time.mul(3.71).add(ph * 1.7)))
+    .mul(0.04)
+    .add(1);
+
+  // 4. Light-field rim: a soft gold band along the card's silhouette that
+  //    flares at grazing angles — the edge of the projection volume.
+  //    Scaled to match the body's 0.55 range.
+  const n = normalize(normalWorldGeometry);
+  const v = normalize(cameraPosition.sub(positionWorld));
+  const ndv = abs(dot(n, v));
+  const fres = pow(float(1).sub(ndv), 2.2);
+  const ex = min(uvN.x, float(1).sub(uvN.x)).mul(w);
+  const ey = min(uvN.y, float(1).sub(uvN.y)).mul(h);
+  const border = smoothstep(min(ex, ey), 0.22, 0.04);
+  const rim = RIM_TINT.mul(border.mul(float(0.5).add(fres.mul(0.9))).add(fres.mul(0.28))).mul(0.55);
+
+  // Composed projection — alpha folded into RGB (style rule #2): the
+  // photo's transparent margins stay clear by luminance, not a second
+  // alpha channel.
+  const holo = body
+    .mul(uBright)
+    .mul(scanMod)
+    .mul(wave)
+    .mul(flick)
+    .mul(img.a)
+    .add(rim.mul(uBright).mul(flick));
+
   const cardMat = new THREE.MeshBasicNodeMaterial();
   cardMat.name = "tarot-card-mat";
   cardMat.transparent = true;
-  cardMat.depthWrite = true;
+  cardMat.depthWrite = false;
   cardMat.side = THREE.DoubleSide;
-  cardMat.colorNode = cardTexNode.rgb.mul(GOLD_TINT).mul(uBright);
-  cardMat.opacityNode = cardTexNode.a;
+  cardMat.fog = false;
+  // additiveKeepsAlpha (style rule #3): adds light, leaves alpha alone —
+  // the card is projected light, so nothing behind it is ever occluded
+  cardMat.blending = THREE.CustomBlending;
+  cardMat.blendEquation = THREE.AddEquation;
+  cardMat.blendSrc = THREE.SrcAlphaFactor;
+  cardMat.blendDst = THREE.OneFactor;
+  cardMat.blendSrcAlpha = THREE.ZeroFactor;
+  cardMat.blendDstAlpha = THREE.OneFactor;
+  cardMat.colorNode = vec4(holo, 1);
 
   const card = new THREE.Mesh(new THREE.PlaneGeometry(w, h), cardMat);
   card.name = "card";
@@ -370,7 +439,13 @@ export function cardMesh(i: number, w = 2.2, h = 3.4): THREE.Group {
   glowMat.transparent = true;
   glowMat.depthWrite = false;
   glowMat.side = THREE.DoubleSide;
-  glowMat.blending = THREE.AdditiveBlending;
+  // additiveKeepsAlpha (style rule #3): adds light, leaves alpha alone
+  glowMat.blending = THREE.CustomBlending;
+  glowMat.blendEquation = THREE.AddEquation;
+  glowMat.blendSrc = THREE.SrcAlphaFactor;
+  glowMat.blendDst = THREE.OneFactor;
+  glowMat.blendSrcAlpha = THREE.ZeroFactor;
+  glowMat.blendDstAlpha = THREE.OneFactor;
   glowMat.fog = false;
   glowMat.colorNode = glowTexNode.rgb.mul(uGlow);
   glowMat.opacityNode = glowTexNode.a;
