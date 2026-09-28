@@ -434,6 +434,3457 @@
      "text": "Go in peace, and remember the way back. The water will always be here."
     }
    ]
+  },
+  {
+   "id": "TEMPLE",
+   "title": "One Road, Twenty-Two Stations",
+   "voice": "female",
+   "file": "audio/temple-tour.mp3",
+   "duration": 636.08,
+   "trigger": "temple-tour",
+   "cues": [
+    {
+     "t": 0.0,
+     "text": "Give me the next few minutes."
+    },
+    {
+     "t": 2.69,
+     "text": "Imagine a house with three rooms."
+    },
+    {
+     "t": 6.27,
+     "text": "In the first room, a lamp is lit. That is the mind."
+    },
+    {
+     "t": 11.75,
+     "text": "In the second, a fire is burning. That is the body."
+    },
+    {
+     "t": 16.58,
+     "text": "In the third there is only darkness, and somewhere in the darkness, a star. That is the spirit."
+    },
+    {
+     "t": 25.32,
+     "text": "There are twenty two stations along the way through these rooms."
+    },
+    {
+     "t": 30.29,
+     "text": "They are not places on a map. They are moments every human being passes through, in every life, in every day."
+    },
+    {
+     "t": 39.27,
+     "text": "Walk with me."
+    },
+    {
+     "t": 41.84,
+     "text": "We begin in the first room, where a figure stands before a table of untouched tools, a bright and empty sky above his head."
+    },
+    {
+     "t": 52.72,
+     "text": "This is the Magician. Consciousness itself, awake before anything has happened, the open ground on which everything will be built."
+    },
+    {
+     "t": 63.36,
+     "text": "Every thought you will ever think begins here, in the bright moment before the thinking starts."
+    },
+    {
+     "t": 70.63,
+     "text": "You are standing in it right now."
+    },
+    {
+     "t": 74.41,
+     "text": "Behind him, half hidden between two pillars, sits a still and silent figure."
+    },
+    {
+     "t": 82.04,
+     "text": "This is the High Priestess. The deep mind beneath the busy mind, the still water under the waves."
+    },
+    {
+     "t": 90.38,
+     "text": "Everything you have ever known without knowing how you know it lives here."
+    },
+    {
+     "t": 96.62,
+     "text": "She asks only one thing. Be quiet enough, and still enough, to hear her."
+    },
+    {
+     "t": 104.45,
+     "text": "Then the door opens, and life walks in."
+    },
+    {
+     "t": 108.39,
+     "text": "This is the Empress. Everything that happens to you. The surprise. The friction. The delight. The wound."
+    },
+    {
+     "t": 116.53,
+     "text": "She does not judge what arrives. She receives it the way the earth receives seed."
+    },
+    {
+     "t": 123.62,
+     "text": "Every catalyst is her gift, even the ones that hurt."
+    },
+    {
+     "t": 129.0,
+     "text": "What you live through, if you truly digest it, becomes a throne you can sit on."
+    },
+    {
+     "t": 135.44,
+     "text": "This is the Emperor. Your hard won understanding. The steady authority of someone who walked through fire and kept the warmth."
+    },
+    {
+     "t": 145.71,
+     "text": "Feel the weight of everything you have survived. It is holding you up."
+    },
+    {
+     "t": 151.74,
+     "text": "And then someone new appears. Someone who can direct all of this."
+    },
+    {
+     "t": 157.48,
+     "text": "This is the Hierophant. The will. The chooser. The part of you that decides what your knowing is for."
+    },
+    {
+     "t": 166.27,
+     "text": "Until now, life has mostly been happening to you."
+    },
+    {
+     "t": 170.96,
+     "text": "From here, you begin to happen to life."
+    },
+    {
+     "t": 175.93,
+     "text": "But every real change of mind passes through a single gate."
+    },
+    {
+     "t": 181.41,
+     "text": "This is the Lovers. Not romance. The great sorting of the heart."
+    },
+    {
+     "t": 187.48,
+     "text": "Will you radiate outward, giving. Or draw inward, gathering."
+    },
+    {
+     "t": 194.11,
+     "text": "There is no wrong answer here, only a true one. Feel which way you lean."
+    },
+    {
+     "t": 200.88,
+     "text": "That leaning is already transforming you."
+    },
+    {
+     "t": 205.81,
+     "text": "And now, everything harnessed at once. Consciousness. Depth. Catalyst. Experience. Will. Love."
+    },
+    {
+     "t": 216.45,
+     "text": "This is the Chariot. Not arrival, but direction."
+    },
+    {
+     "t": 221.88,
+     "text": "The whole mind moving as one thing."
+    },
+    {
+     "t": 225.77,
+     "text": "Feel that forward pull. That is what a clear mind feels like."
+    },
+    {
+     "t": 232.16,
+     "text": "The first room is walked. Follow me down the stairs, into the room where the fire is burning."
+    },
+    {
+     "t": 239.85,
+     "text": "The body does not begin with thought. It begins with breath. With pulse. With reaching."
+    },
+    {
+     "t": 247.58,
+     "text": "This is Strength. Not force. The old, balanced knowing of the animal you are."
+    },
+    {
+     "t": 253.92,
+     "text": "Put your hand on your chest."
+    },
+    {
+     "t": 256.76,
+     "text": "That rhythm never asked your permission, and it never failed you."
+    },
+    {
+     "t": 262.93,
+     "text": "But the fire needs tending, and for that you need a lantern."
+    },
+    {
+     "t": 268.17,
+     "text": "This is the Hermit. The quiet counsel that knows when to act and when to rest, what to take in and what to refuse."
+    },
+    {
+     "t": 277.34,
+     "text": "He does not shout."
+    },
+    {
+     "t": 279.67,
+     "text": "In the noise of every day, his is the smallest voice, and the truest."
+    },
+    {
+     "t": 287.05,
+     "text": "Then the wheel turns, and other people walk into your life."
+    },
+    {
+     "t": 291.97,
+     "text": "This is the Wheel of Fortune. Every encounter offers something. Wanted or unwelcome. Pleasant or painful."
+    },
+    {
+     "t": 301.74,
+     "text": "Each person is an invitation. Each friction, a question addressed to you personally."
+    },
+    {
+     "t": 309.12,
+     "text": "Watch what the wheel brings you this week."
+    },
+    {
+     "t": 313.3,
+     "text": "What you do with those invitations becomes your harvest."
+    },
+    {
+     "t": 317.94,
+     "text": "This is Justice. Not punishment. Not reward. The way a field returns exactly what was planted."
+    },
+    {
+     "t": 325.81,
+     "text": "Every kindness you ever planted is growing somewhere."
+    },
+    {
+     "t": 330.95,
+     "text": "Look at your life like a field, and you will see what you have been growing."
+    },
+    {
+     "t": 337.3,
+     "text": "And here the road asks something difficult."
+    },
+    {
+     "t": 341.38,
+     "text": "This is the Hanged Man. The willing surrender. The body offered, turned upside down, given freely so that love might be learned."
+    },
+    {
+     "t": 352.35,
+     "text": "Sometimes growth does not look like climbing."
+    },
+    {
+     "t": 356.48,
+     "text": "Sometimes it looks like letting go, and trusting."
+    },
+    {
+     "t": 361.92,
+     "text": "What you release does not vanish. It transforms."
+    },
+    {
+     "t": 366.96,
+     "text": "This is Death. Not an ending. The body's native rhythm."
+    },
+    {
+     "t": 373.13,
+     "text": "Every night a small dying. Every morning a small rebirth."
+    },
+    {
+     "t": 379.21,
+     "text": "You have died a thousand times already. And here you are."
+    },
+    {
+     "t": 385.29,
+     "text": "And all of it, slowly, blends."
+    },
+    {
+     "t": 389.18,
+     "text": "This is Temperance. The long alchemy. Everything gathered, poured into one vessel, mixed over a lifetime."
+    },
+    {
+     "t": 397.61,
+     "text": "Not a single decisive act. A patient, daily pouring."
+    },
+    {
+     "t": 403.64,
+     "text": "This is the great way of the body. To become, gradually and wholly, yourself."
+    },
+    {
+     "t": 411.83,
+     "text": "Two rooms walked. Now the stairs go down further, past where the light reaches."
+    },
+    {
+     "t": 418.82,
+     "text": "Do not fear this room. The darkness here is not evil. It is simply unlit."
+    },
+    {
+     "t": 425.9,
+     "text": "This is the Devil, the matrix of the spirit. Everything in you that you have never looked at directly."
+    },
+    {
+     "t": 434.88,
+     "text": "It is not here to punish you."
+    },
+    {
+     "t": 438.22,
+     "text": "It waits the way a dark field waits for morning. To be seen."
+    },
+    {
+     "t": 444.95,
+     "text": "And sometimes the seeing comes all at once, like lightning."
+    },
+    {
+     "t": 450.24,
+     "text": "This is the Tower. A flash in which something you built your life on is revealed as hollow."
+    },
+    {
+     "t": 458.11,
+     "text": "It is terrifying. It is also mercy."
+    },
+    {
+     "t": 462.24,
+     "text": "What falls was never holding you up."
+    },
+    {
+     "t": 466.62,
+     "text": "After the lightning, a star. Small. Distant. Steady."
+    },
+    {
+     "t": 473.2,
+     "text": "This is the Star. The bare willingness to keep walking toward a light you cannot prove is there."
+    },
+    {
+     "t": 481.77,
+     "text": "You do not need to see the destination."
+    },
+    {
+     "t": 485.26,
+     "text": "You only need to not stop."
+    },
+    {
+     "t": 489.2,
+     "text": "But the road between the star and the dawn is lit only by the moon."
+    },
+    {
+     "t": 495.44,
+     "text": "This is the Moon. Partial seeing. Shapes without names."
+    },
+    {
+     "t": 500.32,
+     "text": "Beautiful things and treacherous things look alike in moonlight."
+    },
+    {
+     "t": 505.75,
+     "text": "Humility is the only lantern that works in this stretch."
+    },
+    {
+     "t": 511.42,
+     "text": "And then, morning."
+    },
+    {
+     "t": 513.99,
+     "text": "This is the Sun. The spirit grown past seeking, into radiating."
+    },
+    {
+     "t": 520.72,
+     "text": "You no longer chase the light. You have become a source of it."
+    },
+    {
+     "t": 525.81,
+     "text": "This is maturity. Not perfection. Radiance."
+    },
+    {
+     "t": 531.38,
+     "text": "One day the spirit looks back over everything it has been."
+    },
+    {
+     "t": 536.81,
+     "text": "This is Judgement. The great hearing."
+    },
+    {
+     "t": 540.9,
+     "text": "What is finite simply falls away, the way a coat falls from shoulders that no longer need it."
+    },
+    {
+     "t": 548.34,
+     "text": "You were never the coat."
+    },
+    {
+     "t": 551.68,
+     "text": "And at last, the dance."
+    },
+    {
+     "t": 554.98,
+     "text": "This is the World. Every station you have walked, mind and body and spirit, gathered into a single turning figure."
+    },
+    {
+     "t": 565.9,
+     "text": "Contact with the infinite. Joy without a reason. Not an ending. A wholeness."
+    },
+    {
+     "t": 573.27,
+     "text": "You contain the whole road now. And the road contains you."
+    },
+    {
+     "t": 579.54,
+     "text": "Twenty one stations behind you. One remains."
+    },
+    {
+     "t": 584.68,
+     "text": "At a cliff's edge stands a traveler with empty hands and a full heart."
+    },
+    {
+     "t": 591.12,
+     "text": "This is the Fool. The Choice."
+    },
+    {
+     "t": 595.16,
+     "text": "In a single moment, the direction of a life is set. Radiance or contraction. Giving or gathering."
+    },
+    {
+     "t": 604.33,
+     "text": "The cliff is not a danger. It is an invitation."
+    },
+    {
+     "t": 608.92,
+     "text": "And the step is yours."
+    },
+    {
+     "t": 612.14,
+     "text": "So here we are, at the end of the road and also at its beginning."
+    },
+    {
+     "t": 618.77,
+     "text": "Twenty two stations, and every one of them is inside you at this very moment."
+    },
+    {
+     "t": 624.24,
+     "text": "The mind's lamp. The body's fire. The spirit's star."
+    },
+    {
+     "t": 629.58,
+     "text": "The only question left is the one the traveler is asking."
+    },
+    {
+     "t": 634.26,
+     "text": "Which way will you step."
+    }
+   ],
+   "scenes": [
+    {
+     "t": 0.0,
+     "label": "opening"
+    },
+    {
+     "t": 41.84,
+     "label": "I — The Magician"
+    },
+    {
+     "t": 74.41,
+     "label": "II — The High Priestess"
+    },
+    {
+     "t": 104.45,
+     "label": "III — The Empress"
+    },
+    {
+     "t": 129.0,
+     "label": "IV — The Emperor"
+    },
+    {
+     "t": 151.74,
+     "label": "V — The Hierophant"
+    },
+    {
+     "t": 175.93,
+     "label": "VI — The Lovers"
+    },
+    {
+     "t": 205.81,
+     "label": "VII — The Chariot"
+    },
+    {
+     "t": 232.16,
+     "label": "transition: mind → body"
+    },
+    {
+     "t": 239.85,
+     "label": "VIII — Strength"
+    },
+    {
+     "t": 262.93,
+     "label": "IX — The Hermit"
+    },
+    {
+     "t": 287.05,
+     "label": "X — The Wheel of Fortune"
+    },
+    {
+     "t": 313.3,
+     "label": "XI — Justice"
+    },
+    {
+     "t": 337.3,
+     "label": "XII — The Hanged Man"
+    },
+    {
+     "t": 361.92,
+     "label": "XIII — Death"
+    },
+    {
+     "t": 385.29,
+     "label": "XIV — Temperance"
+    },
+    {
+     "t": 411.83,
+     "label": "transition: body → spirit"
+    },
+    {
+     "t": 418.82,
+     "label": "XV — The Devil"
+    },
+    {
+     "t": 444.95,
+     "label": "XVI — The Tower"
+    },
+    {
+     "t": 466.62,
+     "label": "XVII — The Star"
+    },
+    {
+     "t": 489.2,
+     "label": "XVIII — The Moon"
+    },
+    {
+     "t": 511.42,
+     "label": "XIX — The Sun"
+    },
+    {
+     "t": 531.38,
+     "label": "XX — Judgement"
+    },
+    {
+     "t": 551.68,
+     "label": "XXI — The World"
+    },
+    {
+     "t": 579.54,
+     "label": "XXII — The Fool (The Choice)"
+    },
+    {
+     "t": 612.14,
+     "label": "landing"
+    }
+   ]
+  },
+  {
+   "id": "L03",
+   "title": "The Untying",
+   "voice": "female",
+   "file": "audio/lessons/LESSON-03_the-untying_paced.mp3",
+   "duration": 638.81,
+   "trigger": "lesson-l03",
+   "cues": [
+    {
+     "t": 0.0,
+     "text": "Take a piece of rope in your hands."
+    },
+    {
+     "t": 3.27,
+     "text": "Feel its weight, its roughness against your palms."
+    },
+    {
+     "t": 7.94,
+     "text": "Now imagine a knot in the middle of it, pulled tight."
+    },
+    {
+     "t": 12.89,
+     "text": "You know this knot."
+    },
+    {
+     "t": 14.66,
+     "text": "It has been held for a long time, longer than you would like to admit."
+    },
+    {
+     "t": 21.2,
+     "text": "You know its shape the way you know the lines of your own hand."
+    },
+    {
+     "t": 27.08,
+     "text": "You have carried it through ordinary days, through quiet rooms, through sleep."
+    },
+    {
+     "t": 34.37,
+     "text": "And you are the one holding it."
+    },
+    {
+     "t": 37.26,
+     "text": "Only ever you."
+    },
+    {
+     "t": 38.57,
+     "text": "You know what the knot is made of."
+    },
+    {
+     "t": 41.75,
+     "text": "A name."
+    },
+    {
+     "t": 42.4,
+     "text": "A day."
+    },
+    {
+     "t": 42.96,
+     "text": "A sentence said in anger and never taken back."
+    },
+    {
+     "t": 47.26,
+     "text": "A promise broken."
+    },
+    {
+     "t": 48.84,
+     "text": "A silence where an answer should have been."
+    },
+    {
+     "t": 52.86,
+     "text": "Something done to you, or something done by you, that still burns when touched."
+    },
+    {
+     "t": 60.24,
+     "text": "Perhaps the hand that tied it is not yours."
+    },
+    {
+     "t": 64.25,
+     "text": "Perhaps someone else pulled the rope, and you have been holding it ever since."
+    },
+    {
+     "t": 71.54,
+     "text": "Or perhaps you tied it yourself in the dark, and cannot remember why."
+    },
+    {
+     "t": 77.98,
+     "text": "Perhaps the person it binds is no longer even in your life."
+    },
+    {
+     "t": 83.49,
+     "text": "Either way, the knot is in your hands now."
+    },
+    {
+     "t": 87.42,
+     "text": "Not in theirs."
+    },
+    {
+     "t": 88.72,
+     "text": "Notice what holding it has cost you."
+    },
+    {
+     "t": 92.09,
+     "text": "The tight shoulders."
+    },
+    {
+     "t": 93.95,
+     "text": "The jaw that never quite unclenches."
+    },
+    {
+     "t": 97.32,
+     "text": "The argument you rehearse in the shower, winning it again, every time."
+    },
+    {
+     "t": 103.85,
+     "text": "The memory that arrives uninvited and is sharp as the first day."
+    },
+    {
+     "t": 109.83,
+     "text": "Resentment is a strange companion to keep."
+    },
+    {
+     "t": 113.75,
+     "text": "It promises protection, and gives you vigilance instead."
+    },
+    {
+     "t": 118.98,
+     "text": "It promises justice, and gives you a room you never leave."
+    },
+    {
+     "t": 124.4,
+     "text": "The person who hurt you may have moved on years ago."
+    },
+    {
+     "t": 129.26,
+     "text": "You are the one still standing here, arms aching, holding the rope."
+    },
+    {
+     "t": 135.51,
+     "text": "Ask yourself, honestly, what you have received for the carrying."
+    },
+    {
+     "t": 141.49,
+     "text": "Not blame."
+    },
+    {
+     "t": 142.42,
+     "text": "Just the question."
+    },
+    {
+     "t": 144.11,
+     "text": "Now look closer at the knot itself."
+    },
+    {
+     "t": 147.37,
+     "text": "What exactly is wound up in it."
+    },
+    {
+     "t": 150.27,
+     "text": "Often it is something you recognize from the inside."
+    },
+    {
+     "t": 155.13,
+     "text": "A selfishness you have felt in your own chest."
+    },
+    {
+     "t": 159.42,
+     "text": "A weakness you would never confess out loud."
+    },
+    {
+     "t": 163.53,
+     "text": "A fear you know by name, now wearing someone else's face."
+    },
+    {
+     "t": 168.85,
+     "text": "The angrier you are at them, the more familiar the shape becomes."
+    },
+    {
+     "t": 174.93,
+     "text": "This is not an accusation."
+    },
+    {
+     "t": 177.35,
+     "text": "It is an observation."
+    },
+    {
+     "t": 179.31,
+     "text": "The knot may be showing you a part of yourself you have never wanted to look at."
+    },
+    {
+     "t": 186.79,
+     "text": "That is painful."
+    },
+    {
+     "t": 188.28,
+     "text": "It is allowed to be painful."
+    },
+    {
+     "t": 190.9,
+     "text": "Seeing it is the beginning of the loosening."
+    },
+    {
+     "t": 195.0,
+     "text": "Here is the hardest truth in the whole matter."
+    },
+    {
+     "t": 199.3,
+     "text": "You cannot untie the knot inside someone else."
+    },
+    {
+     "t": 203.6,
+     "text": "You cannot do their work for them, no matter how you ache to."
+    },
+    {
+     "t": 209.29,
+     "text": "No amount of your holding will make them sorry."
+    },
+    {
+     "t": 213.68,
+     "text": "No amount of your carrying will change what they did."
+    },
+    {
+     "t": 218.63,
+     "text": "This is not cruelty."
+    },
+    {
+     "t": 220.5,
+     "text": "It is simple arithmetic."
+    },
+    {
+     "t": 222.74,
+     "text": "The only hands in this scene are yours."
+    },
+    {
+     "t": 226.38,
+     "text": "And the only knot that exists is the one between your own fingers."
+    },
+    {
+     "t": 232.55,
+     "text": "What if the whole thing was always yours to set down."
+    },
+    {
+     "t": 237.5,
+     "text": "What if it was never theirs to fix."
+    },
+    {
+     "t": 240.77,
+     "text": "An action put into effect and never forgiven does not rest."
+    },
+    {
+     "t": 246.28,
+     "text": "It keeps turning."
+    },
+    {
+     "t": 247.86,
+     "text": "Every memory is a revolution."
+    },
+    {
+     "t": 250.57,
+     "text": "Every retelling winds the spring a little tighter."
+    },
+    {
+     "t": 255.24,
+     "text": "The wound itself may be old, but the turning is fresh each time."
+    },
+    {
+     "t": 261.22,
+     "text": "That is the real exhaustion."
+    },
+    {
+     "t": 263.84,
+     "text": "Not the injury, the repetition."
+    },
+    {
+     "t": 266.73,
+     "text": "You have mistaken the motion for purpose."
+    },
+    {
+     "t": 270.56,
+     "text": "But the wheel goes nowhere."
+    },
+    {
+     "t": 273.08,
+     "text": "It only wears the road deeper."
+    },
+    {
+     "t": 275.88,
+     "text": "Something in you has been waiting for permission to stop."
+    },
+    {
+     "t": 281.21,
+     "text": "And there is no one who can give it to you but yourself."
+    },
+    {
+     "t": 286.44,
+     "text": "The wheel stops the moment you stop pushing it."
+    },
+    {
+     "t": 290.83,
+     "text": "Before we go further, turn the attention around."
+    },
+    {
+     "t": 295.31,
+     "text": "Who have you refused to forgive most fiercely."
+    },
+    {
+     "t": 299.6,
+     "text": "Not them."
+    },
+    {
+     "t": 300.45,
+     "text": "You."
+    },
+    {
+     "t": 300.82,
+     "text": "For trusting."
+    },
+    {
+     "t": 302.03,
+     "text": "For missing the signs."
+    },
+    {
+     "t": 304.09,
+     "text": "For being the person this could happen to."
+    },
+    {
+     "t": 308.01,
+     "text": "For the words you said, or the words you never found."
+    },
+    {
+     "t": 312.96,
+     "text": "For believing, somewhere far down, that you deserved what happened."
+    },
+    {
+     "t": 319.22,
+     "text": "You did not deserve it."
+    },
+    {
+     "t": 321.37,
+     "text": "But the belief is a knot too, and you hold it just as tightly."
+    },
+    {
+     "t": 327.16,
+     "text": "It is often the tightest knot of all, the one tied closest to the skin."
+    },
+    {
+     "t": 333.79,
+     "text": "The key to forgiving them has been in your other hand the whole time."
+    },
+    {
+     "t": 340.23,
+     "text": "What if the first untying is your own name."
+    },
+    {
+     "t": 344.25,
+     "text": "There is a difference between understanding a thing and releasing it."
+    },
+    {
+     "t": 350.69,
+     "text": "You can understand perfectly and still hold on."
+    },
+    {
+     "t": 355.08,
+     "text": "Release is a separate motion."
+    },
+    {
+     "t": 357.79,
+     "text": "It belongs to the hands."
+    },
+    {
+     "t": 360.03,
+     "text": "Open them, even slightly, and feel what changes."
+    },
+    {
+     "t": 364.51,
+     "text": "Whatever you have been carrying, give it back to the largeness it came from."
+    },
+    {
+     "t": 371.61,
+     "text": "The anger."
+    },
+    {
+     "t": 372.54,
+     "text": "The debt you are owed."
+    },
+    {
+     "t": 374.6,
+     "text": "The final word you never got to say."
+    },
+    {
+     "t": 377.96,
+     "text": "These were never yours to store."
+    },
+    {
+     "t": 380.95,
+     "text": "They are energies that pass through a life, if the life lets them pass."
+    },
+    {
+     "t": 387.58,
+     "text": "Let them go the way a river lets a leaf go."
+    },
+    {
+     "t": 391.6,
+     "text": "Downstream, and out of sight, without a ceremony."
+    },
+    {
+     "t": 396.17,
+     "text": "You do not have to understand where they go."
+    },
+    {
+     "t": 400.28,
+     "text": "Only that they go."
+    },
+    {
+     "t": 401.96,
+     "text": "Now we come to the quietest part of all."
+    },
+    {
+     "t": 405.7,
+     "text": "Forgetting is not what you might think."
+    },
+    {
+     "t": 409.34,
+     "text": "It is not erasing the day from your mind, as if it never happened."
+    },
+    {
+     "t": 415.51,
+     "text": "It is the memory arriving, and finding no charge left in it."
+    },
+    {
+     "t": 421.11,
+     "text": "The name spoken, and the chest staying easy."
+    },
+    {
+     "t": 425.22,
+     "text": "The scene recalled, and the hands staying open."
+    },
+    {
+     "t": 429.61,
+     "text": "That is the definition of forgiveness, completed."
+    },
+    {
+     "t": 434.18,
+     "text": "Not a pardon granted from some height."
+    },
+    {
+     "t": 437.73,
+     "text": "A charge that finally went out."
+    },
+    {
+     "t": 440.63,
+     "text": "Like a storm that spent itself over the sea and never made landfall."
+    },
+    {
+     "t": 446.98,
+     "text": "It may take many returns."
+    },
+    {
+     "t": 449.31,
+     "text": "That is expected."
+    },
+    {
+     "t": 450.9,
+     "text": "The knot was tied over time."
+    },
+    {
+     "t": 453.52,
+     "text": "It unties over time."
+    },
+    {
+     "t": 455.38,
+     "text": "Begin small, if the large one feels impossible."
+    },
+    {
+     "t": 459.77,
+     "text": "Notice the small frictions of an ordinary day."
+    },
+    {
+     "t": 464.07,
+     "text": "The driver."
+    },
+    {
+     "t": 465.1,
+     "text": "The queue."
+    },
+    {
+     "t": 466.03,
+     "text": "The careless remark."
+    },
+    {
+     "t": 467.9,
+     "text": "Each one is a tiny knot, quickly tied, quickly held."
+    },
+    {
+     "t": 472.76,
+     "text": "Each one is a chance to practice opening the hands."
+    },
+    {
+     "t": 477.52,
+     "text": "Forgive the small, and watch what happens inside."
+    },
+    {
+     "t": 482.09,
+     "text": "The muscle grows."
+    },
+    {
+     "t": 483.68,
+     "text": "The gesture becomes familiar."
+    },
+    {
+     "t": 486.39,
+     "text": "There is no judgment in starting small."
+    },
+    {
+     "t": 490.03,
+     "text": "There is only beginning."
+    },
+    {
+     "t": 492.27,
+     "text": "When the large memory returns, your hands will know the shape of letting go."
+    },
+    {
+     "t": 499.37,
+     "text": "They will have rehearsed it a hundred quiet times."
+    },
+    {
+     "t": 504.04,
+     "text": "One thing deserves to be said clearly, because it matters."
+    },
+    {
+     "t": 509.46,
+     "text": "Forgiving someone does not mean returning to them."
+    },
+    {
+     "t": 514.13,
+     "text": "It does not mean trusting them again, or pretending it was nothing."
+    },
+    {
+     "t": 520.39,
+     "text": "It does not mean accepting what harmed you, or staying where you are unsafe."
+    },
+    {
+     "t": 527.48,
+     "text": "You can set down the rope and still walk away from the person."
+    },
+    {
+     "t": 533.27,
+     "text": "Sometimes distance is the honest form of kindness."
+    },
+    {
+     "t": 537.94,
+     "text": "Sometimes the untying happens precisely because you stopped pulling."
+    },
+    {
+     "t": 544.29,
+     "text": "Boundaries and forgiveness are not enemies."
+    },
+    {
+     "t": 548.31,
+     "text": "They are two hands, working together, each doing its own work."
+    },
+    {
+     "t": 554.1,
+     "text": "The open hand and the turning step can belong to the same heart."
+    },
+    {
+     "t": 560.08,
+     "text": "So here is the gesture itself."
+    },
+    {
+     "t": 562.88,
+     "text": "Open your hands."
+    },
+    {
+     "t": 564.37,
+     "text": "Feel the rope go slack between them."
+    },
+    {
+     "t": 567.74,
+     "text": "Watch the knot loosen, not because you solved it, but because you stopped holding it."
+    },
+    {
+     "t": 575.67,
+     "text": "Notice the space that appears between your palms."
+    },
+    {
+     "t": 580.25,
+     "text": "That space is yours."
+    },
+    {
+     "t": 582.12,
+     "text": "It has been waiting the whole time."
+    },
+    {
+     "t": 585.39,
+     "text": "Breathe into it, slowly, the way you would enter a cleared room."
+    },
+    {
+     "t": 591.36,
+     "text": "The weight you carried was never a part of you."
+    },
+    {
+     "t": 595.75,
+     "text": "It was only something you were holding."
+    },
+    {
+     "t": 599.4,
+     "text": "And holding is a choice."
+    },
+    {
+     "t": 601.64,
+     "text": "And now the question that remains, the only one that matters."
+    },
+    {
+     "t": 607.33,
+     "text": "Whose is the hand that holds the knot."
+    },
+    {
+     "t": 610.88,
+     "text": "Yours."
+    },
+    {
+     "t": 611.44,
+     "text": "Only ever yours."
+    },
+    {
+     "t": 612.94,
+     "text": "And whose is the hand that can let it go."
+    },
+    {
+     "t": 616.77,
+     "text": "Consider the person you have been waiting to change."
+    },
+    {
+     "t": 621.62,
+     "text": "Consider the sentence you have been waiting to hear."
+    },
+    {
+     "t": 626.48,
+     "text": "Then set those down, gently, beside the road."
+    },
+    {
+     "t": 630.68,
+     "text": "And ask yourself this."
+    },
+    {
+     "t": 632.74,
+     "text": "What would be possible, if the knot were no longer in your hands."
+    }
+   ],
+   "note": "subtitle cues are proportional estimates from the script, not forced-aligned"
+  },
+  {
+   "id": "L04",
+   "title": "Without Price",
+   "voice": "female",
+   "file": "audio/lessons/LESSON-04_without-price_paced.mp3",
+   "duration": 570.5,
+   "trigger": "lesson-l04",
+   "cues": [
+    {
+     "t": 0.0,
+     "text": "Picture a cold evening, and rain coming down, and someone standing at the side of the road with a soaked coat."
+    },
+    {
+     "t": 10.29,
+     "text": "You stop the car."
+    },
+    {
+     "t": 11.89,
+     "text": "You roll the window down and offer them a seat."
+    },
+    {
+     "t": 16.28,
+     "text": "For a moment, the night is smaller than the warmth inside the car."
+    },
+    {
+     "t": 22.46,
+     "text": "Now stay with that feeling for a while."
+    },
+    {
+     "t": 26.11,
+     "text": "Ask yourself what that moment would have cost you if no one had ever thanked you for it."
+    },
+    {
+     "t": 34.35,
+     "text": "Would it have been worth less."
+    },
+    {
+     "t": 37.15,
+     "text": "That is the country we are going to walk through today."
+    },
+    {
+     "t": 42.3,
+     "text": "A country where love is given without a price tag."
+    },
+    {
+     "t": 46.98,
+     "text": "Most of us carry an invisible ledger."
+    },
+    {
+     "t": 50.44,
+     "text": "Every kindness we do gets written down in it."
+    },
+    {
+     "t": 54.65,
+     "text": "Every kindness we receive gets written down too."
+    },
+    {
+     "t": 59.15,
+     "text": "It opens itself at night, when we lie awake."
+    },
+    {
+     "t": 63.26,
+     "text": "Did they notice what I did for them."
+    },
+    {
+     "t": 66.63,
+     "text": "Did I get back what I put in."
+    },
+    {
+     "t": 69.35,
+     "text": "It is such a quiet habit that we hardly know it is running."
+    },
+    {
+     "t": 74.87,
+     "text": "But it runs, and it changes the shape of everything we give."
+    },
+    {
+     "t": 80.48,
+     "text": "Consider what happens when the thank you does not come."
+    },
+    {
+     "t": 85.63,
+     "text": "You bring soup to a sick neighbor."
+    },
+    {
+     "t": 88.81,
+     "text": "The door opens, the soup goes in, the door closes."
+    },
+    {
+     "t": 93.49,
+     "text": "No smile that lingers."
+    },
+    {
+     "t": 95.55,
+     "text": "No warm word that lands."
+    },
+    {
+     "t": 97.8,
+     "text": "A small voice says, they could have at least said something."
+    },
+    {
+     "t": 103.41,
+     "text": "Watch that small voice closely."
+    },
+    {
+     "t": 106.31,
+     "text": "If the door had never opened, would you have brought the soup anyway."
+    },
+    {
+     "t": 112.77,
+     "text": "Imagine the sun for a moment."
+    },
+    {
+     "t": 115.49,
+     "text": "It rises every morning and pours itself over the world without asking a single question."
+    },
+    {
+     "t": 123.72,
+     "text": "It does not send a bill to the field."
+    },
+    {
+     "t": 127.18,
+     "text": "It shines on the palace and the prison wall with exactly the same indifference."
+    },
+    {
+     "t": 134.58,
+     "text": "You are standing under it right now."
+    },
+    {
+     "t": 137.95,
+     "text": "You have never once paid for it."
+    },
+    {
+     "t": 140.94,
+     "text": "What would it be like to shine the way the sun shines."
+    },
+    {
+     "t": 146.0,
+     "text": "Not to be the sun."
+    },
+    {
+     "t": 147.68,
+     "text": "Only to borrow its way of giving."
+    },
+    {
+     "t": 150.77,
+     "text": "There is a particular test that love meets again and again."
+    },
+    {
+     "t": 156.29,
+     "text": "It is the gift that is refused."
+    },
+    {
+     "t": 159.19,
+     "text": "You offer help, and the other person waves it away."
+    },
+    {
+     "t": 163.96,
+     "text": "Something in you wants to take the gift back and carry it home unopened."
+    },
+    {
+     "t": 170.7,
+     "text": "But what if the giving were finished the moment you offered it."
+    },
+    {
+     "t": 176.6,
+     "text": "What if the point was never the taking."
+    },
+    {
+     "t": 180.25,
+     "text": "A river does not stop flowing because one stone refuses to get wet."
+    },
+    {
+     "t": 186.52,
+     "text": "It keeps moving, because moving is what it is."
+    },
+    {
+     "t": 190.82,
+     "text": "Now look at your own hand."
+    },
+    {
+     "t": 193.26,
+     "text": "Open it, palm up, and hold it out in front of you."
+    },
+    {
+     "t": 197.94,
+     "text": "This is the hand of giving."
+    },
+    {
+     "t": 200.46,
+     "text": "Now close it slowly, into a fist."
+    },
+    {
+     "t": 203.55,
+     "text": "This is the hand of keeping score."
+    },
+    {
+     "t": 206.73,
+     "text": "Both hands belong to you."
+    },
+    {
+     "t": 209.07,
+     "text": "The open hand lets things pass through it."
+    },
+    {
+     "t": 213.0,
+     "text": "The closed hand keeps things inside it, and one of them fills up with dust."
+    },
+    {
+     "t": 220.02,
+     "text": "Ask yourself which one of your hands has been tired lately."
+    },
+    {
+     "t": 225.54,
+     "text": "Most giving has a secret audience of one."
+    },
+    {
+     "t": 229.38,
+     "text": "You give, and then you watch yourself giving."
+    },
+    {
+     "t": 233.59,
+     "text": "Was that generous enough."
+    },
+    {
+     "t": 235.93,
+     "text": "Did they see it."
+    },
+    {
+     "t": 237.43,
+     "text": "This watching spoils the gift a little, the way a camera changes a room."
+    },
+    {
+     "t": 244.17,
+     "text": "There is another way."
+    },
+    {
+     "t": 246.13,
+     "text": "You can give the way a good dog lies in the sun."
+    },
+    {
+     "t": 250.62,
+     "text": "Entirely there, and entirely unaware of being seen."
+    },
+    {
+     "t": 255.4,
+     "text": "Think of someone who plants a tree in a place they will never visit again."
+    },
+    {
+     "t": 262.32,
+     "text": "The shade will fall on strangers."
+    },
+    {
+     "t": 265.41,
+     "text": "The planter will never know their names."
+    },
+    {
+     "t": 269.16,
+     "text": "Why do it, then."
+    },
+    {
+     "t": 270.65,
+     "text": "There is no answer that fits inside the ledger."
+    },
+    {
+     "t": 275.05,
+     "text": "The tree does not ask why either."
+    },
+    {
+     "t": 278.14,
+     "text": "It just grows, and in growing it keeps a promise nobody made."
+    },
+    {
+     "t": 283.85,
+     "text": "Here is a quieter truth, and it may be the harder one."
+    },
+    {
+     "t": 288.9,
+     "text": "It is often easier to give love than to receive it."
+    },
+    {
+     "t": 293.67,
+     "text": "When someone reaches toward you with kindness, something in you may flinch."
+    },
+    {
+     "t": 300.69,
+     "text": "I do not deserve this."
+    },
+    {
+     "t": 302.75,
+     "text": "Now I owe them something."
+    },
+    {
+     "t": 305.09,
+     "text": "So you deflect the gift, or hurry to pay it back."
+    },
+    {
+     "t": 309.68,
+     "text": "But a gift that is refused has nowhere to go."
+    },
+    {
+     "t": 313.89,
+     "text": "And the river stalls."
+    },
+    {
+     "t": 315.85,
+     "text": "Consider what debt does to love."
+    },
+    {
+     "t": 318.85,
+     "text": "The moment you owe me, the gift changes its color."
+    },
+    {
+     "t": 323.53,
+     "text": "It stops being a gift and starts being a loan."
+    },
+    {
+     "t": 327.83,
+     "text": "Loans want repayment."
+    },
+    {
+     "t": 329.8,
+     "text": "Loans keep a calendar."
+    },
+    {
+     "t": 331.86,
+     "text": "And somehow, in all that careful balancing, the tenderness goes thin."
+    },
+    {
+     "t": 338.32,
+     "text": "What if you let someone give to you, and simply received it."
+    },
+    {
+     "t": 343.93,
+     "text": "What if you did not write it down."
+    },
+    {
+     "t": 347.11,
+     "text": "There is a difference between a well and a fountain."
+    },
+    {
+     "t": 351.98,
+     "text": "A well is fed drop by drop, and you can draw it dry."
+    },
+    {
+     "t": 356.85,
+     "text": "A fountain is fed from a spring that never stops."
+    },
+    {
+     "t": 361.43,
+     "text": "Some people give like a well, measuring each bucket."
+    },
+    {
+     "t": 366.3,
+     "text": "Some people give like a fountain, because the source does not run out."
+    },
+    {
+     "t": 372.85,
+     "text": "The difference is not in how much they have."
+    },
+    {
+     "t": 376.97,
+     "text": "The difference is in what they believe about where it comes from."
+    },
+    {
+     "t": 383.05,
+     "text": "Now think of the people you love most."
+    },
+    {
+     "t": 386.61,
+     "text": "The ones you would sit up all night for."
+    },
+    {
+     "t": 390.35,
+     "text": "The ones you feed when they are sick and cannot say thank you."
+    },
+    {
+     "t": 396.15,
+     "text": "With them, the ledger is not closed."
+    },
+    {
+     "t": 399.52,
+     "text": "It is simply forgotten."
+    },
+    {
+     "t": 401.67,
+     "text": "You stopped counting a long time ago, and nobody noticed."
+    },
+    {
+     "t": 407.01,
+     "text": "It is the easiest thing in the world, and the rarest."
+    },
+    {
+     "t": 411.97,
+     "text": "Ask yourself why it is so easy with them."
+    },
+    {
+     "t": 415.81,
+     "text": "And what keeps it from being easy with everyone else."
+    },
+    {
+     "t": 420.77,
+     "text": "Every day, this choice appears in small places."
+    },
+    {
+     "t": 425.16,
+     "text": "You hold a door for a stranger, and they walk through without looking up."
+    },
+    {
+     "t": 432.0,
+     "text": "You let a driver merge ahead of you, and they do not wave."
+    },
+    {
+     "t": 437.42,
+     "text": "You listen for ten extra minutes to someone who is lonely."
+    },
+    {
+     "t": 442.85,
+     "text": "In each of these moments, the ledger opens by itself."
+    },
+    {
+     "t": 447.81,
+     "text": "The small voice starts its arithmetic."
+    },
+    {
+     "t": 451.37,
+     "text": "And in each of these moments, you can close it again."
+    },
+    {
+     "t": 456.33,
+     "text": "Nobody is asking you to."
+    },
+    {
+     "t": 458.57,
+     "text": "Nobody will grade you on it."
+    },
+    {
+     "t": 461.19,
+     "text": "It is simply a fork in the road, and both paths are yours to take."
+    },
+    {
+     "t": 467.37,
+     "text": "The question is only which one you want to walk today."
+    },
+    {
+     "t": 472.43,
+     "text": "One more thing, and then we will let the silence have the room."
+    },
+    {
+     "t": 478.32,
+     "text": "Love that is given freely has a strange habit."
+    },
+    {
+     "t": 482.63,
+     "text": "It comes back."
+    },
+    {
+     "t": 483.94,
+     "text": "Not from the person you gave it to."
+    },
+    {
+     "t": 487.21,
+     "text": "Not on your schedule, and not in your currency."
+    },
+    {
+     "t": 491.61,
+     "text": "Months later, a stranger does for you what you once did for someone else."
+    },
+    {
+     "t": 498.44,
+     "text": "The light you set down keeps traveling after you leave the room."
+    },
+    {
+     "t": 504.43,
+     "text": "But here is the part you cannot use."
+    },
+    {
+     "t": 507.8,
+     "text": "It only works if you were not counting on it."
+    },
+    {
+     "t": 512.01,
+     "text": "The moment you give in order to get it back, the spell breaks."
+    },
+    {
+     "t": 517.81,
+     "text": "It must be a gift all the way down."
+    },
+    {
+     "t": 521.09,
+     "text": "One last image to carry with you."
+    },
+    {
+     "t": 524.18,
+     "text": "A candle in a dark room does not ask who is sitting around it."
+    },
+    {
+     "t": 529.98,
+     "text": "It does not dim itself for strangers and brighten for friends."
+    },
+    {
+     "t": 535.78,
+     "text": "It burns, and the burning is the giving, and the light falls where it falls."
+    },
+    {
+     "t": 542.9,
+     "text": "You have a light like that."
+    },
+    {
+     "t": 545.42,
+     "text": "Not a great one."
+    },
+    {
+     "t": 546.92,
+     "text": "Not a famous one."
+    },
+    {
+     "t": 548.51,
+     "text": "Just a small, steady flame that is yours."
+    },
+    {
+     "t": 552.35,
+     "text": "The question is whether you will set it down in the middle of the room, and walk away, and let it shine on whoever happens to be there."
+    },
+    {
+     "t": 564.98,
+     "text": "If no one ever knew it was yours, would you still light it."
+    }
+   ],
+   "note": "subtitle cues are proportional estimates from the script, not forced-aligned"
+  },
+  {
+   "id": "L05",
+   "title": "The Fire in the Hand",
+   "voice": "female",
+   "file": "audio/lessons/LESSON-05_the-fire-in-the-hand_paced.mp3",
+   "duration": 620.98,
+   "trigger": "lesson-l05",
+   "cues": [
+    {
+     "t": 0.0,
+     "text": "Look at your hands."
+    },
+    {
+     "t": 1.89,
+     "text": "Turn them over, slowly."
+    },
+    {
+     "t": 4.18,
+     "text": "All day they hold things."
+    },
+    {
+     "t": 6.66,
+     "text": "Cups, doors, other hands, the rail on the stairs."
+    },
+    {
+     "t": 11.53,
+     "text": "Now imagine one of them holding something hot."
+    },
+    {
+     "t": 16.11,
+     "text": "A coal, lifted from a fire."
+    },
+    {
+     "t": 18.79,
+     "text": "You did not ask for it to be there."
+    },
+    {
+     "t": 22.27,
+     "text": "Nobody rang the door and offered it."
+    },
+    {
+     "t": 25.85,
+     "text": "It is simply there, burning in your palm."
+    },
+    {
+     "t": 29.93,
+     "text": "This is how anger comes."
+    },
+    {
+     "t": 32.31,
+     "text": "Not chosen."
+    },
+    {
+     "t": 33.41,
+     "text": "Not invited."
+    },
+    {
+     "t": 34.6,
+     "text": "Simply arrived."
+    },
+    {
+     "t": 36.09,
+     "text": "Notice where you feel it first."
+    },
+    {
+     "t": 39.17,
+     "text": "Maybe the chest, tight and warm."
+    },
+    {
+     "t": 42.35,
+     "text": "Maybe the jaw, locking without permission."
+    },
+    {
+     "t": 46.53,
+     "text": "Maybe the ears, warm and ringing slightly."
+    },
+    {
+     "t": 50.7,
+     "text": "The body always knows before the mind catches up."
+    },
+    {
+     "t": 55.58,
+     "text": "It has an old warning system, older than words."
+    },
+    {
+     "t": 60.25,
+     "text": "Someone's sentence, left hanging in the air."
+    },
+    {
+     "t": 64.62,
+     "text": "A door closed a little too firmly."
+    },
+    {
+     "t": 68.0,
+     "text": "A long day, wearing thin at the edges."
+    },
+    {
+     "t": 71.78,
+     "text": "The spark can come from anywhere at all."
+    },
+    {
+     "t": 75.76,
+     "text": "But the fire, once lit, lives in you."
+    },
+    {
+     "t": 79.44,
+     "text": "That part no one else can carry for you."
+    },
+    {
+     "t": 83.41,
+     "text": "So here is the whole matter, resting in that hand."
+    },
+    {
+     "t": 88.38,
+     "text": "The fire arrived without your choosing."
+    },
+    {
+     "t": 92.26,
+     "text": "What happens next, though, is yours."
+    },
+    {
+     "t": 95.84,
+     "text": "There are three roads, and you have walked them all."
+    },
+    {
+     "t": 101.01,
+     "text": "Most days you walk them without noticing the walking."
+    },
+    {
+     "t": 106.28,
+     "text": "The first road is to bury it."
+    },
+    {
+     "t": 109.16,
+     "text": "Press it down."
+    },
+    {
+     "t": 110.55,
+     "text": "Smile anyway."
+    },
+    {
+     "t": 111.85,
+     "text": "Change the subject."
+    },
+    {
+     "t": 113.74,
+     "text": "From the outside, everything looks tidy."
+    },
+    {
+     "t": 117.71,
+     "text": "But fire does not go out from being buried."
+    },
+    {
+     "t": 121.99,
+     "text": "It goes down, and it waits."
+    },
+    {
+     "t": 124.67,
+     "text": "Like coals banked under ash, still red at midnight."
+    },
+    {
+     "t": 129.74,
+     "text": "And later, when you are tired or hungry or rushed, it finds a crack."
+    },
+    {
+     "t": 136.5,
+     "text": "Have you noticed how old anger surfaces in the strangest places."
+    },
+    {
+     "t": 142.87,
+     "text": "At the driver ahead of you, driving too slowly."
+    },
+    {
+     "t": 147.54,
+     "text": "At the toast, burning on one side."
+    },
+    {
+     "t": 150.92,
+     "text": "At nothing at all, which frightens you most."
+    },
+    {
+     "t": 155.29,
+     "text": "The buried fire always finds an exit."
+    },
+    {
+     "t": 158.97,
+     "text": "It only chooses the time."
+    },
+    {
+     "t": 161.46,
+     "text": "The second road is to throw it."
+    },
+    {
+     "t": 164.54,
+     "text": "To aim it back at whoever lit it."
+    },
+    {
+     "t": 167.82,
+     "text": "The words fly, hot and certain."
+    },
+    {
+     "t": 170.9,
+     "text": "For a moment there is relief, like opening a furnace door."
+    },
+    {
+     "t": 176.67,
+     "text": "But stay with this image a little longer."
+    },
+    {
+     "t": 180.75,
+     "text": "The hand that throws the coal holds it first."
+    },
+    {
+     "t": 185.22,
+     "text": "Every throw begins with your own burn."
+    },
+    {
+     "t": 189.0,
+     "text": "And the one you strike carries their coal away with them."
+    },
+    {
+     "t": 194.66,
+     "text": "Now there are two fires, where there was one."
+    },
+    {
+     "t": 199.14,
+     "text": "And both of them burn their holders."
+    },
+    {
+     "t": 202.72,
+     "text": "Did the fire ever belong to anyone else to give away."
+    },
+    {
+     "t": 207.99,
+     "text": "There is a third road, and it is the quietest of the three."
+    },
+    {
+     "t": 213.85,
+     "text": "To simply hold it, and look at it."
+    },
+    {
+     "t": 217.23,
+     "text": "Not throwing it."
+    },
+    {
+     "t": 218.82,
+     "text": "Not burying it."
+    },
+    {
+     "t": 220.31,
+     "text": "Watching it the way you would watch a flame in a hearth."
+    },
+    {
+     "t": 225.88,
+     "text": "This asks a strange kind of courage."
+    },
+    {
+     "t": 229.46,
+     "text": "To stay close to the heat without moving against it."
+    },
+    {
+     "t": 234.63,
+     "text": "What if the fire is not the enemy of the evening."
+    },
+    {
+     "t": 239.5,
+     "text": "What if it is only heat, asking to be understood."
+    },
+    {
+     "t": 244.37,
+     "text": "Between the spark and the answer there is a gap."
+    },
+    {
+     "t": 249.15,
+     "text": "Most days you cross it in an instant, without ever seeing it."
+    },
+    {
+     "t": 255.21,
+     "text": "But it is there."
+    },
+    {
+     "t": 256.8,
+     "text": "One breath wide."
+    },
+    {
+     "t": 258.39,
+     "text": "See if you can stand in it for a moment."
+    },
+    {
+     "t": 262.37,
+     "text": "Let the shoulders drop a finger's width."
+    },
+    {
+     "t": 266.35,
+     "text": "Let the air move in and out, once, slowly."
+    },
+    {
+     "t": 270.52,
+     "text": "The fire does not vanish inside that breath."
+    },
+    {
+     "t": 274.9,
+     "text": "But you get to meet it before it moves you."
+    },
+    {
+     "t": 279.17,
+     "text": "That single meeting changes the whole shape of what follows."
+    },
+    {
+     "t": 285.14,
+     "text": "It is the difference between being the fire and holding it."
+    },
+    {
+     "t": 291.0,
+     "text": "Now ask the fire what it knows."
+    },
+    {
+     "t": 294.08,
+     "text": "Anger is nearly always pointing at something."
+    },
+    {
+     "t": 298.56,
+     "text": "A boundary, crossed."
+    },
+    {
+     "t": 300.55,
+     "text": "A promise, broken."
+    },
+    {
+     "t": 302.34,
+     "text": "Something you love, standing in the path of harm."
+    },
+    {
+     "t": 307.21,
+     "text": "Something you need, going unheard for too long."
+    },
+    {
+     "t": 311.88,
+     "text": "Under the heat there is usually a tenderness."
+    },
+    {
+     "t": 316.35,
+     "text": "A place that is soft and unprotected."
+    },
+    {
+     "t": 320.03,
+     "text": "The fire is the guard standing at the gate of that place."
+    },
+    {
+     "t": 325.7,
+     "text": "Listen past the roar, and you can hear what it is guarding."
+    },
+    {
+     "t": 331.56,
+     "text": "It might be worth knowing the name of what you love that fiercely."
+    },
+    {
+     "t": 338.13,
+     "text": "The blacksmith does not curse the forge."
+    },
+    {
+     "t": 342.1,
+     "text": "The same heat that burns the hand can shape the iron."
+    },
+    {
+     "t": 347.37,
+     "text": "What would it mean to use this heat."
+    },
+    {
+     "t": 350.95,
+     "text": "Not as a weapon."
+    },
+    {
+     "t": 352.54,
+     "text": "Not as a secret."
+    },
+    {
+     "t": 354.13,
+     "text": "As fuel."
+    },
+    {
+     "t": 354.93,
+     "text": "The energy of anger is real energy."
+    },
+    {
+     "t": 358.41,
+     "text": "It has emptied streets and filled halls and rewritten laws."
+    },
+    {
+     "t": 364.27,
+     "text": "Some of the finest things ever built were first built from refusal."
+    },
+    {
+     "t": 370.94,
+     "text": "From a person standing in the fire and saying, this will not stand."
+    },
+    {
+     "t": 377.6,
+     "text": "The heat did not disappear that day."
+    },
+    {
+     "t": 381.18,
+     "text": "It was aimed."
+    },
+    {
+     "t": 382.47,
+     "text": "What in your life deserves that kind of heat."
+    },
+    {
+     "t": 386.94,
+     "text": "And what in your life is only being burned by it."
+    },
+    {
+     "t": 391.81,
+     "text": "And the one who lit your fire."
+    },
+    {
+     "t": 394.8,
+     "text": "They are holding a coal too."
+    },
+    {
+     "t": 397.58,
+     "text": "Perhaps they threw it without meaning to."
+    },
+    {
+     "t": 401.66,
+     "text": "Perhaps it has been burning them for years, and they are tired of the pain."
+    },
+    {
+     "t": 409.11,
+     "text": "This does not make your burn less real."
+    },
+    {
+     "t": 412.99,
+     "text": "But it changes what you see when you look at them."
+    },
+    {
+     "t": 417.96,
+     "text": "A person is not their worst burning moment."
+    },
+    {
+     "t": 422.24,
+     "text": "Even you are not yours."
+    },
+    {
+     "t": 424.52,
+     "text": "The coal passes from hand to hand, down the long line of tired people."
+    },
+    {
+     "t": 431.48,
+     "text": "It only stops with the one who finally looks at it."
+    },
+    {
+     "t": 436.55,
+     "text": "The great fires are rare."
+    },
+    {
+     "t": 439.04,
+     "text": "The small ones visit daily."
+    },
+    {
+     "t": 441.72,
+     "text": "The inbox."
+    },
+    {
+     "t": 442.72,
+     "text": "The kitchen."
+    },
+    {
+     "t": 443.91,
+     "text": "The traffic."
+    },
+    {
+     "t": 445.1,
+     "text": "The waiting room."
+    },
+    {
+     "t": 446.79,
+     "text": "These are the practice grounds, if you want them."
+    },
+    {
+     "t": 451.66,
+     "text": "Nobody learns the furnace on the day the house is burning."
+    },
+    {
+     "t": 457.43,
+     "text": "The hand learns with matchsticks first."
+    },
+    {
+     "t": 461.31,
+     "text": "So the next small heat is not an interruption of the work."
+    },
+    {
+     "t": 467.07,
+     "text": "It is the work, arriving in a size you can hold."
+    },
+    {
+     "t": 471.85,
+     "text": "What will you practice with it."
+    },
+    {
+     "t": 474.93,
+     "text": "Sometimes the hand turns inward."
+    },
+    {
+     "t": 478.11,
+     "text": "The coal, aimed at yourself."
+    },
+    {
+     "t": 480.89,
+     "text": "For the thing you said, the thing you missed, the person you failed to be."
+    },
+    {
+     "t": 488.25,
+     "text": "This fire burns the longest of all, because no one else can take it from you."
+    },
+    {
+     "t": 495.91,
+     "text": "But the same three roads lie open here too."
+    },
+    {
+     "t": 500.18,
+     "text": "To bury it, and call it who you are."
+    },
+    {
+     "t": 503.76,
+     "text": "To throw it at yourself, again and again."
+    },
+    {
+     "t": 507.84,
+     "text": "Or to look at it, and ask what tenderness it guards."
+    },
+    {
+     "t": 513.01,
+     "text": "The guard at the gate does not know inside from out."
+    },
+    {
+     "t": 518.18,
+     "text": "It only knows something soft is near."
+    },
+    {
+     "t": 521.85,
+     "text": "Hold it gently, the way you would hold anything wounded."
+    },
+    {
+     "t": 527.42,
+     "text": "And see if it cools a little in kind hands."
+    },
+    {
+     "t": 531.7,
+     "text": "Here is something the fire never tells you while it burns."
+    },
+    {
+     "t": 537.46,
+     "text": "It always cools."
+    },
+    {
+     "t": 539.05,
+     "text": "No anger has ever lasted forever, though each one promises that it will."
+    },
+    {
+     "t": 546.21,
+     "text": "The hand that held the coal this morning will hold a cup tonight."
+    },
+    {
+     "t": 552.67,
+     "text": "The same hand."
+    },
+    {
+     "t": 554.07,
+     "text": "The same skin."
+    },
+    {
+     "t": 555.46,
+     "text": "Knowing this does not make the heat less true."
+    },
+    {
+     "t": 560.03,
+     "text": "It only loosens its claim to be the entire story."
+    },
+    {
+     "t": 564.9,
+     "text": "You are larger than any single fire."
+    },
+    {
+     "t": 568.48,
+     "text": "So the fire arrives."
+    },
+    {
+     "t": 570.47,
+     "text": "It will arrive again."
+    },
+    {
+     "t": 572.56,
+     "text": "You cannot vote the spark out of existence."
+    },
+    {
+     "t": 576.83,
+     "text": "But you are the one who holds the hand."
+    },
+    {
+     "t": 580.71,
+     "text": "To bury it."
+    },
+    {
+     "t": 581.8,
+     "text": "To throw it."
+    },
+    {
+     "t": 583.0,
+     "text": "Or to look at it, ask what it guards, and let it warm the work that matters."
+    },
+    {
+     "t": 590.55,
+     "text": "Three roads."
+    },
+    {
+     "t": 591.75,
+     "text": "One hand."
+    },
+    {
+     "t": 592.64,
+     "text": "No one else can walk this for you, and no one else is asked to."
+    },
+    {
+     "t": 598.9,
+     "text": "Tonight, when the heat comes, linger at the gap."
+    },
+    {
+     "t": 603.68,
+     "text": "Stand in the doorway between the spark and the answer."
+    },
+    {
+     "t": 609.05,
+     "text": "Hold the coal up to the light and look at it."
+    },
+    {
+     "t": 613.52,
+     "text": "And ask yourself this one question."
+    },
+    {
+     "t": 617.0,
+     "text": "What will I do with the fire in my hand."
+    }
+   ],
+   "note": "subtitle cues are proportional estimates from the script, not forced-aligned"
+  },
+  {
+   "id": "L06",
+   "title": "What Is",
+   "voice": "female",
+   "file": "audio/lessons/LESSON-06_what-is_paced.mp3",
+   "duration": 624.1,
+   "trigger": "lesson-l06",
+   "cues": [
+    {
+     "t": 0.0,
+     "text": "It is raining outside your window."
+    },
+    {
+     "t": 3.14,
+     "text": "Not the rain you wanted today."
+    },
+    {
+     "t": 5.91,
+     "text": "Maybe you had plans for the sun, or a mood you wanted to keep."
+    },
+    {
+     "t": 11.63,
+     "text": "But the clouds did not ask your opinion."
+    },
+    {
+     "t": 15.32,
+     "text": "Watch how quickly the mind begins its work."
+    },
+    {
+     "t": 19.29,
+     "text": "A small complaint arrives, polite as a knock."
+    },
+    {
+     "t": 23.45,
+     "text": "Then another, and another."
+    },
+    {
+     "t": 25.85,
+     "text": "Before long you are not watching the rain at all."
+    },
+    {
+     "t": 30.37,
+     "text": "You are arguing with a sky."
+    },
+    {
+     "t": 32.86,
+     "text": "It sounds absurd when you say it plainly, and yet this is the shape of so many days."
+    },
+    {
+     "t": 40.62,
+     "text": "The train is late."
+    },
+    {
+     "t": 42.28,
+     "text": "The message went unanswered."
+    },
+    {
+     "t": 44.86,
+     "text": "The body aches in a place that used to be fine."
+    },
+    {
+     "t": 49.2,
+     "text": "Somewhere underneath, a voice insists that this should not be happening."
+    },
+    {
+     "t": 55.85,
+     "text": "That voice is not you."
+    },
+    {
+     "t": 57.88,
+     "text": "It is only a habit."
+    },
+    {
+     "t": 59.63,
+     "text": "And it is a costly habit, because every moment spent arguing with what is is a moment you are not living it."
+    },
+    {
+     "t": 69.6,
+     "text": "You cannot meet a moment you are fighting."
+    },
+    {
+     "t": 73.48,
+     "text": "You cannot hold something you are pushing away."
+    },
+    {
+     "t": 77.82,
+     "text": "Notice what the argument costs you, right now, in this breath."
+    },
+    {
+     "t": 83.54,
+     "text": "Here is the hinge the whole thing turns on."
+    },
+    {
+     "t": 87.51,
+     "text": "Acceptance is not a feeling that arrives when conditions improve."
+    },
+    {
+     "t": 93.51,
+     "text": "It is a choice you make, here, with the conditions exactly as they are."
+    },
+    {
+     "t": 100.06,
+     "text": "Nobody can make it for you."
+    },
+    {
+     "t": 102.55,
+     "text": "And nothing about the moment has to change first."
+    },
+    {
+     "t": 107.08,
+     "text": "You do not wait for the rain to stop in order to be at peace with rain."
+    },
+    {
+     "t": 113.63,
+     "text": "You do not wait for the ache to leave in order to be kind to the body."
+    },
+    {
+     "t": 120.09,
+     "text": "The choice is available now, in the middle of the weather, not after it."
+    },
+    {
+     "t": 126.74,
+     "text": "What would it be like to choose it, just for this one minute."
+    },
+    {
+     "t": 132.37,
+     "text": "Now comes the misunderstanding that keeps so many people stuck."
+    },
+    {
+     "t": 138.19,
+     "text": "To allow something is not to approve of it."
+    },
+    {
+     "t": 142.15,
+     "text": "You can allow the storm without calling it good."
+    },
+    {
+     "t": 146.59,
+     "text": "You can allow the grief without celebrating it."
+    },
+    {
+     "t": 150.92,
+     "text": "Allowing is simply the refusal to waste your strength on denial."
+    },
+    {
+     "t": 156.83,
+     "text": "It is the difference between the hand that clenches and the hand that opens."
+    },
+    {
+     "t": 163.85,
+     "text": "The clenched hand holds nothing."
+    },
+    {
+     "t": 166.8,
+     "text": "It only tires."
+    },
+    {
+     "t": 168.09,
+     "text": "The open hand can finally receive whatever comes next."
+    },
+    {
+     "t": 173.08,
+     "text": "Approval is a judgment."
+    },
+    {
+     "t": 175.2,
+     "text": "Allowing is a posture."
+    },
+    {
+     "t": 177.23,
+     "text": "You are being invited into a posture, not asked to sign an agreement."
+    },
+    {
+     "t": 183.6,
+     "text": "Underneath the argument, something else is waiting."
+    },
+    {
+     "t": 188.31,
+     "text": "It has been there the whole time."
+    },
+    {
+     "t": 191.35,
+     "text": "A stillness that does not argue with anything."
+    },
+    {
+     "t": 195.6,
+     "text": "It was there when the morning was good, and it is there now, in the rain."
+    },
+    {
+     "t": 202.34,
+     "text": "You do not have to manufacture it."
+    },
+    {
+     "t": 205.48,
+     "text": "You only have to stop covering it."
+    },
+    {
+     "t": 208.62,
+     "text": "The mind wants to solve the moment."
+    },
+    {
+     "t": 211.85,
+     "text": "The stillness wants to sit with it."
+    },
+    {
+     "t": 215.08,
+     "text": "Both are available to you."
+    },
+    {
+     "t": 217.48,
+     "text": "Only one of them is peaceful."
+    },
+    {
+     "t": 220.16,
+     "text": "Close your eyes for a moment and feel which one you are choosing."
+    },
+    {
+     "t": 226.16,
+     "text": "There is no wrong answer."
+    },
+    {
+     "t": 228.46,
+     "text": "Only an honest one."
+    },
+    {
+     "t": 230.22,
+     "text": "Part of what is has to do with what you cannot do."
+    },
+    {
+     "t": 234.83,
+     "text": "The body has edges."
+    },
+    {
+     "t": 236.59,
+     "text": "The day has edges."
+    },
+    {
+     "t": 238.25,
+     "text": "You have edges."
+    },
+    {
+     "t": 239.63,
+     "text": "Most of us were taught to apologize for our edges, or to pretend they are not there."
+    },
+    {
+     "t": 247.39,
+     "text": "Neither one works."
+    },
+    {
+     "t": 249.05,
+     "text": "Denying a limit only makes you collide with it harder."
+    },
+    {
+     "t": 254.03,
+     "text": "And accepting a limit does not mean becoming dutiful or small."
+    },
+    {
+     "t": 259.76,
+     "text": "It means meeting yourself where you actually are, and beginning there."
+    },
+    {
+     "t": 266.22,
+     "text": "A river does not apologize for its banks."
+    },
+    {
+     "t": 270.0,
+     "text": "It uses them."
+    },
+    {
+     "t": 271.2,
+     "text": "What edge have you been apologizing for, and what would happen if you simply used it."
+    },
+    {
+     "t": 279.05,
+     "text": "Something curious happens when you stop arguing."
+    },
+    {
+     "t": 283.48,
+     "text": "Space appears."
+    },
+    {
+     "t": 284.77,
+     "text": "Not metaphorical space."
+    },
+    {
+     "t": 286.89,
+     "text": "Real, felt space, in the chest, behind the eyes."
+    },
+    {
+     "t": 291.32,
+     "text": "One small act of allowing opens one small door."
+    },
+    {
+     "t": 295.66,
+     "text": "Behind that door is another moment, and in that moment another choice."
+    },
+    {
+     "t": 302.12,
+     "text": "Allowance builds on allowance, the way a path appears under walking feet."
+    },
+    {
+     "t": 308.86,
+     "text": "The difficulties you have been storing away do not vanish."
+    },
+    {
+     "t": 314.22,
+     "text": "But they begin to soften, because you have stopped feeding them with resistance."
+    },
+    {
+     "t": 321.6,
+     "text": "This is not easy work."
+    },
+    {
+     "t": 323.63,
+     "text": "It may be the hardest work there is."
+    },
+    {
+     "t": 326.96,
+     "text": "It is also the only work that actually changes the shape of a day."
+    },
+    {
+     "t": 333.05,
+     "text": "A word of caution, because this idea is easy to misuse."
+    },
+    {
+     "t": 338.13,
+     "text": "Acceptance is not giving up."
+    },
+    {
+     "t": 340.71,
+     "text": "It is not pretending the rain is fine when you are cold and wet."
+    },
+    {
+     "t": 346.62,
+     "text": "It is not staying in a situation that harms you and calling it spiritual."
+    },
+    {
+     "t": 353.36,
+     "text": "When something can be changed, change it."
+    },
+    {
+     "t": 357.14,
+     "text": "When you can act, act."
+    },
+    {
+     "t": 359.17,
+     "text": "Acceptance is what remains after you have done everything you can."
+    },
+    {
+     "t": 365.26,
+     "text": "It is the clear-eyed meeting of what is left over."
+    },
+    {
+     "t": 369.88,
+     "text": "Confuse the two and you get either passivity or exhaustion."
+    },
+    {
+     "t": 375.33,
+     "text": "Keep them distinct and you get a life that acts when it can and rests when it cannot."
+    },
+    {
+     "t": 383.17,
+     "text": "Which one have you been confusing with which."
+    },
+    {
+     "t": 387.33,
+     "text": "Listen for the restless cousin of the argument."
+    },
+    {
+     "t": 391.66,
+     "text": "Impatience."
+    },
+    {
+     "t": 392.68,
+     "text": "It is the argument sped up, the refusal to let this moment be this moment."
+    },
+    {
+     "t": 399.51,
+     "text": "You can feel it in the shoulders, in the jaw, in the way the foot taps the floor."
+    },
+    {
+     "t": 406.99,
+     "text": "Impatience says the good part is later."
+    },
+    {
+     "t": 410.59,
+     "text": "It always says the good part is later."
+    },
+    {
+     "t": 414.09,
+     "text": "And so the good part never arrives, because you are never where you are."
+    },
+    {
+     "t": 420.74,
+     "text": "Here is a small experiment."
+    },
+    {
+     "t": 423.23,
+     "text": "Let this breath take exactly as long as it takes."
+    },
+    {
+     "t": 427.76,
+     "text": "Do not hurry it toward the next one."
+    },
+    {
+     "t": 431.08,
+     "text": "Now the harder invitation."
+    },
+    {
+     "t": 433.48,
+     "text": "There are moments you will not want to allow, moments that feel too sharp to sit with."
+    },
+    {
+     "t": 441.42,
+     "text": "Meet one of them, gently, in memory."
+    },
+    {
+     "t": 444.74,
+     "text": "Not the whole thing."
+    },
+    {
+     "t": 446.59,
+     "text": "Just the edge of it."
+    },
+    {
+     "t": 448.43,
+     "text": "Can you make friends with it, the way you might sit beside someone who is upset, without fixing them."
+    },
+    {
+     "t": 457.76,
+     "text": "You do not have to love it."
+    },
+    {
+     "t": 460.25,
+     "text": "You do not have to approve."
+    },
+    {
+     "t": 462.74,
+     "text": "You only have to stop scrambling away from it for a moment."
+    },
+    {
+     "t": 468.19,
+     "text": "A person scrambling out of a deep hole cannot look graceful, and does not need to."
+    },
+    {
+     "t": 475.76,
+     "text": "What is needed is only honesty, and a little staying power."
+    },
+    {
+     "t": 481.2,
+     "text": "All of this is about the same narrow doorway."
+    },
+    {
+     "t": 485.36,
+     "text": "This moment."
+    },
+    {
+     "t": 486.46,
+     "text": "Right now."
+    },
+    {
+     "t": 487.39,
+     "text": "The one you are in."
+    },
+    {
+     "t": 489.14,
+     "text": "It is the only place anything ever happens."
+    },
+    {
+     "t": 493.11,
+     "text": "The past is a story you tell about moments that are gone."
+    },
+    {
+     "t": 498.37,
+     "text": "The future is a story you tell about moments that have not come."
+    },
+    {
+     "t": 504.28,
+     "text": "This one is not a story."
+    },
+    {
+     "t": 506.5,
+     "text": "It is happening."
+    },
+    {
+     "t": 507.97,
+     "text": "Greet it the way you would greet a guest who has traveled far to see you."
+    },
+    {
+     "t": 514.71,
+     "text": "Not because the guest is perfect, but because the guest is here."
+    },
+    {
+     "t": 520.62,
+     "text": "What is this moment offering you that you have been too busy arguing to receive."
+    },
+    {
+     "t": 528.0,
+     "text": "We have come a long way in a few minutes, so let us gather it up."
+    },
+    {
+     "t": 534.0,
+     "text": "Nobody is asking you to accept everything, all at once, forever."
+    },
+    {
+     "t": 539.91,
+     "text": "That would be too much, and the soul knows when it is being bullied."
+    },
+    {
+     "t": 546.19,
+     "text": "This is only ever about the next small choice."
+    },
+    {
+     "t": 550.43,
+     "text": "The next breath."
+    },
+    {
+     "t": 551.91,
+     "text": "The next ache."
+    },
+    {
+     "t": 553.2,
+     "text": "The next delay."
+    },
+    {
+     "t": 554.59,
+     "text": "In each one, the same quiet question is waiting."
+    },
+    {
+     "t": 559.02,
+     "text": "Will you argue, or will you allow."
+    },
+    {
+     "t": 562.16,
+     "text": "There is no prize for getting this right."
+    },
+    {
+     "t": 565.94,
+     "text": "There is only the felt difference between a life spent fighting the weather and a life spent standing in it."
+    },
+    {
+     "t": 575.91,
+     "text": "So stand in it, for a moment, before this ends."
+    },
+    {
+     "t": 580.25,
+     "text": "Feel your feet on the floor."
+    },
+    {
+     "t": 582.83,
+     "text": "Feel the air move in and out."
+    },
+    {
+     "t": 585.51,
+     "text": "Let the shoulders drop."
+    },
+    {
+     "t": 587.63,
+     "text": "Let the jaw unclench."
+    },
+    {
+     "t": 589.57,
+     "text": "Whatever is unresolved can stay unresolved for one more minute."
+    },
+    {
+     "t": 595.39,
+     "text": "The rain, if there is rain, is falling whether you agree or not."
+    },
+    {
+     "t": 601.3,
+     "text": "And you are here, whether you planned it or not."
+    },
+    {
+     "t": 605.73,
+     "text": "Both of those things can be true at once."
+    },
+    {
+     "t": 609.51,
+     "text": "Both of them can be allowed at once."
+    },
+    {
+     "t": 612.83,
+     "text": "One last question, and then only silence."
+    },
+    {
+     "t": 616.62,
+     "text": "What would this moment feel like if you stopped asking it to be any other moment."
+    }
+   ],
+   "note": "subtitle cues are proportional estimates from the script, not forced-aligned"
+  },
+  {
+   "id": "L07",
+   "title": "The Dark and the Lantern",
+   "voice": "female",
+   "file": "audio/lessons/LESSON-07_the-dark-and-the-lantern_paced.mp3",
+   "duration": 579.65,
+   "trigger": "lesson-l07",
+   "cues": [
+    {
+     "t": 0.0,
+     "text": "Imagine the road outside your town at night, after the last streetlight."
+    },
+    {
+     "t": 6.74,
+     "text": "You carry a small lantern, and it does what lanterns do."
+    },
+    {
+     "t": 11.98,
+     "text": "It lights the ground three steps ahead of you, and nothing more."
+    },
+    {
+     "t": 17.98,
+     "text": "The rest of the road is dark, and you walk it anyway."
+    },
+    {
+     "t": 22.94,
+     "text": "There is a word we use for what you are doing."
+    },
+    {
+     "t": 27.25,
+     "text": "Faith."
+    },
+    {
+     "t": 27.81,
+     "text": "So let us put the word down for a moment and look at the thing itself."
+    },
+    {
+     "t": 34.36,
+     "text": "You are walking, and you cannot see the destination, and you keep walking."
+    },
+    {
+     "t": 41.29,
+     "text": "That is the whole of it."
+    },
+    {
+     "t": 43.54,
+     "text": "The mind does not like this."
+    },
+    {
+     "t": 46.16,
+     "text": "The mind is a good and loyal servant, and it wants one thing from you."
+    },
+    {
+     "t": 52.71,
+     "text": "Evidence."
+    },
+    {
+     "t": 53.55,
+     "text": "It wants the map unfolded, the weather promised, the ending guaranteed."
+    },
+    {
+     "t": 60.2,
+     "text": "And when it cannot get these things, it calls the dark dangerous, and it calls standing still wise."
+    },
+    {
+     "t": 69.47,
+     "text": "You have heard it."
+    },
+    {
+     "t": 71.16,
+     "text": "We all have."
+    },
+    {
+     "t": 72.28,
+     "text": "Here is what the mind cannot see."
+    },
+    {
+     "t": 75.37,
+     "text": "No road you have ever loved was walked with certainty."
+    },
+    {
+     "t": 80.43,
+     "text": "You did not know how it would turn out when you first learned to ride, or to love, or to begin the work you now do without thinking."
+    },
+    {
+     "t": 92.78,
+     "text": "You went forward on a hunch, on a hope, on a quiet feeling that there was something worth reaching."
+    },
+    {
+     "t": 102.05,
+     "text": "You have been doing this your whole life."
+    },
+    {
+     "t": 105.89,
+     "text": "You only forget it when the dark gets loud."
+    },
+    {
+     "t": 109.92,
+     "text": "So here is the turn, and it is smaller than you think."
+    },
+    {
+     "t": 114.97,
+     "text": "Faith is not a feeling."
+    },
+    {
+     "t": 117.13,
+     "text": "Feelings arrive and leave like weather, and no one chooses the weather."
+    },
+    {
+     "t": 123.78,
+     "text": "Faith is a choice."
+    },
+    {
+     "t": 125.46,
+     "text": "It is the choice to act as though the road is worth walking, before the road proves it."
+    },
+    {
+     "t": 133.61,
+     "text": "You lift the lantern, and something in you steadies."
+    },
+    {
+     "t": 138.48,
+     "text": "The choice comes first."
+    },
+    {
+     "t": 140.63,
+     "text": "The steadiness follows."
+    },
+    {
+     "t": 142.78,
+     "text": "And like anything you choose, it can be practiced."
+    },
+    {
+     "t": 147.46,
+     "text": "A muscle is a good image."
+    },
+    {
+     "t": 149.8,
+     "text": "The first time you lift a heavy thing, it feels impossible, and the second time it feels slightly less impossible."
+    },
+    {
+     "t": 160.48,
+     "text": "Nobody gets strong by arguing about it."
+    },
+    {
+     "t": 164.13,
+     "text": "They get strong by lifting."
+    },
+    {
+     "t": 166.66,
+     "text": "So it is with trust."
+    },
+    {
+     "t": 168.53,
+     "text": "One small kept promise to yourself, and then another."
+    },
+    {
+     "t": 173.49,
+     "text": "A step in the dark."
+    },
+    {
+     "t": 175.27,
+     "text": "Another step."
+    },
+    {
+     "t": 176.49,
+     "text": "Faith grows the way everything grows, by being used."
+    },
+    {
+     "t": 181.36,
+     "text": "But there is something that works against it, and it is worth naming."
+    },
+    {
+     "t": 187.82,
+     "text": "Worry."
+    },
+    {
+     "t": 188.38,
+     "text": "Worry is faith pointed in the wrong direction."
+    },
+    {
+     "t": 192.69,
+     "text": "It is the same energy, the same imagination, aimed at what might break instead of what might hold."
+    },
+    {
+     "t": 201.86,
+     "text": "The engine is fine."
+    },
+    {
+     "t": 203.64,
+     "text": "The steering is the question."
+    },
+    {
+     "t": 206.36,
+     "text": "What might happen if you aimed that same vivid imagination at what could go right."
+    },
+    {
+     "t": 214.03,
+     "text": "Now let us look at the dark itself, because we have been treating it as the enemy."
+    },
+    {
+     "t": 221.71,
+     "text": "The night is not empty."
+    },
+    {
+     "t": 223.86,
+     "text": "It is only unlit."
+    },
+    {
+     "t": 225.46,
+     "text": "Seeds do their most important work underground, where no one can watch them."
+    },
+    {
+     "t": 232.57,
+     "text": "Your own eyes only learned to see stars because the sky went dark enough."
+    },
+    {
+     "t": 239.41,
+     "text": "What if the dark is not the absence of the path."
+    },
+    {
+     "t": 243.9,
+     "text": "What if it is where the path is being built, one lantern sized step at a time."
+    },
+    {
+     "t": 251.2,
+     "text": "Faith belongs to the same family as love."
+    },
+    {
+     "t": 255.04,
+     "text": "You do not love because someone proved themselves worthy first."
+    },
+    {
+     "t": 260.94,
+     "text": "You love, and the worth appears in the loving."
+    },
+    {
+     "t": 265.25,
+     "text": "Faith works the same way."
+    },
+    {
+     "t": 267.59,
+     "text": "You do not earn it with evidence."
+    },
+    {
+     "t": 270.68,
+     "text": "You exercise it, and it grows."
+    },
+    {
+     "t": 273.49,
+     "text": "It was a daily practice, like breathing, like eating, like putting one foot in front of the other in the dark."
+    },
+    {
+     "t": 283.79,
+     "text": "There is another kind of faith, and it is the harder one."
+    },
+    {
+     "t": 289.12,
+     "text": "Trusting another person."
+    },
+    {
+     "t": 291.37,
+     "text": "The careful kind keeps a ledger, and watches to see what is done with each small loan of trust."
+    },
+    {
+     "t": 300.26,
+     "text": "That is not trust."
+    },
+    {
+     "t": 301.95,
+     "text": "That is a transaction."
+    },
+    {
+     "t": 304.01,
+     "text": "Real trust has no receipt."
+    },
+    {
+     "t": 306.44,
+     "text": "It is given, the way light is given, without checking who stands in it."
+    },
+    {
+     "t": 313.09,
+     "text": "It means you have decided that your own capacity to trust is more valuable than any guarantee."
+    },
+    {
+     "t": 321.89,
+     "text": "People will disappoint you."
+    },
+    {
+     "t": 324.42,
+     "text": "That is certain."
+    },
+    {
+     "t": 325.92,
+     "text": "The question is whether you will let disappointment shrink the size of your heart."
+    },
+    {
+     "t": 333.59,
+     "text": "There is also a quieter signal, and it is easy to miss."
+    },
+    {
+     "t": 338.74,
+     "text": "Underneath the noise of the mind, there is a small voice that does not argue."
+    },
+    {
+     "t": 345.95,
+     "text": "It simply points, gently, at the next step."
+    },
+    {
+     "t": 349.98,
+     "text": "Most of us have learned to talk over it."
+    },
+    {
+     "t": 353.72,
+     "text": "But on the nights when you have listened to it, even once, you remember."
+    },
+    {
+     "t": 360.47,
+     "text": "It was right about the direction, if not about the distance."
+    },
+    {
+     "t": 366.08,
+     "text": "And here is honesty, because honesty is the price of everything real."
+    },
+    {
+     "t": 372.54,
+     "text": "You have no proof that it will be well."
+    },
+    {
+     "t": 376.2,
+     "text": "None of us do."
+    },
+    {
+     "t": 377.51,
+     "text": "Every argument for hope has an equally clever argument against it."
+    },
+    {
+     "t": 383.69,
+     "text": "Faith does not win that debate."
+    },
+    {
+     "t": 386.59,
+     "text": "It declines to attend it."
+    },
+    {
+     "t": 388.93,
+     "text": "It says, I will act as though all is well, and I will find out by living."
+    },
+    {
+     "t": 395.76,
+     "text": "This is not foolishness."
+    },
+    {
+     "t": 398.01,
+     "text": "Foolishness is pretending you have certainty when you do not."
+    },
+    {
+     "t": 403.72,
+     "text": "Faith is admitting you do not, and walking anyway."
+    },
+    {
+     "t": 408.4,
+     "text": "Some nights the lantern flickers."
+    },
+    {
+     "t": 411.49,
+     "text": "You keep going for weeks, for months, and nothing in the landscape seems to change."
+    },
+    {
+     "t": 419.26,
+     "text": "This is the part no one warns you about."
+    },
+    {
+     "t": 423.01,
+     "text": "The dark does not lift just because you were brave on Monday."
+    },
+    {
+     "t": 428.72,
+     "text": "But there is a small mercy here."
+    },
+    {
+     "t": 431.72,
+     "text": "Every time you choose the step, you leave a little light behind you."
+    },
+    {
+     "t": 438.08,
+     "text": "Not for you, but for whoever walks this road after you, or for the version of you that will walk it again tomorrow."
+    },
+    {
+     "t": 448.85,
+     "text": "Perseverance is not dramatic."
+    },
+    {
+     "t": 451.57,
+     "text": "It is a row of small lights, each one lit on a night when it would have been easier to stop."
+    },
+    {
+     "t": 460.18,
+     "text": "There is a paradox at the center of all this, and it is the kindest one."
+    },
+    {
+     "t": 466.92,
+     "text": "You cannot force yourself to have faith, the way you cannot force your eyes to see in the dark."
+    },
+    {
+     "t": 475.82,
+     "text": "What you can do is smaller, and it is enough."
+    },
+    {
+     "t": 480.03,
+     "text": "You can make a promise to yourself."
+    },
+    {
+     "t": 483.31,
+     "text": "I will live as though the light is real."
+    },
+    {
+     "t": 487.05,
+     "text": "The will is invoked by the affirmation, not the other way around."
+    },
+    {
+     "t": 493.14,
+     "text": "You do not wait to be strong."
+    },
+    {
+     "t": 495.85,
+     "text": "You declare, and strength follows the declaration."
+    },
+    {
+     "t": 500.53,
+     "text": "And what are you holding, when you hold it."
+    },
+    {
+     "t": 504.56,
+     "text": "Perhaps only this."
+    },
+    {
+     "t": 506.24,
+     "text": "That all is well, and that all will be well."
+    },
+    {
+     "t": 510.36,
+     "text": "Not as a fact to be argued, but as a posture to be worn, the way you wear a coat against the cold."
+    },
+    {
+     "t": 519.54,
+     "text": "You cannot prove the coat will keep you warm until you put it on."
+    },
+    {
+     "t": 525.62,
+     "text": "You do not need permission, and you do not need proof."
+    },
+    {
+     "t": 530.68,
+     "text": "So here is where we leave the lantern."
+    },
+    {
+     "t": 534.24,
+     "text": "Still in your hand."
+    },
+    {
+     "t": 536.02,
+     "text": "Still lighting only three steps."
+    },
+    {
+     "t": 539.01,
+     "text": "The road ahead is as dark as it was, and as walkable as it was."
+    },
+    {
+     "t": 544.91,
+     "text": "Nothing has changed, except perhaps the grip on the handle, and the direction you are facing."
+    },
+    {
+     "t": 553.62,
+     "text": "Tonight, or tomorrow, there will be a moment when the mind asks for the map."
+    },
+    {
+     "t": 560.74,
+     "text": "You will know the moment by its particular tightness."
+    },
+    {
+     "t": 565.7,
+     "text": "And in that moment, you might ask yourself the only question that matters."
+    },
+    {
+     "t": 572.63,
+     "text": "Not can I see the whole road."
+    },
+    {
+     "t": 575.34,
+     "text": "But am I willing to take the next three steps."
+    }
+   ],
+   "note": "subtitle cues are proportional estimates from the script, not forced-aligned"
   }
  ]
 }
