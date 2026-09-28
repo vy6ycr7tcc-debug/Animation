@@ -38,6 +38,15 @@ jobs:
           npm ci
           npm run build
           cp -r dist "$GITHUB_WORKSPACE/dist/classic"
+      - name: Write version.json for the TV app
+        run: |
+          printf '{"sha":"%s","built_at":"%s"}\n' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > dist/version.json
+      - name: Package game.zip for the TV app
+        run: |
+          cd dist
+          zip -qr /tmp/game.zip . -x 'classic/*'
+          mv /tmp/game.zip ./game.zip
+          ls -la game.zip version.json
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
