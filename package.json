@@ -7,14 +7,18 @@
     "dev": "vite --host",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "three": "^0.186.1"
   },
   "devDependencies": {
+    "@types/node": "^26.6.3",
     "@types/three": "^0.186.0",
+    "jsdom": "^29.1.1",
     "typescript": "^5.9.3",
-    "vite": "^8.3.1"
+    "vite": "^8.3.1",
+    "vitest": "^5.0.2"
   }
 }
