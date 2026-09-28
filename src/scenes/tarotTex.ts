@@ -7,7 +7,11 @@
    A narration cue ignites one: a flare of gold, a shimmer, a steady lamp.
    Every brightness is a pure function of narration seconds —
    one leap or a hundred small steps find the same card, so seeking,
-   scrubbing and replay are safe. */
+   scrubbing and replay are safe.
+   Photo loading never mutates a live texture: each photo is painted onto
+   a fresh canvas exactly once, uploaded through the renderer's normal
+   first-use path, and live materials are repointed at the new texture
+   between frames. No canvas is ever repainted after upload. */
 import * as THREE from "three/webgpu";
 import { T } from "../gpu/tsl";
 
@@ -105,19 +109,37 @@ interface PhotoState {
   img: HTMLImageElement;
   /** True once `onload` has fired; false while pending or after a failed load. */
   loaded: boolean;
-  /** Canvases awaiting an in-place repaint once the photo arrives. */
-  pending: Map<HTMLCanvasElement, THREE.CanvasTexture>;
 }
 
 const photoStates = new Map<number, PhotoState>();
 
-/** Paint `img` over the whole 512x768 canvas (transparent margins stay clear). */
+/**
+ * Minimal shape of the TSL texture node a card material samples through.
+ * (`T` is untyped, so we only rely on `.value`.)
+ */
+interface SwappableTexNode {
+  value: THREE.Texture;
+}
+
+/**
+ * Texture nodes currently displaying the procedural fallback for a station
+ * whose photo has not arrived yet. When the photo loads, each node is
+ * repointed at a brand-new photo texture — the fallback canvas and texture
+ * are never mutated after their first upload.
+ */
+const cardNodes = new Map<number, Set<SwappableTexNode>>();
+
+/** Live card textures by station index. */
+const texCache = new Map<number, THREE.CanvasTexture>();
+
+/** Paint `img` over the whole 512x768 canvas (transparent margins stay clear).
+    Always called on a fresh canvas; the 2d-state reset is defensive. */
 function paintPhoto(img: HTMLImageElement, canvas: HTMLCanvasElement): void {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
-  // The fallback canvas may carry sticky 2d state from drawCard's Pen
-  // (gold shadowBlur/shadowColor in tour/tarotArt) — reset it, or drawImage
-  // would cast a phantom gold shadow of the photo onto its transparent margins.
+  // Reset 2d state defensively (a reused canvas could carry sticky
+  // shadowBlur/shadowColor from drawCard's Pen in tour/tarotArt, which
+  // would cast a phantom gold shadow of the photo onto its margins).
   ctx.save();
   ctx.globalCompositeOperation = "source-over";
   ctx.globalAlpha = 1;
@@ -131,26 +153,75 @@ function paintPhoto(img: HTMLImageElement, canvas: HTMLCanvasElement): void {
   ctx.restore();
 }
 
+/** Shared sampler/color setup for every card texture. */
+function finalizeCardTexture(tex: THREE.CanvasTexture, idx: number): THREE.CanvasTexture {
+  tex.name = `tarot-${idx}`;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = true;
+  tex.anisotropy = 4;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+/**
+ * Build a brand-new texture from a photo: fresh canvas, painted exactly
+ * once, then never mutated. The texture is uploaded by the renderer on its
+ * first use inside a normal frame — the same init path as every texture.
+ */
+function makePhotoTexture(img: HTMLImageElement, idx: number): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = CARD_W;
+  canvas.height = CARD_H;
+  paintPhoto(img, canvas);
+  return finalizeCardTexture(new THREE.CanvasTexture(canvas), idx);
+}
+
 /* Kick off every photo load at module scope — `img.src` is async, so
-   module evaluation is never blocked. Each finished photo repaints any
-   canvases already waiting on it, exactly once. */
+   module evaluation is never blocked. When a photo arrives, a FRESH
+   texture is built from a FRESH canvas and every live material sampling
+   the procedural fallback for that station is repointed at it. The
+   fallback canvas/texture are never touched after their first upload:
+   no in-place repaint, no needsUpdate churn on a bound texture.
+   (Image `onload` fires as a task between frames — it can never run in
+   the middle of the renderer's synchronous frame recording.) */
 for (const [idx, file] of PHOTO_FILES) {
-  const state: PhotoState = {
-    img: new Image(),
-    loaded: false,
-    pending: new Map(),
-  };
+  const state: PhotoState = { img: new Image(), loaded: false };
   state.img.onload = () => {
     state.loaded = true;
-    for (const [canvas, tex] of state.pending) {
-      paintPhoto(state.img, canvas);
-      tex.needsUpdate = true;
+    const nodes = cardNodes.get(idx);
+    cardNodes.delete(idx);
+    if (!nodes || nodes.size === 0) {
+      // No live materials sample the fallback: drop the stale procedural
+      // texture (if any) so a late cardTexture() rebuilds from the photo
+      // instead of reusing it. Deferred for the same in-flight-frame reason.
+      const stale = texCache.get(idx);
+      if (stale) {
+        texCache.delete(idx);
+        setTimeout(() => stale.dispose(), 1500);
+      }
+      return;
     }
-    state.pending.clear();
+    const fresh = makePhotoTexture(state.img, idx);
+    texCache.set(idx, fresh);
+    const olds = new Set<THREE.CanvasTexture>();
+    for (const node of nodes) {
+      const old = node.value as THREE.CanvasTexture | null;
+      if (old && old !== fresh) olds.add(old);
+      node.value = fresh;
+    }
+    // Deferred dispose, one per distinct old texture: the just-finished
+    // frame may still be in flight on the GPU. By the time the timer fires,
+    // no submitted work can reference them.
+    for (const old of olds) {
+      const doomed = old;
+      setTimeout(() => doomed.dispose(), 1500);
+    }
   };
   state.img.onerror = () => {
-    // keep the procedural fallback; drop waiters so nothing leaks
-    state.pending.clear();
+    // keep the procedural fallback permanently; drop swap registrations
+    cardNodes.delete(idx);
   };
   state.img.src = `textures/temple/cards/${file}`;
   photoStates.set(idx, state);
@@ -160,8 +231,6 @@ for (const [idx, file] of PHOTO_FILES) {
  * Textures (cached)
  * ------------------------------------------------------------------ */
 
-const texCache = new Map<number, THREE.CanvasTexture>();
-
 /** Wrap/clamp any index into 0..25. */
 function normIndex(i: number): number {
   if (!Number.isFinite(i)) return 0;
@@ -169,39 +238,23 @@ function normIndex(i: number): number {
   return n < 0 ? n + CARD_COUNT : n;
 }
 
-/** Cached CanvasTexture for card `i` (wrapped into 0..25). */
+/**
+ * Cached CanvasTexture for card `i` (wrapped into 0..25). The backing
+ * canvas is painted exactly once — before the texture is created — and is
+ * never mutated afterwards. When a photo arrives later, materials are
+ * repointed at a fresh texture (see the preload loop); this texture object
+ * is left alone.
+ */
 export function cardTexture(i: number): THREE.CanvasTexture {
   const idx = normIndex(i);
   const cached = texCache.get(idx);
   if (cached) return cached;
 
   const photo = photoStates.get(idx);
-  let canvas: HTMLCanvasElement;
-  if (photo && photo.loaded) {
-    // photo already in: paint it instead of the procedural card
-    canvas = document.createElement("canvas");
-    canvas.width = CARD_W;
-    canvas.height = CARD_H;
-    paintPhoto(photo.img, canvas);
-  } else {
-    // no photo yet (or none at all): procedural fallback
-    canvas = drawCard(idx);
-  }
-
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.name = `tarot-${idx}`;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.minFilter = THREE.LinearMipmapLinearFilter;
-  tex.magFilter = THREE.LinearFilter;
-  tex.generateMipmaps = true;
-  tex.anisotropy = 4;
-  tex.needsUpdate = true;
-
-  if (photo && !photo.loaded) {
-    // when the photo arrives, repaint THIS canvas in place and re-upload
-    // the SAME texture — no texture-object swap, no material pop
-    photo.pending.set(canvas, tex);
-  }
+  const tex =
+    photo && photo.loaded
+      ? makePhotoTexture(photo.img, idx) // photo already in
+      : finalizeCardTexture(new THREE.CanvasTexture(drawCard(idx)), idx); // procedural fallback
 
   texCache.set(idx, tex);
   return tex;
@@ -211,7 +264,7 @@ export function cardTexture(i: number): THREE.CanvasTexture {
 export function disposeCardTextures(): void {
   for (const t of texCache.values()) t.dispose();
   texCache.clear();
-  for (const p of photoStates.values()) p.pending.clear();
+  cardNodes.clear();
 }
 
 /** Single soft radial halo texture, shared by every card. */
@@ -265,12 +318,27 @@ export interface CardUserData {
  * by a soft additive glow plane. Both are driven purely from `updateCards`.
  */
 export function cardMesh(i: number, w = 2.2, h = 3.4): THREE.Group {
+  const idx = normIndex(i);
   const group = new THREE.Group();
-  group.name = `tarot-card-${normIndex(i)}`;
+  group.name = `tarot-card-${idx}`;
 
   /* --- card plane ------------------------------------------------- */
 
-  const cardTexNode = texture(cardTexture(i));
+  const cardTexNode = texture(cardTexture(idx));
+
+  // If the photo for this station hasn't arrived yet, register the node so
+  // the preload loop can repoint it at the fresh photo texture later.
+  // (Registration runs back-to-back with cardTexture() in this synchronous
+  // call, so no photo arrival can slip between them.)
+  const photo = photoStates.get(idx);
+  if (photo && !photo.loaded) {
+    let set = cardNodes.get(idx);
+    if (!set) {
+      set = new Set<SwappableTexNode>();
+      cardNodes.set(idx, set);
+    }
+    set.add(cardTexNode);
+  }
 
   const uBright = uniform(DORMANT);
 
