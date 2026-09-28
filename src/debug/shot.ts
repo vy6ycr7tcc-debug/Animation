@@ -2,6 +2,8 @@
    scene's narrated time to T, renders exactly one deterministic frame, and stops. Inert unless
    the `shot` query param is present — normal play is untouched. */
 import { SITES } from "../scenes/sites";
+import { DUAT_ORIGIN } from "../world/pyramid";
+import { PYRAMID } from "../world/terrain";
 
 export interface Shot {
   id: string;
@@ -27,6 +29,8 @@ const DEFAULT_T: Record<string, number> = {
   galaxies: 45,
   desert: 120,
   tree: 30,
+  pyramid: 30,
+  duat: 30,
 };
 
 type XYZ = [number, number, number];
@@ -43,6 +47,8 @@ const VIEWS: Record<string, { eye: XYZ; look: XYZ }> = {
   galaxies: { eye: [10, 2.8, 10], look: [0, 1.1, 0] },
   desert: { eye: [18, 3, 18], look: [0, 1.1, 0] },
   tree: { eye: [16, 4, 16], look: [0, 0, 0] }, // the crest
+  pyramid: { eye: [0, 58, 210], look: [0, 32, 0] }, // offsets from PYRAMID (terrain)
+  duat: { eye: [-6, 3.5, 8], look: [18, 0.5, -14] }, // duat-local: behind/above the entry, down the PATH toward station 1
 };
 
 /** The tour's public API, plus just enough of main.ts to boot a single frame. */
@@ -64,6 +70,7 @@ export interface ShotCtx {
   narration: { debugTime: number | null };
   tour: TourApi;
   S: { mode: string; t: number; wt: number };
+  terrain: { update(x: number, z: number, force?: boolean): void };
   setInside(inside: boolean): void;
   update(dt: number): void;
   draw(): void;
@@ -90,6 +97,13 @@ export function runShot(ctx: ShotCtx): void {
     view = { eye: [0, 9, 24], look: [0, 5, -44] };
     ctx.setInside(true); // crossTemple's delays are skipped on purpose
     ctx.tour.beginTour(); // narration.play: muted
+  } else if (id === "pyramid" || id === "duat") {
+    // camera only: main.ts pre-positions the player before runShot is called
+    const o = id === "pyramid" ? PYRAMID : DUAT_ORIGIN;
+    base = [o.x, o.y, o.z];
+    const v = VIEWS[id];
+    if (!v) return;
+    view = v;
   } else {
     const site = sites[id];
     const v = VIEWS[id];
@@ -105,6 +119,12 @@ export function runShot(ctx: ShotCtx): void {
       ctx.tour.lessons[id]?.onSit(); // narration.play: muted
     }
   }
+
+  // Dev stills render exactly one frame: force-build the full terrain stack at the
+  // shot location first. Otherwise far-from-spawn scenes (garden is ~2km out) verify
+  // against stale coarse tiles that can deviate ~0.8m above the true ground and bury
+  // ground-hugging geometry like the breath ring.
+  ctx.terrain.update(base[0], base[2], true);
 
   // one update with the override in place: beats up to T apply, and uT reads T
   ctx.update(1 / 60);

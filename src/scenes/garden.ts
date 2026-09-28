@@ -1,517 +1,448 @@
-/* The garden lesson — a forge-garden of light.
-   The wanderer sits before palm-shaped hands of light that hold a bed of coals.
-   The coals' heat follows the narration's keyframes: rising and falling, splitting in two
-   and coming back together. A breath ring widens and narrows around them; three columns of
-   light stand behind. Everything — heat, opacity, drift — is a pure function of the
-   narration's clock. */
+// ─────────────────────────────────────────────────────────────────────────────
+//  src/scenes/garden.ts — PART 1 of 2
+//  module skeleton + narration data (beats + heat keys) + 3 moonlit palm
+//  silhouettes. PART 2 (flame + roads + ring) drops into the
+//  // __PART2_FLAME_ROADS_RING__ anchor at the end of build().
+// ─────────────────────────────────────────────────────────────────────────────
+
 import * as THREE from "three/webgpu";
-import { LessonScene, type LessonOpts, type LessonCtx, type Beat } from "./lessonKit";
+import { LessonScene } from "./lessonKit";
+import type { LessonCtx, LessonOpts, Beat } from "./lessonKit";
 import { CreationKit } from "./creationKit";
 import { SITES } from "./sites";
+import { heightAt } from "../world/terrain";
+import { glowShader, T } from "../gpu/tsl";
 import type { Narration } from "../core/narration";
 
-const V = THREE.Vector3;
-/** Keep the garden's fire identical on every visit. */
-let gSeed = 11;
-function gRnd(): number {
-  return (gSeed = (gSeed * 16807) % 2147483647) / 2147483647;
-}
+// ── helpers (defined once; PART 2 reuses them) ───────────────────────────────
 
-function fadeIn(uT: number, start: number, dur: number): number {
-  return THREE.MathUtils.smoothstep(uT, start, start + dur);
-}
+// seeded hash — every random placement in this scene comes from rnd(), never Math.random
+const rnd = (i: number, s: number): number => {
+  const x = Math.sin(i * 12.9898 + s * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+};
 
-function fadeOut(uT: number, start: number, dur: number): number {
-  return 1 - THREE.MathUtils.smoothstep(uT, start, start + dur);
-}
+// smoothstep(0.0, 1.0, x) — ordered edges only
+const smooth01 = (x: number): number => {
+  const c = Math.min(1, Math.max(0, x));
+  return c * c * (3 - 2 * c);
+};
 
-function gaussian(uT: number, center: number, sigma: number): number {
-  const d = (uT - center) / sigma;
-  return Math.exp(-d * d);
-}
+// 0 → 1 → 1 → 0 envelope over [t0,t1,t2,t3]; every division guarded
+const fadeU = (uT: { value: number }, t0: number, t1: number, t2: number, t3: number): number => {
+  const t = uT.value;
+  const rise = (t - t0) / Math.max(1e-6, t1 - t0);
+  const fall = (t3 - t) / Math.max(1e-6, t3 - t2);
+  return Math.min(smooth01(rise), smooth01(fall));
+};
 
-function makeSoftTexture(): THREE.CanvasTexture {
-  const canvas = document.createElement("canvas");
-  canvas.width = 64;
-  canvas.height = 64;
-  const ctx = canvas.getContext("2d")!;
-  if (ctx) {
-    const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-    g.addColorStop(0, "rgba(255,255,255,1)");
-    g.addColorStop(0.35, "rgba(255,255,255,0.75)");
-    g.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 64, 64);
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.needsUpdate = true;
-  return tex;
-}
+// narration heat, [s, heat] (verbatim)
+const heatKeys: ReadonlyArray<readonly [number, number]> = [
+  [0,0],[16.11,0],[19.11,0.55],[29.93,0.65],[33.93,0.8],[83.41,0.85],[86.41,0.6],[106.28,0.55],[109.28,0.3],
+  [155.29,0.3],[158.29,0.3],[161.46,0.3],[164.46,0.55],[194.66,0.6],[197.66,0.5],[207.99,0.5],[210.99,0.65],
+  [244.37,0.65],[247.37,0.55],[279.17,0.55],[282.17,0.65],[291.00,0.65],[294.00,0.72],[338.13,0.75],[341.13,0.9],
+  [386.94,1.0],[389.94,0.8],[431.48,0.78],[434.48,0.7],[474.93,0.68],[477.93,0.45],[537.46,0.42],[540.46,0.25],
+  [546.21,0.24],[590.55,0.22],[598.90,0.18],[617.00,0.15],[620.98,0.08]
+];
 
-function makeGlowSprite(
-  texture: THREE.Texture,
-  color: THREE.Color,
-  opacity: number,
-  scale: number,
-  basePos: THREE.Vector3,
-  baseColor: THREE.Color,
-  baseScale: number
-): THREE.Sprite {
-  const mat = new THREE.SpriteMaterial({
-    map: texture,
-    color: color.clone(),
-    transparent: true,
-    opacity,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending
-  });
-  mat.fog = false;
-  const sp = new THREE.Sprite(mat);
-  sp.position.copy(basePos);
-  sp.scale.setScalar(scale);
-  sp.renderOrder = 1;
-  sp.userData.basePos = basePos.clone();
-  sp.userData.baseScale = baseScale;
-  sp.userData.baseColor = baseColor.clone();
-  sp.userData.phase = gRnd() * Math.PI * 2;
-  return sp;
-}
-
-function createPalmHand(
-  center: THREE.Vector3,
-  handScale: number,
-  texture: THREE.Texture,
-  color: THREE.Color
-): { group: THREE.Group; sprites: THREE.Sprite[] } {
-  const group = new THREE.Group();
-  group.position.copy(center);
-  const sprites: THREE.Sprite[] = [];
-
-  const positions: THREE.Vector3[] = [];
-  const rx = 0.32 * handScale;
-  const ry = 0.42 * handScale;
-  for (let i = 0; i < 28; i++) {
-    const a = (i / 28) * Math.PI * 2;
-    positions.push(new V(Math.cos(a) * rx, Math.sin(a) * ry, 0));
-  }
-
-  const fingerBaseY = 0.32 * handScale;
-  const fingerTipY = 0.72 * handScale;
-  const fingerOffsets = [-0.16, -0.08, 0, 0.08, 0.16].map(v => v * handScale);
-  for (const fx of fingerOffsets) {
-    for (let j = 0; j <= 6; j++) {
-      const y = fingerBaseY + (fingerTipY - fingerBaseY) * (j / 6);
-      const spread = (j / 6) * 0.1 * handScale;
-      const x = fx + spread * Math.sin(Math.PI * (j / 6));
-      positions.push(new V(x, y, 0));
+// smoothstep-interpolated heat lookup; division guarded with Math.max(1e-6, t1 - t0)
+const sampleKeys = (t: number): number => {
+  let out = 0;
+  let prev: readonly [number, number] | null = null;
+  for (const key of heatKeys) {
+    const t1 = key[0];
+    const h1 = key[1];
+    if (prev === null) {
+      if (t <= t1) return h1;
+      prev = key;
+      out = h1;
+      continue;
     }
+    const t0 = prev[0];
+    const h0 = prev[1];
+    if (t <= t1) {
+      const u = (t - t0) / Math.max(1e-6, t1 - t0);
+      return h0 + (h1 - h0) * smooth01(u);
+    }
+    prev = key;
+    out = h1;
   }
+  return out;
+};
 
-  for (const pos of positions) {
-    const scale = 0.06 * handScale;
-    const sp = makeGlowSprite(texture, color, 0, scale, pos, color, scale);
-    group.add(sp);
-    sprites.push(sp);
+// additive materials keep their alpha channel:
+// CustomBlending / AddEquation / SrcAlphaFactor / OneFactor / ZeroFactor / OneFactor
+const keepsAlpha = (root: THREE.Object3D): void => {
+  root.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    const mat = mesh.material as THREE.Material | THREE.Material[] | undefined;
+    if (!mat) return;
+    const list = Array.isArray(mat) ? mat : [mat];
+    for (const m of list) {
+      if (m.blending === THREE.AdditiveBlending) {
+        m.blending = THREE.CustomBlending;
+        m.blendEquation = THREE.AddEquation;
+        m.blendSrc = THREE.SrcAlphaFactor;
+        m.blendDst = THREE.OneFactor;
+        m.blendSrcAlpha = THREE.ZeroFactor;
+        m.blendDstAlpha = THREE.OneFactor;
+      }
+    }
+  });
+};
+
+// ── moonlit solid (STYLE): dark blue-black base + pale blue-silver fresnel rim ─
+//    subtle vertical gradient; fog ON (solids); opaque (depthWrite on).
+//    pow(1 - |dot(n,v)|, 3) via chained .mul(); no raw JS numbers mixed into nodes.
+const moonlitColor = () => {
+  const n = T.normalize(T.normalWorld);
+  const v = T.normalize(T.cameraPosition.sub(T.positionWorld));
+  const ndv = T.abs(T.dot(n, v));
+  const k = T.float(1.0).sub(ndv); // 1 - |dot(n,v)|
+  const fres = k.mul(k).mul(k); // pow(..., 3)
+  const grainSeed = T.dot(T.positionWorld, T.vec3(12.9898, 78.233, 37.719));
+  const hash = T.fract(T.sin(grainSeed).mul(T.float(43758.5453)));
+  const grain = T.vec3(1.0, 0.78, 0.48).mul(hash.sub(T.float(0.5))).mul(T.float(0.03));
+  const base = T.vec3(0.008, 0.007, 0.02).add(grain);
+  const rim = T.vec3(0.75, 0.85, 1.0).mul(T.float(0.55)).mul(fres);
+  const up = T.positionWorld.y.mul(T.float(0.22)).add(T.float(0.55));
+  return base.add(rim).add(T.vec3(0.02, 0.025, 0.045).mul(up));
+};
+
+const makeMoonlit = (side: THREE.Side): THREE.MeshBasicNodeMaterial => {
+  const m = new THREE.MeshBasicNodeMaterial();
+  m.colorNode = moonlitColor();
+  m.side = side;
+  m.fog = true;
+  return m;
+};
+
+// ── frond = curved tapered strip with a drooping tip (NOT a cone/sprite) ─────
+const makeFrondGeo = (len: number, wid: number): THREE.BufferGeometry => {
+  const g = new THREE.PlaneGeometry(len, wid, 8, 1);
+  g.translate(len * 0.5, 0, 0); // base at x = 0, tip at x = len
+  g.rotateX(-Math.PI * 0.5); // lay flat: length +X, width +Z, up +Y
+  const pos = g.attributes.position as THREE.BufferAttribute;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const u = Math.min(1, Math.max(0, x / Math.max(1e-6, len))); // guarded
+    const y = pos.getY(i) - 0.38 * u * u; // droop: y -= 0.38*(x/len)^2
+    const z = pos.getZ(i) * (1 - 0.75 * u); // taper: width *= 1 - 0.75*x/len
+    pos.setXYZ(i, x, y, z);
   }
+  pos.needsUpdate = true;
+  g.computeVertexNormals();
+  return g;
+};
 
-  return { group, sprites };
+interface PalmGeos {
+  upper: THREE.BufferGeometry;
+  lower: THREE.BufferGeometry;
 }
 
-function createCoal(
-  center: THREE.Vector3,
-  coalScale: number,
-  texture: THREE.Texture
-): { group: THREE.Group; sprites: THREE.Sprite[] } {
-  const group = new THREE.Group();
-  group.position.copy(center);
-  const sprites: THREE.Sprite[] = [];
-  const height = 0.9 * coalScale;
-  const baseRadius = 0.38 * coalScale;
-  const N = 70;
+const DEG = Math.PI / 180;
 
-  for (let i = 0; i < N; i++) {
-    const t = i / (N - 1);
-    const y = t * height;
-    const radius = Math.max(0.04, baseRadius * (1 - t * 0.75) * (0.4 + 0.6 * Math.abs(Math.sin(t * Math.PI))));
-    const angle = gRnd() * Math.PI * 2;
-    const r = radius * (0.4 + 0.6 * gRnd());
-    const x = Math.cos(angle) * r;
-    const z = Math.sin(angle) * r;
-    const depth = t;
-    const color = new THREE.Color().lerpColors(new THREE.Color(0xff3311), new THREE.Color(0xffcc66), depth);
-    const scale = (0.06 + 0.12 * (1 - t)) * coalScale;
-    const pos = new V(x, y, z);
-    const sp = makeGlowSprite(texture, color, 0, scale, pos, color, scale);
-    group.add(sp);
-    sprites.push(sp);
-  }
-
-  return { group, sprites };
-}
-
-function createBreathRing(
-  center: THREE.Vector3,
-  radius: number,
-  count: number,
-  texture: THREE.Texture
-): { group: THREE.Group; sprites: THREE.Sprite[] } {
-  const group = new THREE.Group();
-  group.position.copy(center);
-  const sprites: THREE.Sprite[] = [];
-  const color = new THREE.Color(0xffaa44);
-
-  for (let i = 0; i < count; i++) {
-    const a = (i / count) * Math.PI * 2;
-    const pos = new V(Math.cos(a) * radius, 0, Math.sin(a) * radius);
-    const scale = 0.1;
-    const sp = makeGlowSprite(texture, color, 0, scale, pos, color, scale);
-    group.add(sp);
-    sprites.push(sp);
-  }
-
-  return { group, sprites };
-}
-
-function createBeam(
-  pos: THREE.Vector3,
+// ── one palm: tapered trunk + crown of 2 whorls (8 upper + 9 lower fronds) ───
+const makePalm = (
+  base: THREE.Vector3,
   height: number,
-  radius: number,
-  texture: THREE.Texture,
-  color: THREE.Color
-): { group: THREE.Group; sprites: THREE.Sprite[] } {
-  const group = new THREE.Group();
-  group.position.copy(pos);
-  const sprites: THREE.Sprite[] = [];
-  const N = Math.floor(height / 0.35) + 1;
+  seed: number,
+  mat: THREE.MeshBasicNodeMaterial,
+  geos: PalmGeos,
+  ours: Array<{ dispose: () => void }>,
+  sways: Array<(t: number) => void>,
+): THREE.Group => {
+  const palm = new THREE.Group();
+  palm.position.copy(base);
 
-  for (let i = 0; i < N; i++) {
-    const y = (i / (N - 1)) * height;
-    const spread = radius * (0.3 + 0.7 * gRnd());
-    const angle = gRnd() * Math.PI * 2;
-    const x = Math.cos(angle) * spread;
-    const z = Math.sin(angle) * spread;
-    const posLocal = new V(x, y, z);
-    const scale = 0.15 + 0.2 * gRnd();
-    const sp = makeGlowSprite(texture, color, 0, scale, posLocal, color, scale);
-    group.add(sp);
-    sprites.push(sp);
-  }
+  // trunk — CylinderGeometry(top 0.09, bottom 0.16, height), slightly tilted
+  const trunkGeo = new THREE.CylinderGeometry(0.09, 0.16, height, 14, 8);
+  ours.push(trunkGeo);
+  const trunk = new THREE.Mesh(trunkGeo, mat);
+  trunk.position.y = height * 0.5;
+  trunk.rotation.z = (rnd(seed, 1) - 0.5) * 0.14;
+  palm.add(trunk);
 
-  return { group, sprites };
-}
+  // crown at the trunk top — roots stay put, only the crown sways
+  const crown = new THREE.Group();
+  crown.position.y = height * 0.5;
+  trunk.add(crown);
 
-export function createGardenScene(
-  scene: THREE.Scene,
-  narration: Narration,
-  whisper: (text: string, ms?: number) => void
-): LessonScene {
-  const site = SITES.garden;
-  const seatPos = new V(site.x, site.y, site.z);
-  const heading = site.heading;
-  const forward = new V(Math.sin(heading), 0, Math.cos(heading)).normalize();
-  const right = new V(Math.cos(heading), 0, -Math.sin(heading)).normalize();
-
-  const softTexture = makeSoftTexture();
-
-  let kit: CreationKit;
-  let root: THREE.Group;
-  let palmGroup: THREE.Group;
-  let coalGroup: THREE.Group;
-  let secondaryCoalGroup: THREE.Group;
-  let ringGroup: THREE.Group;
-  let beamGroups: THREE.Group[] = [];
-
-  let palmSprites: THREE.Sprite[] = [];
-  let coalSprites: THREE.Sprite[] = [];
-  let secondaryCoalSprites: THREE.Sprite[] = [];
-  let ringSprites: THREE.Sprite[] = [];
-  let beamSprites: THREE.Sprite[][] = [[], [], []];
-
-  const palmCenterBase = seatPos.clone().addScaledVector(forward, 2.5);
-  palmCenterBase.y = site.y + 1.25;
-
-  const heatKeys: [number, number][] = [
-    [0, 0],
-    [16.11, 0],
-    [19.11, 0.55],
-    [29.93, 0.65],
-    [33.93, 0.8],
-    [83.41, 0.85],
-    [86.41, 0.6],
-    [106.28, 0.55],
-    [109.28, 0.3],
-    [155.29, 0.3],
-    [158.29, 0.3],
-    [161.46, 0.3],
-    [164.46, 0.55],
-    [194.66, 0.6],
-    [197.66, 0.5],
-    [207.99, 0.5],
-    [210.99, 0.65],
-    [244.37, 0.65],
-    [247.37, 0.55],
-    [279.17, 0.55],
-    [282.17, 0.65],
-    [291.00, 0.65],
-    [294.00, 0.72],
-    [338.13, 0.75],
-    [341.13, 0.9],
-    [386.94, 1.0],
-    [389.94, 0.8],
-    [431.48, 0.78],
-    [434.48, 0.7],
-    [474.93, 0.68],
-    [477.93, 0.45],
-    [537.46, 0.42],
-    [540.46, 0.25],
-    [546.21, 0.24],
-    [590.55, 0.22],
-    [598.90, 0.18],
-    [617.00, 0.15],
-    [620.98, 0.08]
+  const whorls = [
+    { n: 8, geo: geos.upper, pitch: 25 * DEG, y: 0.14, phase: rnd(seed, 3) * Math.PI * 2 },
+    { n: 9, geo: geos.lower, pitch: 45 * DEG, y: -0.06, phase: rnd(seed, 4) * Math.PI * 2 },
   ];
 
-  function sampleKeys(keys: [number, number][], uT: number): number {
-    if (uT <= keys[0][0]) return keys[0][1];
-    if (uT >= keys[keys.length - 1][0]) return keys[keys.length - 1][1];
-    for (let i = 0; i < keys.length - 1; i++) {
-      const t0 = keys[i][0];
-      const t1 = keys[i + 1][0];
-      if (uT >= t0 && uT <= t1) {
-        const t = (uT - t0) / (t1 - t0);
-        const s = t * t * (3 - 2 * t);
-        return keys[i][1] + (keys[i + 1][1] - keys[i][1]) * s;
-      }
+  for (let w = 0; w < whorls.length; w++) {
+    const whorl = whorls[w];
+    for (let k = 0; k < whorl.n; k++) {
+      const frond = new THREE.Mesh(whorl.geo, mat);
+      frond.rotation.order = "YZX"; // yaw about Y, then pitch about the frond's own Z
+      frond.rotation.set(
+        0,
+        (k / Math.max(1e-6, whorl.n)) * Math.PI * 2 + whorl.phase + (rnd(seed + k * 5 + w * 31, 2) - 0.5) * 0.3,
+        -whorl.pitch,
+      );
+      frond.position.y = whorl.y + (rnd(seed + k * 17 + w * 23, 6) - 0.5) * 0.06;
+      crown.add(frond);
     }
-    return keys[keys.length - 1][1];
   }
 
-  function computeBeamOpacity(index: number, uT: number): number {
-    const baseFade = fadeIn(uT, 95.84, 8);
-    if (index === 0) {
-      let op = baseFade * 0.15;
-      op = Math.max(op, fadeIn(uT, 106.28, 4) * 0.9 * fadeOut(uT, 161.46, 6));
-      op = Math.max(op, gaussian(uT, 590.55, 4) * 0.35);
-      return THREE.MathUtils.clamp(op, 0, 1);
-    }
-    if (index === 1) {
-      let op = baseFade * 0.15;
-      op = Math.max(op, fadeIn(uT, 161.46, 4) * 0.9 * fadeOut(uT, 207.99, 6));
-      op = Math.max(op, gaussian(uT, 590.55, 4) * 0.35);
-      return THREE.MathUtils.clamp(op, 0, 1);
-    }
-    let op = baseFade * 0.15;
-    op = Math.max(op, fadeIn(uT, 207.99, 4) * 0.9 * fadeOut(uT, 537.46, 8));
-    op = Math.max(op, gaussian(uT, 590.55, 4) * 0.35);
-    return THREE.MathUtils.clamp(op, 0, 1);
-  }
+  // crown sway: unhurried, eased (sinusoid), phase-offset — period ≈ 11 s
+  const phase = rnd(seed, 21) * Math.PI * 2;
+  sways.push((t: number): void => {
+    crown.rotation.z = 0.02 * Math.sin(t * 0.55 + phase);
+  });
 
-  function ringOpacity(uT: number): number {
-    const main = fadeIn(uT, 244.37, 5) * fadeOut(uT, 279.17, 8);
-    const later = 0.5 * fadeIn(uT, 598.90, 4) * fadeOut(uT, 610, 8);
-    return THREE.MathUtils.clamp(main + later, 0, 1);
-  }
+  return palm;
+};
 
-  function updateSprites(
-    sprites: THREE.Sprite[],
-    uT: number,
-    opacity: number,
-    color: THREE.Color,
-    scaleMul: number,
-    driftAmp: number,
-    yScaleMul: number = 1.0
-  ) {
-    for (const sp of sprites) {
-      const data = sp.userData as { basePos: THREE.Vector3; baseScale: number; phase: number };
-      const ph = data.phase;
-      const x = data.basePos.x + Math.sin(uT * 1.4 + ph) * driftAmp;
-      const y = data.basePos.y * yScaleMul + Math.sin(uT * 1.8 + ph * 1.3) * driftAmp * 0.6;
-      const z = data.basePos.z + Math.cos(uT * 1.2 + ph * 0.9) * driftAmp;
-      sp.position.set(x, y, z);
-      sp.scale.setScalar(data.baseScale * scaleMul);
-      (sp.material as THREE.SpriteMaterial).opacity = opacity;
-      (sp.material as THREE.SpriteMaterial).color.copy(color);
+// ── narration data (verbatim) ────────────────────────────────────────────────
+const beats: Beat[] = [0.00,11.53,16.11,29.93,83.41,95.84,106.28,155.29,161.46,194.66,207.99,244.37,279.17,291.00,338.13,386.94,431.48,474.93,537.46,546.21,590.55,598.90,617.00].map(t => ({ t, apply: () => {} }));
+
+// ── layout (exact names) ─────────────────────────────────────────────────────
+const site = SITES.garden;
+const seatPos = new THREE.Vector3(site.x, site.y, site.z);
+const heading = site.heading;
+const forward = new THREE.Vector3(Math.sin(heading), 0, Math.cos(heading));
+const right = new THREE.Vector3(Math.cos(heading), 0, -Math.sin(heading));
+const palmGroundX = seatPos.x + forward.x * 2.5;
+const palmGroundZ = seatPos.z + forward.z * 2.5;
+const palmGroundY = heightAt(palmGroundX, palmGroundZ);
+const maxH = (cx: number, cz: number, r: number): number => {
+    let m = heightAt(cx, cz);
+    for (let a = 0; a < 12; a++) {
+        const th = (a / 12) * Math.PI * 2;
+        m = Math.max(m, heightAt(cx + r * Math.cos(th), cz + r * Math.sin(th)));
     }
-  }
+    return m;
+};
+const ringClearY = maxH(palmGroundX, palmGroundZ, 2.4) + 0.12;
+const palmCenterBase = new THREE.Vector3(palmGroundX, palmGroundY, palmGroundZ);
+const flameAnchor = palmCenterBase.clone().add(new THREE.Vector3(0, 4.8, 0));
+const roadsOrigin = new THREE.Vector3(palmCenterBase.x, ringClearY, palmCenterBase.z);
+const ringCenter = roadsOrigin.clone();
+
+// ── scene ────────────────────────────────────────────────────────────────────
+export function createGardenScene(scene: THREE.Scene, narration: Narration, whisper: (text: string, ms?: number) => void): LessonScene {
+  const tickers: Array<() => void> = [];
+  const ours: Array<{ dispose: () => void }> = [];
+  let ctxU: { value: number } | null = null;
+  let root: THREE.Object3D | null = null;
+  // Scene-local life clock for ambient motion (desert/tree precedent): ctx.uT is the
+  // narration clock and freezes when narration isn't playing; living stillness must not.
+  let lifeT = 0;
+
+  const build = (ctx: LessonCtx): void => {
+    const kit: CreationKit = ctx.kit;
+    ctx.group.add(kit.group);
+    ctxU = ctx.uT;
+    root = ctx.group;
+
+    const sways: Array<(t: number) => void> = [];
+
+    // moonlit solids (fog ON) — trunk + fronds share one material
+    const moonlit = makeMoonlit(THREE.DoubleSide);
+    ours.push(moonlit);
+    const geos: PalmGeos = {
+      upper: makeFrondGeo(1.9, 0.3),
+      lower: makeFrondGeo(2.3, 0.3),
+    };
+    ours.push(geos.upper, geos.lower);
+
+    // three palms: centre tallest (~4.2 m), flanks at ±right*1.6, staggered in depth
+    const centreH = 4.2;
+    const leftH = 3.35 + 0.25 * rnd(21, 5);
+    const rightH = 3.1 + 0.22 * rnd(22, 5);
+    const leftPos = palmCenterBase
+      .clone()
+      .addScaledVector(right, -1.6)
+      .addScaledVector(forward, 0.62 + 0.5 * rnd(23, 7));
+    const rightPos = palmCenterBase
+      .clone()
+      .addScaledVector(right, 1.6)
+      .addScaledVector(forward, -(0.55 + 0.55 * rnd(24, 7)));
+
+    kit.group.add(makePalm(palmCenterBase, centreH, 1, moonlit, geos, ours, sways));
+    kit.group.add(makePalm(leftPos, leftH, 2, moonlit, geos, ours, sways));
+    kit.group.add(makePalm(rightPos, rightH, 3, moonlit, geos, ours, sways));
+
+// ---- PART 2: flame, rings, roads ----
+
+const flameGroup = new THREE.Group();
+flameGroup.position.copy(flameAnchor);
+ctx.group.add(flameGroup);
+
+const flameCoreMat = glowShader({intensity: 0.95}, (u, _uv) => T.vec3(T.float(1), T.float(0.82), T.float(0.42)).mul(u.intensity), {});
+const flameCoreGeo = new THREE.SphereGeometry(0.28, 20, 14);
+const flameCore = new THREE.Mesh(flameCoreGeo, flameCoreMat);
+flameGroup.add(flameCore);
+
+const flameMidMat = glowShader({intensity: 0.6}, (u, _uv) => T.vec3(T.float(1), T.float(0.5), T.float(0.17)).mul(u.intensity), {});
+const flameMidGeo = new THREE.SphereGeometry(0.55, 20, 14);
+const flameMid = new THREE.Mesh(flameMidGeo, flameMidMat);
+flameGroup.add(flameMid);
+
+const flameHaloMat = glowShader({intensity: 0.18}, (u, _uv) => T.vec3(T.float(1), T.float(0.5), T.float(0.17)).mul(u.intensity), {});
+const flameHaloGeo = new THREE.SphereGeometry(1.0, 20, 14);
+const flameHalo = new THREE.Mesh(flameHaloGeo, flameHaloMat);
+flameGroup.add(flameHalo);
+
+tickers.push(() => {
+        const nt = Number.isFinite(ctxU!.value) ? ctxU!.value : 0;
+        const heat = sampleKeys(nt);
+        const env = fadeU(ctx.uT, 14, 20, 600, 617);
+        flameCoreMat.uniforms.intensity.value = 0.95 * (1 + 0.07 * Math.sin(1.1 * lifeT) + 0.05 * Math.sin(2.3 * lifeT + 1.7));
+        flameMidMat.uniforms.intensity.value = 0.6 * (1 + 0.07 * Math.sin(1.1 * lifeT + 1.1) + 0.05 * Math.sin(2.3 * lifeT + 1.7 + 1.1));
+        flameHaloMat.uniforms.intensity.value = 0.18 * (1 + 0.07 * Math.sin(1.1 * lifeT + 2.2) + 0.05 * Math.sin(2.3 * lifeT + 1.7 + 2.2));
+        flameGroup.visible = env > 1e-3;
+        flameGroup.position.y = flameAnchor.y + env * 0.06 * Math.sin(lifeT * 0.9 + 0.4);
+        const fl = 1 + 0.07 * Math.sin(lifeT * 1.1) + 0.05 * Math.sin(lifeT * 2.3 + 1.7);
+        flameGroup.scale.set(env * (0.7 + 0.5 * heat) * fl, env * (0.35 + 0.9 * heat) * fl, env * (0.7 + 0.5 * heat) * fl);
+    });
+
+ours.push({
+    dispose: () => {
+        flameCoreGeo.dispose();
+        flameMidGeo.dispose();
+        flameHaloGeo.dispose();
+        flameCoreMat.dispose();
+        flameMidMat.dispose();
+        flameHaloMat.dispose();
+    }
+});
+
+const ringGroup = new THREE.Group();
+ringGroup.position.copy(ringCenter);
+ctx.group.add(ringGroup);
+
+const ringInnerMat = glowShader({intensity: 0.85}, (u, _uv) => T.vec3(T.float(0.75), T.float(0.85), T.float(1)).mul(u.intensity), {});
+const ringInnerGeo = new THREE.RingGeometry(1.5, 1.58, 96);
+const ringInner = new THREE.Mesh(ringInnerGeo, ringInnerMat);
+ringInner.rotation.x = -Math.PI / 2;
+ringGroup.add(ringInner);
+
+const ringOuterMat = glowShader({intensity: 0.85}, (u, _uv) => T.vec3(T.float(0.75), T.float(0.85), T.float(1)).mul(u.intensity), {});
+const ringOuterGeo = new THREE.RingGeometry(2.1, 2.16, 96);
+const ringOuter = new THREE.Mesh(ringOuterGeo, ringOuterMat);
+ringOuter.rotation.x = -Math.PI / 2;
+ringGroup.add(ringOuter);
+
+tickers.push(() => {
+        const env = fadeU(ctx.uT, 25, 35, 600, 617);
+        ringGroup.visible = env > 1e-3;
+        const BW = (2 * Math.PI) / 4.5;
+        ringInnerMat.uniforms.intensity.value = 0.85 + 0.25 * Math.sin(BW * lifeT);
+        ringOuterMat.uniforms.intensity.value = 0.85 - 0.25 * Math.sin(BW * lifeT);
+        const s = env * (1 + 0.07 * Math.sin(BW * lifeT));
+        ringGroup.scale.set(s, 1, s);
+        ringGroup.rotation.y = 0.1 * lifeT;
+    });
+
+ours.push({
+    dispose: () => {
+        ringInnerGeo.dispose();
+        ringOuterGeo.dispose();
+        ringInnerMat.dispose();
+        ringOuterMat.dispose();
+    }
+});
+
+const roadAngles = [-26, 0, 26];
+for (let r = 0; r < roadAngles.length; r++) {
+    const dirVec = new THREE.Vector3().copy(forward).applyAxisAngle(new THREE.Vector3(0, 1, 0), (roadAngles[r] * Math.PI) / 180);
+    if (dirVec.lengthSq() > 1e-10) {
+        dirVec.normalize();
+    } else {
+        dirVec.set(0, 0, 1);
+    }
+    const dx = dirVec.x;
+    const dz = dirVec.z;
+    const right = new THREE.Vector3(dz, 0, -dx);
+    if (right.lengthSq() > 1e-10) {
+        right.normalize();
+    } else {
+        right.set(1, 0, 0);
+    }
+    const roadGroup = new THREE.Group();
+    roadGroup.position.copy(roadsOrigin);
+    roadGroup.rotation.y = Math.atan2(dx, dz);
+    ctx.group.add(roadGroup);
+
+    const stripGeo = new THREE.PlaneGeometry(0.9, 7.8, 1, 16);
+    stripGeo.rotateX(-Math.PI / 2);
+    {
+        const sp = stripGeo.attributes.position as THREE.BufferAttribute;
+        const ox = roadsOrigin.x, oz = roadsOrigin.z, oy = roadsOrigin.y;
+        for (let vi = 0; vi < sp.count; vi++) {
+            const d = sp.getZ(vi) + 3.9;
+            sp.setY(vi, heightAt(ox + dx * d, oz + dz * d) + 0.045 - oy);
+        }
+        sp.needsUpdate = true;
+    }
+    const stripMat = new THREE.MeshBasicNodeMaterial({fog: true});
+    stripMat.colorNode = T.vec3(0.01, 0.012, 0.03).mul(
+      T.float(0.8).add(T.normalLocal.y.mul(T.float(0.4)))
+    );
+    const strip = new THREE.Mesh(stripGeo, stripMat);
+    strip.position.set(0, 0, 3.9);
+    roadGroup.add(strip);
+
+    const pts = [];
+    for (let i = 0; i < 6; i++) {
+        const p = roadsOrigin.clone()
+            .addScaledVector(dirVec, 1.3 * (i + 1))
+            .addScaledVector(right, (rnd(r * 13 + i, 37) - 0.5) * 0.8);
+        p.y = heightAt(p.x, p.z) + 0.12;
+        pts.push(p);
+    }
+    kit.pathLights(pts);
+
+    ours.push({
+        dispose: () => {
+            stripGeo.dispose();
+            stripMat.dispose();
+        }
+    });
+}
+// END OF PART 2
+
+
+
+    // Crown sway is ambient life: it reads the scene-local life clock (lifeT),
+    // not the narration clock. Narration-driven envelopes stay on ctx.uT.
+    const upd = (t: number): void => {
+      for (const sway of sways) sway(t);
+    };
+    upd(lifeT);
+    tickers.push(() => upd(lifeT));
+
+    keepsAlpha(ctx.group);
+  };
+
+  const opts: LessonOpts = { id: "garden", trackId: "L05", seatPos, seatHeading: heading, seatRadius: 3, build, beats };
 
   class GardenSceneImpl extends LessonScene {
-    update(dt: number) {
+    update(dt: number): void {
       super.update(dt);
-      const uT = narration.time();
-      this.animate(uT);
+      const step = Number.isFinite(dt) && dt > 0 ? Math.min(dt, 0.05) : 0;
+      lifeT += step;
+      for (const tick of tickers) tick();
     }
 
-    private animate(uT: number) {
-      const palmDrift = 0.25 * fadeIn(uT, 474.93, 4);
-      const palmPos = palmCenterBase.clone().addScaledVector(forward, -palmDrift);
-      palmGroup.position.copy(palmPos);
-
-      const palmOpacity = fadeIn(uT, 0, 8);
-      const palmColor = new THREE.Color().lerpColors(
-        new THREE.Color(0xffaa44),
-        new THREE.Color(0xffcc77),
-        fadeIn(uT, 546.21, 5)
-      );
-      updateSprites(palmSprites, uT, palmOpacity, palmColor, 1.0, 0.025, 1.0);
-
-      const heatBase = sampleKeys(heatKeys, uT);
-      const forgeGlow = 0.35 * fadeIn(uT, 338.13, 20) * fadeOut(uT, 386.94, 20);
-      const spike1 = 0.45 * gaussian(uT, 155.29, 3);
-      const spike2 = 0.35 * gaussian(uT, 161.46, 3);
-      const heat = THREE.MathUtils.clamp(heatBase + forgeGlow + spike1 + spike2, 0, 1);
-
-      const coalColor = new THREE.Color().lerpColors(
-        new THREE.Color(0xff3311),
-        new THREE.Color(0xffcc66),
-        heat
-      );
-      const coalOpacity = THREE.MathUtils.clamp(0.15 + heat * 0.85, 0, 1);
-      const coalYScale = 1 - 0.5 * fadeIn(uT, 537.46, 8);
-      const coalPos = palmPos.clone().add(new V(0, 0.3 + 0.4 * heat, 0));
-      coalGroup.position.copy(coalPos);
-
-      updateSprites(coalSprites, uT, coalOpacity, coalColor, 0.8 + heat * 0.6, 0.04, coalYScale);
-
-      const split = fadeIn(uT, 194.66, 5) * fadeOut(uT, 207.99, 6);
-      const secondaryPos = coalPos.clone().addScaledVector(right, 0.6 * split);
-      secondaryCoalGroup.position.copy(secondaryPos);
-      const secondaryOpacity = split * coalOpacity;
-      const secondaryColor = coalColor.clone().lerp(new THREE.Color(0xffaa44), 0.3);
-      updateSprites(secondaryCoalSprites, uT, secondaryOpacity, secondaryColor, 0.7 + split * 0.4, 0.03, coalYScale);
-
-      const ringOp = ringOpacity(uT);
-      const breathe = 1 + 0.08 * Math.sin(uT * 2 * Math.PI / 8);
-      ringGroup.scale.setScalar(breathe);
-      ringGroup.position.copy(coalPos);
-      updateSprites(ringSprites, uT, ringOp, new THREE.Color(0xffaa44), 1.0, 0.02, 1.0);
-
-      for (let i = 0; i < 3; i++) {
-        const op = computeBeamOpacity(i, uT);
-        beamGroups[i].visible = op > 0.01;
-        if (beamGroups[i].visible) {
-          updateSprites(beamSprites[i], uT, op * 0.8, new THREE.Color(0xffaa44), 1.0, 0.02, 1.0);
-        }
+    dispose(): void {
+      for (let i = 0; i < ours.length; i++) ours[i].dispose();
+      ours.length = 0;
+      tickers.length = 0;
+      if (root) {
+        root.removeFromParent();
+        root = null;
       }
-    }
-
-    dispose() {
-      const allSprites = [
-        ...palmSprites,
-        ...coalSprites,
-        ...secondaryCoalSprites,
-        ...ringSprites,
-        ...beamSprites[0],
-        ...beamSprites[1],
-        ...beamSprites[2]
-      ];
-      const materials = new Set<THREE.Material>();
-      for (const sp of allSprites) {
-        if (sp.material) materials.add(sp.material as THREE.Material);
-      }
-      materials.forEach(m => m.dispose());
-      softTexture.dispose();
-      if (root && root.parent) root.parent.remove(root);
+      ctxU = null;
       super.dispose();
     }
   }
 
-  const build = (ctx: LessonCtx) => {
-    kit = ctx.kit;
-    root = new THREE.Group();
-    root.name = "gardenCustom";
-    ctx.group.add(root);
-
-    kit.groundDisc(3.0, 0xcc8844, 0.18, site.y + 0.02);
-    kit.flowers(600, site.x, site.z, 30);
-
-    const palmCenter = palmCenterBase.clone();
-    palmGroup = new THREE.Group();
-    palmGroup.position.copy(palmCenter);
-    root.add(palmGroup);
-
-    const leftPalmCenter = palmCenter.clone().addScaledVector(right, 0.7);
-    const rightPalmCenter = palmCenter.clone().addScaledVector(right, -0.7);
-
-    const leftPalm = createPalmHand(leftPalmCenter, 0.55, softTexture, new THREE.Color(0xffaa44));
-    const rightPalm = createPalmHand(rightPalmCenter, 0.55, softTexture, new THREE.Color(0xffaa44));
-    palmGroup.add(leftPalm.group);
-    palmGroup.add(rightPalm.group);
-    palmSprites.push(...leftPalm.sprites, ...rightPalm.sprites);
-
-    const coalCenter = palmCenter.clone().add(new V(0, 0.3, 0));
-    coalGroup = new THREE.Group();
-    coalGroup.position.copy(coalCenter);
-    root.add(coalGroup);
-    const mainCoal = createCoal(coalCenter, 0.7, softTexture);
-    coalSprites.push(...mainCoal.sprites);
-    coalGroup.add(...mainCoal.sprites);
-
-    secondaryCoalGroup = new THREE.Group();
-    secondaryCoalGroup.position.copy(coalCenter);
-    root.add(secondaryCoalGroup);
-    const secCoal = createCoal(coalCenter, 0.35, softTexture);
-    secondaryCoalSprites.push(...secCoal.sprites);
-    secondaryCoalGroup.add(...secCoal.sprites);
-
-    const backCenter = seatPos.clone().addScaledVector(forward, 4.5);
-    backCenter.y = site.y;
-    const beamRadius = 2.2;
-    const beamAngles = [0, (2 * Math.PI) / 3, (4 * Math.PI) / 3];
-    for (let i = 0; i < 3; i++) {
-      const pos = new V(
-        backCenter.x + Math.cos(beamAngles[i]) * beamRadius,
-        site.y,
-        backCenter.z + Math.sin(beamAngles[i]) * beamRadius
-      );
-      const beam = createBeam(pos, 2.8, 0.25, softTexture, new THREE.Color(0xffaa44));
-      beamGroups.push(beam.group);
-      beamSprites[i] = beam.sprites;
-      root.add(beam.group);
-    }
-
-    ringGroup = new THREE.Group();
-    ringGroup.position.copy(coalCenter);
-    root.add(ringGroup);
-    const ring = createBreathRing(coalCenter, 1.8, 36, softTexture);
-    ringSprites.push(...ring.sprites);
-    ringGroup.add(...ring.sprites);
-  };
-
-  const beats: Beat[] = [
-    { t: 0.00, apply: () => {} },
-    { t: 11.53, apply: () => {} },
-    { t: 16.11, apply: () => {} },
-    { t: 29.93, apply: () => {} },
-    { t: 83.41, apply: () => {} },
-    { t: 95.84, apply: () => {} },
-    { t: 106.28, apply: () => {} },
-    { t: 155.29, apply: () => {} },
-    { t: 161.46, apply: () => {} },
-    { t: 194.66, apply: () => {} },
-    { t: 207.99, apply: () => {} },
-    { t: 244.37, apply: () => {} },
-    { t: 279.17, apply: () => {} },
-    { t: 291.00, apply: () => {} },
-    { t: 338.13, apply: () => {} },
-    { t: 386.94, apply: () => {} },
-    { t: 431.48, apply: () => {} },
-    { t: 474.93, apply: () => {} },
-    { t: 537.46, apply: () => {} },
-    { t: 546.21, apply: () => {} },
-    { t: 590.55, apply: () => {} },
-    { t: 598.90, apply: () => {} },
-    { t: 617.00, apply: () => {} }
-  ];
-
-  const opts: LessonOpts = {
-    id: "garden",
-    trackId: "L05",
-    seatPos,
-    seatHeading: heading,
-    seatRadius: 3,
-    build,
-    beats
-  };
-
   return new GardenSceneImpl(scene, narration, whisper, opts);
 }
+// END OF FILE

@@ -11,7 +11,8 @@ import * as THREE from "three/webgpu";
 import { LessonScene } from "./lessonKit";
 import type { LessonCtx, LessonOpts, SceneModule } from "./lessonKit";
 import { SITES } from "./sites";
-import { worldPoints, glowShader, gpuUniforms, T } from "../gpu/tsl";
+import { worldPoints, glowShader, gpuUniforms, T, vnoise } from "../gpu/tsl";
+import { prismGeometry, crystalMaterial } from "../world/creation";
 
 const clamp01 = (x: number): number => (x <= 0 ? 0 : x >= 1 ? 1 : x);
 
@@ -55,7 +56,37 @@ export function createIglooScene(
       /* the kit's group carries every maker; hang it under the lesson group */
       ctx.group.add(kit.group);
 
-      /* the kit.groundDisc recipe (RingGeometry + additive basic), placed at the site */
+/* ====================================================================== */
+/* SECTION 1 - ring() helper - FULL REPLACEMENT                           */
+/* ---------------------------------------------------------------------- */
+/* Confirmation: STYLE_GUIDE.md / VISUAL_QUALITY.md / ANIMATION_QUALITY.md */
+/* are followed on every line below.                                      */
+/* STYLE recipes applied:                                                 */
+/*  - Beauty is 90% light: the ring is a light source -> additive glow    */
+/*    with soft falloffs, never a flat vector wedge with a hard edge.     */
+/*  - Glow idiom: additive, fog:false, depthWrite:false (glowShader sets  */
+/*    both), transparent:true, soft falloffs everywhere.                  */
+/*  - Alpha folded into RGB: glowShader wraps the vec3 as vec4(color, 1). */
+/*  - Motion: unhurried sine breathing, uniform write only, no loop       */
+/*    allocation (iPhone Safari target).                                  */
+/* Recipe manifest (exact values):                                        */
+/*   r01         = length(uv - 0.5) * 2                                  */
+/*   inner band  = smoothstep(inner - 0.08, inner + 0.08, r01)            */
+/*   outer band  = 1 - smoothstep(0.92, 1.0, r01)                         */
+/*   soft zone   = ~8% of the radius at each band edge                    */
+/*   breathing   = clamp01(opacity * (1 - p + p * sin(t * 0.5)))          */
+/*   p           = clamp01(pulse)                                         */
+/*   t           = finite-guarded gpuUniforms.time.value                  */
+/*   material    = glowShader({ intensity: opacity }, vec3, DoubleSide)   */
+/*   palette     = 0xcfe6ff 0x9dc6ff 0x7fb2ff 0xff9a4e 0xffb266          */
+/*                 0xffd196 0xffe9c2 0x8a6a4a - unchanged at call sites   */
+/* Signature, geometry, mesh setup, ctx.group.add and ours.push are kept  */
+/* exactly as they were; only the material and the ticker body change.    */
+/* ====================================================================== */
+      /* soft-edged painterly moonlit-ice ring: the RingGeometry band keeps the
+         exact inner/outer radii, and the node color paints a radial smoothstep
+         falloff across both band edges (~8% of the radius each) so no hard
+         geometry edge survives; additive glow with breathing intensity */
       const ring = (
         x: number,
         y: number,
@@ -68,52 +99,270 @@ export function createIglooScene(
       ) => {
         const rr = Math.max(0.05, r);
         const geo = new THREE.RingGeometry(rr * clamp01(inner), rr, 72);
-        const mat = new THREE.MeshBasicMaterial({
-          color,
-          transparent: true,
-          opacity,
-          blending: THREE.AdditiveBlending,
-          side: THREE.DoubleSide,
-          depthWrite: false,
-          fog: false,
-        });
+        // palette hex -> 0..1 RGB. Every divisor here is a non-zero constant
+        // (255), so every division in this block is guarded by construction.
+        const cr = ((color >> 16) & 255) / 255;
+        const cg = ((color >> 8) & 255) / 255;
+        const cb = (color & 255) / 255;
+        const mat = glowShader(
+          { intensity: opacity },
+          (u, uv) => {
+            // RingGeometry uvs are planar over the disc: r01 runs 0 at center -> 1 at outer edge
+            const r01 = T.length(uv.sub(T.float(0.5))).mul(T.float(2));
+            // inner band edge: soft ramp across inner -+ 0.08 of the radius
+            // outer band edge: soft ramp 0.92 -> 1.0 of the radius
+            const band = T.smoothstep(T.float(inner - 0.08), T.float(inner + 0.08), r01).mul(
+              T.float(1).sub(T.smoothstep(T.float(0.92), T.float(1.0), r01))
+            );
+            // alpha is folded into RGB - no second alpha channel
+            return T.vec3(T.float(cr), T.float(cg), T.float(cb)).mul(band).mul(u.intensity);
+          },
+          { side: THREE.DoubleSide }
+        );
         const m = new THREE.Mesh(geo, mat);
         m.rotation.x = -Math.PI / 2;
         m.position.set(x, y, z);
         ctx.group.add(m);
         ours.push(geo, mat);
         const p = clamp01(pulse);
+        // breathing: intensity = opacity * (1 - p + p * sin(t * 0.5))
         tickers.push(() => {
-          const t = gpuUniforms.time.value;
-          mat.opacity = clamp01(opacity * (1 - p + p * Math.sin(t * 0.5)));
+          const t = Number.isFinite(gpuUniforms.time.value) ? gpuUniforms.time.value : 0;
+          mat.uniforms.intensity.value = clamp01(opacity * (1 - p + p * Math.sin(t * 0.5)));
         });
       };
 
       /* ---------- open sky: moon, drifting snowfall, windswept ice field ---------- */
       kit.snowfall(1200, site.x, site.z, 30, 17);
 
-      /* the cold moon, high and open */
-      const moon = worldPoints(new Float32Array([C.x + 9, C.y + 15, C.z - 12]), {
-        size: 3.2,
-        color: 0xdcecff,
-        opacity: 0.32,
+      /* the cold moon, high and open: nested glow — bright core, dim halo */
+      const moonCoreMat = glowShader(
+        { intensity: 0.85 },
+        (u, _uv) => T.vec3(0.863, 0.925, 1.0).mul(u.intensity),
+        {}
+      );
+      const moonCoreGeo = new THREE.SphereGeometry(0.85, 20, 16);
+      const moonCore = new THREE.Mesh(moonCoreGeo, moonCoreMat);
+      moonCore.position.set(C.x + 9, C.y + 15, C.z - 12);
+      ctx.group.add(moonCore);
+
+      const moonHaloMat = glowShader(
+        { intensity: 0.2 },
+        (u, _uv) => T.vec3(0.863, 0.925, 1.0).mul(u.intensity),
+        {}
+      );
+      const moonHaloGeo = new THREE.SphereGeometry(1.7, 20, 16);
+      const moonHalo = new THREE.Mesh(moonHaloGeo, moonHaloMat);
+      moonHalo.position.set(C.x + 9, C.y + 15, C.z - 12);
+      ctx.group.add(moonHalo);
+      ours.push(moonCoreGeo, moonCoreMat, moonHaloGeo, moonHaloMat);
+
+      /* moonlight breathes: slow, phase-offset, like the hearth flame */
+      tickers.push(() => {
+        const t = Number.isFinite(gpuUniforms.time.value) ? gpuUniforms.time.value : 0;
+        moonCoreMat.uniforms.intensity.value = 0.85 * (1 + 0.1 * Math.sin((t / 10) * Math.PI * 2));
+        moonHaloMat.uniforms.intensity.value = 0.2 * (1 + 0.1 * Math.sin((t / 12) * Math.PI * 2 + 1.1));
       });
-      ctx.group.add(moon.sprite);
-      ours.push(moon.material);
 
       /* the ice field: broad, cold, faintly ringed */
-      ring(C.x, C.y + 0.01, C.z, 30, 0xcfe6ff, 0.26, 0.55, 0.1);
-      ring(C.x, C.y + 0.02, C.z, 19, 0x9dc6ff, 0.16, 0.62, 0.16);
-      ring(C.x, C.y + 0.03, C.z, 11.5, 0x7fb2ff, 0.12, 0.7, 0.2);
+      ring(C.x, C.y + 0.01, C.z, 30, 0xcfe6ff, 0.18, 0.55, 0.1);
+      ring(C.x, C.y + 0.02, C.z, 19, 0x9dc6ff, 0.12, 0.62, 0.16);
+      ring(C.x, C.y + 0.03, C.z, 11.5, 0x7fb2ff, 0.10, 0.7, 0.2);
 
-      /* warm light pooling on the ice around the hearth */
-      ring(C.x, C.y + 0.05, C.z, 7.0, 0xff9a4e, 0.16, 0.0, 0.16);
-      ring(C.x, C.y + 0.06, C.z, 4.2, 0xffb266, 0.26, 0.0, 0.2);
-      ring(C.x, C.y + 0.07, C.z, 2.2, 0xffd196, 0.42, 0.0, 0.24);
-      ring(C.x, C.y + 0.08, C.z, 1.0, 0xffe9c2, 0.55, 0.0, 0.3);
+      /* one plane, one shader: a single gaussian melt of warm light on the ice,
+         its outer edge broken by vnoise so it never reads as a flat disc */
+      function warmPool() {
+        const geo = new THREE.PlaneGeometry(18, 18);
+        const phase = rnd(21, 5) * Math.PI * 2;
+
+        const mat = glowShader(
+          { intensity: 0.55 },
+          (u, uv) => {
+            // radial coordinate across the plane uv, 0 at the centre
+            const p = uv.sub(T.float(0.5)).mul(T.float(2.0));
+            const r = T.length(p);
+
+            // organic rim: value noise samples the edge so it wanders
+            const n = vnoise(
+              T.vec2(
+                uv.x.mul(T.float(3.1)).add(T.float(0.17)),
+                uv.y.mul(T.float(3.1)).add(T.float(0.63)),
+              ),
+            );
+
+            // noise-warped radius -> broken outer edge, no concentric steps
+            const rb = r.add(n.sub(T.float(0.5)).mul(T.float(0.34)));
+
+            // the whole pool is one continuous gaussian melt
+            const g = T.exp(rb.mul(rb).mul(T.float(-1.55)));
+
+            // thin the far rim so the glow dissolves instead of ending
+            const edge = T.smoothstep(T.float(1.24), T.float(0.56), rb);
+
+            // warm gold core melting into a cool blue rim
+            const melt = T.smoothstep(T.float(0.1), T.float(1.06), rb);
+            const col = T.mix(
+              T.vec3(T.float(1.0), T.float(0.76), T.float(0.45)),
+              T.vec3(T.float(0.45), T.float(0.55), T.float(0.85)),
+              melt,
+            );
+
+            // alpha is folded into RGB (glowShader keeps-alpha blending)
+            return col.mul(g).mul(edge).mul(u.intensity);
+          },
+          { side: THREE.DoubleSide },
+        );
+
+        const m = new THREE.Mesh(geo, mat);
+        m.rotation.x = -Math.PI / 2;
+        m.position.set(C.x, C.y + 0.06, C.z);
+        ctx.group.add(m);
+        ours.push(geo, mat);
+
+        // slow breathing, ~8.5 s period, driven through the intensity uniform
+        tickers.push(() => {
+          const t = Number.isFinite(gpuUniforms.time.value) ? gpuUniforms.time.value : 0;
+          mat.uniforms.intensity.value = clamp01(
+            0.55 * (0.86 + 0.14 * Math.sin(t * 0.739 + phase)),
+          );
+        });
+      }
+
+      /* warm light pooling on the ice around the hearth: one painterly melt */
+      warmPool();
+
+      /* the sit mat — warm woven glow, vnoise-broken edge, breathing */
+      function sitMat() {
+        const span = 3.9;
+        const geo = new THREE.PlaneGeometry(span, span);
+        const mat = glowShader(
+          { intensity: 0.45 },
+          (u, uv) => {
+            const rb = T.length(uv.sub(T.float(0.5))).mul(T.float(2));
+
+            // gaussian falloff: soft radial glow
+            const glow = T.exp(rb.mul(rb).mul(T.float(-1.9)));
+
+            // vnoise-broken rim — no flat disc edge
+            const wob = vnoise(uv.mul(T.float(3.1)).add(T.vec2(T.float(7.3), T.float(2.6))));
+            const rim = T.smoothstep(
+              T.float(0.55),
+              T.float(1.22),
+              rb.add(wob.sub(T.float(0.5)).mul(T.float(0.34))),
+            );
+
+            // whisper of woven fibre: low-amplitude relief, not a pattern
+            const fibre = vnoise(uv.mul(T.float(46)).add(T.vec2(T.float(1.7), T.float(9.1))));
+            const weave = T.float(1).add(fibre.sub(T.float(0.5)).mul(T.float(0.07)));
+
+            return T.vec3(T.float(0.541), T.float(0.416), T.float(0.29))
+              .mul(glow)
+              .mul(T.float(1).sub(rim))
+              .mul(weave)
+              .mul(u.intensity);
+          },
+          { side: THREE.DoubleSide },
+        );
+
+        const m = new THREE.Mesh(geo, mat);
+        m.rotation.x = -Math.PI / 2;
+        m.position.set(seat.x, seat.y + 0.09, seat.z);
+        ctx.group.add(m);
+        ours.push(geo, mat);
+
+        const phase = rnd(33, 9) * Math.PI * 2;
+        tickers.push(() => {
+          const t = Number.isFinite(gpuUniforms.time.value) ? gpuUniforms.time.value : 0;
+          mat.uniforms.intensity.value = clamp01(0.45 * (0.88 + 0.12 * Math.sin(t * 0.571 + phase)));
+        });
+      }
 
       /* the sit mat */
-      ring(seat.x, seat.y + 0.09, seat.z, 1.35, 0x8a6a4a, 0.8, 0.25, 0.08);
+      sitMat();
+
+      /* ---------- softShards(): tamed-exposure ice prisms (blue -> pink glass) ----------
+       * Uses prismGeometry() + crystalMaterial() from ../world/creation verbatim;
+       * only the final colorNode is wrapped to tame the glint exposure.
+       * Instances stand mostly upright (tilt <= 0.35 rad) and breathe. */
+      const softShards = (n: number, center: THREE.Vector3, radius = 5): void => {
+        /* count clamped to >= 1, so the single non-literal division below is guarded */
+        const count = Math.max(1, Math.floor(n));
+        const invCount = count > 0 ? 1 / count : 0;
+
+        /* ---- geometry: six-sided column, pointed tip, aY 0 -> 1 ---- */
+        const geo = prismGeometry();
+
+        /* ---- material: canon recipe VERBATIM; only the final colorNode is wrapped ---- */
+        const mat = crystalMaterial();
+        /* keeps-alpha exposure tame: RGB * 0.55, alpha forced to 1 */
+        mat.colorNode = T.vec4(T.vec3(mat.colorNode).mul(0.55), 1);
+
+        /* ---- aC = vec3(hue, glow, seed), instanced exactly like the kit ---- */
+        const aC = new Float32Array(count * 3);
+        for (let i = 0; i < count; i++) {
+          aC[i * 3 + 0] = (i * 0.37) % 1; /* hue  */
+          aC[i * 3 + 1] = 0.12;          /* glow */
+          aC[i * 3 + 2] = rnd(i, 3.14);  /* seed — file's seeded rnd(i, s) */
+        }
+        geo.setAttribute("aC", new THREE.InstancedBufferAttribute(aC, 3));
+
+        /* ---- instanced draw ---- */
+        const mesh = new THREE.InstancedMesh(geo, mat, count);
+        mesh.renderOrder = 2;
+        mesh.frustumCulled = false;
+        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        ctx.group.add(mesh);
+
+        /* ---- per-instance placement (ring around center, spread radius) + orientation ---- */
+        const px = new Float32Array(count);
+        const py = new Float32Array(count);
+        const pz = new Float32Array(count);
+        const tx = new Float32Array(count); /* tilt X  */
+        const ya = new Float32Array(count); /* yaw     */
+        const tz = new Float32Array(count); /* tilt Z  */
+        const sc = new Float32Array(count); /* scale   */
+
+        for (let i = 0; i < count; i++) {
+          /* ring position, seeded jitter — same layout every run */
+          const ang = i * invCount * Math.PI * 2 + (rnd(i, 1.7) - 0.5) * 0.6;
+          const rr = radius * (0.25 + rnd(i, 2.6) * 0.75);
+          px[i] = center.x + Math.cos(ang) * rr;
+          py[i] = center.y;
+          pz[i] = center.z + Math.sin(ang) * rr;
+          /* upright bias: at most ±0.35 rad tilt from vertical, seeded yaw */
+          tx[i] = (rnd(i, 5.5) - 0.5) * 0.7;
+          ya[i] = (rnd(i, 4.4) - 0.5) * Math.PI * 2;
+          tz[i] = (rnd(i, 6.6) - 0.5) * 0.7;
+          /* base scale 0.5 + rnd * 0.5 */
+          sc[i] = 0.9 + rnd(i, 7.7) * 0.9;
+        }
+
+        /* ---- breathing: recompose instance matrices (kit updater pattern) ---- */
+        const node = new THREE.Object3D(); /* created once, reused every frame */
+        const compose = (t: number): void => {
+          for (let i = 0; i < count; i++) {
+            /* per-instance phase, ~3.1 s period */
+            const pulse = 1 + 0.25 * Math.sin(t * 2 + i * 0.7);
+            node.position.set(px[i], py[i], pz[i]);
+            node.rotation.set(tx[i], ya[i], tz[i]);
+            node.scale.setScalar(sc[i] * pulse);
+            node.updateMatrix();
+            mesh.setMatrixAt(i, node.matrix);
+          }
+          mesh.instanceMatrix.needsUpdate = true;
+        };
+        compose(0);
+
+        /* ---- scene clock: gpuUniforms.time.value behind the Number.isFinite guard ---- */
+        tickers.push(() => {
+          const t = gpuUniforms.time.value;
+          if (!Number.isFinite(t)) return;
+          compose(t);
+        });
+
+        /* ---- keep geo + mat alive for the scene's disposal list ---- */
+        ours.push(geo, mat);
+      };
 
       /* ---------- a ring of ice-crystal shards around the clearing ---------- */
       const shardCount = 8;
@@ -125,11 +374,11 @@ export function createIglooScene(
           C.y + 0.25,
           C.z + Math.sin(ang) * rr
         );
-        kit.crystals(8 + Math.floor(rnd(i, 7.7) * 6), p, 2.6 + rnd(i, 8.8) * 1.6);
+        softShards(5 + Math.floor(rnd(i, 7.7) * 4), p, 2.6 + rnd(i, 8.8) * 1.6);
       }
       /* a few shards closer in, leaning over the fire */
-      kit.crystals(10, new THREE.Vector3(C.x - 6.2, C.y + 0.25, C.z - 3.0), 2.2);
-      kit.crystals(9, new THREE.Vector3(C.x + 6.0, C.y + 0.25, C.z - 2.2), 2.0);
+      softShards(10, new THREE.Vector3(C.x - 6.2, C.y + 0.25, C.z - 3.0), 2.2);
+      softShards(9, new THREE.Vector3(C.x + 6.0, C.y + 0.25, C.z - 2.2), 2.0);
 
       /* ---------- low curved ice walls: shelter without a roof ---------- */
       const wallSpecs = [
@@ -152,15 +401,21 @@ export function createIglooScene(
           s.a,
           s.arc
         );
-        const mat = new THREE.MeshBasicMaterial({
-          color: 0x86b6ff,
-          transparent: true,
-          opacity: s.op,
-          blending: THREE.AdditiveBlending,
-          side: THREE.DoubleSide,
-          depthWrite: false,
-          fog: false,
-        });
+        /* --- 2a: ice wall glow material --- */
+        const mat = glowShader(
+          { intensity: s.op },
+          (u, uv) => {
+            // angular smoothstep fade at both arc ends (0 -> 0.14, 1 -> 0.86)
+            const ax = T.smoothstep(T.float(0.0), T.float(0.14), uv.x).mul(
+              T.smoothstep(T.float(1.0), T.float(0.86), uv.x)
+            );
+            // soft fade toward the top edge; uv.y = 1 is the TOP of the cylinder
+            const ty = T.smoothstep(T.float(1.0), T.float(0.8), uv.y); // uv.y = 1 at TOP
+            // 0x86b6ff = (0.525, 0.714, 1.0), alpha folded into RGB
+            return T.vec3(T.float(0.525), T.float(0.714), T.float(1.0)).mul(ax).mul(ty).mul(u.intensity);
+          },
+          { side: THREE.DoubleSide }
+        );
         const m = new THREE.Mesh(geo, mat);
         m.position.set(C.x, C.y + h * 0.5 - 0.12, C.z);
         ctx.group.add(m);
@@ -177,29 +432,68 @@ export function createIglooScene(
           s.a,
           s.arc
         );
-        const footMat = new THREE.MeshBasicMaterial({
-          color: 0xbfe0ff,
-          transparent: true,
-          opacity: Math.min(0.5, s.op * 2.6),
-          blending: THREE.AdditiveBlending,
-          side: THREE.DoubleSide,
-          depthWrite: false,
-          fog: false,
-        });
+        /* --- 2b: frost-seam (foot) glow material --- */
+        const footMat = glowShader(
+          { intensity: Math.min(0.5, s.op * 2.6) },
+          (u, uv) => {
+            // angular fade at the arc ends only - no vertical fade on the seam
+            const ax = T.smoothstep(T.float(0.0), T.float(0.14), uv.x).mul(
+              T.smoothstep(T.float(1.0), T.float(0.86), uv.x)
+            );
+            // 0xbfe0ff = (0.749, 0.878, 1.0), alpha folded into RGB
+            return T.vec3(T.float(0.749), T.float(0.878), T.float(1.0)).mul(ax).mul(u.intensity);
+          },
+          { side: THREE.DoubleSide }
+        );
         const foot = new THREE.Mesh(footGeo, footMat);
         foot.position.set(C.x, C.y + 0.06, C.z);
         ctx.group.add(foot);
         ours.push(footGeo, footMat);
 
+        /* --- 2c: ticker for wall + seam (rewritten together with the two
+               materials above; only uniform values are written per frame,
+               so the loop allocates nothing) --- */
         tickers.push(() => {
-          const t = gpuUniforms.time.value;
-          mat.opacity = clamp01(s.op * (0.78 + 0.22 * Math.sin(t * 0.35 + s.ph)));
-          footMat.opacity = clamp01(Math.min(0.5, s.op * 2.6) * (0.7 + 0.3 * Math.sin(t * 0.5 + s.ph * 1.7)));
+          const t = Number.isFinite(gpuUniforms.time.value) ? gpuUniforms.time.value : 0;
+          mat.uniforms.intensity.value = clamp01(s.op * (0.78 + 0.22 * Math.sin(t * 0.35 + s.ph)));
+          footMat.uniforms.intensity.value = clamp01(
+            Math.min(0.5, s.op * 2.6) * (0.7 + 0.3 * Math.sin(t * 0.5 + s.ph * 1.7))
+          );
         });
       }
 
-      /* pale moonbeams falling through the open sky */
-      kit.beams(
+      /* pale moonbeams: crossed soft planes, no hard silhouette (local; kit.beams is shared) */
+      const softBeams = (positions: THREE.Vector3[], height: number, radius: number): void => {
+        for (let bi = 0; bi < positions.length; bi++) {
+          const pos = positions[bi];
+          const mat = glowShader(
+            { intensity: 0.5 },
+            (u, uv) => {
+              const fx = T.smoothstep(T.float(0.5), T.float(0.1), T.abs(uv.x.sub(T.float(0.5))));
+              const fy = T.smoothstep(T.float(0.0), T.float(0.25), uv.y).mul(
+                T.smoothstep(T.float(1.0), T.float(0.55), uv.y)
+              );
+              return T.vec3(T.float(0.722), T.float(0.82), T.float(1.0)).mul(fx).mul(fy).mul(u.intensity);
+            },
+            { side: THREE.DoubleSide }
+          );
+          for (let k = 0; k < 2; k++) {
+            const geo = new THREE.PlaneGeometry(radius * 2.4, height);
+            const m = new THREE.Mesh(geo, mat);
+            m.position.set(pos.x, pos.y + height / 2, pos.z);
+            m.rotation.y = k * 0.5 * Math.PI + bi * 0.7;
+            ctx.group.add(m);
+            ours.push(geo);
+          }
+          ours.push(mat);
+          const base = 0.5;
+          tickers.push(() => {
+            const t = Number.isFinite(gpuUniforms.time.value) ? gpuUniforms.time.value : 0;
+            mat.uniforms.intensity.value = clamp01(base * (0.82 + 0.18 * Math.sin(t * 1.4 + bi * 1.1)));
+          });
+        }
+      };
+      softBeams(
         [
           new THREE.Vector3(C.x + 1.6, C.y, C.z - 1.4),
           new THREE.Vector3(C.x - 5.2, C.y, C.z - 6.4),
@@ -207,6 +501,7 @@ export function createIglooScene(
         8,
         0.5
       );
+      
 
       /* light-flowers on the snow, well outside the warm pool */
       kit.flowers(30, C.x, C.z, 11);
@@ -216,7 +511,37 @@ export function createIglooScene(
       const trail: THREE.Vector3[] = [];
       const gate = new THREE.Vector3(C.x, C.y, C.z + 14);
       for (let i = 0; i <= 9; i++) trail.push(new THREE.Vector3().lerpVectors(seat, gate, i / 9));
-      kit.pathLights(trail);
+      /* trail lamps: soft round cores with halos, brightness wave traveling along the trail */
+      const softLamps = (points: THREE.Vector3[]): void => {
+        const haloPos = new Float32Array(points.length * 3);
+        const coreMats: THREE.PointsNodeMaterial[] = [];
+        for (let i = 0; i < points.length; i++) {
+          const p = points[i];
+          haloPos[i * 3] = p.x;
+          haloPos[i * 3 + 1] = p.y + 0.3;
+          haloPos[i * 3 + 2] = p.z;
+          const core = worldPoints(new Float32Array([p.x, p.y + 0.3, p.z]), {
+            size: 0.45,
+            color: 0xffe6a0,
+            opacity: 0.95,
+          });
+          ctx.group.add(core.sprite);
+          ours.push(core.material);
+          coreMats.push(core.material);
+        }
+        const halos = worldPoints(haloPos, { size: 1.6, color: 0xffd9a0, opacity: 0.3 });
+        ctx.group.add(halos.sprite);
+        ours.push(halos.material);
+        tickers.push(() => {
+          const t = Number.isFinite(gpuUniforms.time.value) ? gpuUniforms.time.value : 0;
+          for (let i = 0; i < coreMats.length; i++) {
+            coreMats[i].opacity = clamp01(0.95 * (0.62 + 0.38 * Math.sin(t * 2.0 - i * 0.6)));
+          }
+          halos.material.opacity = clamp01(0.3 * (0.75 + 0.25 * Math.sin(t * 2.0)));
+        });
+      };
+      softLamps(trail);
+
 
       /* ---------- the hearth: the cozy heart of the open grotto ---------- */
       const wisp = kit.wisp(0xffab52, 0.78);
@@ -270,43 +595,44 @@ export function createIglooScene(
         ours.push(geo);
       }
 
-      /* the flame: outer body, hot core, a licking tip */
-      const flameOuterMat = glowShader(
-        { intensity: 1.15 },
-        (u, _uv) => T.vec3(1.0, 0.5, 0.17).mul(u.intensity),
-        {}
-      );
+      /* the flame: small bright core, mid body, large dim halo (garden-proven ratios) */
       const flameCoreMat = glowShader(
-        { intensity: 1.6 },
-        (u, _uv) => T.vec3(1.0, 0.82, 0.42).mul(u.intensity),
+        { intensity: 1.25 },
+        (u, _uv) => T.vec3(1.0, 0.8, 0.4).mul(u.intensity),
         {}
       );
-      const flameTipMat = glowShader(
-        { intensity: 0.9 },
-        (u, _uv) => T.vec3(1.0, 0.36, 0.11).mul(u.intensity),
+      const flameMidMat = glowShader(
+        { intensity: 0.55 },
+        (u, _uv) => T.vec3(1.0, 0.52, 0.18).mul(u.intensity),
+        {}
+      );
+      const flameHaloMat = glowShader(
+        { intensity: 0.2 },
+        (u, _uv) => T.vec3(1.0, 0.48, 0.16).mul(u.intensity),
         {}
       );
 
-      const outerGeo = new THREE.SphereGeometry(0.42, 20, 18);
-      const flameOuter = new THREE.Mesh(outerGeo, flameOuterMat);
-      flameOuter.position.set(C.x, C.y + 0.98, C.z);
-      flameOuter.scale.set(1.35, 1.9, 1.35);
-      ctx.group.add(flameOuter);
-      ours.push(outerGeo, flameOuterMat);
-
-      const coreGeo = new THREE.SphereGeometry(0.42, 18, 16);
+      const coreGeo = new THREE.SphereGeometry(0.3, 20, 16);
       const flameCore = new THREE.Mesh(coreGeo, flameCoreMat);
       flameCore.position.set(C.x, C.y + 0.72, C.z);
-      flameCore.scale.set(0.8, 1.05, 0.8);
+      flameCore.scale.set(0.9, 1.2, 0.9);
       ctx.group.add(flameCore);
       ours.push(coreGeo, flameCoreMat);
 
-      const tipGeo = new THREE.SphereGeometry(0.42, 16, 14);
-      const flameTip = new THREE.Mesh(tipGeo, flameTipMat);
-      flameTip.position.set(C.x, C.y + 1.5, C.z);
-      flameTip.scale.set(0.6, 1.3, 0.6);
-      ctx.group.add(flameTip);
-      ours.push(tipGeo, flameTipMat);
+      const midGeo = new THREE.SphereGeometry(0.55, 20, 16);
+      const flameMid = new THREE.Mesh(midGeo, flameMidMat);
+      flameMid.position.set(C.x, C.y + 1.02, C.z);
+      flameMid.scale.set(1.0, 1.45, 1.0);
+      ctx.group.add(flameMid);
+      ours.push(midGeo, flameMidMat);
+
+      const haloGeo = new THREE.SphereGeometry(1.02, 20, 16);
+      const flameHalo = new THREE.Mesh(haloGeo, flameHaloMat);
+      flameHalo.position.set(C.x, C.y + 1.02, C.z);
+      flameHalo.scale.set(1.0, 1.15, 1.0);
+      ctx.group.add(flameHalo);
+      ours.push(haloGeo, flameHaloMat);
+      
 
       const halo = worldPoints(new Float32Array([C.x, C.y + 1.05, C.z]), {
         size: 2.6,
@@ -335,30 +661,30 @@ export function createIglooScene(
       ours.push(embers.material);
 
       tickers.push(() => {
-        const t = gpuUniforms.time.value;
+        const t = Number.isFinite(gpuUniforms.time.value) ? gpuUniforms.time.value : 0;
         const flicker = 1 + 0.12 * Math.sin(t * 7.0) * Math.sin(t * 4.3);
-        flameOuterMat.uniforms.intensity.value = 1.15 * flicker;
-        flameCoreMat.uniforms.intensity.value = 1.6 * (1 + 0.1 * Math.sin(t * 8.1));
-        flameTipMat.uniforms.intensity.value = 0.9 * (1 + 0.18 * Math.sin(t * 5.7) * Math.cos(t * 3.3));
+        flameCoreMat.uniforms.intensity.value = 1.25 * (1 + 0.1 * Math.sin(t * 8.1));
+        flameMidMat.uniforms.intensity.value = 0.55 * flicker;
+        flameHaloMat.uniforms.intensity.value = 0.2 * (1 + 0.18 * Math.sin(t * 5.7) * Math.cos(t * 3.3));
         fireLight.intensity = 4.6 * (0.9 + 0.1 * Math.sin(t * 3.1) * Math.sin(t * 1.7));
         logMat.opacity = clamp01(0.34 * (0.86 + 0.14 * Math.sin(t * 3.9)));
 
-        flameOuter.scale.set(
-          1.35 + 0.1 * Math.sin(t * 5.1),
-          1.9 + 0.18 * Math.sin(t * 6.3),
-          1.35 + 0.1 * Math.cos(t * 4.7)
-        );
         flameCore.scale.set(
-          0.8 + 0.07 * Math.sin(t * 7.7),
-          1.05 + 0.12 * Math.cos(t * 5.9),
-          0.8 + 0.07 * Math.sin(t * 6.1)
+          0.9 + 0.07 * Math.sin(t * 7.7),
+          1.2 + 0.12 * Math.cos(t * 5.9),
+          0.9 + 0.07 * Math.sin(t * 6.1)
         );
-        flameTip.position.x = C.x + 0.07 * Math.sin(t * 2.3);
-        flameTip.position.z = C.z + 0.07 * Math.cos(t * 1.9);
-        flameTip.scale.set(
-          0.6 + 0.12 * Math.sin(t * 4.9),
-          1.3 + 0.22 * Math.sin(t * 3.7),
-          0.6 + 0.12 * Math.cos(t * 5.3)
+        flameMid.scale.set(
+          1.0 + 0.08 * Math.sin(t * 5.1),
+          1.45 + 0.16 * Math.sin(t * 6.3),
+          1.0 + 0.08 * Math.cos(t * 4.7)
+        );
+        flameMid.position.x = C.x + 0.07 * Math.sin(t * 2.3);
+        flameMid.position.z = C.z + 0.07 * Math.cos(t * 1.9);
+        flameHalo.scale.set(
+          1.0 + 0.05 * Math.sin(t * 4.9),
+          1.15 + 0.1 * Math.sin(t * 3.7),
+          1.0 + 0.05 * Math.cos(t * 5.3)
         );
 
         const a = embers.position.array as Float32Array;

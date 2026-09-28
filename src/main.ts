@@ -46,7 +46,7 @@ import { Autofly } from "./player/autofly";
 import { Genesis } from "./world/genesis";
 import { Touch } from "./world/touch";
 import { Depths, RUIN_NAMES, RUIN_SITES } from "./world/depths";
-import { Pyramid } from "./world/pyramid";
+import { Pyramid, DUAT_ORIGIN } from "./world/pyramid";
 import { Vision } from "./world/vision";
 import { cloudUniforms } from "./world/atmosphere";
 import { NO_MIRROR_LAYER, Water } from "./world/water";
@@ -1534,6 +1534,99 @@ function crossPyr(inside: boolean): void {
     }, 250);
   }, 650);
 }
+
+/* The Duat crossing — fade-crossing idiom (crossPyr) + teleport idiom (setPyr), verbatim.
+   The Duat lives inside src/world/pyramid.ts; main.ts only feeds the player position
+   and teleports in/out. */
+const DUAT_WALKBACK_R = 3; // units — walk-back exit at duat-local (0, 0, 0)
+const DUAT_DAWN_R = 4; // units — dawn end at duat-local (-8, 5, -20)
+
+// Face along the Duat path (entry -> PATH[1]). Finite-guarded; no division.
+function duatPathHeading(): number {
+  const a = pyramid.duatEntryPoint();
+  const p1 = pyramid.PATH[1] ?? pyramid.PATH[0];
+  const dx = DUAT_ORIGIN.x + p1.x - a.x;
+  const dz = DUAT_ORIGIN.z + p1.z - a.z;
+  const d = Math.hypot(dx, dz);
+  return Number.isFinite(d) && d > 1e-3 ? Math.atan2(dx, dz) : Math.PI;
+}
+
+let duatVentured = false;
+function enterDuatCrossing(): void {
+  duatVentured = false;
+  if (crossing) return;
+  crossing = true;
+  if (autofly.active) setAutofly(false);
+  fadeEl.classList.add("on");
+  audio.bell(293.66, 0.1, 6);
+  window.setTimeout(() => {
+    const e = pyramid.duatEntryPoint();
+    const h = duatPathHeading();
+    player.pos.set(e.x, e.y, e.z);
+    player.heading = h;
+    follow.yaw = h;
+    Object.assign(player, { flying: false, landing: false, grounded: true, swimming: false, vy: 0, target: null });
+    player.vel.set(0, 0, 0);
+    follow.snapTo(player.pos);
+    pyramid.duatActive = true;
+    whisper("The hidden door opens onto the Duat — a river of gold beneath a deep blue night.", 11000);
+    window.setTimeout(() => {
+      fadeEl.classList.remove("on");
+      crossing = false;
+    }, 250);
+  }, 650);
+}
+
+function exitDuatWalkBack(): void {
+  duatVentured = false;
+  if (crossing) return;
+  crossing = true;
+  if (autofly.active) setAutofly(false);
+  fadeEl.classList.add("on");
+  audio.bell(293.66, 0.1, 6);
+  window.setTimeout(() => {
+    const e = pyramid.exitDuatPoint();
+    const h = Math.PI;
+    player.pos.set(e.x, e.y, e.z);
+    player.heading = h;
+    follow.yaw = h;
+    Object.assign(player, { flying: false, landing: false, grounded: true, swimming: false, vy: 0, target: null });
+    player.vel.set(0, 0, 0);
+    follow.snapTo(player.pos);
+    pyramid.duatActive = false;
+    whisper("You turn back; the pyramid keeps its silence and its gold.", 7000);
+    window.setTimeout(() => {
+      fadeEl.classList.remove("on");
+      crossing = false;
+    }, 250);
+  }, 650);
+}
+
+function exitDuatDawn(): void {
+  duatVentured = false;
+  if (crossing) return;
+  crossing = true;
+  if (autofly.active) setAutofly(false);
+  fadeEl.classList.add("on");
+  audio.bell(293.66, 0.1, 6);
+  window.setTimeout(() => {
+    setPyr(false);
+    const a = pyramid.apex;
+    const h = player.heading;
+    player.pos.set(a.x, a.y + 1.2, a.z);
+    player.heading = h;
+    follow.yaw = h;
+    Object.assign(player, { flying: false, landing: false, grounded: true, swimming: false, vy: 0, target: null });
+    player.vel.set(0, 0, 0);
+    follow.snapTo(player.pos);
+    pyramid.duatActive = false;
+    whisper("At the apex, dawn: the sun is reborn, gold over the deep blue world.", 9000);
+    window.setTimeout(() => {
+      fadeEl.classList.remove("on");
+      crossing = false;
+    }, 250);
+  }, 650);
+}
 // the rites: the Queen's Chamber (in the dark, only the heart) and the King's (seven colours)
 let rite: { kind: "queen" | "king"; t: number; beats: number; step: number } | null = null;
 let stillIn = 0, lastRite = -1e9;
@@ -1552,10 +1645,33 @@ function endRite(): void {
 const SEVEN_NOTES = [293.66, 329.63, 369.99, 392, 440, 493.88, 554.37];
 const SEVEN_AT = [0.86, 0.98, 1.12, 1.28, 1.45, 1.57, 1.72]; // the energy centres, above the feet
 function pyramidFrame(dt: number): void {
+  pyramid.playerPos = player.pos; // the Duat reads the wanderer's position from here
   const near = !pyramid.isInside && player.pos.distanceTo(pyramid.apex) < 700;
   const pitK = pyramid.isInside ? pyramid.nearPit(player.pos) : 0;
   const atApex = !pyramid.isInside && pyramid.atApex(player.pos);
   pyramid.update(S.wt, near, pitK, rite?.kind === "king" && rite.t > 10.5 ? 1 : 0, atApex ? 1.25 : 0.6, S.reduced);
+  // the Duat: enter at the hidden door, leave by walking back or completing the dawn ascent
+  if (!crossing) {
+    if (S.mode === "play" && !pyramid.duatActive && pyramid.isInside && pyramid.shouldEnterDuat()) {
+      enterDuatCrossing();
+    } else if (pyramid.duatActive) {
+      const p0 = pyramid.PATH[0];
+      const d0 = Math.hypot(
+        player.pos.x - (DUAT_ORIGIN.x + p0.x),
+        player.pos.y - (DUAT_ORIGIN.y + p0.y),
+        player.pos.z - (DUAT_ORIGIN.z + p0.z),
+      );
+      const p7 = pyramid.PATH[7] ?? pyramid.PATH[pyramid.PATH.length - 1];
+      const d7 = Math.hypot(
+        player.pos.x - (DUAT_ORIGIN.x + p7.x),
+        player.pos.y - (DUAT_ORIGIN.y + p7.y),
+        player.pos.z - (DUAT_ORIGIN.z + p7.z),
+      );
+      if (Number.isFinite(d0) && d0 > 10) duatVentured = true;
+      if (Number.isFinite(d7) && d7 <= DUAT_DAWN_R) exitDuatDawn();
+      else if (duatVentured && Number.isFinite(d0) && d0 <= DUAT_WALKBACK_R) exitDuatWalkBack();
+    }
+  }
   audio.resonance(pitK);
   if (S.mode !== "play") return;
   if (!pyramid.isInside) {
@@ -2071,6 +2187,10 @@ addEventListener("pagehide", persist);
 const tourScenes: TourScenes = initTourScenes({
   scene, narration, player, follow, wanderer, camera, whisper, temple, crossTemple, heightAt, sitting,
 });
+// Lesson scenes are created above, AFTER the startup additiveKeepsAlpha pass (line ~263),
+// so their additive materials were never converted. Re-run to cover them: without this,
+// additive glow punches dark squares into the lakes' reflection texture.
+additiveKeepsAlpha(scene);
 
 function update(dt: number): void {
   S.t += dt;
@@ -2186,7 +2306,8 @@ function update(dt: number): void {
   post.raysOn.value = camUnder ? 0 : 1 - 0.7 * moods.weights[3]; // the deep night keeps the star's glow small
   post.aoOn.value = camUnder ? 0 : 1;
   audio.underwater(camUnder);
-  groundUniforms.uT.value = wt;
+  const wtSafe = Number.isFinite(wt) ? wt : 0;
+  groundUniforms.uT.value = wtSafe;
   // the camera goes under with you once you are properly down, and comes up as you surface
   if (player.swimming && player.depth > 0.7) follow.underwater = true;
   else if (!player.swimming || player.depth < 0.15) follow.underwater = false;
@@ -2227,9 +2348,10 @@ function update(dt: number): void {
   gpuUniforms.player.value.copy(player.pos);
   gpuUniforms.dpr.value = dpr;
   gpuUniforms.px.value = innerHeight / 2 / Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2); // CSS pixels per metre at 1 m
+  gpuUniforms.time.value = wtSafe;
   glow.set(player.pos.x, S.mode === "intro" ? 0 : 1, player.pos.z);
   water.update(camera.position.x, camera.position.z, glow);
-  skyUniforms.uT.value = wt;
+  skyUniforms.uT.value = wtSafe;
   if (!apart()) moods.update(player.pos, dt);
   templeFrame(dt);
   pyramidFrame(dt);
@@ -2322,6 +2444,31 @@ renderer
     shadersReady = true;
     quality.hold(3);
     endLoading();
+    if (shot?.id === "duat") {
+      duatVentured = false;
+      crossing = false;
+      setPyr(true);
+      const e = pyramid.duatEntryPoint();
+      const h = duatPathHeading();
+      player.pos.set(e.x, e.y, e.z);
+      player.heading = h;
+      follow.yaw = h;
+      Object.assign(player, { flying: false, landing: false, grounded: true, swimming: false, vy: 0, target: null });
+      player.vel.set(0, 0, 0);
+      follow.snapTo(player.pos);
+      pyramid.duatActive = true;
+      pyramid.playerPos = player.pos;
+    } else if (shot?.id === "pyramid") {
+      const dx = pyramid.door.x;
+      const dz = pyramid.door.z - 14;
+      player.pos.set(dx, heightAt(dx, dz), dz);
+      player.heading = Math.PI;
+      follow.yaw = Math.PI;
+      Object.assign(player, { flying: false, landing: false, grounded: true, swimming: false, vy: 0, target: null });
+      player.vel.set(0, 0, 0);
+      follow.snapTo(player.pos);
+      pyramid.playerPos = player.pos;
+    }
     if (shot)
       runShot({
         camera,
@@ -2330,6 +2477,7 @@ renderer
         narration,
         tour: tourScenes,
         S,
+        terrain,
         setInside,
         update,
         draw: () => {
