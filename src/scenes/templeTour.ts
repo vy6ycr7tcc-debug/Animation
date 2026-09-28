@@ -30,6 +30,12 @@ export interface TourHooks {
 export interface PlayerLike {
   pos: THREE.Vector3;
   heading: number;
+  /** The controller's tap-to-walk target (controller.ts:81). The tour writes a
+      lead point here while travelling so the controller computes pose="walk"
+      and a matching speed, which is what wanderer.animate() reads. The body
+      itself stays kinematic on the narration clock; the controller's positional
+      displacement is discarded by the tour's own pos write each frame. */
+  target: THREE.Vector2 | null;
 }
 export interface FollowLike {
   yaw: number;
@@ -120,12 +126,15 @@ function buildStops(): StopDef[] {
   // 0 — the door
   stops.push({ p: new THREE.Vector3(0, 0, 28.6), c: new THREE.Vector3(0, 3.4, 31.3) });
 
-  // 1..7 — the Mind's seven niches down the left wall
+  // 1..7 — the Mind's seven niches down the left wall. The walk line runs
+  // down the hall's centre (x = 0.6 ± 0.2), clear of both column rows at
+  // x = ±5.5; the niche z's interleave the column z's, so a card seen
+  // straight-on from its own z never crosses a column.
   for (let i = 0; i < 7; i++) {
     const z = finite(NICHE_Z[i], 25 - i * 8.2);
-    const sway = Math.sin(i * 1.9) * 0.32;
+    const sway = Math.sin(i * 1.9) * 0.2;
     stops.push({
-      p: new THREE.Vector3(-2.2 + sway, 0, z),
+      p: new THREE.Vector3(0.6 + sway, 0, z),
       c: new THREE.Vector3(-10.2, 3.2, z),
     });
   }
@@ -133,31 +142,39 @@ function buildStops(): StopDef[] {
   // 8 — the gateway (mind → body)
   stops.push({ p: new THREE.Vector3(0, 0.08, -27.6), c: new THREE.Vector3(0, 3.6, -30.8) });
 
-  // 9..15 — the Body, winding the sanctuary floor around the dais
+  // 9..15 — the Body, winding the sanctuary floor around the dais, threading
+  // inside the Spirit's plinth ring: every stop keeps clear of the dais
+  // (r 4.2), the plinth stubs, and the Choice platform (z > -52.9 here).
+  // The cards stand out at radius 15, clear of the Spirit cards and the walls.
   const body: Array<[number, number]> = [
     [5.5, -34.8],
-    [10.5, -40.5],
-    [9.5, -48.5],
-    [3.0, -53.2],
-    [-4.5, -52.5],
-    [-10.0, -47.0],
+    [10.2, -41.2],
+    [6.5, -46.5],
+    [2.0, -50.2],
+    [-3.0, -49.7],
+    [-6.2, -45.9],
     [-9.5, -39.5],
   ];
   for (const [x, z] of body) {
-    stops.push({ p: new THREE.Vector3(x, 0.25, z), c: cardOut(x, z, 13, 3.2) });
+    stops.push({ p: new THREE.Vector3(x, 0.25, z), c: cardOut(x, z, 15, 3.4) });
   }
 
   // 16 — the foot of the stair of light (body → spirit)
-  stops.push({ p: new THREE.Vector3(-8.2, 0.35, -37.6), c: cardOut(-8.2, -37.6, 11.4, 3.0) });
+  stops.push({ p: new THREE.Vector3(-8.2, 0.35, -37.6), c: cardOut(-8.2, -37.6, 13.5, 5.0) });
 
-  // 17..24 — the Spirit, a spiral stair rising over the sanctuary
+  // 17..24 — the Spirit, a spiral stair rising over the sanctuary.
+  // Known limitation (off-limits, documented not worked around): heightAt
+  // delegates to temple.floorAt, which knows only the hall floor (y ≈ 1.0–1.3)
+  // and the dais steps (up to ≈ 2.2) — NOT this stair. On these stops the
+  // controller sees the figure airborne and FORCES pose="air"; the walk clip
+  // cannot play there without touching the controller (out of scope).
   for (let i = 0; i < 8; i++) {
     const a = (150 + i * (270 / 7)) * (Math.PI / 180);
     const r = 8.5 - i * 0.4286;
     const y = 1.6 + i * (10.2 / 7);
     const x = r * Math.cos(a);
     const z = DAIS_LOCAL.z + r * Math.sin(a);
-    stops.push({ p: new THREE.Vector3(x, y, z), c: cardOut(x, z, 11.5, y + 0.8) });
+    stops.push({ p: new THREE.Vector3(x, y, z), c: cardOut(x, z, 12.5, y + 1.2) });
   }
 
   // 25 — the landing, before the Choice (four metres kept clear of the dais)
@@ -308,6 +325,30 @@ function glowTexture(): THREE.CanvasTexture {
  * phase and tempo — a field of lights breathing out of sync.
  * ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ *
+ * TEXTURE-SOURCE HOOK — the station cards (the one deliberate seam).
+ *
+ * createStationCardTexture() is the single place where a station's card
+ * imagery is resolved. TODAY it returns the station index itself, so
+ * tarotTex.cardMesh() draws its default procedural card texture — that
+ * default stays until the real art is wired in.
+ *
+ * THIS is the slot where the 12 real Egyptian-tarot scans will plug in
+ * once the user decides the 12 -> 26 mapping (which scan stands behind
+ * which of the 26 stations). Do NOT guess that mapping here. When it is
+ * decided, resolve it inside this function; nothing else in this file
+ * changes. tarotTex.ts stays untouched — its cardMesh(i, w, h) signature
+ * is fixed and takes the deck index it builds its texture from.
+ * ------------------------------------------------------------------ */
+function createStationCardTexture(stationIndex: number): number {
+  return stationIndex;
+}
+
+/** Station-card factory — every station card is born here (hook above). */
+function createStationCard(stationIndex: number, w: number, h: number): THREE.Group {
+  return cardMesh(createStationCardTexture(stationIndex), w, h);
+}
+
 interface StationState {
   card: THREE.Group;
   level: { value: number };
@@ -329,7 +370,7 @@ class StationSet {
     for (let i = 0; i < stops.length; i++) {
       const s = stops[i]!;
 
-      const card = cardMesh(i, 2.2, 3.4);
+      const card = createStationCard(i, 2.2, 3.4);
       card.position.copy(s.c);
       const dx = s.p.x - s.c.x;
       const dz = s.p.z - s.c.z;
@@ -730,7 +771,8 @@ export class TempleTour implements SceneModule {
   private readonly tmpT = new THREE.Vector3();
   private readonly tmpA = new THREE.Vector3();
   private readonly tmpB = new THREE.Vector3();
-  private readonly tmpD = new THREE.Vector3();
+  /** One reused lead point for the controller's tap-walk target (never per-frame). */
+  private readonly leadTarget = new THREE.Vector2();
 
   // Bound once; only removed in dispose(). Uses this.camera if the coordinator set it.
   private readonly onPointerDown = (ev: PointerEvent): void => {
@@ -794,9 +836,24 @@ export class TempleTour implements SceneModule {
     this.kit = new CreationKit();
     this.root.add(this.kit.group);
 
-    // set the wanderer on the rail before the camera is snapped to them
-    this.updateRide(0, 0);
-    this.updateOrb(0, 0);
+    // no stale tap-walk target carried in from a previous scene
+    this.player.target = null;
+
+    // Set the wanderer on the rail before the camera is snapped to them.
+    // Still-frame debug (?shot=temple-tour&t=) runs exactly one update() after
+    // enter(), so the rendered pose/position come from here: seed the rail at
+    // the shot's debug clock instead of 0 and snap the heading to the rail
+    // direction (one frame never visibly smooths it). Live play: debugTime is
+    // null → seedT 0 → byte-identical to the old updateRide(0, 0).
+    const seedT = finite(this.narration.debugTime ?? 0, 0);
+    this.updateRide(seedT, 0);
+    this.updateOrb(seedT, 0);
+    if (this.narration.debugTime !== null) {
+      sampleTangent(seedT, this.tmpT);
+      const hx = finite(this.tmpT.x, 0);
+      const hz = finite(this.tmpT.z, -1);
+      if (hx * hx + hz * hz > 1e-6) this.player.heading = Math.atan2(hx, hz);
+    }
 
     void this.narration.play(TRACK_ID);
     this.follow.snapTo(this.player.pos);
@@ -807,6 +864,7 @@ export class TempleTour implements SceneModule {
     this.active = false;
     this.released = false;
     this.choiceDone = false;
+    this.player.target = null; // no stale tap-walk target after the tour
 
     this.narration.stop(1.5);
     this.overlay?.hide();
@@ -889,17 +947,8 @@ export class TempleTour implements SceneModule {
     const w = holdWeight(uT);
     const stop = STOPS[i] ?? STOPS[0];
 
-    // a slow pace while a station speaks, so the walk never stands dead still
-    if (w > 0.001 && stop) {
-      const amp = finite(pos.y) > 0.9 ? 0.55 : 1.15;
-      this.tmpD.set(
-        Math.sin(finite(uT) * 0.55 + i * 1.7) * amp,
-        0,
-        Math.cos(finite(uT) * 0.47 + i * 1.1) * amp,
-      );
-      pos.addScaledVector(this.tmpD, w);
-    }
-
+    // Dwells stand still — the idle clip breathes on its own (the old
+    // Lissajous drift is gone; the heading logic below still uses w).
     this.player.pos.set(
       TEMPLE_ORIGIN.x + finite(pos.x),
       TEMPLE_ORIGIN.y + finite(pos.y),
@@ -917,6 +966,33 @@ export class TempleTour implements SceneModule {
     const d = Math.atan2(Math.sin(want - h), Math.cos(want - h));
     this.player.heading = h + d * (1 - Math.exp(-4 * Math.max(0, dt)));
     if (!Number.isFinite(this.player.heading)) this.player.heading = want;
+
+    // The walk cycle. The controller recomputes pose/speed every frame from its
+    // own displacement, so its tap-walk target is the ONLY channel into
+    // wanderer.animate() (controller.ts:144-150: mag = min(1, d/1.2), WALK 1.6).
+    // 2D rail speed, pure function of uT (seek-safe), matching the controller's.
+    samplePos(uT - 0.25, this.tmpA);
+    samplePos(uT + 0.25, this.tmpB);
+    const rx = this.tmpB.x - this.tmpA.x;
+    const rz = this.tmpB.z - this.tmpA.z;
+    const v = Math.sqrt(Math.max(0, rx * rx + rz * rz)) / 0.5;
+    if (v > 0.3) {
+      // Steady state: min(1, d/1.2)*1.6 ≈ v for v ≥ 0.6 — exact pace match,
+      // feet plant. The 0.45 floor keeps d above the 0.35 arrival radius so
+      // the walk never stalls mid-leg (mild skate below v ≈ 0.6 is accepted).
+      const lead = Math.min(1.15, Math.max(0.45, 0.75 * v));
+      // x/z rail tangent (y zeroed), guarded against a degenerate 2D length
+      const tx = finite(tan.x, 0);
+      const tz = finite(tan.z, -1);
+      const tl = Math.sqrt(Math.max(0, tx * tx + tz * tz));
+      const k = tl > 1e-5 ? lead / tl : 0;
+      // player.pos is world space (TEMPLE_ORIGIN added) — the target is too
+      this.leadTarget.set(this.player.pos.x + tx * k, this.player.pos.z + tz * k);
+      this.player.target = this.leadTarget;
+    } else {
+      // dwelling: the figure stands at the stop (idle clip), turned to its card
+      this.player.target = null;
+    }
   }
 
   /**
