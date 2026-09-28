@@ -87,6 +87,43 @@ addEventListener("error", (e) => showProblem(`${e.message} (${String(e.filename)
 }
 addEventListener("unhandledrejection", (e) => showProblem(String((e as PromiseRejectionEvent).reason?.message ?? (e as PromiseRejectionEvent).reason)));
 
+/* WebGPU root-cause diagnostic (temporary): the "Invalid CommandEncoder" banner is a
+   downstream symptom — a command encoder poisoned by an EARLIER validation error.
+   A per-frame validation error scope catches that first error so the phone can
+   show us the actual cause. */
+interface GpuDiagDevice {
+  pushErrorScope(type: "validation"): void;
+  popErrorScope(): Promise<{ message: string } | null>;
+}
+let gpuDiagDevice: GpuDiagDevice | null = null;
+let gpuDiagScopeOpen = false;
+
+function gpuDiagStart(): void {
+  const d = gpuDiagDevice;
+  if (!d || gpuDiagScopeOpen) return;
+  try {
+    d.pushErrorScope("validation");
+    gpuDiagScopeOpen = true;
+  } catch {
+    /* ignore */
+  }
+}
+
+function gpuDiagEnd(): void {
+  const d = gpuDiagDevice;
+  if (!d || !gpuDiagScopeOpen) return;
+  gpuDiagScopeOpen = false;
+  d.popErrorScope()
+    .then((err) => {
+      if (err && err.message) {
+        showProblem(`ROOT WebGPU: ${err.message}`);
+      }
+    })
+    .catch(() => {
+      /* ignore */
+    });
+}
+
 type Mode = "intro" | "play" | "rest";
 const S = {
   mode: "intro" as Mode,
@@ -2415,8 +2452,10 @@ function frame(now: number): void {
   }
   update(dt);
   renderer.info.reset();
+  gpuDiagStart();
   water.renderMirror(renderer, scene, camera);
   post.render();
+  gpuDiagEnd();
   frameDraws = renderer.info.render.drawCalls;
 }
 // WebGPU starts asynchronously (it asks the browser for the GPU); the world is built meanwhile.
@@ -2431,6 +2470,13 @@ renderer
       if (document.hidden) addEventListener("visibilitychange", () => location.reload(), { once: true });
       else location.reload();
     };
+    // Root-cause diagnostic: grab the WebGPU device for per-frame validation error scopes.
+    try {
+      gpuDiagDevice =
+        (renderer as unknown as { backend?: { device?: GpuDiagDevice } }).backend?.device ?? null;
+    } catch {
+      gpuDiagDevice = null;
+    }
     // nothing reflects the sky's picture (blurred, its stars and nebulae became blobs over the land)
     post.start();
     if (!shot) requestAnimationFrame(frame);
