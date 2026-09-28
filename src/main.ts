@@ -2379,22 +2379,13 @@ function startOpening(): void {
     e.stopPropagation();
     finishOpening();
   }, { once: true });
-  // each line spoken as it appears (audio/opening/1–8.mp3, made with narration/piper.sh)
-  const clips: (AudioBuffer | null)[] = [];
-  [...OPENING, ...OPENING_AFTER].forEach((_, i) => void audio.clip(`audio/opening/${i + 1}.mp3`).then((b) => (clips[i] = b)));
-  const speak = (i: number) => {
-    const b = clips[i];
-    if (b && playlist.on) audio.playClip(b, 0.95);
-  };
   const t0 = 3000, per = 4200;
   OPENING.forEach((line, i) => openingTimers.push(window.setTimeout(() => {
     openingLine(line);
-    openingTimers.push(window.setTimeout(() => speak(i), 1300)); // as the words come into view
   }, t0 + i * per)));
   const t1 = t0 + OPENING.length * per + 1200;
   OPENING_AFTER.forEach((line, i) => openingTimers.push(window.setTimeout(() => {
     openingLine(line, true);
-    openingTimers.push(window.setTimeout(() => speak(OPENING.length + i), 1300));
   }, t1 + i * 7500)));
   openingTimers.push(window.setTimeout(finishOpening, t1 + OPENING_AFTER.length * 7500 + 1500));
 }
