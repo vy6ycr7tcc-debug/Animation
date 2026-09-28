@@ -1,9 +1,16 @@
+/* The temple tour is the final walk.
+   After six lessons, a small orb of light leads the wanderer down a winding path.
+   Four stations wait along the way, each marked while its narration speaks.
+   At the end stands a choice: love, rest, or undecided.
+   Choosing sets off a finale of light — birds, horses, crystals, rings, beams.
+   The orb, the stations, and every effect keep time with the narration's own clock.
+   Once the wanderer has chosen, the finale keeps its own time. */
 import * as THREE from "three/webgpu";
 import type { SceneModule } from "./lessonKit";
 import { CreationKit } from "./creationKit";
 import { cardMesh, ignite, updateCards } from "./tarotTex";
 import type { Narration } from "../core/narration";
-import { gpuUniforms } from "../gpu/tsl";
+import { gpuUniforms, T } from "../gpu/tsl";
 
 export const TEMPLE_ORIGIN = new THREE.Vector3(30000, 1, 0);
 export const TRACK_ID = "TEMPLE";
@@ -156,39 +163,51 @@ function buildOrbMesh(): {
 } {
   const group = new THREE.Group();
 
-  const coreMat = new THREE.MeshBasicNodeMaterial();
-  coreMat.color = new THREE.Color(0xffc266);
-  coreMat.transparent = true;
-  coreMat.opacity = 1.0;
+  const uDim = T.uniform(1);
+
+  const coreMat = new THREE.MeshBasicNodeMaterial({ fog: false });
+  coreMat.colorNode = T.Fn(() => {
+    const breathe = T.sin(gpuUniforms.time.mul(1.5)).mul(0.08).add(0.92);
+    return T.vec3(1.0, 0.76, 0.4).mul(breathe).mul(uDim);
+  })();
 
   const core = new THREE.Mesh(new THREE.SphereGeometry(0.22, 32, 16), coreMat);
   group.add(core);
 
-  const haloMat = new THREE.MeshBasicNodeMaterial();
-  haloMat.color = new THREE.Color(0xffd894);
-  haloMat.transparent = true;
-  haloMat.opacity = 0.55;
-  haloMat.depthWrite = false;
-  haloMat.blending = THREE.AdditiveBlending;
-  haloMat.fog = false;
+  const glowTexture = (() => {
+    const size = 128;
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext("2d")!;
+    const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    g.addColorStop(0, "rgba(255, 216, 148, 1)");
+    g.addColorStop(0.4, "rgba(255, 216, 148, 0.6)");
+    g.addColorStop(1, "rgba(255, 216, 148, 0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, size, size);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  })();
 
-  const halo = new THREE.Mesh(new THREE.SphereGeometry(0.55, 32, 16), haloMat);
+  const haloMat = new THREE.SpriteNodeMaterial({
+    map: glowTexture,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    fog: false,
+  });
+  haloMat.opacityNode = T.Fn(() => {
+    const breathe = T.sin(gpuUniforms.time.mul(1.5)).mul(0.1).add(0.9);
+    return breathe.mul(0.55).mul(uDim);
+  })();
+
+  const halo = new THREE.Sprite(haloMat);
+  halo.scale.set(1.1, 1.1, 1);
   group.add(halo);
 
-  group.userData.tick = () => {
-    const t = gpuUniforms.time.value;
-    const s = 1 + 0.08 * Math.sin(t * 1.5);
-    halo.scale.setScalar(s);
-  };
-
   function setDimmed(d: boolean): void {
-    if (d) {
-      haloMat.opacity = 0.15;
-      coreMat.opacity = 0.35;
-    } else {
-      haloMat.opacity = 0.55;
-      coreMat.opacity = 1.0;
-    }
+    uDim.value = d ? 0.3 : 1;
   }
 
   return { group, core, setDimmed };
@@ -405,7 +424,8 @@ export class TempleTour implements SceneModule {
 
   private released = false;
   private choiceDone = false;
-  private choiceAt = 0;
+  /** Seconds since the wanderer chose, advanced by the frame loop. */
+  private finaleT = 0;
   private finaleFx: FinaleFX | null = null;
   private overlay: ReturnType<typeof createChoiceOverlay> | null = null;
 
@@ -505,7 +525,6 @@ export class TempleTour implements SceneModule {
     if (orb && path) {
       path.posAt(uT, this.tmpV);
       orb.group.position.copy(this.tmpV);
-      orb.group.userData.tick?.();
 
       if (!this.released) {
         this.player.pos.set(
@@ -521,14 +540,14 @@ export class TempleTour implements SceneModule {
       }
     }
 
-    this.kit?.update(dt, uT);
-
     if (!this.choiceDone && uT >= FINALE_T) this.startChoice();
 
     if (this.choiceDone && this.finaleFx) {
-      const ft = (performance.now() - this.choiceAt) / 1000;
-      this.finaleFx.update(ft);
-      this.kit?.update(dt, ft);
+      this.finaleT += dt;
+      this.finaleFx.update(this.finaleT);
+      this.kit?.update(dt, this.finaleT);
+    } else {
+      this.kit?.update(dt, uT);
     }
 
     this.lastUT = uT;
@@ -552,7 +571,7 @@ export class TempleTour implements SceneModule {
           : "Not choosing is also a choice. The road waits.";
     this.hooks.whisper(line, 9000);
 
-    this.choiceAt = performance.now();
+    this.finaleT = 0;
     if (this.kit) this.finaleFx = new FinaleFX(this.kit, new THREE.Vector3(0, 2, -38));
 
     if (key === "rest") {

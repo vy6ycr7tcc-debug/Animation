@@ -56,6 +56,7 @@ import { lightField } from "./world/lightfield";
 import { Forest } from "./world/forest";
 import { RisingFlowers } from "./world/blooms";
 import { Wilds } from "./world/wilds";
+import { initTourScenes, tourPlaces, type TourScenes } from "./scenes/integration";
 
 declare const __BUILD__: string;
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
@@ -428,7 +429,7 @@ input.onTap = (x, y, touch) => {
   }
   // a tap on the land sets course for it: walking, or flying there if in the air (Samuel)
   void touch;
-  if (sitting.phase === "seated") return;
+  if (sitting.phase === "seated" || tourScenes.movementHeld) return;
   const p = groundPoint(x, y);
   if (!p) return;
   if (autofly.active) setAutofly(false);
@@ -817,7 +818,7 @@ const autofly = new Autofly(
 function setAutofly(on: boolean): void {
   if (on === autofly.active) return;
   if (on) {
-    if (S.mode !== "play" || sitting.phase === "seated" || player.diving || genesis.active || apart()) return;
+    if (S.mode !== "play" || sitting.phase === "seated" || tourScenes.movementHeld || player.diving || genesis.active || apart()) return;
     player.target = null;
     autofly.start(player.pos, player.heading);
     say("Autofly: the stick or the button takes you back.");
@@ -845,7 +846,7 @@ function heartAt(out: THREE.Vector3): THREE.Vector3 {
   return out.copy(player.pos).add(new THREE.Vector3(0, 1.15, 0));
 }
 function beginGenesis(): void {
-  if (S.mode !== "play" || genesis.active || sitting.phase === "seated" || player.flying || player.diving || apart()) return;
+  if (S.mode !== "play" || genesis.active || sitting.phase === "seated" || tourScenes.movementHeld || player.flying || player.diving || apart()) return;
   // the forms whose geometry lights up: the land gold, living things rose, the sky's vessels pale blue
   const layers = [
     { root: terrain.group, color: new THREE.Color(0.75, 0.58, 0.32) },
@@ -1004,6 +1005,7 @@ function places(): Place[] {
       narration: b.spec.narration,
       start: beings.approach(i),
     })),
+    ...tourPlaces({ temple }),
   ];
 }
 
@@ -1044,6 +1046,7 @@ function arriveNow(c: Choice, first: boolean): void {
   input.enabled = true;
   S.mode = "play";
   persist();
+  if (c.place.label === "✦ The temple tour") crossTemple(true); // the door, then the docent
   if (!first) return;
   $("#menu-btn").hidden = false;
   tp.setResting(true);
@@ -2064,6 +2067,11 @@ document.addEventListener("visibilitychange", () => {
 });
 addEventListener("pagehide", persist);
 
+/* The temple tour, the tree, and the five lesson sites: one registry, one frame call. */
+const tourScenes: TourScenes = initTourScenes({
+  scene, narration, player, follow, wanderer, camera, whisper, temple, crossTemple, heightAt, sitting,
+});
+
 function update(dt: number): void {
   S.t += dt;
   const t = S.t;
@@ -2154,6 +2162,7 @@ function update(dt: number): void {
   if (world) landmarks.update(wt, dt, player.pos, S.mode === "play" ? player.speed : 1, S.reduced);
   if (S.mode === "play" && world) beings.update(wt, dt, player.pos, S.reduced);
   updateSitting(dt);
+  tourScenes.frame(dt); // seats, the temple door's edge, the tree's greeting, then every exhibit
   if (world) updateTunnel();
   $("#labels").style.visibility = world ? "" : "hidden";
   if (world) vessels.update(wt, player.pos, camera, S.reduced, S.mode === "play" && !startMap.isOpen);

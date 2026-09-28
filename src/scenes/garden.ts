@@ -1,24 +1,28 @@
+/* The garden lesson — a forge-garden of light.
+   The wanderer sits before palm-shaped hands of light that hold a bed of coals.
+   The coals' heat follows the narration's keyframes: rising and falling, splitting in two
+   and coming back together. A breath ring widens and narrows around them; three columns of
+   light stand behind. Everything — heat, opacity, drift — is a pure function of the
+   narration's clock. */
 import * as THREE from "three/webgpu";
 import { LessonScene, type LessonOpts, type LessonCtx, type Beat } from "./lessonKit";
 import { CreationKit } from "./creationKit";
 import { SITES } from "./sites";
 import type { Narration } from "../core/narration";
 
-function clamp(x: number, a: number, b: number): number {
-  return Math.max(a, Math.min(b, x));
-}
-
-function smoothstep(e0: number, e1: number, x: number): number {
-  const t = clamp((x - e0) / (e1 - e0), 0, 1);
-  return t * t * (3 - 2 * t);
+const V = THREE.Vector3;
+/** Keep the garden's fire identical on every visit. */
+let gSeed = 11;
+function gRnd(): number {
+  return (gSeed = (gSeed * 16807) % 2147483647) / 2147483647;
 }
 
 function fadeIn(uT: number, start: number, dur: number): number {
-  return smoothstep(start, start + dur, uT);
+  return THREE.MathUtils.smoothstep(uT, start, start + dur);
 }
 
 function fadeOut(uT: number, start: number, dur: number): number {
-  return 1 - smoothstep(start, start + dur, uT);
+  return 1 - THREE.MathUtils.smoothstep(uT, start, start + dur);
 }
 
 function gaussian(uT: number, center: number, sigma: number): number {
@@ -27,15 +31,15 @@ function gaussian(uT: number, center: number, sigma: number): number {
 }
 
 function makeSoftTexture(): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
+  const canvas = document.createElement("canvas");
   canvas.width = 64;
   canvas.height = 64;
-  const ctx = canvas.getContext('2d')!;
+  const ctx = canvas.getContext("2d")!;
   if (ctx) {
     const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-    g.addColorStop(0, 'rgba(255,255,255,1)');
-    g.addColorStop(0.35, 'rgba(255,255,255,0.75)');
-    g.addColorStop(1, 'rgba(255,255,255,0)');
+    g.addColorStop(0, "rgba(255,255,255,1)");
+    g.addColorStop(0.35, "rgba(255,255,255,0.75)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, 64, 64);
   }
@@ -69,7 +73,7 @@ function makeGlowSprite(
   sp.userData.basePos = basePos.clone();
   sp.userData.baseScale = baseScale;
   sp.userData.baseColor = baseColor.clone();
-  sp.userData.phase = Math.random() * Math.PI * 2;
+  sp.userData.phase = gRnd() * Math.PI * 2;
   return sp;
 }
 
@@ -88,7 +92,7 @@ function createPalmHand(
   const ry = 0.42 * handScale;
   for (let i = 0; i < 28; i++) {
     const a = (i / 28) * Math.PI * 2;
-    positions.push(new THREE.Vector3(Math.cos(a) * rx, Math.sin(a) * ry, 0));
+    positions.push(new V(Math.cos(a) * rx, Math.sin(a) * ry, 0));
   }
 
   const fingerBaseY = 0.32 * handScale;
@@ -99,7 +103,7 @@ function createPalmHand(
       const y = fingerBaseY + (fingerTipY - fingerBaseY) * (j / 6);
       const spread = (j / 6) * 0.1 * handScale;
       const x = fx + spread * Math.sin(Math.PI * (j / 6));
-      positions.push(new THREE.Vector3(x, y, 0));
+      positions.push(new V(x, y, 0));
     }
   }
 
@@ -129,14 +133,14 @@ function createCoal(
     const t = i / (N - 1);
     const y = t * height;
     const radius = Math.max(0.04, baseRadius * (1 - t * 0.75) * (0.4 + 0.6 * Math.abs(Math.sin(t * Math.PI))));
-    const angle = Math.random() * Math.PI * 2;
-    const r = radius * (0.4 + 0.6 * Math.random());
+    const angle = gRnd() * Math.PI * 2;
+    const r = radius * (0.4 + 0.6 * gRnd());
     const x = Math.cos(angle) * r;
     const z = Math.sin(angle) * r;
     const depth = t;
     const color = new THREE.Color().lerpColors(new THREE.Color(0xff3311), new THREE.Color(0xffcc66), depth);
     const scale = (0.06 + 0.12 * (1 - t)) * coalScale;
-    const pos = new THREE.Vector3(x, y, z);
+    const pos = new V(x, y, z);
     const sp = makeGlowSprite(texture, color, 0, scale, pos, color, scale);
     group.add(sp);
     sprites.push(sp);
@@ -158,7 +162,7 @@ function createBreathRing(
 
   for (let i = 0; i < count; i++) {
     const a = (i / count) * Math.PI * 2;
-    const pos = new THREE.Vector3(Math.cos(a) * radius, 0, Math.sin(a) * radius);
+    const pos = new V(Math.cos(a) * radius, 0, Math.sin(a) * radius);
     const scale = 0.1;
     const sp = makeGlowSprite(texture, color, 0, scale, pos, color, scale);
     group.add(sp);
@@ -182,12 +186,12 @@ function createBeam(
 
   for (let i = 0; i < N; i++) {
     const y = (i / (N - 1)) * height;
-    const spread = radius * (0.3 + 0.7 * Math.random());
-    const angle = Math.random() * Math.PI * 2;
+    const spread = radius * (0.3 + 0.7 * gRnd());
+    const angle = gRnd() * Math.PI * 2;
     const x = Math.cos(angle) * spread;
     const z = Math.sin(angle) * spread;
-    const posLocal = new THREE.Vector3(x, y, z);
-    const scale = 0.15 + 0.2 * Math.random();
+    const posLocal = new V(x, y, z);
+    const scale = 0.15 + 0.2 * gRnd();
     const sp = makeGlowSprite(texture, color, 0, scale, posLocal, color, scale);
     group.add(sp);
     sprites.push(sp);
@@ -202,10 +206,10 @@ export function createGardenScene(
   whisper: (text: string, ms?: number) => void
 ): LessonScene {
   const site = SITES.garden;
-  const seatPos = new THREE.Vector3(site.x, site.y, site.z);
+  const seatPos = new V(site.x, site.y, site.z);
   const heading = site.heading;
-  const forward = new THREE.Vector3(Math.sin(heading), 0, Math.cos(heading)).normalize();
-  const right = new THREE.Vector3(Math.cos(heading), 0, -Math.sin(heading)).normalize();
+  const forward = new V(Math.sin(heading), 0, Math.cos(heading)).normalize();
+  const right = new V(Math.cos(heading), 0, -Math.sin(heading)).normalize();
 
   const softTexture = makeSoftTexture();
 
@@ -288,24 +292,24 @@ export function createGardenScene(
       let op = baseFade * 0.15;
       op = Math.max(op, fadeIn(uT, 106.28, 4) * 0.9 * fadeOut(uT, 161.46, 6));
       op = Math.max(op, gaussian(uT, 590.55, 4) * 0.35);
-      return clamp(op, 0, 1);
+      return THREE.MathUtils.clamp(op, 0, 1);
     }
     if (index === 1) {
       let op = baseFade * 0.15;
       op = Math.max(op, fadeIn(uT, 161.46, 4) * 0.9 * fadeOut(uT, 207.99, 6));
       op = Math.max(op, gaussian(uT, 590.55, 4) * 0.35);
-      return clamp(op, 0, 1);
+      return THREE.MathUtils.clamp(op, 0, 1);
     }
     let op = baseFade * 0.15;
     op = Math.max(op, fadeIn(uT, 207.99, 4) * 0.9 * fadeOut(uT, 537.46, 8));
     op = Math.max(op, gaussian(uT, 590.55, 4) * 0.35);
-    return clamp(op, 0, 1);
+    return THREE.MathUtils.clamp(op, 0, 1);
   }
 
   function ringOpacity(uT: number): number {
     const main = fadeIn(uT, 244.37, 5) * fadeOut(uT, 279.17, 8);
     const later = 0.5 * fadeIn(uT, 598.90, 4) * fadeOut(uT, 610, 8);
-    return clamp(main + later, 0, 1);
+    return THREE.MathUtils.clamp(main + later, 0, 1);
   }
 
   function updateSprites(
@@ -354,16 +358,16 @@ export function createGardenScene(
       const forgeGlow = 0.35 * fadeIn(uT, 338.13, 20) * fadeOut(uT, 386.94, 20);
       const spike1 = 0.45 * gaussian(uT, 155.29, 3);
       const spike2 = 0.35 * gaussian(uT, 161.46, 3);
-      const heat = clamp(heatBase + forgeGlow + spike1 + spike2, 0, 1);
+      const heat = THREE.MathUtils.clamp(heatBase + forgeGlow + spike1 + spike2, 0, 1);
 
       const coalColor = new THREE.Color().lerpColors(
         new THREE.Color(0xff3311),
         new THREE.Color(0xffcc66),
         heat
       );
-      const coalOpacity = clamp(0.15 + heat * 0.85, 0, 1);
+      const coalOpacity = THREE.MathUtils.clamp(0.15 + heat * 0.85, 0, 1);
       const coalYScale = 1 - 0.5 * fadeIn(uT, 537.46, 8);
-      const coalPos = palmPos.clone().add(new THREE.Vector3(0, 0.3 + 0.4 * heat, 0));
+      const coalPos = palmPos.clone().add(new V(0, 0.3 + 0.4 * heat, 0));
       coalGroup.position.copy(coalPos);
 
       updateSprites(coalSprites, uT, coalOpacity, coalColor, 0.8 + heat * 0.6, 0.04, coalYScale);
@@ -434,7 +438,7 @@ export function createGardenScene(
     palmGroup.add(rightPalm.group);
     palmSprites.push(...leftPalm.sprites, ...rightPalm.sprites);
 
-    const coalCenter = palmCenter.clone().add(new THREE.Vector3(0, 0.3, 0));
+    const coalCenter = palmCenter.clone().add(new V(0, 0.3, 0));
     coalGroup = new THREE.Group();
     coalGroup.position.copy(coalCenter);
     root.add(coalGroup);
@@ -454,7 +458,7 @@ export function createGardenScene(
     const beamRadius = 2.2;
     const beamAngles = [0, (2 * Math.PI) / 3, (4 * Math.PI) / 3];
     for (let i = 0; i < 3; i++) {
-      const pos = new THREE.Vector3(
+      const pos = new V(
         backCenter.x + Math.cos(beamAngles[i]) * beamRadius,
         site.y,
         backCenter.z + Math.sin(beamAngles[i]) * beamRadius

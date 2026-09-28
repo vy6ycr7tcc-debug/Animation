@@ -1,3 +1,8 @@
+/* The shore lesson — first lesson of the temple tour. The wanderer sits beside water
+   and watches a knot of golden light. It begins tied tight, a trefoil pulse; it loosens;
+   it unravels; it is released. Low lanterns burn on the landward side. A golden disc rests
+   on the water. A wheel appears and stops. Open hands of light wait. A leaf is given to the
+   wind. A spent storm settles. Everything keeps time with the telling. */
 import * as THREE from "three/webgpu";
 import { LessonScene } from "./lessonKit";
 import type { Beat, LessonCtx, LessonOpts } from "./lessonKit";
@@ -5,24 +10,26 @@ import type { Narration } from "../core/narration";
 import { SITES } from "./sites";
 import { worldPoints } from "../gpu/tsl";
 
+const V = THREE.Vector3;
+
 export function createShoreScene(
   scene: THREE.Scene,
   narration: Narration,
   whisper: (text: string, ms?: number) => void,
 ): LessonScene {
   const S = SITES.shore;
-  const seatPos = new THREE.Vector3(S.x, S.y, S.z);
+  const seatPos = new V(S.x, S.y, S.z);
   const seatHeading = S.heading;
 
   // Facing convention: forward F = (-sin h, 0, -cos h)
-  const F = new THREE.Vector3(-Math.sin(seatHeading), 0, -Math.cos(seatHeading));
+  const F = new V(-Math.sin(seatHeading), 0, -Math.cos(seatHeading));
   // Lateral axis (level, perpendicular to forward)
-  const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), F).normalize();
+  const right = new V().crossVectors(new V(0, 1, 0), F).normalize();
 
   // Knot stage center K = seatPos + F*14 at y=2.6
   const K = seatPos.clone().addScaledVector(F, 14).setY(2.6);
-  const L = K.clone().addScaledVector(right, -6).add(new THREE.Vector3(0, 0.9, 0));
-  const Rr = K.clone().addScaledVector(right, 6).add(new THREE.Vector3(0, 0.9, 0));
+  const L = K.clone().addScaledVector(right, -6).add(new V(0, 0.9, 0));
+  const Rr = K.clone().addScaledVector(right, 6).add(new V(0, 0.9, 0));
 
   // Audio clock (narration seconds) captured from the build ctx.
   let uTNow = 0;
@@ -41,15 +48,10 @@ export function createShoreScene(
   let leafOffsets: Float32Array | null = null;
   let storm: ReturnType<typeof worldPoints> | null = null;
 
-  function smoothstep(edge0: number, edge1: number, x: number): number {
-    const t = Math.min(Math.max((x - edge0) / (edge1 - edge0), 0), 1);
-    return t * t * (3 - 2 * t);
-  }
-
   function build(ctx: LessonCtx): void {
     capture(ctx);
 
-    // 1) Low lantern points on the landward side of the seat.
+    /* ---------- the lanterns ---------- */
     const lamps: THREE.Vector3[] = [];
     const lateral = [-2.6, -1.3, 0, 1.3, 2.6];
     for (let i = 0; i < lateral.length; i++) {
@@ -64,7 +66,7 @@ export function createShoreScene(
     }
     ctx.kit.pathLights(lamps);
 
-    // 2) Golden disc on the water, under the knot that arrives later.
+    /* ---------- the golden disc ---------- */
     const discGeo = new THREE.CircleGeometry(7, 48);
     const discMat = new THREE.MeshBasicNodeMaterial({
       color: 0xd8a94e,
@@ -79,15 +81,15 @@ export function createShoreScene(
     disc.position.set(K.x, 0.15, K.z);
     ctx.group.add(disc);
 
-    // 3) Knot strand.
+    /* ---------- the knot strand ---------- */
     const count = 360;
     const positions = new Float32Array(count * 3);
     strand = worldPoints(positions, { size: 0.09, color: 0xe0aa54 });
     ctx.group.add(strand.sprite);
 
-    // 4) Turning wheel
+    /* ---------- the turning wheel ---------- */
     wheelRig = new THREE.Group();
-    wheelRig.position.copy(K).add(new THREE.Vector3(0, 1.2, 0));
+    wheelRig.position.copy(K).add(new V(0, 1.2, 0));
     wheelRig.lookAt(seatPos.x, wheelRig.position.y, seatPos.z);
     const wheelGeo = new THREE.TorusGeometry(2.2, 0.06, 12, 72);
     const wheelMat = new THREE.MeshBasicNodeMaterial({
@@ -102,7 +104,7 @@ export function createShoreScene(
     wheelRig.add(wheelMesh);
     ctx.group.add(wheelRig);
 
-    // 5) Open hands
+    /* ---------- the open hands ---------- */
     const handQuat = new THREE.Quaternion().setFromAxisAngle(right, -Math.PI / 9);
     for (const side of [-1, 1]) {
       const H = seatPos.clone().addScaledVector(F, 5.5).addScaledVector(right, side * 0.95).setY(1.5);
@@ -112,7 +114,7 @@ export function createShoreScene(
         const r = Math.sqrt(j / (handCount - 1));
         const a = j * 2.39996;
         const el = r * 1.2;
-        const local = new THREE.Vector3(
+        const local = new V(
           r * Math.cos(a) * 0.55,
           -0.15 + (1 - Math.cos(el)) * 0.35,
           r * Math.sin(a) * 0.55,
@@ -130,7 +132,7 @@ export function createShoreScene(
       hands.push(cloud);
     }
 
-    // 6) Leaf released
+    /* ---------- the released leaf ---------- */
     const leafCount = 26;
     const leafPositions = new Float32Array(leafCount * 3);
     leafOffsets = new Float32Array(leafCount * 3);
@@ -157,7 +159,7 @@ export function createShoreScene(
     leaf.sprite.visible = false;
     ctx.group.add(leaf.sprite);
 
-    // 7) Storm spent
+    /* ---------- the spent storm ---------- */
     const stormCount = 130;
     const stormPositions = new Float32Array(stormCount * 3);
     for (let i = 0; i < stormCount; i++) {
@@ -188,7 +190,7 @@ export function createShoreScene(
     if (!strand) return;
 
     const arr = strand.position.array as Float32Array;
-    const k = 1 - smoothstep(190.9, 562.88, uT);
+    const k = 1 - THREE.MathUtils.smoothstep(uT, 190.9, 562.88);
     const pulse = uT > 7.94 ? Math.exp(-(uT - 7.94) * 1.5) : 0;
     const trefoilScale = 0.55 * (1 - 0.18 * pulse);
     const release = uT > 562.88 ? uT - 562.88 : 0;
@@ -236,13 +238,13 @@ export function createShoreScene(
     if (wheelRig && wheelMesh) {
       const spin = uT > 240.77 ? (uT < 286.44 ? (uT - 240.77) * 1.4 : (286.44 - 240.77) * 1.4) : 0;
       wheelMesh.rotation.z = spin;
-      const wheelOp = smoothstep(240.77, 243.77, uT) * (1 - smoothstep(286.44, 292, uT));
+      const wheelOp = THREE.MathUtils.smoothstep(uT, 240.77, 243.77) * (1 - THREE.MathUtils.smoothstep(uT, 286.44, 292));
       (wheelMesh.material as THREE.MeshBasicNodeMaterial).opacity = wheelOp;
       wheelRig.visible = wheelOp > 0.001;
     }
 
     // Open hands
-    const handOp = smoothstep(357.79, 361.79, uT) * (1 - smoothstep(620, 636, uT));
+    const handOp = THREE.MathUtils.smoothstep(uT, 357.79, 361.79) * (1 - THREE.MathUtils.smoothstep(uT, 620, 636));
     for (const cloud of hands) {
       cloud.material.opacity = handOp;
       cloud.sprite.position.y = Math.sin(uT * 0.8) * 0.06;
@@ -280,7 +282,7 @@ export function createShoreScene(
 
     // Storm spent
     if (storm) {
-      const stormOp = smoothstep(440.63, 442.0, uT) * (1 - smoothstep(442.0, 449.0, uT)) * 0.7;
+      const stormOp = THREE.MathUtils.smoothstep(uT, 440.63, 442.0) * (1 - THREE.MathUtils.smoothstep(uT, 442.0, 449.0)) * 0.7;
       storm.material.opacity = stormOp;
       storm.sprite.visible = stormOp > 0.001;
     }

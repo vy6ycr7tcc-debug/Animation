@@ -46,6 +46,7 @@ export class TreeOfLifeScene implements SceneModule {
   private fireflyTime = 0;
 
   private wisp!: { group: THREE.Group; setCenter: (v: THREE.Vector3) => void };
+  private _wispCenter = new THREE.Vector3();
   private wispOrbitT = 0;
 
   constructor(
@@ -419,7 +420,7 @@ export class TreeOfLifeScene implements SceneModule {
     const wx = SITES.tree.x + Math.cos(this.wispOrbitT) * wispRadius;
     const wy = heightAt(SITES.tree.x, SITES.tree.z) + 2.5 + Math.sin(this.wispOrbitT * 0.7) * 0.5;
     const wz = SITES.tree.z + Math.sin(this.wispOrbitT) * wispRadius;
-    this.wisp.setCenter(new THREE.Vector3(wx, wy, wz));
+    this.wisp.setCenter(this._wispCenter.set(wx, wy, wz));
 
     this.kit.update(dt, this.narrationRef.time());
   }

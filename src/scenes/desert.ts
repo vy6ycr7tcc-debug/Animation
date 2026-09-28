@@ -1,8 +1,16 @@
 import * as THREE from "three/webgpu";
-import { LessonScene, LessonCtx, Beat, SceneModule } from "./lessonKit";
+import { LessonScene, type LessonCtx, type Beat, type SceneModule } from "./lessonKit";
 import { SITES } from "./sites";
 import type { Narration } from "../core/narration";
-import { uniform, float, smoothstep, attribute, color, positionWorld, positionView, vec3, mix } from "three/tsl";
+import { T } from "../gpu/tsl";
+
+const { uniform, float, smoothstep, attribute, color, positionWorld, positionView, vec3, mix } = T;
+
+/** Keep desert flower placement deterministic across reloads. */
+let dSeed = 11;
+function dRnd(): number {
+  return ((dSeed = (dSeed * 16807) % 2147483647) / 2147483647);
+}
 
 const uT = { value: 0 };
 const uTNode = uniform(0);
@@ -140,25 +148,25 @@ function buildFlowerSpread(group: THREE.Group): void {
   const palette = [0xffc766, 0xff9a3c, 0xffe8b0, 0xffd9a0].map((h) => new THREE.Color(h));
 
   for (let i = 0; i < count; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const r = Math.sqrt(Math.random()) * 16;
+    const angle = dRnd() * Math.PI * 2;
+    const r = Math.sqrt(dRnd()) * 16;
     const x = center.x + Math.cos(angle) * r;
     const z = center.z + Math.sin(angle) * r;
-    const y = center.y + 0.15 + Math.random() * 0.5;
+    const y = center.y + 0.15 + dRnd() * 0.5;
 
     positions[i * 3] = x;
     positions[i * 3 + 1] = y;
     positions[i * 3 + 2] = z;
 
-    const c = palette[Math.floor(Math.random() * palette.length)];
+    const c = palette[Math.floor(dRnd() * palette.length)];
     colors[i * 3] = c.r;
     colors[i * 3 + 1] = c.g;
     colors[i * 3 + 2] = c.b;
   }
 
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
 
   const t = uTNode;
   const rf = t
@@ -187,7 +195,7 @@ function buildFlowerSpread(group: THREE.Group): void {
   material.depthWrite = false;
   material.blending = THREE.AdditiveBlending;
   material.fog = false;
-  material.colorNode = attribute('color', 'vec3');
+  material.colorNode = attribute("color", "vec3");
   material.opacityNode = alpha;
   material.sizeNode = sizeNode;
 

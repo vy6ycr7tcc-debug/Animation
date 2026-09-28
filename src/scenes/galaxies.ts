@@ -1,9 +1,18 @@
+/* ------------------------------------------------------------------ *
+ *  THE GALAXIES LESSON — A dome of stars waits above the wanderer.
+ *
+ *  It ignites when the story calls it, then rain falls and lets go.
+ *  Two luminous wisps meet as mother and child, a thin ring opens,
+ *  and warm gold guests gather above the seat — everything a pure
+ *  function of the narration's clock.
+ * ------------------------------------------------------------------ */
+
 import * as THREE from "three/webgpu";
 import { LessonScene, type LessonCtx, type Beat, type SceneModule } from "./lessonKit";
 import type { Narration } from "../core/narration";
 import { CreationKit } from "./creationKit";
 import { SITES } from "./sites";
-import { worldPoints, spectrum, hash3, gpuUniforms, T } from "../gpu/tsl";
+import { worldPoints, spectrum, hash3, T } from "../gpu/tsl";
 
 const site = SITES.galaxies;
 
@@ -11,17 +20,19 @@ const site = SITES.galaxies;
 const nf = (n: number): any => T.float(n);
 /** smoothstep(edge0, edge1, x) helper — all edges are literal seconds */
 const ss = (a: number, b: number, x: any): any => T.smoothstep(nf(a), nf(b), x);
-/** module-level TSL uniform node for narration time (updated per frame) */
-const uTNode = T.uniform(0);
+
+/** Deterministic Park-Miller stream for galaxy placement. */
+let gSeed = 11;
+const gRnd = () => ((gSeed = (gSeed * 16807) % 2147483647) / 2147483647);
 
 /** Billowing abstract luminous cluster: points inside a soft sphere. */
 function wispCloud(n: number, r: number): Float32Array {
   const a = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) {
-    const u = Math.random() * 2 - 1;
-    const th = Math.random() * Math.PI * 2;
+    const u = gRnd() * 2 - 1;
+    const th = gRnd() * Math.PI * 2;
     const s = Math.sqrt(Math.max(0, 1 - u * u));
-    const rad = r * Math.cbrt(Math.random());
+    const rad = r * Math.cbrt(gRnd());
     a[i * 3] = s * Math.cos(th) * rad;
     a[i * 3 + 1] = u * rad * 0.9;
     a[i * 3 + 2] = s * Math.sin(th) * rad;
@@ -30,7 +41,8 @@ function wispCloud(n: number, r: number): Float32Array {
 }
 
 function build(ctx: LessonCtx): void {
-  const uT = ctx.uT;
+  // The lesson clock as a TSL node (LessonScene owns the uniform; the interface only promises .value).
+  const uT: any = ctx.uT;
   const group = ctx.group;
   const kit: CreationKit = ctx.kit;
 
@@ -39,16 +51,15 @@ function build(ctx: LessonCtx): void {
   const right = new THREE.Vector3(Math.cos(site.heading), 0, -Math.sin(site.heading));
 
   /* ------------------------------------------------------------------ *
-   *  GALAXY DOME — 4500 points, upper hemisphere, fog disabled.
-   *  opacity: 0 until 183.6 -> 0.35 by 195 -> 1.0 by 300 (post ignition)
+   *  GALAXY DOME — The sky fills with stars, a vast dome breathing above the seat.
    * ------------------------------------------------------------------ */
   const DOME_N = 4500;
   const domePos = new Float32Array(DOME_N * 3);
   for (let i = 0; i < DOME_N; i++) {
-    const u = Math.random();
+    const u = gRnd();
     const phi = Math.acos(u);
-    const theta = Math.random() * Math.PI * 2;
-    const r = 260 * (0.86 + Math.random() * 0.14);
+    const theta = gRnd() * Math.PI * 2;
+    const r = 260 * (0.86 + gRnd() * 0.14);
     const sp = Math.sin(phi);
     domePos[i * 3] = seat.x + Math.cos(theta) * sp * r;
     domePos[i * 3 + 1] = seat.y + Math.cos(phi) * r;
@@ -60,7 +71,7 @@ function build(ctx: LessonCtx): void {
   const domeTwinkle = T.mix(
     nf(0.55),
     nf(1.0),
-    T.sin(gpuUniforms.time.mul(nf(0.9)).add(domeHash.y.mul(nf(37.0)))).mul(nf(0.5)).add(nf(0.5))
+    T.sin(uT.mul(nf(0.9)).add(domeHash.y.mul(nf(37.0)))).mul(nf(0.5)).add(nf(0.5))
   );
   const domeOpacity = ss(183.6, 195, uT).mul(nf(0.35)).add(ss(279.05, 300, uT).mul(nf(0.65)));
 
@@ -77,9 +88,7 @@ function build(ctx: LessonCtx): void {
   group.add(dome.sprite);
 
   /* ------------------------------------------------------------------ *
-   *  RAIN — 1500 points, falling purely in the node graph.
-   *  ramp 0->0.6 over 0..5; 0.95 at 30.37; eases 83.54..107.08;
-   *  to 0 by 183.6; faint 0.25 returns at 595.39.
+   *  RAIN — Rain falls through the dark and eases away, leaving the air clean.
    * ------------------------------------------------------------------ */
   const RAIN_N = 1500;
   const RAIN_R = 40;
@@ -87,15 +96,15 @@ function build(ctx: LessonCtx): void {
   const RAIN_SPEED = 7;
   const rainPos = new Float32Array(RAIN_N * 3);
   for (let i = 0; i < RAIN_N; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const rr = Math.sqrt(Math.random()) * RAIN_R;
+    const a = gRnd() * Math.PI * 2;
+    const rr = Math.sqrt(gRnd()) * RAIN_R;
     rainPos[i * 3] = seat.x + Math.cos(a) * rr;
-    rainPos[i * 3 + 1] = Math.random() * RAIN_H;
+    rainPos[i * 3 + 1] = gRnd() * RAIN_H;
     rainPos[i * 3 + 2] = seat.z + Math.sin(a) * rr;
   }
 
   const rainFall = T.fract(
-    T.positionLocal.y.div(nf(RAIN_H)).add(uTNode.mul(nf(RAIN_SPEED / RAIN_H)))
+    T.positionLocal.y.div(nf(RAIN_H)).add(uT.mul(nf(RAIN_SPEED / RAIN_H)))
   );
   const rainY = nf(RAIN_H).sub(rainFall.mul(nf(RAIN_H))).add(nf(seat.y));
   const rainPosNode = T.vec3(T.positionLocal.x, rainY, T.positionLocal.z);
@@ -123,8 +132,7 @@ function build(ctx: LessonCtx): void {
   group.add(rain.sprite);
 
   /* ------------------------------------------------------------------ *
-   *  MOTHER + CHILD WISPS — abstract luminous clusters.
-   *  materialize 83.54 (+6s), cuddle 220.16, look up 575.91, fade 612.83
+   *  MOTHER + CHILD WISPS — Two luminous wisps find each other, cuddle, and look up.
    * ------------------------------------------------------------------ */
   const MOTHER_R = 2.6;
   const CHILD_R = 1.4;
@@ -207,16 +215,15 @@ function build(ctx: LessonCtx): void {
   group.add(child.sprite);
 
   /* ------------------------------------------------------------------ *
-   *  RING — unit circle; opens 163.85 -> 175.20 (0.28 -> 1.1), thins,
-   *  fades out by 183.6. Appears 156.83.
+   *  RING — A thin ring opens in the air, quiet as a held breath.
    * ------------------------------------------------------------------ */
   const RING_N = 420;
   const ringPos = new Float32Array(RING_N * 3);
   for (let i = 0; i < RING_N; i++) {
     const a = (i / RING_N) * Math.PI * 2;
-    const rr = 1.0 + (Math.random() - 0.5) * 0.02;
+    const rr = 1.0 + (gRnd() - 0.5) * 0.02;
     ringPos[i * 3] = Math.cos(a) * rr;
-    ringPos[i * 3 + 1] = (Math.random() - 0.5) * 0.03;
+    ringPos[i * 3 + 1] = (gRnd() - 0.5) * 0.03;
     ringPos[i * 3 + 2] = Math.sin(a) * rr;
   }
 
@@ -253,8 +260,7 @@ function build(ctx: LessonCtx): void {
   group.add(ring.sprite);
 
   /* ------------------------------------------------------------------ *
-   *  GUESTS — 300 warm gold points, horizon -> above seat,
-   *  drift 507.97 -> 535, opacity ramp 507.97 -> 520.62.
+   *  GUESTS — Warm gold guests drift down from the horizon and gather above the seat.
    * ------------------------------------------------------------------ */
   const GUEST_N = 300;
   const guestAnchor = seat.clone();
@@ -262,10 +268,10 @@ function build(ctx: LessonCtx): void {
 
   const guestPos = new Float32Array(GUEST_N * 3);
   for (let i = 0; i < GUEST_N; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const rr = 150 + Math.random() * 110;
+    const a = gRnd() * Math.PI * 2;
+    const rr = 150 + gRnd() * 110;
     guestPos[i * 3] = seat.x + Math.cos(a) * rr - guestAnchor.x;
-    guestPos[i * 3 + 1] = seat.y + 4 + Math.random() * 26 - guestAnchor.y;
+    guestPos[i * 3 + 1] = seat.y + 4 + gRnd() * 26 - guestAnchor.y;
     guestPos[i * 3 + 2] = seat.z + Math.sin(a) * rr - guestAnchor.z;
   }
 
@@ -277,7 +283,7 @@ function build(ctx: LessonCtx): void {
   );
   const arrive = ss(507.97, 535.0, uT);
   const guestMix = T.mix(T.positionLocal, guestTarget, arrive);
-  const guestBob = T.sin(gpuUniforms.time.mul(nf(0.8)).add(gH.x.mul(nf(20.0))))
+  const guestBob = T.sin(uT.mul(nf(0.8)).add(gH.x.mul(nf(20.0))))
     .mul(nf(0.12))
     .mul(arrive);
   const guestPosNode = T.vec3(guestMix.x, guestMix.y.add(guestBob), guestMix.z);
@@ -301,7 +307,7 @@ function build(ctx: LessonCtx): void {
   group.add(guests.sprite);
 
   /* ------------------------------------------------------------------ *
-   *  GROUND — cool disc, faint mist, short path-light run to the seat.
+   *  GROUND — The ground holds the seat and all that falls, patient beneath.
    * ------------------------------------------------------------------ */
   kit.groundDisc(70, 0x16233c, 0.28, site.y - 0.02);
   kit.groundDisc(22, 0x1d3350, 0.14, site.y - 0.01);
@@ -327,7 +333,7 @@ export function createGalaxiesScene(
     /* dome and stars remain; nothing to tear down. */
   };
 
-  const lesson = new LessonScene(scene, narration, whisper, {
+  return new LessonScene(scene, narration, whisper, {
     id: "galaxies",
     trackId: "L06",
     seatPos,
@@ -337,12 +343,4 @@ export function createGalaxiesScene(
     beats,
     onEnd,
   });
-
-  const baseUpdate = lesson.update.bind(lesson);
-  lesson.update = (dt: number) => {
-    baseUpdate(dt);
-    uTNode.value = narration.time();
-  };
-
-  return lesson;
 }

@@ -1,3 +1,9 @@
+/* The igloo lesson: a snow dome with a fireplace at its heart.
+   A wanderer sits inside while six small visions appear in turn —
+   rain falling and fading, a ledger of drifting lights, a sun rising,
+   a hand opening then closing, a tree growing, a candle holding its flame.
+   Between visions the fire burns on, embers rising, the dome breathing faintly,
+   everything keeping the narration's time. */
 import * as THREE from "three/webgpu";
 import { LessonScene } from "./lessonKit";
 import type { LessonCtx, LessonOpts, SceneModule } from "./lessonKit";
@@ -21,7 +27,6 @@ export function createIglooScene(
   const seat = new THREE.Vector3(site.x, site.y, site.z + 3);
   const seatHeading = Math.atan2(C.x - seat.x, C.z - seat.z);
 
-  let capturedCtx: LessonCtx | null = null;
   const tickers: Array<(dt: number) => void> = [];
   let currentSegment = "";
 
@@ -35,17 +40,16 @@ export function createIglooScene(
     seatPos: seat.clone(),
     seatHeading,
     build: (ctx) => {
-      capturedCtx = ctx;
       const kit = ctx.kit;
 
-      // ground snow and sit mat
+      /* ---------- ground snow and sit mat ---------- */
       kit.groundDisc(30, 0xdfe9f5, 0.55, site.y);
       kit.groundDisc(1.6, 0x8a6a4a, 0.9, site.y + 0.05);
 
-      // snowfall
+      /* ---------- snowfall ---------- */
       kit.snowfall(900, site.x, site.z, 26, 14);
 
-      // fireplace glow sphere
+      /* ---------- fireplace ---------- */
       const glowMat = glowShader(
         { intensity: 1.0 },
         (u, _uv) => T.vec3(1, 0.6, 0.25).mul(u.intensity),
@@ -56,18 +60,22 @@ export function createIglooScene(
       glowMesh.position.copy(C);
       ctx.group.add(glowMesh);
 
-      // actual point light for fireplace
       const fireLight = new THREE.PointLight(0xff8c42, 2, 8, 2);
       fireLight.position.copy(C);
       ctx.group.add(fireLight);
 
-      // ember points
+      // ember points — counter-seeded hash, no bare Math.random()
+      let emberSeed = 1;
+      const eRnd = () => {
+        const x = Math.sin(emberSeed++ * 127.1 + 311.7) * 43758.5453;
+        return x - Math.floor(x);
+      };
       const emberCount = 40;
       const emberPositions = new Float32Array(emberCount * 3);
       for (let i = 0; i < emberCount; i++) {
-        emberPositions[i * 3] = C.x + (Math.random() - 0.5) * 1.5;
-        emberPositions[i * 3 + 1] = C.y + Math.random() * 2.5;
-        emberPositions[i * 3 + 2] = C.z + (Math.random() - 0.5) * 1.5;
+        emberPositions[i * 3] = C.x + (eRnd() - 0.5) * 1.5;
+        emberPositions[i * 3 + 1] = C.y + eRnd() * 2.5;
+        emberPositions[i * 3 + 2] = C.z + (eRnd() - 0.5) * 1.5;
       }
       const ember = worldPoints(emberPositions, {
         size: 0.08,
@@ -85,14 +93,14 @@ export function createIglooScene(
           arr[i * 3 + 1] += dt * 0.35;
           if (arr[i * 3 + 1] > C.y + 3.5) {
             arr[i * 3 + 1] = C.y;
-            arr[i * 3] = C.x + (Math.random() - 0.5) * 1.5;
-            arr[i * 3 + 2] = C.z + (Math.random() - 0.5) * 1.5;
+            arr[i * 3] = C.x + (eRnd() - 0.5) * 1.5;
+            arr[i * 3 + 2] = C.z + (eRnd() - 0.5) * 1.5;
           }
         }
         ember.position.needsUpdate = true;
       });
 
-      // dome (hemisphere shell)
+      /* ---------- the dome ---------- */
       const domeGeom = new THREE.SphereGeometry(7, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
       const domeMat = new THREE.MeshBasicNodeMaterial({
         color: 0x9fc8ff,
@@ -111,7 +119,7 @@ export function createIglooScene(
         domeMat.opacity = 0.1 + Math.sin(gpuUniforms.time.value * 2) * 0.02;
       });
 
-      // path lights from seat to dome edge (south)
+      /* ---------- path lights ---------- */
       const edgePoint = new THREE.Vector3(C.x, C.y, C.z + 7);
       const pathPoints: THREE.Vector3[] = [];
       const steps = 10;
@@ -121,7 +129,7 @@ export function createIglooScene(
       }
       kit.pathLights(pathPoints);
 
-      // six empty imagery groups inside dome
+      /* ---------- the six visions ---------- */
       const rainPts = new THREE.Group();
       const ledgerPts = new THREE.Group();
       const sunGrp = new THREE.Group();
@@ -155,6 +163,7 @@ export function createIglooScene(
 
       ctx.group.add(rainPts, ledgerPts, sunGrp, handPts, treeGrp, candleGrp);
 
+      /* ---------- rain ---------- */
       {
   const uT = ctx.uT;
   const N = 500;
@@ -194,6 +203,7 @@ export function createIglooScene(
   });
 }
 
+      /* ---------- ledger ---------- */
       {
   const uT = ctx.uT;
   const GX = 12;
@@ -236,8 +246,8 @@ export function createIglooScene(
   });
 }
 
-{
-  const uTv = ctx.uT.value;
+/* ---------- sun ---------- */
+{  const uTv = ctx.uT.value;
   const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
   const rand = (i: number) => {
     const x = Math.sin(i * 127.1 + 311.7) * 43758.5453;
@@ -296,8 +306,8 @@ export function createIglooScene(
 }
 
 
-{
-  const uTv = ctx.uT.value;
+/* ---------- hand ---------- */
+{  const uTv = ctx.uT.value;
   const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
   const rand = (i: number) => {
     const x = Math.sin(i * 12.9898 + 78.233) * 43758.5453;
@@ -365,8 +375,8 @@ export function createIglooScene(
 }
 
 
-{
-  const uTv = ctx.uT.value;
+/* ---------- tree ---------- */
+{  const uTv = ctx.uT.value;
   const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
   const rnd = (i: number, s: number) => {
     const x = Math.sin(i * 12.9898 + s * 78.233) * 43758.5453;
@@ -437,8 +447,8 @@ export function createIglooScene(
 }
 
 
-{
-  const uTv = ctx.uT.value;
+/* ---------- candle ---------- */
+{  const uTv = ctx.uT.value;
   const rnd = (i: number, s: number) => {
     const x = Math.sin(i * 12.9898 + s * 78.233) * 43758.5453;
     return x - Math.floor(x);
@@ -527,7 +537,7 @@ export function createIglooScene(
   });
 }
 
-      // ticker to show/hide based on currentSegment
+      /* ---------- showing one vision at a time ---------- */
       tickers.push((_dt) => {
         const groups = [rainPts, ledgerPts, sunGrp, handPts, treeGrp, candleGrp];
         groups.forEach((g) => (g.visible = false));
@@ -557,15 +567,18 @@ export function createIglooScene(
 
   const lesson = new LessonScene(scene, narration, whisper, opts);
 
-  return {
-    update(dt: number) {
-      lesson.update(dt);
-      if (capturedCtx) {
-        capturedCtx.kit.update(dt, capturedCtx.uT.value);
-      }
-      for (const ticker of tickers) {
-        ticker(dt);
-      }
-    },
-  } as SceneModule;
+  const baseUpdate = lesson.update.bind(lesson);
+  const baseDispose = lesson.dispose.bind(lesson);
+
+  lesson.update = (dt: number): void => {
+    baseUpdate(dt);
+    for (const ticker of tickers) {
+      ticker(dt);
+    }
+  };
+  lesson.dispose = (): void => {
+    baseDispose();
+  };
+
+  return lesson;
 }
