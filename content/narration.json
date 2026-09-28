@@ -434,6 +434,542 @@
      "text": "Go in peace, and remember the way back. The water will always be here."
     }
    ]
+  },
+  {
+   "id": "TEMPLE",
+   "title": "One Road, Twenty-Two Stations",
+   "voice": "female",
+   "file": "audio/temple-tour.mp3",
+   "duration": 636.08,
+   "trigger": "temple-tour",
+   "cues": [
+    {
+     "t": 0.0,
+     "text": "Give me the next few minutes."
+    },
+    {
+     "t": 2.69,
+     "text": "Imagine a house with three rooms."
+    },
+    {
+     "t": 6.27,
+     "text": "In the first room, a lamp is lit. That is the mind."
+    },
+    {
+     "t": 11.75,
+     "text": "In the second, a fire is burning. That is the body."
+    },
+    {
+     "t": 16.58,
+     "text": "In the third there is only darkness, and somewhere in the darkness, a star. That is the spirit."
+    },
+    {
+     "t": 25.32,
+     "text": "There are twenty two stations along the way through these rooms."
+    },
+    {
+     "t": 30.29,
+     "text": "They are not places on a map. They are moments every human being passes through, in every life, in every day."
+    },
+    {
+     "t": 39.27,
+     "text": "Walk with me."
+    },
+    {
+     "t": 41.84,
+     "text": "We begin in the first room, where a figure stands before a table of untouched tools, a bright and empty sky above his head."
+    },
+    {
+     "t": 52.72,
+     "text": "This is the Magician. Consciousness itself, awake before anything has happened, the open ground on which everything will be built."
+    },
+    {
+     "t": 63.36,
+     "text": "Every thought you will ever think begins here, in the bright moment before the thinking starts."
+    },
+    {
+     "t": 70.63,
+     "text": "You are standing in it right now."
+    },
+    {
+     "t": 74.41,
+     "text": "Behind him, half hidden between two pillars, sits a still and silent figure."
+    },
+    {
+     "t": 82.04,
+     "text": "This is the High Priestess. The deep mind beneath the busy mind, the still water under the waves."
+    },
+    {
+     "t": 90.38,
+     "text": "Everything you have ever known without knowing how you know it lives here."
+    },
+    {
+     "t": 96.62,
+     "text": "She asks only one thing. Be quiet enough, and still enough, to hear her."
+    },
+    {
+     "t": 104.45,
+     "text": "Then the door opens, and life walks in."
+    },
+    {
+     "t": 108.39,
+     "text": "This is the Empress. Everything that happens to you. The surprise. The friction. The delight. The wound."
+    },
+    {
+     "t": 116.53,
+     "text": "She does not judge what arrives. She receives it the way the earth receives seed."
+    },
+    {
+     "t": 123.62,
+     "text": "Every catalyst is her gift, even the ones that hurt."
+    },
+    {
+     "t": 129.0,
+     "text": "What you live through, if you truly digest it, becomes a throne you can sit on."
+    },
+    {
+     "t": 135.44,
+     "text": "This is the Emperor. Your hard won understanding. The steady authority of someone who walked through fire and kept the warmth."
+    },
+    {
+     "t": 145.71,
+     "text": "Feel the weight of everything you have survived. It is holding you up."
+    },
+    {
+     "t": 151.74,
+     "text": "And then someone new appears. Someone who can direct all of this."
+    },
+    {
+     "t": 157.48,
+     "text": "This is the Hierophant. The will. The chooser. The part of you that decides what your knowing is for."
+    },
+    {
+     "t": 166.27,
+     "text": "Until now, life has mostly been happening to you."
+    },
+    {
+     "t": 170.96,
+     "text": "From here, you begin to happen to life."
+    },
+    {
+     "t": 175.93,
+     "text": "But every real change of mind passes through a single gate."
+    },
+    {
+     "t": 181.41,
+     "text": "This is the Lovers. Not romance. The great sorting of the heart."
+    },
+    {
+     "t": 187.48,
+     "text": "Will you radiate outward, giving. Or draw inward, gathering."
+    },
+    {
+     "t": 194.11,
+     "text": "There is no wrong answer here, only a true one. Feel which way you lean."
+    },
+    {
+     "t": 200.88,
+     "text": "That leaning is already transforming you."
+    },
+    {
+     "t": 205.81,
+     "text": "And now, everything harnessed at once. Consciousness. Depth. Catalyst. Experience. Will. Love."
+    },
+    {
+     "t": 216.45,
+     "text": "This is the Chariot. Not arrival, but direction."
+    },
+    {
+     "t": 221.88,
+     "text": "The whole mind moving as one thing."
+    },
+    {
+     "t": 225.77,
+     "text": "Feel that forward pull. That is what a clear mind feels like."
+    },
+    {
+     "t": 232.16,
+     "text": "The first room is walked. Follow me down the stairs, into the room where the fire is burning."
+    },
+    {
+     "t": 239.85,
+     "text": "The body does not begin with thought. It begins with breath. With pulse. With reaching."
+    },
+    {
+     "t": 247.58,
+     "text": "This is Strength. Not force. The old, balanced knowing of the animal you are."
+    },
+    {
+     "t": 253.92,
+     "text": "Put your hand on your chest."
+    },
+    {
+     "t": 256.76,
+     "text": "That rhythm never asked your permission, and it never failed you."
+    },
+    {
+     "t": 262.93,
+     "text": "But the fire needs tending, and for that you need a lantern."
+    },
+    {
+     "t": 268.17,
+     "text": "This is the Hermit. The quiet counsel that knows when to act and when to rest, what to take in and what to refuse."
+    },
+    {
+     "t": 277.34,
+     "text": "He does not shout."
+    },
+    {
+     "t": 279.67,
+     "text": "In the noise of every day, his is the smallest voice, and the truest."
+    },
+    {
+     "t": 287.05,
+     "text": "Then the wheel turns, and other people walk into your life."
+    },
+    {
+     "t": 291.97,
+     "text": "This is the Wheel of Fortune. Every encounter offers something. Wanted or unwelcome. Pleasant or painful."
+    },
+    {
+     "t": 301.74,
+     "text": "Each person is an invitation. Each friction, a question addressed to you personally."
+    },
+    {
+     "t": 309.12,
+     "text": "Watch what the wheel brings you this week."
+    },
+    {
+     "t": 313.3,
+     "text": "What you do with those invitations becomes your harvest."
+    },
+    {
+     "t": 317.94,
+     "text": "This is Justice. Not punishment. Not reward. The way a field returns exactly what was planted."
+    },
+    {
+     "t": 325.81,
+     "text": "Every kindness you ever planted is growing somewhere."
+    },
+    {
+     "t": 330.95,
+     "text": "Look at your life like a field, and you will see what you have been growing."
+    },
+    {
+     "t": 337.3,
+     "text": "And here the road asks something difficult."
+    },
+    {
+     "t": 341.38,
+     "text": "This is the Hanged Man. The willing surrender. The body offered, turned upside down, given freely so that love might be learned."
+    },
+    {
+     "t": 352.35,
+     "text": "Sometimes growth does not look like climbing."
+    },
+    {
+     "t": 356.48,
+     "text": "Sometimes it looks like letting go, and trusting."
+    },
+    {
+     "t": 361.92,
+     "text": "What you release does not vanish. It transforms."
+    },
+    {
+     "t": 366.96,
+     "text": "This is Death. Not an ending. The body's native rhythm."
+    },
+    {
+     "t": 373.13,
+     "text": "Every night a small dying. Every morning a small rebirth."
+    },
+    {
+     "t": 379.21,
+     "text": "You have died a thousand times already. And here you are."
+    },
+    {
+     "t": 385.29,
+     "text": "And all of it, slowly, blends."
+    },
+    {
+     "t": 389.18,
+     "text": "This is Temperance. The long alchemy. Everything gathered, poured into one vessel, mixed over a lifetime."
+    },
+    {
+     "t": 397.61,
+     "text": "Not a single decisive act. A patient, daily pouring."
+    },
+    {
+     "t": 403.64,
+     "text": "This is the great way of the body. To become, gradually and wholly, yourself."
+    },
+    {
+     "t": 411.83,
+     "text": "Two rooms walked. Now the stairs go down further, past where the light reaches."
+    },
+    {
+     "t": 418.82,
+     "text": "Do not fear this room. The darkness here is not evil. It is simply unlit."
+    },
+    {
+     "t": 425.9,
+     "text": "This is the Devil, the matrix of the spirit. Everything in you that you have never looked at directly."
+    },
+    {
+     "t": 434.88,
+     "text": "It is not here to punish you."
+    },
+    {
+     "t": 438.22,
+     "text": "It waits the way a dark field waits for morning. To be seen."
+    },
+    {
+     "t": 444.95,
+     "text": "And sometimes the seeing comes all at once, like lightning."
+    },
+    {
+     "t": 450.24,
+     "text": "This is the Tower. A flash in which something you built your life on is revealed as hollow."
+    },
+    {
+     "t": 458.11,
+     "text": "It is terrifying. It is also mercy."
+    },
+    {
+     "t": 462.24,
+     "text": "What falls was never holding you up."
+    },
+    {
+     "t": 466.62,
+     "text": "After the lightning, a star. Small. Distant. Steady."
+    },
+    {
+     "t": 473.2,
+     "text": "This is the Star. The bare willingness to keep walking toward a light you cannot prove is there."
+    },
+    {
+     "t": 481.77,
+     "text": "You do not need to see the destination."
+    },
+    {
+     "t": 485.26,
+     "text": "You only need to not stop."
+    },
+    {
+     "t": 489.2,
+     "text": "But the road between the star and the dawn is lit only by the moon."
+    },
+    {
+     "t": 495.44,
+     "text": "This is the Moon. Partial seeing. Shapes without names."
+    },
+    {
+     "t": 500.32,
+     "text": "Beautiful things and treacherous things look alike in moonlight."
+    },
+    {
+     "t": 505.75,
+     "text": "Humility is the only lantern that works in this stretch."
+    },
+    {
+     "t": 511.42,
+     "text": "And then, morning."
+    },
+    {
+     "t": 513.99,
+     "text": "This is the Sun. The spirit grown past seeking, into radiating."
+    },
+    {
+     "t": 520.72,
+     "text": "You no longer chase the light. You have become a source of it."
+    },
+    {
+     "t": 525.81,
+     "text": "This is maturity. Not perfection. Radiance."
+    },
+    {
+     "t": 531.38,
+     "text": "One day the spirit looks back over everything it has been."
+    },
+    {
+     "t": 536.81,
+     "text": "This is Judgement. The great hearing."
+    },
+    {
+     "t": 540.9,
+     "text": "What is finite simply falls away, the way a coat falls from shoulders that no longer need it."
+    },
+    {
+     "t": 548.34,
+     "text": "You were never the coat."
+    },
+    {
+     "t": 551.68,
+     "text": "And at last, the dance."
+    },
+    {
+     "t": 554.98,
+     "text": "This is the World. Every station you have walked, mind and body and spirit, gathered into a single turning figure."
+    },
+    {
+     "t": 565.9,
+     "text": "Contact with the infinite. Joy without a reason. Not an ending. A wholeness."
+    },
+    {
+     "t": 573.27,
+     "text": "You contain the whole road now. And the road contains you."
+    },
+    {
+     "t": 579.54,
+     "text": "Twenty one stations behind you. One remains."
+    },
+    {
+     "t": 584.68,
+     "text": "At a cliff's edge stands a traveler with empty hands and a full heart."
+    },
+    {
+     "t": 591.12,
+     "text": "This is the Fool. The Choice."
+    },
+    {
+     "t": 595.16,
+     "text": "In a single moment, the direction of a life is set. Radiance or contraction. Giving or gathering."
+    },
+    {
+     "t": 604.33,
+     "text": "The cliff is not a danger. It is an invitation."
+    },
+    {
+     "t": 608.92,
+     "text": "And the step is yours."
+    },
+    {
+     "t": 612.14,
+     "text": "So here we are, at the end of the road and also at its beginning."
+    },
+    {
+     "t": 618.77,
+     "text": "Twenty two stations, and every one of them is inside you at this very moment."
+    },
+    {
+     "t": 624.24,
+     "text": "The mind's lamp. The body's fire. The spirit's star."
+    },
+    {
+     "t": 629.58,
+     "text": "The only question left is the one the traveler is asking."
+    },
+    {
+     "t": 634.26,
+     "text": "Which way will you step."
+    }
+   ],
+   "scenes": [
+    {
+     "t": 0.0,
+     "label": "opening"
+    },
+    {
+     "t": 41.84,
+     "label": "I — The Magician"
+    },
+    {
+     "t": 74.41,
+     "label": "II — The High Priestess"
+    },
+    {
+     "t": 104.45,
+     "label": "III — The Empress"
+    },
+    {
+     "t": 129.0,
+     "label": "IV — The Emperor"
+    },
+    {
+     "t": 151.74,
+     "label": "V — The Hierophant"
+    },
+    {
+     "t": 175.93,
+     "label": "VI — The Lovers"
+    },
+    {
+     "t": 205.81,
+     "label": "VII — The Chariot"
+    },
+    {
+     "t": 232.16,
+     "label": "transition: mind → body"
+    },
+    {
+     "t": 239.85,
+     "label": "VIII — Strength"
+    },
+    {
+     "t": 262.93,
+     "label": "IX — The Hermit"
+    },
+    {
+     "t": 287.05,
+     "label": "X — The Wheel of Fortune"
+    },
+    {
+     "t": 313.3,
+     "label": "XI — Justice"
+    },
+    {
+     "t": 337.3,
+     "label": "XII — The Hanged Man"
+    },
+    {
+     "t": 361.92,
+     "label": "XIII — Death"
+    },
+    {
+     "t": 385.29,
+     "label": "XIV — Temperance"
+    },
+    {
+     "t": 411.83,
+     "label": "transition: body → spirit"
+    },
+    {
+     "t": 418.82,
+     "label": "XV — The Devil"
+    },
+    {
+     "t": 444.95,
+     "label": "XVI — The Tower"
+    },
+    {
+     "t": 466.62,
+     "label": "XVII — The Star"
+    },
+    {
+     "t": 489.2,
+     "label": "XVIII — The Moon"
+    },
+    {
+     "t": 511.42,
+     "label": "XIX — The Sun"
+    },
+    {
+     "t": 531.38,
+     "label": "XX — Judgement"
+    },
+    {
+     "t": 551.68,
+     "label": "XXI — The World"
+    },
+    {
+     "t": 579.54,
+     "label": "XXII — The Fool (The Choice)"
+    },
+    {
+     "t": 612.14,
+     "label": "landing"
+    }
+   ]
   }
  ]
 }

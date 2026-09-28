@@ -9,6 +9,11 @@ export interface Cue {
   t: number;
   text: string;
 }
+/** A scene cue: a named moment in a track's timeline (the temple tour's 26 stations). */
+export interface SceneCue {
+  t: number;
+  label: string;
+}
 export interface Track {
   id: string;
   title: string;
@@ -17,6 +22,7 @@ export interface Track {
   duration: number;
   trigger: string;
   cues: Cue[];
+  scenes?: SceneCue[];
 }
 
 export const TRACKS: Record<string, Track> = Object.fromEntries(
@@ -86,6 +92,14 @@ export class Narration {
   /** Whether a track has playable audio (female-voice copies may not exist yet). */
   async available(id: string): Promise<boolean> {
     return (await this.buffer(id)) !== null;
+  }
+
+  /** Seconds into the current track, on the audio clock (0 when nothing plays). */
+  time(): number {
+    const p = this.playing;
+    const ctx = this.audio.ctx;
+    if (!p || !ctx) return 0;
+    return Math.max(0, (ctx.currentTime - p.start) / p.scale);
   }
 
   async play(id: string): Promise<void> {

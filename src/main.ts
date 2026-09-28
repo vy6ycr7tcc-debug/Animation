@@ -18,6 +18,8 @@ import { AdaptiveQuality, FrameStats, MOBILE, type Tier } from "./core/quality";
 import { clear, load, save, type SaveData } from "./core/save";
 import { FollowCamera } from "./player/camera";
 import { Controller } from "./player/controller";
+import { TempleTour, TEMPLE_ENTRANCE, TEMPLE_HEADING, TEMPLE_PLATFORMS, type ChoiceKey } from "./tour/templeTour";
+import { TreeOfLife } from "./tour/treeOfLife";
 import { Footprints } from "./player/footprints";
 import { Wanderer } from "./player/wanderer";
 import { Clouds } from "./world/atmosphere";
@@ -388,6 +390,7 @@ document.addEventListener("selectstart", (e) => {
   if (!(e.target as HTMLElement)?.closest?.("input, textarea")) e.preventDefault();
 });
 input.onLand = () => {
+  if (tour.active) return;
   if (player.flying) {
     player.land();
     whisper("Coming down to land", 2500);
@@ -395,7 +398,7 @@ input.onLand = () => {
   else if (player.swimming) player.dive();
 };
 input.onAction = () => {
-  if (genesis.active) return;
+  if (genesis.active || tour.active) return;
   if (wanderer.gesture !== "none") wanderer.setGesture("none");
   if (player.swimming) {
     player.stroke();
@@ -404,6 +407,11 @@ input.onAction = () => {
 };
 input.onTap = (x, y, touch) => {
   if (S.mode !== "play" || genesis.active || temple.cardsOpen) return;
+  // during the tour: a tap on the orb ends the tour early; the land is not walked
+  if (tour.active) {
+    tour.tap((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1, camera);
+    return;
+  }
   // in the deep archive: a tablet plays its narration again, an alcove's light its archetype
   if (depths.inside) {
     const got = depths.pick(x, y, camera);
@@ -817,7 +825,7 @@ const autofly = new Autofly(
 function setAutofly(on: boolean): void {
   if (on === autofly.active) return;
   if (on) {
-    if (S.mode !== "play" || sitting.phase === "seated" || player.diving || genesis.active || apart()) return;
+    if (S.mode !== "play" || sitting.phase === "seated" || player.diving || genesis.active || apart() || tour.active) return;
     player.target = null;
     autofly.start(player.pos, player.heading);
     say("Autofly: the stick or the button takes you back.");
@@ -845,7 +853,7 @@ function heartAt(out: THREE.Vector3): THREE.Vector3 {
   return out.copy(player.pos).add(new THREE.Vector3(0, 1.15, 0));
 }
 function beginGenesis(): void {
-  if (S.mode !== "play" || genesis.active || sitting.phase === "seated" || player.flying || player.diving || apart()) return;
+  if (S.mode !== "play" || genesis.active || sitting.phase === "seated" || player.flying || player.diving || apart() || tour.active) return;
   // the forms whose geometry lights up: the land gold, living things rose, the sky's vessels pale blue
   const layers = [
     { root: terrain.group, color: new THREE.Color(0.75, 0.58, 0.32) },
@@ -863,6 +871,7 @@ function beginGenesis(): void {
   quality.hold(4);
 }
 input.onHold = (x, y) => {
+  if (tour.active) return; // the tour holds the wanderer; the orb alone lets go
   heartAt(heartScreen).project(camera);
   const sx = (heartScreen.x * 0.5 + 0.5) * innerWidth, sy = (-heartScreen.y * 0.5 + 0.5) * innerHeight;
   if (heartScreen.z < 1 && Math.hypot(x - sx, y - sy) < Math.max(70, innerHeight * 0.09)) beginGenesis();
@@ -879,7 +888,7 @@ scene.add(touch.points);
 let toldTouch = false;
 function canTouch(): boolean {
   return S.mode === "play" && player.grounded && !player.swimming && !player.flying && !apart() && !genesis.active &&
-    !autofly.active && sitting.phase === "none" && !startMap.isOpen;
+    !autofly.active && !tour.active && sitting.phase === "none" && !startMap.isOpen;
 }
 function beginTouch(x: number, y: number): void {
   if (!canTouch() || !touch.pick(x, y, camera, groundPoint(x, y))) return;
@@ -978,6 +987,8 @@ function places(): Place[] {
     { numeral: "", label: "The temple", group: "Shore", x: temple.gateAt.x, z: temple.gateAt.z, narration: "J01", start: { ...temple.outside(), heading: temple.gateHeading } },
     { numeral: "", label: "The vision of creation", group: "Shore" as const, x: vision.group.position.x, z: vision.group.position.z, narration: "J01", start: { x: vision.group.position.x + 11, z: vision.group.position.z + 11, heading: Math.atan2(11, 11) } },
     { numeral: "", label: "The pyramid", group: "Shore" as const, x: pyramid.door.x, z: pyramid.door.z, narration: "J01", start: { x: pyramid.door.x, z: pyramid.door.z - 14, heading: Math.PI } },
+    { numeral: "✦", label: "The temple tour", group: "Shore" as const, x: TEMPLE_ENTRANCE.x, z: TEMPLE_ENTRANCE.z, narration: "TEMPLE", start: { x: TEMPLE_ENTRANCE.x, z: TEMPLE_ENTRANCE.z, heading: TEMPLE_HEADING } },
+    { numeral: "❋", label: "The tree of life", group: "Shore" as const, x: tree.seatPos.x, z: tree.seatPos.z, narration: "TREE", start: { x: tree.seatPos.x, z: tree.seatPos.z, heading: tree.seatHeading } },
     // beneath the water: the sunken ruins, and the cave that leads to the deep archive (you wake
     // on the water above; dive, and swim down to them)
     ...RUIN_SITES.map((r) => {
@@ -1025,6 +1036,8 @@ function arriveNow(c: Choice, first: boolean): void {
   if (depths.inside) setDeep(false);
   if (pyramid.isInside) setPyr(false);
   standUp();
+  // travelling mid-tour ends the tour: the orb lets go, quietly
+  if (tour.active && c.place.narration !== "TEMPLE") tour.finish(false, true);
   player.pos.set(c.x, Math.max(heightAt(c.x, c.z), WATER_Y - 1), c.z);
   player.vel.set(0, 0, 0);
   player.vy = 0;
@@ -1040,7 +1053,17 @@ function arriveNow(c: Choice, first: boolean): void {
   wanderer.setGesture("none");
   beings.reset();
   lastMet = -1;
-  playlist.startWith(c.place.narration);
+  if (c.place.narration === "TEMPLE") {
+    // the guided tour: the journey's voices wait, the orb leads
+    playlistHeldBefore = playlist.held;
+    playlist.held = true;
+    if (MOBILE) $("#act").hidden = true;
+    tour.begin();
+  } else if (c.place.narration === "TREE") {
+    tree.greet();
+  } else {
+    playlist.startWith(c.place.narration);
+  }
   input.enabled = true;
   S.mode = "play";
   persist();
@@ -1093,6 +1116,48 @@ function updateTunnel(): void {
     if (id) playlist.queueNext(id);
   }
 }
+/* ---- The temple tour and the tree of life ---- */
+const tour = new TempleTour(scene, narration, player, { whisper });
+const tree = new TreeOfLife(scene, player, wanderer, follow, { whisper });
+player.platforms = TEMPLE_PLATFORMS;
+let restPending = false;
+let playlistHeldBefore = false;
+narration.onEnd = (id) => {
+  if (id === "TEMPLE") tour.finish(true);
+};
+// The choice finale: three open answers, none of them wrong.
+const choiceEl = document.createElement("div");
+choiceEl.id = "choice";
+choiceEl.hidden = true;
+choiceEl.innerHTML =
+  `<p class="choice-prompt">The road is walked. What is not yet waits on your choosing.</p>` +
+  `<div class="choice-buttons">` +
+  `<button type="button" data-choice="love">I choose to love</button>` +
+  `<button type="button" data-choice="rest">I choose to rest</button>` +
+  `<button type="button" data-choice="undecided">I choose not to choose — yet</button>` +
+  `</div>`;
+document.body.appendChild(choiceEl);
+tour.onChoice = () => {
+  choiceEl.hidden = false;
+};
+tour.onFinish = () => {
+  choiceEl.hidden = true;
+  playlist.held = playlistHeldBefore;
+  if (MOBILE) $("#act").hidden = false;
+  if (restPending) {
+    restPending = false;
+    tree.restFromTour();
+  }
+};
+for (const b of choiceEl.querySelectorAll<HTMLButtonElement>("button")) {
+  b.addEventListener("click", () => {
+    choiceEl.hidden = true;
+    const key = b.dataset.choice as ChoiceKey;
+    if (key === "rest") restPending = true;
+    tour.choose(key);
+  });
+}
+
 /* ---- Sitting with an archetype: ask it something, rest in silence, offer light ---- */
 const sitting = { being: -1, phase: "none" as "none" | "walking" | "seated", x: 0, z: 0, heading: 0, rise: 0, since: 0, asked: false };
 const seatStone = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 18), etchedStone("#3a3552"));
@@ -1160,6 +1225,11 @@ function sitDown(): void {
   say(`You sit with ${b.spec.name}.`);
 }
 function standUp(): void {
+  if (tree.resting) {
+    tree.endRest();
+    stillness(false);
+    return;
+  }
   if (sitting.phase === "none") return;
   if (sitting.phase === "seated" && narration.current?.startsWith("A-")) narration.stop(2);
   sitting.phase = "none";
@@ -1174,7 +1244,10 @@ function stillness(on: boolean): void {
   stillBtn.textContent = on ? "Return from silence" : "Rest in silence";
   if (on) narration.stop(3);
 }
-sitOffer.addEventListener("click", offerSit);
+sitOffer.addEventListener("click", () => {
+  if (tree.nearSeat(player.pos)) tree.beginRest();
+  else offerSit();
+});
 stillBtn.addEventListener("click", () => stillness(stillBtn.getAttribute("aria-pressed") !== "true"));
 $("#sit-stand").addEventListener("click", standUp);
 $("#sit-offer-light").addEventListener("click", () => {
@@ -1306,8 +1379,11 @@ function updateSitting(dt: number): void {
   const n = beings.nearest(player.pos);
   // in the deep there is nowhere to sit: you rest before the being instead
   const canSit = n.i >= 0 && !beings.list[n.i].spec.under;
-  sitOffer.hidden = !(S.mode === "play" && sitting.phase === "none" && canSit && n.d < 6.5 && !startMap.isOpen);
-  if (!sitOffer.hidden) sitOffer.textContent = `Sit with ${beings.list[n.i].spec.name.replace(/^The /, "the ")}`;
+  const nearTree = !tree.resting && tree.nearSeat(player.pos);
+  const beingNear = canSit && n.d < 6.5;
+  sitOffer.hidden = !(S.mode === "play" && sitting.phase === "none" && !startMap.isOpen && !tour.active && (beingNear || nearTree));
+  if (!sitOffer.hidden)
+    sitOffer.textContent = nearTree && !beingNear ? "Rest beneath the tree" : `Sit with ${beings.list[n.i].spec.name.replace(/^The /, "the ")}`;
   if (sitting.phase === "walking") {
     const moved = Math.hypot(input.move.x, input.move.y) > 0.2;
     if (moved) sitting.phase = "none";
@@ -1942,6 +2018,7 @@ $("#leave").addEventListener("click", () => {
   setMenu(false);
   S.mode = "rest";
   input.enabled = false;
+  if (tour.active) tour.finish(false, true);
   narration.stop(2);
   if (tp.active) tp.close();
   audio.fade(false);
@@ -2077,11 +2154,16 @@ function update(dt: number): void {
     if (wanderer.gesture !== "none" && Math.hypot(input.move.x, input.move.y) > 0.2 && wanderer.gesture === "sit") wanderer.setGesture("none");
     if (autofly.active && (Math.hypot(input.move.x, input.move.y) > 0.25 || input.hold)) setAutofly(false); // the thumb takes over
     if (genesis.active || temple.cardsOpen) player.update(dt, { x: 0, y: 0, glide: false, run: 0, hold: false, down: false, pitch: follow.pitch }, follow.yaw);
+    else if (tour.active) tour.update(dt, S.reduced);
     else if (autofly.active) {
       const r = autofly.update(dt, player.pos);
       Object.assign(player, { heading: r.heading, speed: r.speed, vy: r.vy, flying: true, landing: false, grounded: false, swimming: false, gliding: false, pose: "fly", target: null });
       player.vel.set(-Math.sin(r.heading), 0, -Math.cos(r.heading)).multiplyScalar(r.speed);
       follow.pitch += (autofly.pitch - follow.pitch) * Math.min(1, dt * 0.6);
+    } else if (tree.resting) {
+      // resting beneath the tree: any movement is standing back up
+      if (Math.hypot(input.move.x, input.move.y) > 0.25 || input.hold) tree.endRest();
+      else player.update(dt, { x: 0, y: 0, glide: false, run: 0, hold: false, down: false, pitch: follow.pitch }, follow.yaw);
     } else player.update(dt, { ...input.move, glide: input.boost, run: input.run, hold: input.hold, down: input.descend, pitch: follow.pitch, free: freeFly }, follow.yaw);
     follow.freeLook = freeFly && player.flying;
     // the one context word: "Land" high in the air, "Dive" on the water, "Surface" under it
@@ -2129,6 +2211,7 @@ function update(dt: number): void {
     playlist.update(realDt); // real time: a slow frame rate never stretches the quiet
   }
   narration.update();
+  tree.update(dt);
 
   // The world streams around the wanderer and answers them.
   const world = !apart(); // inside the temple, the deep archive or the pyramid, the open world rests
@@ -2162,7 +2245,7 @@ function update(dt: number): void {
   if (world) updateStillness(dt, wt);
   if (S.mode === "play") {
     const letGo = Math.hypot(input.move.x, input.move.y) > 0.2 || input.hold || (touch.phase === "touching" && !!player.target) ||
-      startMap.isOpen || apart() || genesis.active || autofly.active || sitting.phase !== "none";
+      startMap.isOpen || apart() || genesis.active || autofly.active || tour.active || sitting.phase !== "none";
     touch.update(dt, dpr, letGo, S.reduced);
     // a stone or crystal in the hands vibrates with light, as it does before stillness
     if (touch.vibe > 0.01 && touch.target) {
@@ -2402,4 +2485,4 @@ function finishOpening(): void {
   window.setTimeout(() => el.remove(), 4200);
 }
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision, tour, tree } });

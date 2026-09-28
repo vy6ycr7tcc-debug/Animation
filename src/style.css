@@ -539,3 +539,27 @@ body.calm #joy, body.calm #act, body.calm #ctx, body.calm #menu-btn, body.calm #
   animation: calm-out 1.4s ease forwards;
 }
 @keyframes calm-out { to { opacity: 0; } }
+
+/* ---- the temple tour's choice finale: three open answers, none of them wrong ---- */
+#choice[hidden] { display: none; }
+#choice {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 30px;
+  background: rgba(6, 5, 16, 0.55);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+}
+#choice .choice-prompt {
+  margin: 0; padding: 0 28px; max-width: 36em; text-align: center;
+  font-family: var(--serif); font-style: italic; font-size: clamp(18px, 3.4vw, 26px);
+  color: var(--pearl); text-shadow: 0 2px 14px rgba(0, 0, 0, 0.85);
+  animation: rise 1.6s ease;
+}
+#choice .choice-buttons { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+#choice button {
+  min-height: 48px; padding: 12px 36px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line); background: rgba(34, 22, 10, 0.6);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  font-family: var(--serif); font-style: italic; font-size: 17px; color: var(--gold);
+  animation: rise 1.6s ease;
+}
+#choice button:hover { background: rgba(64, 44, 18, 0.75); }

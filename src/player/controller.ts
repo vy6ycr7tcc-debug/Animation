@@ -79,6 +79,10 @@ export class Controller {
   onLand: (() => void) | null = null;
   /** Tap-to-move destination; cleared on arrival or when the player steers. */
   target: THREE.Vector2 | null = null;
+  /** Raised stone platforms the wanderer can stand on (the temple tour's terraces).
+      A platform only carries you when you are already near or above its top, so nested
+      terraces resolve to the one you are actually on. */
+  platforms: { x: number; z: number; r: number; top: number }[] = [];
 
   /** Come down to land (from the "Land" word). */
   land(): void {
@@ -198,7 +202,13 @@ export class Controller {
     this.odometer += moved;
     this.speed = moved / Math.max(dt, 1e-4);
 
-    const ground = heightAt(this.pos.x, this.pos.z);
+    let ground = heightAt(this.pos.x, this.pos.z);
+    for (const pf of this.platforms) {
+      if (this.pos.y > pf.top - 1.2) {
+        const d = Math.hypot(this.pos.x - pf.x, this.pos.z - pf.z);
+        if (d < pf.r) ground = Math.max(ground, pf.top);
+      }
+    }
     if (this.flying) {
       // Hover unless asked to rise or sink; ease into each.
       // Hold to rise (gathering speed); let go to drift gently down; "Land" brings you down.
