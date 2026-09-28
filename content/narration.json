@@ -3885,6 +3885,308 @@
     }
    ],
    "note": "subtitle cues are proportional estimates from the script, not forced-aligned"
+  },
+  {
+   "id": "TREE",
+   "title": "The Catalyst of the Body",
+   "voice": "female",
+   "file": "audio/TREE_catalyst_of_the_body.mp3",
+   "duration": 266.8,
+   "trigger": "tree-station",
+   "cues": [
+    {
+     "t": 0.0,
+     "text": "The Catalyst of the Body."
+    },
+    {
+     "t": 2.04,
+     "text": "Picture a tree."
+    },
+    {
+     "t": 3.29,
+     "text": "It grows tall and green, season after season, the way a healthy life grows, almost without thinking about it."
+    },
+    {
+     "t": 11.49,
+     "text": "Then the dry season comes."
+    },
+    {
+     "t": 14.04,
+     "text": "Nobody invites the dry season."
+    },
+    {
+     "t": 16.24,
+     "text": "The rain just stops."
+    },
+    {
+     "t": 17.73,
+     "text": "In a human life it looks like this: blood pressure and cholesterol and a breath that comes a little short."
+    },
+    {
+     "t": 25.82,
+     "text": "Leaves curl, branches go brittle, and something breaks."
+    },
+    {
+     "t": 30.4,
+     "text": "Cosmic wisdom says this is not punishment."
+    },
+    {
+     "t": 33.42,
+     "text": "It is how a tree learns it has roots."
+    },
+    {
+     "t": 37.02,
+     "text": "The wisdom also says something stranger."
+    },
+    {
+     "t": 39.8,
+     "text": "The body shapes itself around what the mind hasn't finished saying."
+    },
+    {
+     "t": 44.35,
+     "text": "It speaks in flesh what we haven't said aloud."
+    },
+    {
+     "t": 48.2,
+     "text": "And the energies running through us are neutral."
+    },
+    {
+     "t": 51.27,
+     "text": "They can become sickness or health, two sides of one coin."
+    },
+    {
+     "t": 55.71,
+     "text": "When they're misdirected, we get the dry season."
+    },
+    {
+     "t": 59.5,
+     "text": "But hold this image."
+    },
+    {
+     "t": 61.78,
+     "text": "When a branch breaks, it leaves a notch."
+    },
+    {
+     "t": 64.63,
+     "text": "And a notch is an opening, a place where something can get in, or out."
+    },
+    {
+     "t": 69.58,
+     "text": "So the dry season exists because living things have seasons."
+    },
+    {
+     "t": 74.88,
+     "text": "And the breaking itself is the teaching."
+    },
+    {
+     "t": 77.94,
+     "text": "Now the harder question, the one underneath all the optimizing."
+    },
+    {
+     "t": 82.92,
+     "text": "What is the dry season for?"
+    },
+    {
+     "t": 85.42,
+     "text": "Watch the tree."
+    },
+    {
+     "t": 86.85,
+     "text": "Branches broken, leaves gone."
+    },
+    {
+     "t": 90.1,
+     "text": "And then, from inside the trunk, through the notches where the branches broke, something begins to emerge."
+    },
+    {
+     "t": 96.92,
+     "text": "Not from the sky, not from somewhere else — from within the tree itself: the spirit of the tree."
+    },
+    {
+     "t": 104.37,
+     "text": "Cosmic wisdom says that everything the body goes through is an offering, and the only answer to an offering is love."
+    },
+    {
+     "t": 112.56,
+     "text": "Not optimization."
+    },
+    {
+     "t": 114.49,
+     "text": "The mind, meanwhile, tries to manage the dry season, turning it into a project of measurements and plans."
+    },
+    {
+     "t": 122.64,
+     "text": "The mind means well."
+    },
+    {
+     "t": 124.03,
+     "text": "But the spirit does something the mind cannot."
+    },
+    {
+     "t": 127.16,
+     "text": "It simply begins to water, asking nothing and keeping no score."
+    },
+    {
+     "t": 132.22,
+     "text": "Here is the difference."
+    },
+    {
+     "t": 133.74,
+     "text": "Trying to fix the tree says, you're a problem."
+    },
+    {
+     "t": 137.31,
+     "text": "Tending the tree says, you're my partner."
+    },
+    {
+     "t": 141.42,
+     "text": "The spirit could only come out through the broken places."
+    },
+    {
+     "t": 145.3,
+     "text": "The notches woke it up."
+    },
+    {
+     "t": 146.83,
+     "text": "Without the breaking, it would have stayed asleep inside the bark, and the tree would never have known it was more than wood."
+    },
+    {
+     "t": 154.0,
+     "text": "The dry season doesn't just wound."
+    },
+    {
+     "t": 157.54,
+     "text": "Cosmic wisdom draws one clear line."
+    },
+    {
+     "t": 159.82,
+     "text": "Curing changes the condition, but healing changes the one carrying it."
+    },
+    {
+     "t": 165.95,
+     "text": "And where you place your sense of I am decides everything."
+    },
+    {
+     "t": 170.6,
+     "text": "You are not the dry season."
+    },
+    {
+     "t": 172.8,
+     "text": "You are the tree, and the spirit inside the tree, both at once."
+    },
+    {
+     "t": 177.46,
+     "text": "So the spirit waters."
+    },
+    {
+     "t": 179.08,
+     "text": "And slowly, what was broken becomes seed."
+    },
+    {
+     "t": 182.1,
+     "text": "New branches grow."
+    },
+    {
+     "t": 183.59,
+     "text": "But the broken ones stay, not erased, not fixed back to what they were."
+    },
+    {
+     "t": 189.01,
+     "text": "The new growth comes in a different shape."
+    },
+    {
+     "t": 191.93,
+     "text": "This isn't restoration."
+    },
+    {
+     "t": 194.43,
+     "text": "Nothing is wasted."
+    },
+    {
+     "t": 195.67,
+     "text": "The gentleness you learn with your own breaking becomes the exact gentleness you'll offer someone else in their dry season."
+    },
+    {
+     "t": 203.34,
+     "text": "Every night the tree stands bare in the dark."
+    },
+    {
+     "t": 206.08,
+     "text": "Every morning the light returns."
+    },
+    {
+     "t": 208.53,
+     "text": "You are being remade right now."
+    },
+    {
+     "t": 210.89,
+     "text": "And then the spirit does the most unexpected thing."
+    },
+    {
+     "t": 214.57,
+     "text": "It steps back, looks at the tree, broken branches and new growth together, and it begins to paint."
+    },
+    {
+     "t": 221.45,
+     "text": "A painting of the tree."
+    },
+    {
+     "t": 223.11,
+     "text": "With the broken branches in it."
+    },
+    {
+     "t": 225.68,
+     "text": "Because the broken branches started something."
+    },
+    {
+     "t": 228.82,
+     "text": "The wound became the work."
+    },
+    {
+     "t": 230.62,
+     "text": "Honor the pharmacy and the kitchen."
+    },
+    {
+     "t": 231.82,
+     "text": "They're love in practical form."
+    },
+    {
+     "t": 235.53,
+     "text": "But sometimes, let the mind rest, and just keep the tree company."
+    },
+    {
+     "t": 240.37,
+     "text": "Healing is not the absence of the dry season."
+    },
+    {
+     "t": 243.69,
+     "text": "Healing is the presence of love inside it."
+    },
+    {
+     "t": 246.72,
+     "text": "The rain may return or it may not."
+    },
+    {
+     "t": 249.32,
+     "text": "That's a different timeline."
+    },
+    {
+     "t": 252.02,
+     "text": "Healing begins the moment the war ends."
+    },
+    {
+     "t": 254.39,
+     "text": "The moment you lay your hand on your chest, feel the breath come short, and say to the body, not I'll fix you, but I'm with you."
+    },
+    {
+     "t": 262.36,
+     "text": "The temple still stands."
+    },
+    {
+     "t": 264.04,
+     "text": "And the spirit is still painting."
+    }
+   ]
   }
  ]
 }

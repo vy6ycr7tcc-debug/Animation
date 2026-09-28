@@ -3,7 +3,7 @@
    the `shot` query param is present — normal play is untouched. */
 import { SITES } from "../scenes/sites";
 import { DUAT_ORIGIN } from "../world/pyramid";
-import { PYRAMID } from "../world/terrain";
+import { PYRAMID, heightAt } from "../world/terrain";
 
 export interface Shot {
   id: string;
@@ -29,6 +29,7 @@ const DEFAULT_T: Record<string, number> = {
   galaxies: 45,
   desert: 120,
   tree: 30,
+  "tree-station": 8, // TEMP-VERIFY
   pyramid: 30,
   duat: 30,
 };
@@ -47,6 +48,7 @@ const VIEWS: Record<string, { eye: XYZ; look: XYZ }> = {
   galaxies: { eye: [10, 2.8, 10], look: [0, 1.1, 0] },
   desert: { eye: [18, 3, 18], look: [0, 1.1, 0] },
   tree: { eye: [16, 4, 16], look: [0, 0, 0] }, // the crest
+  "tree-station": { eye: [0, 1.7, 0], look: [2.5, 9.0, 8] }, // seated view, tilted up: the tree stands ~5m above the seat on the slope
   pyramid: { eye: [0, 58, 210], look: [0, 32, 0] }, // offsets from PYRAMID (terrain)
   duat: { eye: [-6, 3.5, 8], look: [18, 0.5, -14] }, // duat-local: behind/above the entry, down the PATH toward station 1
 };
@@ -108,7 +110,7 @@ export function runShot(ctx: ShotCtx): void {
     const site = sites[id];
     const v = VIEWS[id];
     if (!site || !v) return;
-    base = [site.x, site.y, site.z];
+    base = [site.x, heightAt(site.x, site.z), site.z]; // TEMP-VERIFY: real ground, not the guessed site.y
     view = v;
     if (id === "tree") {
       if (ctx.tour.gotoTree) ctx.tour.gotoTree(); // teleports the player and rests at the tree

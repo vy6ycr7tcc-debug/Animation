@@ -23,6 +23,7 @@ import { createIglooScene } from "./igloo";
 import { createGardenScene } from "./garden";
 import { createGalaxiesScene } from "./galaxies";
 import { createDesert } from "./desert";
+import { createTreeStationScene } from "./treeStation"; // TEMP-VERIFY
 
 /* ---------- contract ---------- */
 
@@ -86,9 +87,10 @@ export function initTourScenes(hooks: TourHooks2): TourScenes {
   const garden = createGardenScene(hooks.scene, hooks.narration, hooks.whisper);
   const galaxies = createGalaxiesScene(hooks.scene, hooks.narration, hooks.whisper);
   const desert = createDesert(hooks.scene, hooks.narration, hooks.whisper);
+  const treeStation = createTreeStationScene(hooks.scene, hooks.narration, hooks.whisper); // TEMP-VERIFY
 
-  const lessons: Record<string, SceneModule> = { shore, igloo, garden, galaxies, desert };
-  const registry = new SceneRegistry([tour, tree, shore, igloo, garden, galaxies, desert]);
+  const lessons: Record<string, SceneModule> = { shore, igloo, garden, galaxies, desert, "tree-station": treeStation };
+  const registry = new SceneRegistry([tour, tree, shore, igloo, garden, galaxies, desert, treeStation]);
 
   let seated: SceneModule | null = null;
   let inside = hooks.temple.inside;
