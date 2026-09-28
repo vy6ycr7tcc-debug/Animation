@@ -1,0 +1,122 @@
+/* Dev-only still-frame hook: ?shot=<sceneId>&t=<seconds> boots the world as usual, forces the
+   scene's narrated time to T, renders exactly one deterministic frame, and stops. Inert unless
+   the `shot` query param is present — normal play is untouched. */
+import { SITES } from "../scenes/sites";
+
+export interface Shot {
+  id: string;
+  t: number;
+}
+
+/** The requested scene and its time base (null: no `shot` param). */
+export function getShot(): Shot | null {
+  const q = new URLSearchParams(location.search);
+  const id = q.get("shot");
+  if (!id) return null;
+  const raw = q.get("t");
+  const t = raw === null ? NaN : Number(raw);
+  return { id, t: Number.isFinite(t) && t >= 0 ? t : (DEFAULT_T[id] ?? 30) };
+}
+
+/** Verify-camera times (an explicit t= always wins). */
+const DEFAULT_T: Record<string, number> = {
+  "temple-tour": 320,
+  shore: 60,
+  igloo: 30,
+  garden: 20,
+  galaxies: 45,
+  desert: 120,
+  tree: 30,
+};
+
+type XYZ = [number, number, number];
+type Site = { x: number; y: number; z: number; heading: number };
+const sites = SITES as Record<string, Site | undefined>;
+/** The temple tour's interior group sits here (scenes/templeTour.ts). */
+const TEMPLE_ORIGIN: XYZ = [30000, 1, 0];
+
+/** Eye / look-at offsets from each clearing's site point (heights above its ground). */
+const VIEWS: Record<string, { eye: XYZ; look: XYZ }> = {
+  shore: { eye: [0, 3.2, 8], look: [0, 1.1, 0] }, // at the seat
+  igloo: { eye: [14, 5, 14], look: [0, 2, 0] }, // at the dome centre
+  garden: { eye: [12, 2.2, 12], look: [0, 1.1, 0] },
+  galaxies: { eye: [10, 2.8, 10], look: [0, 1.1, 0] },
+  desert: { eye: [18, 3, 18], look: [0, 1.1, 0] },
+  tree: { eye: [16, 4, 16], look: [0, 0, 0] }, // the crest
+};
+
+/** The tour's public API, plus just enough of main.ts to boot a single frame. */
+interface TourApi {
+  beginTour(): void;
+  gotoTree?(): void;
+  tree?: { rest?(): void };
+  lessons: Record<string, { onSit(): void }>;
+}
+
+export interface ShotCtx {
+  camera: {
+    position: { set(x: number, y: number, z: number): void };
+    lookAt(x: number, y: number, z: number): void;
+    updateMatrixWorld(force?: boolean): void;
+  };
+  player: { pos: { set(x: number, y: number, z: number): void }; heading: number };
+  follow: { follow: number; startFollowing(now?: boolean): void };
+  narration: { debugTime: number | null };
+  tour: TourApi;
+  S: { mode: string; t: number; wt: number };
+  setInside(inside: boolean): void;
+  update(dt: number): void;
+  draw(): void;
+}
+
+/** Render one still frame of the requested scene at T seconds, then never again. */
+export function runShot(ctx: ShotCtx): void {
+  const shot = getShot();
+  if (!shot) return;
+  const { id, t } = shot;
+
+  // narrated time, world time and the ambient drift all read T; no audio is ever touched
+  ctx.narration.debugTime = t;
+  ctx.S.mode = "play";
+  ctx.S.t = t;
+  ctx.S.wt = t;
+  ctx.follow.startFollowing(true); // no intro drift over the lake
+  ctx.follow.follow = 1;
+
+  let base: XYZ;
+  let view: { eye: XYZ; look: XYZ };
+  if (id === "temple-tour") {
+    base = TEMPLE_ORIGIN;
+    view = { eye: [0, 9, 24], look: [0, 5, -44] };
+    ctx.setInside(true); // crossTemple's delays are skipped on purpose
+    ctx.tour.beginTour(); // narration.play: muted
+  } else {
+    const site = sites[id];
+    const v = VIEWS[id];
+    if (!site || !v) return;
+    base = [site.x, site.y, site.z];
+    view = v;
+    if (id === "tree") {
+      if (ctx.tour.gotoTree) ctx.tour.gotoTree(); // teleports the player and rests at the tree
+      else ctx.tour.tree?.rest?.();
+    } else {
+      ctx.player.pos.set(site.x, site.y, site.z);
+      ctx.player.heading = site.heading;
+      ctx.tour.lessons[id]?.onSit(); // narration.play: muted
+    }
+  }
+
+  // one update with the override in place: beats up to T apply, and uT reads T
+  ctx.update(1 / 60);
+  ctx.S.t = t;
+  ctx.S.wt = t;
+
+  ctx.camera.position.set(base[0] + view.eye[0], base[1] + view.eye[1], base[2] + view.eye[2]);
+  ctx.camera.lookAt(base[0] + view.look[0], base[1] + view.look[1], base[2] + view.look[2]);
+  ctx.camera.updateMatrixWorld(true);
+
+  const loading = document.getElementById("loading");
+  if (loading) loading.style.display = "none"; // endLoading's prompt must not cover the frame
+  ctx.draw();
+  (window as unknown as { __shotReady?: boolean }).__shotReady = true;
+}

@@ -1,3 +1,11 @@
+/*
+  This is the desert lesson: a scorched plain that remembers how to bloom.
+  The wanderer sits with a lantern-wisp while the narration keeps its beats.
+  A seed of light glows, flower fields open outward in a widening ring,
+  scorched earth softens into meadow, and the path lays down a road of light.
+  Every gesture is keyed to the lesson's own clock, so the world turns
+  as the voice turns, and the desert becomes a place where listening is weather.
+*/
 import * as THREE from "three/webgpu";
 import { LessonScene, type LessonCtx, type Beat, type SceneModule } from "./lessonKit";
 import { SITES } from "./sites";
@@ -12,26 +20,11 @@ function dRnd(): number {
   return ((dSeed = (dSeed * 16807) % 2147483647) / 2147483647);
 }
 
-const uT = { value: 0 };
-const uTNode = uniform(0);
-
-const phases = {
-  seedGlow: false,
-  flowers: false,
-  bloomFast: false,
-  light: false,
-  grass: false,
-  pathRow1: false,
-  pathRow2: false,
-  fullBloom: false,
-};
-
 let seat: THREE.Vector3 = new THREE.Vector3();
 let seatHeading: number = 0;
 let center: THREE.Vector3 = new THREE.Vector3();
 let fwd = new THREE.Vector3(0, 0, 1);
 let lantern!: ReturnType<LessonCtx["kit"]["wisp"]>;
-let savedCtx: LessonCtx | null = null;
 
 const beats: Beat[] = [
   {
@@ -69,7 +62,6 @@ const beats: Beat[] = [
   {
     t: 72.28,
     apply: (ctx) => {
-      phases.seedGlow = true;
       ctx.kit.groundDisc(2, 0xffcc66, 0.12, 0.02);
     },
   },
@@ -84,19 +76,16 @@ const beats: Beat[] = [
   {
     t: 214.03,
     apply: () => {
-      phases.flowers = true;
     },
   },
   {
     t: 243.90,
     apply: () => {
-      phases.bloomFast = true;
     },
   },
   {
     t: 251.20,
     apply: (ctx) => {
-      phases.light = true;
       ctx.kit.beams([center.clone(), lantern.group.position.clone()], 12, 0.4);
       ctx.kit.rings(center, 16, 6);
     },
@@ -104,13 +93,11 @@ const beats: Beat[] = [
   {
     t: 306.44,
     apply: () => {
-      phases.grass = true;
     },
   },
   {
     t: 431.72,
     apply: (ctx) => {
-      phases.pathRow1 = true;
       ctx.kit.pathLights(
         Array.from({ length: 8 }, (_, i) => seat.clone().lerp(center, i / 7)),
       );
@@ -119,7 +106,6 @@ const beats: Beat[] = [
   {
     t: 451.57,
     apply: (ctx) => {
-      phases.pathRow2 = true;
       const dir = center.clone().sub(seat).normalize();
       ctx.kit.pathLights(
         Array.from({ length: 8 }, (_, i) => center.clone().addScaledVector(dir, i + 1)),
@@ -129,19 +115,17 @@ const beats: Beat[] = [
   {
     t: 504.56,
     apply: (ctx) => {
-      phases.fullBloom = true;
       ctx.kit.groundDisc(16, 0xffcc66, 0.08, 0.01);
     },
   },
   {
     t: 530.68,
     apply: () => {
-      phases.fullBloom = true;
     },
   },
 ];
 
-function buildFlowerSpread(group: THREE.Group): void {
+function buildFlowerSpread(group: THREE.Group, t: any): void {
   const count = 600;
   const positions = new Float32Array(count * 3);
   const colors = new Float32Array(count * 3);
@@ -168,7 +152,6 @@ function buildFlowerSpread(group: THREE.Group): void {
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
 
-  const t = uTNode;
   const rf = t
     .sub(214.03)
     .max(0.0)
@@ -203,7 +186,7 @@ function buildFlowerSpread(group: THREE.Group): void {
   group.add(points);
 }
 
-function buildGrassSpread(group: THREE.Group): void {
+function buildGrassSpread(group: THREE.Group, t: any): void {
   const geometry = new THREE.CircleGeometry(20, 64);
   geometry.rotateX(-Math.PI / 2);
 
@@ -212,7 +195,7 @@ function buildGrassSpread(group: THREE.Group): void {
   material.depthWrite = false;
   material.fog = true;
 
-  const Rg = uTNode.sub(306.44).max(0).mul(0.35).min(20);
+  const Rg = t.sub(306.44).max(0).mul(0.35).min(20);
   const dist = positionWorld.sub(vec3(center.x, center.y, center.z)).xz.length();
   const mask = smoothstep(Rg.sub(2.0), Rg, dist).oneMinus();
 
@@ -226,7 +209,7 @@ function buildGrassSpread(group: THREE.Group): void {
   group.add(mesh);
 }
 
-function buildSteps(group: THREE.Group): void {
+function buildSteps(group: THREE.Group, t: any): void {
   const offsets = [0.75, 1.5, 2.25];
 
   for (const d of offsets) {
@@ -240,7 +223,7 @@ function buildSteps(group: THREE.Group): void {
     material.blending = THREE.AdditiveBlending;
 
     material.colorNode = uniform(new THREE.Color(0xffc766));
-    material.opacityNode = float(0.15).add(smoothstep(11.98, 14.0, uTNode).mul(0.75));
+    material.opacityNode = float(0.15).add(smoothstep(11.98, 14.0, t).mul(0.75));
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(
@@ -261,21 +244,16 @@ function build(ctx: LessonCtx): void {
   center = seat.clone().addScaledVector(fwd, 8);
   center.y = seat.y;
 
-  buildFlowerSpread(ctx.group);
-  buildGrassSpread(ctx.group);
-  buildSteps(ctx.group);
+  buildFlowerSpread(ctx.group, ctx.uT);
+  buildGrassSpread(ctx.group, ctx.uT);
+  buildSteps(ctx.group, ctx.uT);
 
   lantern = ctx.kit.wisp(0xffb84d, 0.6);
   lantern.setCenter(seat.clone().addScaledVector(fwd, 1.2).setY(seat.y + 1.1));
 
-  savedCtx = ctx;
 }
 
-function tick(): void {
-  const t = savedCtx ? savedCtx.narration.time() : 0;
-  uT.value = t;
-  uTNode.value = t;
-
+function tick(t: number): void {
   const base = seat.clone().addScaledVector(fwd, 1.2);
   const lift = t < 133.61 ? 0 : Math.min(1, (t - 133.61) / 3) * 0.6;
   const sway = Math.sin(t * 0.8) * 0.05;
@@ -304,7 +282,7 @@ export function createDesert(
   const baseUpdate = lesson.update.bind(lesson);
   lesson.update = (dt: number) => {
     baseUpdate(dt);
-    tick();
+    tick(narration.time());
   };
 
   return lesson;

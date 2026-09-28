@@ -2274,9 +2274,13 @@ quality.hold(12);
 const shadowAt = new THREE.Vector3();
 
 let last = performance.now();
+import { getShot, runShot } from "./debug/shot"; // dev-only: ?shot=<scene>&t=<sec> renders one still frame
+const shot = getShot();
+
 let realDt = 0;
 let frameDraws = 0; // draw calls of the last frame, taken right after it (for the readout)
 function frame(now: number): void {
+  if (shot) return; // shot mode draws exactly one frame, outside this loop
   requestAnimationFrame(frame);
   if (S.hidden) return;
   const ms = now - last;
@@ -2307,7 +2311,7 @@ renderer
     };
     // nothing reflects the sky's picture (blurred, its stars and nebulae became blobs over the land)
     post.start();
-    requestAnimationFrame(frame);
+    if (!shot) requestAnimationFrame(frame);
     return renderer.compileAsync(scene, camera);
   })
   .catch((e) => {
@@ -2318,6 +2322,22 @@ renderer
     shadersReady = true;
     quality.hold(3);
     endLoading();
+    if (shot)
+      runShot({
+        camera,
+        player,
+        follow,
+        narration,
+        tour: tourScenes,
+        S,
+        setInside,
+        update,
+        draw: () => {
+          renderer.info.reset();
+          water.renderMirror(renderer, scene, camera);
+          post.render();
+        },
+      });
   });
 
 /* The opening (Samuel: "an animation at the start… with an explanation of what this world is…

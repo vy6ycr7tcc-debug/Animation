@@ -94,8 +94,12 @@ export class Narration {
     return (await this.buffer(id)) !== null;
   }
 
+  /** Debug still-frame hook (?shot): when set, time() reads this instead of the audio clock. */
+  debugTime: number | null = null;
+
   /** Seconds into the current track, on the audio clock (0 when nothing plays). */
   time(): number {
+    if (this.debugTime !== null) return this.debugTime;
     const p = this.playing;
     const ctx = this.audio.ctx;
     if (!p || !ctx) return 0;
@@ -105,6 +109,11 @@ export class Narration {
   async play(id: string): Promise<void> {
     const track = TRACKS[id];
     if (!track) return;
+    // Debug still-frame hook: no audio at all — the scene still sees the track as current.
+    if (this.debugTime !== null) {
+      this.current = id;
+      return;
+    }
     // one voice at a time: the one speaking steps aside quickly, and the new one waits for it
     const handoff = this.playing ? 0.5 : 0;
     this.stop(0.5);
@@ -153,7 +162,7 @@ export class Narration {
     }
     if (this.current) {
       this.current = null;
-      this.audio.duck(false);
+      if (this.debugTime === null) this.audio.duck(false);
       this.hideSub();
     }
     window.clearTimeout(this.fakeTimer);
