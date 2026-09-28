@@ -126,15 +126,16 @@ function buildStops(): StopDef[] {
   // 0 — the door
   stops.push({ p: new THREE.Vector3(0, 0, 28.6), c: new THREE.Vector3(0, 3.4, 31.3) });
 
-  // 1..7 — the Mind's seven niches down the left wall. The walk line runs
-  // down the hall's centre (x = 0.6 ± 0.2), clear of both column rows at
-  // x = ±5.5; the niche z's interleave the column z's, so a card seen
-  // straight-on from its own z never crosses a column.
+  // 1..7 — the Mind's seven niches down the left wall. The walk line weaves
+  // gently in a ceremonial S through x = -1.2 .. 1.3 (never wider than
+  // |x| = 1.3), still well clear of both column rows at x = ±5.5; the niche
+  // z's interleave the column z's, so a card seen straight-on from its own z
+  // never crosses a column.
+  const nicheWalkX = [-1.2, 1.0, -1.3, 1.0, -1.3, 1.0, -1.2];
   for (let i = 0; i < 7; i++) {
     const z = finite(NICHE_Z[i], 25 - i * 8.2);
-    const sway = Math.sin(i * 1.9) * 0.2;
     stops.push({
-      p: new THREE.Vector3(0.6 + sway, 0, z),
+      p: new THREE.Vector3(nicheWalkX[i], 0, z),
       c: new THREE.Vector3(-10.2, 3.2, z),
     });
   }
