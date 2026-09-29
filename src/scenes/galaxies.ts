@@ -188,7 +188,7 @@ export function createGalaxiesScene(
           
           // Gradient mapping: Core is hot EMBER/GOLD, edges pale BEAM
           const edgeCol = T.mix(BEAM, GOLD, warmth);
-          const coreCol = T.mix(GOLD, EMBER, warmth.add(0.2));
+          const coreCol = T.mix(GOLD, EMBER, T.add(warmth, 0.2));
           const finalCol = T.mix(edgeCol, coreCol, T.smoothstep(0.0, 0.4, core.add(arms.mul(0.5))));
           
           return finalCol.mul(core.mul(0.85).add(arms.mul(0.52)).mul(shimmer).mul(u.uGlow));
