@@ -5,6 +5,7 @@
    Narration plays in the background the whole time, one recording after another.
    States: intro (title over the night water) → play → rest (after Leave) → play … */
 import "./gpu/compat";
+import { registerSW } from "virtual:pwa-register";
 import * as THREE from "three/webgpu";
 import { AudioEngine } from "./core/audio";
 import { Input } from "./core/input";
@@ -58,8 +59,23 @@ import { RisingFlowers } from "./world/blooms";
 import { Wilds } from "./world/wilds";
 import { initTourScenes, tourPlaces, type TourScenes } from "./scenes/integration";
 
+import { downloadAssets, requestPersistentStorage, checkAssetUpdates } from "./core/offline";
+
+// Register Service Worker
+registerSW({
+  onNeedRefresh() {
+    if (confirm("New content is available, click OK to refresh.")) {
+      window.location.reload();
+    }
+  },
+  onOfflineReady() {
+    console.log("App ready to work offline");
+  }
+});
+
 declare const __BUILD__: string;
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
+checkAssetUpdates();
 
 /** If anything fails on the phone, say so quietly on screen (for a screenshot), instead of the
     game silently losing a control or a voice. */
@@ -2004,12 +2020,46 @@ function groundPoint(cx: number, cy: number): THREE.Vector3 | null {
 }
 
 // Settings.
+
 const menu = $("#menu"), menuBtn = $("#menu-btn");
 function setMenu(open: boolean): void {
   menu.hidden = !open;
   menuBtn.setAttribute("aria-expanded", String(open));
   if (open) $<HTMLInputElement>("#vol").focus();
 }
+
+$("#offline-btn").addEventListener("click", async () => {
+  const btn = $<HTMLButtonElement>("#offline-btn");
+  const prog = $("#offline-progress");
+  const bar = $("#offline-bar");
+  const text = $("#offline-text");
+
+  btn.disabled = true;
+  prog.hidden = false;
+  text.textContent = "Requesting storage...";
+
+  const persisted = await requestPersistentStorage();
+  if (!persisted) {
+    text.textContent = "Storage quota denied. Some files may be evicted.";
+  }
+
+  try {
+    const listRes = await fetch("./assets.json");
+    if (!listRes.ok) throw new Error("Could not fetch assets list");
+    const assets: string[] = await listRes.json();
+
+    await downloadAssets(assets, (p) => {
+      bar.style.width = `${p.percentage}%`;
+      text.textContent = `${p.percentage}% (${p.downloaded}/${p.total})`;
+    });
+
+    text.textContent = "Download complete.";
+  } catch (err) {
+    console.error(err);
+    text.textContent = "Download failed. Please try again.";
+    btn.disabled = false;
+  }
+});
 // on the touch itself: a phone makes no click of a tap while the other thumb is on the stick
 menuBtn.addEventListener("pointerdown", (e) => {
   e.preventDefault();
