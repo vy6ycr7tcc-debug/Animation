@@ -2,7 +2,7 @@ import * as THREE from "three/webgpu";
 import { LessonScene, type LessonCtx, type Beat, type SceneModule } from "./lessonKit";
 import type { Narration } from "../core/narration";
 import { SITES } from "./sites";
-import { T, glowShader, worldPoints, gpuUniforms, hash3 } from "../gpu/tsl";
+import { T, glowShader, worldPoints, gpuUniforms, hash3, vnoise } from "../gpu/tsl";
 
 // ---- palette (STYLE_GUIDE §1) -------------------------------------------------
 const GOLD_HEX = 0xffd700;
@@ -15,8 +15,23 @@ const HOR = T.vec3(0.105, 0.1, 0.22);
 const GOLD = T.vec3(1.0, 0.843, 0.0);
 const BEAM = T.vec3(0.722, 0.82, 1.0);
 const LAMP = T.vec3(1.0, 0.902, 0.627);
+const EMBER = T.vec3(1.0, 0.45, 0.1);
 
 const time = gpuUniforms.time;
+
+// Organic noise for materiality
+const fbm = T.Fn(([p]: any[]) => {
+  let v = T.float(0);
+  let amp = T.float(0.5);
+  let pos = p;
+  for (let i = 0; i < 4; i++) {
+    v = v.add(vnoise(pos).mul(amp));
+    pos = pos.mul(2.0).add(T.vec2(1.2, 3.4)); // shift to break grid
+    amp = amp.mul(0.5);
+  }
+  return v;
+});
+
 
 // seeded placement only (STYLE_GUIDE §6.8)
 function makeRng(seed: number): () => number {
@@ -101,31 +116,47 @@ export function createGalaxiesScene(
     const domeMat: any = new THREE.MeshBasicNodeMaterial({ side: THREE.BackSide, depthWrite: false });
     domeMat.fog = false;
     domeMat.colorNode = (() => {
-      const dir = T.positionLocal.mul(0.003125);
-      const e = T.clamp(dir.y, -1, 1);
+      // Slower drift
+      const localTime = time.mul(0.005);
+      const dir = T.positionLocal.normalize();
+      
+      // Base background: soft vertical gradient
+      const e = T.clamp(dir.y, -1.0, 1.0);
       let col = T.mix(HOR, MID, T.smoothstep(-0.02, 0.42, e));
       col = T.mix(col, ZEN, T.smoothstep(0.3, 0.98, e));
       col = T.mix(col, HOR, T.smoothstep(0.06, -0.14, e));
-      const bd = T.dot(dir, T.vec3(0.42, 0.78, 0.46));
-      const band = T.pow(T.max(T.abs(bd).mul(-1).add(1), 0), 12);
-      const flow = T.sin(dir.x.mul(7).add(dir.z.mul(5)).add(time.mul(0.05))).mul(0.22).add(0.78);
-      col = col.add(T.mix(GOLD, BEAM, 0.55).mul(band.mul(flow).mul(0.16).mul(uSky).mul(awe.mul(0.25).add(1))));
-      const ang = T.atan(dir.z, dir.x);
-      const rr = T.max(T.length(dir.xz), 0.001);
-      const sp = T.fract(ang.div(6.28318).sub(T.log(rr).mul(0.35)).add(time.mul(0.004)));
-      const spd = sp.sub(0.5).mul(2.2);
-      const ridge = T.exp(spd.mul(spd).mul(-6.0));
-      col = col.add(T.mix(GOLD, BEAM, 0.5).mul(ridge.mul(band).mul(0.10).mul(uSky)));
-      const g = dir.mul(72);
-      const cell = T.floor(g);
-      const f = T.fract(g).sub(0.5);
-      const h = hash3(cell);
-      const d = T.length(f.sub(h.sub(0.5).mul(0.6)));
-      const core = T.smoothstep(0.28, 0.03, d);
-      const gate = T.smoothstep(0.5, 0.92, h.z);
-      const tw = T.sin(time.mul(h.x.mul(1.7).add(0.4)).add(h.y.mul(61))).mul(0.3).add(0.7);
-      const sc = T.mix(T.vec3(1.0, 0.95, 0.9), T.vec3(0.75, 0.85, 1.0), h.y);
-      col = col.add(sc.mul(core.mul(gate).mul(tw).mul(1.5).mul(uSky)));
+
+      // Spherical coordinates for organic fbm wrapping
+      const theta = T.atan(dir.z, dir.x);
+      const phi = dir.y;
+      
+      // Nebulae mapping
+      const p1 = T.vec2(theta.mul(2.0).add(localTime), phi.mul(2.0));
+      const p2 = T.vec2(theta.mul(3.0).sub(localTime.mul(1.5)), phi.mul(3.0).add(1.0));
+      
+      const n1 = fbm(p1);
+      const n2 = fbm(p2.add(n1));
+      
+      const nebula1 = T.smoothstep(0.3, 0.7, n1);
+      const nebula2 = T.smoothstep(0.4, 0.8, n2);
+      
+      // Majestic dust clouds
+      col = col.add(T.mix(MID, EMBER, nebula1).mul(nebula1).mul(0.6).mul(uSky).mul(awe.mul(0.25).add(1)));
+      col = col.add(T.mix(ZEN, BEAM, nebula2).mul(nebula2).mul(0.4).mul(uSky));
+      
+      // Layer 1: Dense distant stars
+      const s1 = hash3(dir.mul(300.0));
+      const star1 = T.step(0.998, s1.x);
+      const twinkle1 = T.sin(time.mul(0.05).add(s1.y.mul(6.28))).mul(0.3).add(0.7);
+      col = col.add(T.vec3(1.0).mul(star1).mul(twinkle1).mul(uSky).mul(0.4));
+      
+      // Layer 2: Bright closer stars
+      const s2 = hash3(dir.mul(150.0).add(T.vec3(1.0, 2.0, 3.0)));
+      const star2 = T.step(0.9995, s2.x);
+      const twinkle2 = T.sin(time.mul(0.03).add(s2.z.mul(6.28))).mul(0.5).add(0.5);
+      const starCol = T.mix(BEAM, GOLD, s2.y);
+      col = col.add(starCol.mul(star2).mul(twinkle2).mul(uSky).mul(1.2));
+      
       return T.vec4(col, 1);
     })();
     const dome = new THREE.Mesh(new THREE.SphereGeometry(320, 40, 24), domeMat);
@@ -138,14 +169,29 @@ export function createGalaxiesScene(
       const mat = glowShader(
         { uGlow: 1 },
         (u: any, uv: any) => {
-          const p = uv.sub(0.5).mul(2);
+          // Distort UVs organically
+          const nUV = fbm(uv.mul(5.0).add(time.mul(0.01).add(phase)));
+          const dUV = uv.add(nUV.mul(0.12));
+          
+          const p = dUV.sub(0.5).mul(2);
           const r2 = T.dot(p, p);
           const core = T.exp(r2.mul(-9));
+          
           const s1 = T.vec2(p.x.mul(0.42).add(p.y.mul(0.91)), p.y.mul(0.42).sub(p.x.mul(0.91))).mul(T.vec2(1, 3.2));
           const s2 = T.vec2(p.x.mul(0.42).sub(p.y.mul(0.91)), p.y.mul(0.42).add(p.x.mul(0.91))).mul(T.vec2(1, 3.2));
-          const arms = T.exp(T.dot(s1, s1).mul(-4.2)).add(T.exp(T.dot(s2, s2).mul(-4.2)));
+          
+          // Feather the arms with noise to break primitives
+          const armsNoise = fbm(uv.mul(8.0).add(phase));
+          const arms = T.exp(T.dot(s1, s1).mul(-4.2)).add(T.exp(T.dot(s2, s2).mul(-4.2))).mul(armsNoise.add(0.5));
+          
           const shimmer = T.sin(time.mul(0.11).add(phase)).mul(0.12).add(0.88);
-          return T.mix(BEAM, GOLD, warmth).mul(core.mul(0.85).add(arms.mul(0.42)).mul(shimmer).mul(u.uGlow));
+          
+          // Gradient mapping: Core is hot EMBER/GOLD, edges pale BEAM
+          const edgeCol = T.mix(BEAM, GOLD, warmth);
+          const coreCol = T.mix(GOLD, EMBER, warmth.add(0.2));
+          const finalCol = T.mix(edgeCol, coreCol, T.smoothstep(0.0, 0.4, core.add(arms.mul(0.5))));
+          
+          return finalCol.mul(core.mul(0.85).add(arms.mul(0.52)).mul(shimmer).mul(u.uGlow));
         },
         { transparent: true, depthWrite: false, side: THREE.DoubleSide }
       );
@@ -191,8 +237,10 @@ export function createGalaxiesScene(
       { uGlow: 1 },
       (u: any, uv: any) => {
         const taper = T.smoothstep(0, 0.18, uv.x).mul(T.smoothstep(1, 0.82, uv.x));
-        const breathe = T.sin(time.mul(0.36).add(uv.x.mul(6.283).mul(1.6))).mul(0.12).add(0.88);
-        return T.mix(GOLD, LAMP, 0.32).mul(taper.mul(breathe).mul(u.uGlow).mul(uWarm).mul(0.75));
+        const noiseWrap = fbm(uv.mul(T.vec2(4.0, 12.0)).add(time.mul(0.04)));
+        const breathe = T.sin(time.mul(0.08).add(uv.x.mul(6.283).mul(1.6))).mul(0.12).add(0.88);
+        const col = T.mix(GOLD, EMBER, noiseWrap);
+        return col.mul(taper).mul(noiseWrap.add(0.4)).mul(breathe).mul(u.uGlow).mul(uWarm).mul(0.85);
       },
       { transparent: true, depthWrite: false, side: THREE.DoubleSide }
     );
@@ -203,8 +251,10 @@ export function createGalaxiesScene(
       { uGlow: 1 },
       (u: any, uv: any) => {
         const taper = T.smoothstep(0, 0.22, uv.x).mul(T.smoothstep(1, 0.78, uv.x));
-        const breathe = T.sin(time.mul(0.29).add(uv.x.mul(4.1))).mul(0.14).add(0.86);
-        return T.mix(GOLD, BEAM, 0.55).mul(taper.mul(breathe).mul(u.uGlow).mul(uWarm).mul(0.55));
+        const noiseWrap = fbm(uv.mul(T.vec2(6.0, 18.0)).sub(time.mul(0.05)));
+        const breathe = T.sin(time.mul(0.07).add(uv.x.mul(4.1))).mul(0.14).add(0.86);
+        const col = T.mix(GOLD, BEAM, 0.55);
+        return col.mul(taper).mul(noiseWrap.add(0.5)).mul(breathe).mul(u.uGlow).mul(uWarm).mul(0.7);
       },
       { transparent: true, depthWrite: false, side: THREE.DoubleSide }
     );
@@ -214,10 +264,13 @@ export function createGalaxiesScene(
     const childMat = glowShader(
       { uGlow: 1 },
       (u: any) => {
-        const r = T.length(T.positionLocal).mul(1.4286);
-        const body = T.smoothstep(1, 0.12, r);
-        const breathe = T.sin(time.mul(0.44).add(1.7)).mul(0.12).add(0.88);
-        return T.mix(LAMP, BEAM, 0.45).mul(body.mul(breathe).mul(u.uGlow).mul(uCool).mul(1.0));
+        // Perturb distance to center so it's not a perfect sphere
+        const baseR = T.length(T.positionLocal).mul(1.4286);
+        const surfNoise = fbm(T.positionLocal.mul(4.0).add(time.mul(0.1)));
+        const r = baseR.add(surfNoise.mul(0.2));
+        const body = T.smoothstep(1.0, 0.12, r);
+        const breathe = T.sin(time.mul(0.11).add(1.7)).mul(0.12).add(0.88);
+        return T.mix(LAMP, BEAM, surfNoise).mul(body.mul(breathe).mul(u.uGlow).mul(uCool).mul(1.2));
       },
       { transparent: true, depthWrite: false, side: THREE.DoubleSide }
     );
