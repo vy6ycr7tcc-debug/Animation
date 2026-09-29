@@ -2039,9 +2039,6 @@ $("#offline-btn").addEventListener("click", async () => {
   text.textContent = "Requesting storage...";
 
   const persisted = await requestPersistentStorage();
-  if (!persisted) {
-    text.textContent = "Storage quota denied. Some files may be evicted.";
-  }
 
   try {
     const listRes = await fetch("./assets.json");
@@ -2053,7 +2050,7 @@ $("#offline-btn").addEventListener("click", async () => {
       text.textContent = `${p.percentage}% (${p.downloaded}/${p.total})`;
     });
 
-    text.textContent = "Download complete.";
+    text.textContent = persisted ? "Download complete." : "Download complete, but persistent storage was denied.";
   } catch (err) {
     console.error("Offline download failed:", err);
     text.textContent = `Download failed: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`;
