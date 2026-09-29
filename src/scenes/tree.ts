@@ -516,7 +516,34 @@ export class TreeOfLifeScene implements SceneModule {
       this.group.add(beam);
     }
 
-    this.kit.groundDisc(safe(13.5 * TREE_SCALE, 13.5), 0xffe6a0, 0.3, this.groundY + 0.02);
+    // painterly ground aura replacing the hard-edged ground disc
+    const auraR = safe(13.5 * TREE_SCALE, 13.5);
+    const auraMat = new THREE.MeshBasicNodeMaterial({ fog: true });
+    auraMat.transparent = true;
+    auraMat.depthWrite = false;
+    auraMat.blending = THREE.CustomBlending;
+    auraMat.blendSrc = THREE.SrcAlphaFactor;
+    auraMat.blendDst = THREE.OneFactor;
+    auraMat.blendSrcAlpha = THREE.ZeroFactor;
+    auraMat.blendDstAlpha = THREE.OneFactor;
+
+    // Soft fade from center to edge using UV coordinates
+    const uv = T.uv();
+    const dist = T.length(uv.sub(T.vec2(0.5)));
+    const fade = T.smoothstep(0.5, 0.0, dist);
+    
+    // Slow breathing pulse
+    const breath = T.sin(this.life.mul(0.8)).mul(0.15).add(0.85);
+    
+    const col = T.vec3(1.0, 0.9, 0.62).mul(0.3).mul(fade).mul(breath);
+    auraMat.colorNode = T.vec4(col, 1);
+
+    const auraGeo = new THREE.PlaneGeometry(auraR * 2, auraR * 2);
+    const aura = new THREE.Mesh(auraGeo, auraMat);
+    aura.position.set(this.treeX, this.groundY + 0.02, this.treeZ);
+    aura.rotation.x = -Math.PI / 2;
+    aura.renderOrder = 1;
+    this.group.add(aura);
   }
 
   /** Breathing lamps lead the walk in to the moss seat. */
