@@ -166,18 +166,30 @@ body.loading #title h1, body.loading #title p { animation-play-state: paused; }
 #menu-btn[hidden] { display: none; }
 #menu-btn span { width: 6px; height: 6px; border-radius: 50%; background: var(--pearl); box-shadow: 0 -10px 0 var(--pearl), 0 10px 0 var(--pearl); }
 #menu {
-  position: fixed; top: calc(60px + env(safe-area-inset-top, 0px)); right: calc(12px + env(safe-area-inset-right, 0px));
-  width: min(280px, calc(100% - 24px));
-  display: flex; flex-direction: column; gap: 12px;
-  background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px;
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  width: min(320px, calc(100% - 24px));
+  max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  pointer-events: auto;
 }
 #menu[hidden] { display: none; }
+#menu .menu-scroll {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 16px 18px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
 #menu label { font-size: 15px; }
 #menu .check { display: flex; align-items: center; gap: 10px; min-height: 44px; }
 #menu input[type="range"] { width: 100%; accent-color: var(--gold); min-height: 32px; }
 #menu input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--gold); }
 #leave, #map-open, #about-open { border: 1px solid var(--line); border-radius: 22px; min-height: 44px; padding: 8px 16px; color: var(--gold); }
+#menu .primary-btn { border: 1px solid var(--gold); border-radius: 22px; min-height: 44px; padding: 8px 16px; color: #0b0a1c; background: var(--gold); font-weight: bold; }
 #menu .note { margin: 0; font-size: 13px; color: var(--dim); font-style: italic; }
 
 /* ---- rest (after Leave) ---- */
