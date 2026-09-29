@@ -350,10 +350,19 @@ function createStationCard(stationIndex: number, w: number, h: number): THREE.Gr
   return cardMesh(createStationCardTexture(stationIndex), w, h);
 }
 
+/** Distinct station tint vector per realm: Mind, Body, Spirit, Choice. */
+function stationColor(i: number): THREE.Vector3 {
+  if (i === 25) return new THREE.Vector3(1.0, 0.92, 0.75); // Choice
+  if (i >= 17) return new THREE.Vector3(0.75, 0.88, 1.0);  // Spirit: Starlight cyan/violet-gold
+  if (i >= 8)  return new THREE.Vector3(1.0, 0.62, 0.28);  // Body: Deep radiant ember gold
+  return new THREE.Vector3(1.0, 0.82, 0.48);               // Mind: Warm golden amber
+}
+
 interface StationState {
   card: THREE.Group;
   level: { value: number };
   ignited: boolean;
+  orbitGroup: THREE.Group;
 }
 
 /** A TSL node: JS-side `.value` and shader-side `.mul()` — same convention as gpu/tsl. */
@@ -366,11 +375,85 @@ class StationSet {
 
   constructor(stops: StopDef[], life: LifeClock) {
     this.group.name = "temple-tour-stations";
-    const tex = T.texture(glowTexture());
+
+    const plinthGeo = new THREE.CylinderGeometry(0.75, 0.95, 0.4, 24);
+    const plinthMat = new THREE.MeshBasicNodeMaterial({ color: new THREE.Color(0x1a1410), fog: false });
+    const plinthRingGeo = new THREE.TorusGeometry(0.77, 0.025, 8, 32);
+    const plinthRingMat = new THREE.MeshBasicNodeMaterial({ color: new THREE.Color(0xd8ae55), fog: false });
+    const lensGeo = new THREE.CircleGeometry(0.68, 24).rotateX(-Math.PI / 2);
+    const beamGeo = new THREE.CylinderGeometry(1.2, 0.5, 1, 24, 1, true);
+    const auraGeo = new THREE.PlaneGeometry(2.8, 4.0);
+    const orbitRingGeo = new THREE.TorusGeometry(1.4, 0.02, 12, 32);
 
     for (let i = 0; i < stops.length; i++) {
       const s = stops[i]!;
+      const colVec = stationColor(i);
+      const level = T.uniform(0);
 
+      // Phase and tempo per station
+      const phase = i * 2.39996323;
+      const tempo = 0.42 + 0.09 * Math.sin(i * 1.7);
+
+      // 1. Carved Pedestal & Lens Base below the card position
+      const plinthH = 0.4;
+      const plinthY = s.p.y + plinthH / 2;
+      const plinthMesh = new THREE.Mesh(plinthGeo, plinthMat);
+      plinthMesh.position.set(s.c.x, plinthY, s.c.z);
+      this.group.add(plinthMesh);
+
+      const plinthRing = new THREE.Mesh(plinthRingGeo, plinthRingMat);
+      plinthRing.rotation.x = Math.PI / 2;
+      plinthRing.position.set(s.c.x, plinthY + 0.15, s.c.z);
+      this.group.add(plinthRing);
+
+      // Glowing lens aperture atop plinth
+      const lensMat = new THREE.MeshBasicNodeMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.CustomBlending,
+        blendSrc: THREE.SrcAlphaFactor,
+        blendDst: THREE.OneFactor,
+        blendSrcAlpha: THREE.ZeroFactor,
+        blendDstAlpha: THREE.OneFactor,
+        fog: false,
+      });
+      const lensPulse = T.sin(life.mul(1.8).add(phase)).mul(0.15).add(0.85);
+      lensMat.colorNode = T.vec3(colVec.x, colVec.y, colVec.z).mul(lensPulse);
+      lensMat.opacityNode = level.mul(0.85);
+      const lensMesh = new THREE.Mesh(lensGeo, lensMat);
+      lensMesh.position.set(s.c.x, plinthY + plinthH / 2 + 0.01, s.c.z);
+      this.group.add(lensMesh);
+
+      // 2. Volumetric Projection Cone / Light Beam
+      const beamBottomY = plinthY + plinthH / 2;
+      const beamH = Math.max(0.5, s.c.y - beamBottomY);
+      const beamCenterY = beamBottomY + beamH / 2;
+
+      const beamMat = new THREE.MeshBasicNodeMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.CustomBlending,
+        blendSrc: THREE.SrcAlphaFactor,
+        blendDst: THREE.OneFactor,
+        blendSrcAlpha: THREE.ZeroFactor,
+        blendDstAlpha: THREE.OneFactor,
+        fog: false,
+        side: THREE.DoubleSide,
+      });
+      const uY = T.uv().y;
+      const uX = T.uv().x;
+      const fadeY = T.smoothstep(0.0, 0.15, uY).mul(T.smoothstep(1.0, 0.7, uY).mul(0.6).add(0.4));
+      const scanline = T.sin(uY.mul(28.0).sub(life.mul(3.5))).mul(0.25).add(0.75);
+      const shimmer = T.sin(uX.mul(16.0).add(life.mul(2.2))).mul(0.15).add(0.85);
+      beamMat.colorNode = T.vec3(colVec.x, colVec.y, colVec.z);
+      beamMat.opacityNode = fadeY.mul(scanline).mul(shimmer).mul(level).mul(0.42);
+
+      const beamMesh = new THREE.Mesh(beamGeo, beamMat);
+      beamMesh.position.set(s.c.x, beamCenterY, s.c.z);
+      beamMesh.scale.set(1, beamH, 1);
+      this.group.add(beamMesh);
+
+      // 3. The Card and Holographic Projection Aura/Rings
       const card = createStationCard(i, 2.2, 3.4);
       card.position.copy(s.c);
       const dx = s.p.x - s.c.x;
@@ -380,11 +463,10 @@ class StationSet {
       card.scale.setScalar(0.9);
       this.group.add(card);
 
-      const level = T.uniform(0);
-      const mat = new THREE.MeshBasicNodeMaterial({
+      // Projection Scanline Aura Plane behind card
+      const auraMat = new THREE.MeshBasicNodeMaterial({
         transparent: true,
         depthWrite: false,
-        // additiveKeepsAlpha (style rule #3): adds light, leaves alpha alone
         blending: THREE.CustomBlending,
         blendSrc: THREE.SrcAlphaFactor,
         blendDst: THREE.OneFactor,
@@ -392,28 +474,67 @@ class StationSet {
         blendDstAlpha: THREE.OneFactor,
         fog: false,
         side: THREE.DoubleSide,
-        // the lamp disc floats 6cm above the stone and 1cm above the way-light
-        // thread; additive + depthWrite:false already means no depth writes to
-        // fight over, and this pulls it a hair toward the eye as belt-and-braces
+      });
+      const auraUV = T.uv().sub(0.5);
+      const auraDist = T.length(auraUV.mul(T.vec2(1.2, 0.8)));
+      const auraGlow = T.exp(auraDist.mul(-3.5));
+      const auraLines = T.sin(T.uv().y.mul(45.0).sub(life.mul(4.0))).mul(0.2).add(0.8);
+      auraMat.colorNode = T.vec3(colVec.x, colVec.y, colVec.z);
+      auraMat.opacityNode = auraGlow.mul(auraLines).mul(level).mul(0.38);
+      const auraMesh = new THREE.Mesh(auraGeo, auraMat);
+      auraMesh.position.set(0, 0, -0.05);
+      card.add(auraMesh);
+
+      // Tilted Sacred Geometry Ring orbiting card
+      const orbitGroup = new THREE.Group();
+      orbitGroup.rotation.x = 0.4;
+      orbitGroup.rotation.z = 0.2;
+      const orbitRingMat = new THREE.MeshBasicNodeMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.CustomBlending,
+        blendSrc: THREE.SrcAlphaFactor,
+        blendDst: THREE.OneFactor,
+        blendSrcAlpha: THREE.ZeroFactor,
+        blendDstAlpha: THREE.OneFactor,
+        fog: false,
+      });
+      orbitRingMat.colorNode = T.vec3(colVec.x, colVec.y, colVec.z).mul(1.2);
+      orbitRingMat.opacityNode = level.mul(0.55);
+      const orbitRingMesh = new THREE.Mesh(orbitRingGeo, orbitRingMat);
+      orbitGroup.add(orbitRingMesh);
+      card.add(orbitGroup);
+
+      // 4. Runic Floor Disc beneath Station
+      const runicMat = new THREE.MeshBasicNodeMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.CustomBlending,
+        blendSrc: THREE.SrcAlphaFactor,
+        blendDst: THREE.OneFactor,
+        blendSrcAlpha: THREE.ZeroFactor,
+        blendDstAlpha: THREE.OneFactor,
+        fog: false,
+        side: THREE.DoubleSide,
         polygonOffset: true,
         polygonOffsetFactor: -2,
         polygonOffsetUnits: -2,
       });
-      mat.colorNode = tex.rgb.mul(T.vec3(1.0, 0.86, 0.58));
+      const rUV = T.uv().sub(0.5);
+      const rDist = T.length(rUV).mul(2.0);
+      const ring1 = T.smoothstep(0.02, 0.0, T.abs(rDist.sub(0.85)));
+      const ring2 = T.smoothstep(0.02, 0.0, T.abs(rDist.sub(0.6)));
+      const innerFill = T.smoothstep(1.0, 0.0, rDist);
+      const rPulse = T.sin(life.mul(tempo).add(phase)).mul(0.15).add(0.85);
+      runicMat.colorNode = T.vec3(colVec.x, colVec.y, colVec.z);
+      runicMat.opacityNode = level.mul(rPulse).mul(ring1.add(ring2).mul(0.6).add(innerFill.mul(0.25)));
 
-      // per-station breathing: golden-angle phase spread + a tempo that varies
-      // per stop, off the local life clock (never the frozen global one)
-      const phase = i * 2.39996323;
-      const tempo = 0.42 + 0.09 * Math.sin(i * 1.7);
-      const breathe = T.sin(life.mul(tempo).add(phase)).mul(0.14).add(0.86);
-      mat.opacityNode = tex.a.mul(level).mul(breathe);
+      const runicDisc = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 3.6).rotateX(-Math.PI / 2), runicMat);
+      runicDisc.position.set(s.p.x, s.p.y + 0.06, s.p.z);
+      runicDisc.renderOrder = -1;
+      this.group.add(runicDisc);
 
-      const marker = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 3.6).rotateX(-Math.PI / 2), mat);
-      marker.position.set(s.p.x, s.p.y + 0.06, s.p.z);
-      marker.renderOrder = -1;
-      this.group.add(marker);
-
-      this.states.push({ card, level, ignited: false });
+      this.states.push({ card, level, ignited: false, orbitGroup });
     }
   }
 
@@ -437,6 +558,9 @@ class StationSet {
       const grow = 0.9 + 0.1 * smooth01((t - revAt) / 1.8);
       st.card.scale.setScalar(grow);
 
+      // Rotate orbiting sacred geometry ring
+      st.orbitGroup.rotation.y = lt * 0.4 + i * 0.3;
+
       if (!st.ignited && t >= at) {
         // ignition is anchored to the cue itself, so any seek finds the same flare
         ignite(st.card, at);
@@ -457,6 +581,267 @@ class StationSet {
       st.level.value = 0.12;
     }
     this.lastUT = 0;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * TourDecorations: Column gold bands, carved niche backplates,
+ * slanting clerestory light shafts, and floating dust motes.
+ * ------------------------------------------------------------------ */
+
+const COL_Z_POSITIONS = [29, 20.9, 12.7, 4.5, -3.7, -11.9, -20.1, -27.6];
+const HALL_NICHE_Z = [25, 16.8, 8.6, 0.4, -7.8, -16, -24.2];
+
+class TourDecorations {
+  readonly group = new THREE.Group();
+  private readonly dustPositions: Float32Array;
+  private readonly dustBase: Float32Array;
+  private readonly dustMesh: THREE.InstancedMesh;
+  private readonly choiceRingsGroup: THREE.Group;
+
+  constructor(life: LifeClock) {
+    this.group.name = "temple-tour-decorations";
+
+    // 1. Gold collar bands on all 16 colonnade columns (fitted snug to column radii)
+    const upperBandGeo = new THREE.TorusGeometry(0.96, 0.02, 8, 32);
+    const lowerBandGeo = new THREE.TorusGeometry(1.14, 0.02, 8, 32);
+    const bandMat = new THREE.MeshBasicNodeMaterial({
+      color: new THREE.Color(0xd8ae55),
+      fog: false,
+    });
+    const totalBandsPerType = COL_Z_POSITIONS.length * 2; // 8 z-positions * 2 sides
+    const upperBandInst = new THREE.InstancedMesh(upperBandGeo, bandMat, totalBandsPerType);
+    const lowerBandInst = new THREE.InstancedMesh(lowerBandGeo, bandMat, totalBandsPerType);
+    const m4 = new THREE.Matrix4();
+    let uIdx = 0, lIdx = 0;
+    for (const z of COL_Z_POSITIONS) {
+      for (const side of [-1, 1]) {
+        const x = side * 5.5;
+        // Upper neck band at y = 8.4
+        m4.makeRotationX(Math.PI / 2);
+        m4.setPosition(x, 8.4, z);
+        upperBandInst.setMatrixAt(uIdx++, m4);
+
+        // Lower band at y = 0.8
+        m4.makeRotationX(Math.PI / 2);
+        m4.setPosition(x, 0.8, z);
+        lowerBandInst.setMatrixAt(lIdx++, m4);
+      }
+    }
+    upperBandInst.instanceMatrix.needsUpdate = true;
+    lowerBandInst.instanceMatrix.needsUpdate = true;
+    this.group.add(upperBandInst);
+    this.group.add(lowerBandInst);
+
+    // 2. Carved Sandstone Niche Backplates with Glowing Gold Runes (Hall Shrines 1-7)
+    const nichePanelGeo = new THREE.PlaneGeometry(6.2, 7.2);
+    for (const z of HALL_NICHE_Z) {
+      const panelMat = new THREE.MeshBasicNodeMaterial({
+        transparent: true,
+        depthWrite: false,
+        fog: false,
+        side: THREE.DoubleSide,
+      });
+      const u = T.uv();
+      const q = u.sub(T.vec2(0.5, 0.5));
+      const r = T.length(q);
+      const ring1 = T.smoothstep(0.015, 0.0, T.abs(r.sub(0.35)));
+      const ring2 = T.smoothstep(0.015, 0.0, T.abs(r.sub(0.22)));
+      const pulse = T.sin(life.mul(1.2).add(z)).mul(0.15).add(0.85);
+      const glow = ring1.add(ring2).mul(0.5).mul(pulse);
+
+      panelMat.colorNode = T.vec3(0.08, 0.06, 0.04).add(T.vec3(1.0, 0.8, 0.45).mul(glow));
+      panelMat.opacityNode = T.float(0.88);
+
+      const panelMesh = new THREE.Mesh(nichePanelGeo, panelMat);
+      panelMesh.position.set(-11.5, 3.6, z);
+      panelMesh.rotation.y = Math.PI / 2;
+      this.group.add(panelMesh);
+    }
+
+    // 3. Slanting Volumetric Clerestory Light Shafts along the Hall
+    const shaftGeo = new THREE.CylinderGeometry(0.2, 0.8, 10, 24, 1, true);
+    const shaftZ = [20, 8, -4, -16];
+    for (const z of shaftZ) {
+      for (const side of [-1, 1]) {
+        const shaftMat = new THREE.MeshBasicNodeMaterial({
+          transparent: true,
+          depthWrite: false,
+          blending: THREE.CustomBlending,
+          blendSrc: THREE.SrcAlphaFactor,
+          blendDst: THREE.OneFactor,
+          blendSrcAlpha: THREE.ZeroFactor,
+          blendDstAlpha: THREE.OneFactor,
+          fog: false,
+          side: THREE.FrontSide,
+        });
+        const uY = T.uv().y;
+        const uX = T.uv().x;
+        const verticalFade = T.smoothstep(0.0, 0.25, uY).mul(T.smoothstep(1.0, 0.75, uY));
+        const shimmer = T.sin(uX.mul(12.0).add(life.mul(1.5))).mul(0.15).add(0.85);
+        const dustNoise = T.sin(uY.mul(20.0).sub(life.mul(0.8))).mul(0.12).add(0.88);
+
+        shaftMat.colorNode = T.vec3(1.0, 0.86, 0.6);
+        shaftMat.opacityNode = verticalFade.mul(shimmer).mul(dustNoise).mul(0.025);
+
+        const shaftMesh = new THREE.Mesh(shaftGeo, shaftMat);
+        shaftMesh.position.set(side * 4.2, 5.5, z);
+        shaftMesh.rotation.z = side * -0.35; // slanting inward from high clerestory
+        shaftMesh.renderOrder = 4;
+        this.group.add(shaftMesh);
+      }
+    }
+
+    // 4. Floating Golden Dust Particle Motes
+    const dustCount = 280;
+    this.dustPositions = new Float32Array(dustCount * 3);
+    this.dustBase = new Float32Array(dustCount * 3);
+
+    for (let i = 0; i < dustCount; i++) {
+      const inSanct = i % 3 === 0;
+      const x = (Math.random() - 0.5) * (inSanct ? 14 : 9);
+      const y = 0.8 + Math.random() * 9.5;
+      const z = inSanct ? -44 + (Math.random() - 0.5) * 16 : 28 - Math.random() * 56;
+      this.dustBase[i * 3] = x;
+      this.dustBase[i * 3 + 1] = y;
+      this.dustBase[i * 3 + 2] = z;
+      this.dustPositions[i * 3] = x;
+      this.dustPositions[i * 3 + 1] = y;
+      this.dustPositions[i * 3 + 2] = z;
+    }
+
+    const glowTexNode = T.texture(glowTexture());
+    const moteMat = new THREE.MeshBasicNodeMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.CustomBlending,
+      blendSrc: THREE.SrcAlphaFactor,
+      blendDst: THREE.OneFactor,
+      blendSrcAlpha: THREE.ZeroFactor,
+      blendDstAlpha: THREE.OneFactor,
+      fog: false,
+    });
+    moteMat.colorNode = T.vec3(1.0, 0.88, 0.62).mul(glowTexNode.rgb);
+    moteMat.opacityNode = glowTexNode.a.mul(0.45);
+
+    this.dustMesh = new THREE.InstancedMesh(
+      new THREE.PlaneGeometry(0.10, 0.10),
+      moteMat,
+      dustCount,
+    );
+    this.dustMesh.instanceMatrix.needsUpdate = true;
+    this.dustMesh.renderOrder = 3;
+    this.group.add(this.dustMesh);
+
+    // 5. Choice Dais: Vertical Volumetric Light Shaft, Ground Discs, and Overhead Sacred Rings
+    const choiceShaftGeo = new THREE.CylinderGeometry(1.6, 2.2, 14, 32, 1, true);
+    const choiceShaftMat = new THREE.MeshBasicNodeMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.CustomBlending,
+      blendSrc: THREE.SrcAlphaFactor,
+      blendDst: THREE.OneFactor,
+      blendSrcAlpha: THREE.ZeroFactor,
+      blendDstAlpha: THREE.OneFactor,
+      fog: false,
+      side: THREE.FrontSide,
+    });
+    const cU_Y = T.uv().y;
+    const cU_X = T.uv().x;
+    const cFade = T.smoothstep(0.0, 0.1, cU_Y).mul(T.smoothstep(1.0, 0.85, cU_Y));
+    const cShimmer = T.sin(cU_X.mul(16.0).add(life.mul(1.2))).mul(0.12).add(0.88);
+    choiceShaftMat.colorNode = T.vec3(1.0, 0.92, 0.76);
+    choiceShaftMat.opacityNode = cFade.mul(cShimmer).mul(0.12);
+
+    const choiceShaftMesh = new THREE.Mesh(choiceShaftGeo, choiceShaftMat);
+    choiceShaftMesh.position.set(DAIS_LOCAL.x, 7.0, DAIS_LOCAL.z);
+    choiceShaftMesh.renderOrder = 5;
+    this.group.add(choiceShaftMesh);
+
+    // Choice Dais Sacred Concentric Ground Discs
+    const choiceDiscMat = new THREE.MeshBasicNodeMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.CustomBlending,
+      blendSrc: THREE.SrcAlphaFactor,
+      blendDst: THREE.OneFactor,
+      blendSrcAlpha: THREE.ZeroFactor,
+      blendDstAlpha: THREE.OneFactor,
+      fog: false,
+      side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: -3,
+      polygonOffsetUnits: -3,
+    });
+    const cR_UV = T.uv().sub(0.5);
+    const cR_Dist = T.length(cR_UV).mul(2.0);
+    const cRing1 = T.smoothstep(0.015, 0.0, T.abs(cR_Dist.sub(0.9)));
+    const cRing2 = T.smoothstep(0.015, 0.0, T.abs(cR_Dist.sub(0.65)));
+    const cRing3 = T.smoothstep(0.015, 0.0, T.abs(cR_Dist.sub(0.4)));
+    const cPulse = T.sin(life.mul(0.5)).mul(0.12).add(0.88);
+    choiceDiscMat.colorNode = T.vec3(1.0, 0.88, 0.65);
+    choiceDiscMat.opacityNode = cPulse.mul(cRing1.add(cRing2).add(cRing3).mul(0.55));
+
+    const choiceDiscMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(8.4, 8.4).rotateX(-Math.PI / 2),
+      choiceDiscMat,
+    );
+    choiceDiscMesh.position.set(DAIS_LOCAL.x, 0.32, DAIS_LOCAL.z);
+    choiceDiscMesh.renderOrder = -1;
+    this.group.add(choiceDiscMesh);
+
+    // Overhead Rotating Sacred Rings over the Choice Dais
+    this.choiceRingsGroup = new THREE.Group();
+    this.choiceRingsGroup.position.set(DAIS_LOCAL.x, 9.5, DAIS_LOCAL.z);
+
+    const overheadRingGeo1 = new THREE.TorusGeometry(3.2, 0.035, 12, 48);
+    const overheadRingGeo2 = new THREE.TorusGeometry(2.1, 0.025, 12, 48);
+    const overheadMat = new THREE.MeshBasicNodeMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.CustomBlending,
+      blendSrc: THREE.SrcAlphaFactor,
+      blendDst: THREE.OneFactor,
+      blendSrcAlpha: THREE.ZeroFactor,
+      blendDstAlpha: THREE.OneFactor,
+      fog: false,
+    });
+    overheadMat.colorNode = T.vec3(1.0, 0.88, 0.62);
+    overheadMat.opacityNode = T.sin(life.mul(0.6)).mul(0.15).add(0.65);
+
+    const ringMesh1 = new THREE.Mesh(overheadRingGeo1, overheadMat);
+    ringMesh1.rotation.x = 0.3;
+    const ringMesh2 = new THREE.Mesh(overheadRingGeo2, overheadMat);
+    ringMesh2.rotation.x = -0.4;
+    ringMesh2.rotation.z = 0.5;
+
+    this.choiceRingsGroup.add(ringMesh1);
+    this.choiceRingsGroup.add(ringMesh2);
+    this.group.add(this.choiceRingsGroup);
+  }
+
+  update(lifeT: number): void {
+    const m = new THREE.Matrix4();
+    const count = this.dustBase.length / 3;
+    for (let i = 0; i < count; i++) {
+      const ph = i * 0.41;
+      const bx = this.dustBase[i * 3]!;
+      const by = this.dustBase[i * 3 + 1]!;
+      const bz = this.dustBase[i * 3 + 2]!;
+
+      const x = bx + Math.sin(lifeT * 0.4 + ph) * 0.35;
+      const y = by + Math.sin(lifeT * 0.3 + ph * 1.3) * 0.25;
+      const z = bz + Math.cos(lifeT * 0.35 + ph * 0.7) * 0.35;
+
+      m.makeScale(1, 1, 1);
+      m.setPosition(x, y, z);
+      this.dustMesh.setMatrixAt(i, m);
+    }
+    this.dustMesh.instanceMatrix.needsUpdate = true;
+
+    if (this.choiceRingsGroup) {
+      this.choiceRingsGroup.rotation.y = lifeT * 0.2;
+    }
   }
 }
 
@@ -754,6 +1139,7 @@ export class TempleTour implements SceneModule {
   private wayLights: { mesh: THREE.InstancedMesh; level: LifeClock } | null = null;
   private orb: OrbRig | null = null;
   private kit: CreationKit | null = null;
+  private decorations: TourDecorations | null = null;
 
   private released = false;
   private choiceDone = false;
@@ -837,6 +1223,9 @@ export class TempleTour implements SceneModule {
     this.kit = new CreationKit();
     this.root.add(this.kit.group);
 
+    this.decorations = new TourDecorations(this.life);
+    this.root.add(this.decorations.group);
+
     // no stale tap-walk target carried in from a previous scene
     this.player.target = null;
 
@@ -887,6 +1276,7 @@ export class TempleTour implements SceneModule {
     this.wayLights = null;
     this.orb = null;
     this.kit = null;
+    this.decorations = null;
     this.finaleFx = null;
     this.narrT = 0;
     this.clockT = 0;
@@ -1040,6 +1430,7 @@ export class TempleTour implements SceneModule {
     const uT = this.readClock(step);
 
     this.stations?.update(uT, this.lifeT);
+    this.decorations?.update(this.lifeT);
     this.updateRide(uT, step);
     this.updateOrb(uT, this.lifeT);
 
