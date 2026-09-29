@@ -15,7 +15,7 @@ function getFiles(dir, files = []) {
   return files;
 }
 
-const publicFiles = getFiles('public').map(f => f.replace(/^public\//, ''));
+const publicFiles = getFiles('public').map(f => f.replace(/\\/g, '/').replace(/^public\//, ''));
 // Do NOT include the content files here because they are bundled by Vite
 // into the app shell and do not exist at runtime in the public dist directory.
 // Attempting to manually cache them causes infinite 404 fetch loops.
