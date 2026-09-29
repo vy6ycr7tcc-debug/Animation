@@ -2584,6 +2584,11 @@ renderer
         S,
         terrain,
         setInside,
+        genesisAt: (tt) => {
+          beginGenesis();
+          genesis.t = Math.max(0, tt - 1 / 60); // the one update that follows brings it to tt
+          return [player.pos.x, player.pos.y, player.pos.z];
+        },
         update,
         draw: () => {
           renderer.info.reset();
