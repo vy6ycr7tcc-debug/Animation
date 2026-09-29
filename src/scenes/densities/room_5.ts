@@ -1,6 +1,6 @@
 import * as THREE from "three/webgpu";
 import { LessonScene } from "../lessonKit";
-import type { LessonCtx, LessonOpts, Beat } from "../lessonKit";
+import type { LessonCtx, Beat } from "../lessonKit";
 import { heightAt } from "../../world/terrain";
 import type { Narration } from "../../core/narration";
 

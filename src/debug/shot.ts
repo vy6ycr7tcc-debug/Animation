@@ -32,6 +32,7 @@ const DEFAULT_T: Record<string, number> = {
   "tree-station": 8, // TEMP-VERIFY
   pyramid: 30,
   duat: 30,
+  genesis: 9,
 };
 
 type XYZ = [number, number, number];
@@ -51,6 +52,7 @@ const VIEWS: Record<string, { eye: XYZ; look: XYZ }> = {
   "tree-station": { eye: [0, 1.7, 0], look: [2.5, 9.0, 8] }, // seated view, tilted up: the tree stands ~5m above the seat on the slope
   pyramid: { eye: [0, 58, 210], look: [0, 32, 0] }, // offsets from PYRAMID (terrain)
   duat: { eye: [-6, 3.5, 8], look: [18, 0.5, -14] }, // duat-local: behind/above the entry, down the PATH toward station 1
+  genesis: { eye: [0, 5.5, 15], look: [0, 2.2, 0] }, // from the wanderer's feet: behind and above, the heart ahead
 };
 
 /** The tour's public API, plus just enough of main.ts to boot a single frame. */
@@ -74,6 +76,8 @@ export interface ShotCtx {
   S: { mode: string; t: number; wt: number };
   terrain: { update(x: number, z: number, force?: boolean): void };
   setInside(inside: boolean): void;
+  /** Begin genesis where the wanderer stands, at time t of the sequence; returns the feet. */
+  genesisAt?(t: number): XYZ;
   update(dt: number): void;
   draw(): void;
 }
@@ -99,6 +103,10 @@ export function runShot(ctx: ShotCtx): void {
     view = { eye: [0, 9, 24], look: [0, 5, -44] };
     ctx.setInside(true); // crossTemple's delays are skipped on purpose
     ctx.tour.beginTour(); // narration.play: muted
+  } else if (id === "genesis") {
+    if (!ctx.genesisAt) return;
+    base = ctx.genesisAt(t);
+    view = VIEWS.genesis;
   } else if (id === "pyramid" || id === "duat") {
     // camera only: main.ts pre-positions the player before runShot is called
     const o = id === "pyramid" ? PYRAMID : DUAT_ORIGIN;

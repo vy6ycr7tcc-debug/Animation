@@ -725,7 +725,7 @@ function riteFrame(dt: number): void {
   if (!trite) {
     echo.k = Math.max(0, echo.k - dt * 0.8);
     if (echo.k === 0) echo.sig = null;
-    const i = temple.inside && !temple.cardsOpen && !crossing ? temple.nearShrine(player.pos) : -1;
+    const i = temple.inside && !temple.cardsOpen && !crossing && !tourScenes.tour.active ? temple.nearShrine(player.pos) : -1;
     if (i !== shrineAt) {
       shrineAt = i;
       shrineEl.hidden = i < 0;
@@ -2584,6 +2584,11 @@ renderer
         S,
         terrain,
         setInside,
+        genesisAt: (tt) => {
+          beginGenesis();
+          genesis.t = Math.max(0, tt - 1 / 60); // the one update that follows brings it to tt
+          return [player.pos.x, player.pos.y, player.pos.z];
+        },
         update,
         draw: () => {
           renderer.info.reset();
