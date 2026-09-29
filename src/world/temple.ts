@@ -438,16 +438,24 @@ export class Temple {
   }
 
   /** The floor: worn slabs, polished smoother down the aisle, with sand blown in along the walls
-      and drifted in hollows. */
+      and drifted in hollows. Follows the visual canon: near-black with a deep blue lift, reflecting light. */
   private floorMaterial(): THREE.MeshStandardNodeMaterial {
     const m = this.stoneMaterial("red_sandstone_pavement", 4, 4, 2.4);
     const pw = positionWorld, lx = pw.x.sub(TEMPLE_ORIGIN.x).abs();
     const sand = surface("sand").diff;
     const drift = smoothstep(0.52, 0.78, vnoise(pw.xz.mul(0.16)).mul(0.7).add(smoothstep(7, 11.5, lx).mul(0.45)).add(vnoise(pw.xz.mul(0.9)).mul(0.15)));
     const sandC = texture(sand, pw.xz.div(2.5)).rgb.mul(vec3(1.25, 1.05, 0.82));
-    m.colorNode = vec4(mix((m.colorNode as N).rgb, sandC, drift.mul(0.85)), 1);
-    // the aisle, walked for centuries: smoother and a little glossy
-    m.roughnessNode = mix(mix(float(0.4), float(0.8), smoothstep(1.5, 4.5, lx)), float(1), drift);
+
+    // Base color from the scan, but tinted heavily toward the canon's near-black blue
+    const canonBlueBlack = vec3(0.02, 0.04, 0.07);
+    const tintedStone = mix((m.colorNode as N).rgb, canonBlueBlack, float(0.85));
+
+    m.colorNode = vec4(mix(tintedStone, sandC, drift.mul(0.85)), 1);
+    
+    // the aisle, walked for centuries: smoother and quite glossy (metalness up, roughness down) 
+    // to catch the warm gold lights.
+    m.roughnessNode = mix(mix(float(0.15), float(0.6), smoothstep(1.5, 4.5, lx)), float(1), drift);
+    m.metalnessNode = mix(mix(float(0.6), float(0.1), smoothstep(1.5, 4.5, lx)), float(0), drift);
     return m;
   }
 
@@ -514,22 +522,17 @@ export class Temple {
       worldUV(d, 2);
       stone.push(d);
     }
-    // the Choice's platform at the back of the sanctuary, raised above the ring, with steps
-    block(stone, 9, 1.8, 5, CENTRE.x, 0.9, SANCT_Z1 + 2.6);
-    block(stone, 5, 0.6, 1.2, CENTRE.x, 0.3, SANCT_Z1 + 5.6);
-    block(stone, 5, 1.2, 1.0, CENTRE.x, 0.6, SANCT_Z1 + 5.0);
-    // the altar at the centre, where the cards appear
+    // Removing the cluttered platforms from the back of the sanctuary per the FINAL ROOM brief.
+    // The Choice should stand alone in the shaft of light on the round dais, nothing else.
+
+    // the altar at the centre, where the final Choice happens
     const alt = new THREE.CylinderGeometry(1.0, 1.15, 0.9, 48).toNonIndexed();
     alt.translate(CENTRE.x, 1.2 + 0.45, CENTRE.z);
     worldUV(alt, 2);
     stone.push(alt);
-    // plinths for the Spirit's seven, in a ring
-    this.ringSpots().forEach(({ x, z }) => {
-      const p = new THREE.CylinderGeometry(1.6, 1.8, 0.6, 32).toNonIndexed();
-      p.translate(x, 0.6, z);
-      worldUV(p, 2);
-      stone.push(p);
-    });
+
+    // Removed the "Spirit's seven" plinths entirely. The Final Room is about solitude.
+    // Archetype stuff belongs ONLY in the galleries.
 
     // walls carry the carvings: u along the wall (8 m a repeat), v the height
     const wallGeo = merged(walls);
@@ -653,10 +656,9 @@ export class Temple {
     place("antique_ceramic_vase_01", 0.7, spots.antique_ceramic_vase_01);
     place("ceramic_vase_02", 0.55, spots.ceramic_vase_02);
     place("planter_pot_clay", 0.6, spots.planter_pot_clay);
-    // brass lamps on the Spirit's plinths, one before each, and two at the Choice's steps
-    const lamps = this.ringSpots().map(({ x, z, face }) => ({ x: x + Math.sin(face) * 1.25, y: 0.9, z: z + Math.cos(face) * 1.25, ry: face }));
-    lamps.push({ x: CENTRE.x - 2.2, y: 0.6, z: SANCT_Z1 + 5.2, ry: 0 }, { x: CENTRE.x + 2.2, y: 0.6, z: SANCT_Z1 + 5.2, ry: 0 });
-    place("brass_diya_lantern", 0.42, lamps);
+    
+    // Final Room correction: remove the lamps around the Choice's dais and the Spirit plinths.
+    // The central light shaft should be the only focus. 
   }
 
   /** The Spirit's seven stand in a ring around the dais, behind it and to either side. */

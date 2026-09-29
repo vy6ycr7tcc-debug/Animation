@@ -80,7 +80,7 @@ export async function downloadAssets(assets: string[], onProgress: (progress: Do
   let active = 0;
   let index = 0;
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     let hasError = false;
 
     const next = async () => {
