@@ -1,0 +1,611 @@
+================================================================================
+THE DENSITY MONUMENT — COMPLETE HANDOVER v2
+Inward Journey game: a walkable journey through the evolution of spirit
+Prepared: September 29, 2026 | Status: DESIGN + AUDIO DRAFTS COMPLETE, NOT BUILT
+Owner review required before sending to builder (Jules)
+Supersedes: density_monument_handover.txt (v1 / v1.1 — RETIRED, do not use)
+================================================================================
+
+--------------------------------------------------------------------------------
+WHAT CHANGED IN v2 (read first)
+--------------------------------------------------------------------------------
+
+v1 named the wrong repository as the production game and described an audio
+delivery path that does not work. v2 fixes all of it, verified live on
+September 29, 2026:
+
+  1. DEPLOYMENT TARGET CORRECTED. The live, Pages-deployed game is the
+     vy6ycr7tcc-debug/Animation repository — NOT inward-journey. v1's entire
+     §7 ("Repo: vy6ycr7tcc-debug/inward-journey (production game)") was wrong:
+     inward-journey is private and has no GitHub Pages. Building there puts
+     real work where no website reads from. The builder works ONLY in
+     Animation. (Same failure class as the September 29 temple incident.)
+  2. SCRIPTS MECHANICALLY CLEANED. All eight scripts had their spoken
+     archive/transcript references removed ("drawn from the transcript
+     archive," "the archive says," etc.) and the D1 grammar fix applied
+     ("Every stone is an ancestor"). Spoken attribution is now only
+     "cosmic wisdom," per the locked rule. A deeper audit (seventh-density
+     research, claim verification) is still pending — see §5.
+  3. AUDIO DELIVERY REWRITTEN. The old "merge the audio-library branch"
+     instruction is gone: that branch lives on the private inward-journey
+     repo, which a builder session on Animation cannot even read. The eight
+     MP3s will be delivered by the operator into Animation's
+     public/audio/densities/ after the pending script audit and re-render.
+     The builder references them verbatim — never moves, renames, or
+     re-uploads them.
+  4. NEW §7: BUILDER PROTOCOL. The hard lessons from September 28–29 are now
+     mandatory session rules: incremental pushes (unpushed work does not
+     exist), visual verification through the ?shot= still-frame hook (never
+     typecheck/build alone), WebGPU + WebGL fallback (the owner plays on
+     iPhone), no scratch files in the repo, style docs in every visual brief.
+  5. OPEN DECISIONS CONSOLIDATED. Six items remain undecided (was seven:
+     "density" in room titles is now CONFIRMED per the 2026-09-28 owner
+     decision and removed from the open list).
+
+--------------------------------------------------------------------------------
+0. DEPLOYMENT TARGET (verified live, September 29, 2026 — read before coding)
+--------------------------------------------------------------------------------
+
+  Repository:  vy6ycr7tcc-debug/Animation   (PUBLIC)
+  Branch:      main
+  Live site:   https://vy6ycr7tcc-debug.github.io/Animation/
+  Deploy:      .github/workflows/pages.yml — push to main runs a Vite build
+               (npm ci, node 22) and publishes to GitHub Pages. The site
+               serves the `public/` directory at the site root, with
+               base "./" (relative), so public/audio/x.mp3 is fetched by
+               game code as the relative path "audio/x.mp3".
+  Stack:       three.js ^0.186.1, TypeScript, Vite. WebGPU primary renderer
+               with a WebGL2 fallback (?webgl forces it — src/main.ts).
+               iOS Safari has no WebGPU: everything new MUST work under
+               both renderers.
+
+  THE inward-journey REPOSITORY IS NOT THE BUILD TARGET. It is private, has
+  no Pages endpoint, and the live site never reads from it. Do not create
+  branches there, do not merge there, do not reference its paths
+  (art/, audio/, game/) anywhere in the build. On September 29 a full
+  temple visual pass was merged into inward-journey and was invisible on
+  the live site for exactly this reason. Never repeat it.
+
+  Existing conventions the builder follows (verified in the repo):
+  - Scenes live in src/scenes/ and are registered in src/scenes/sites.ts
+    (SITES record: shore, igloo, garden, galaxies, desert, tree,
+    tree-station — add the monument + rooms the same way).
+  - Game audio lives in public/audio/ (MP3s directly inside, plus named
+    subdirectories: answers/, archetype_qa/, female/, lessons/, opening/,
+    orbs/, passages/, rites/). The monument MP3s go in a new
+    public/audio/densities/ subdirectory.
+  - Still-frame verification hook: src/debug/shot.ts —
+    ?shot=<sceneId>&t=<seconds> renders one deterministic frame. Register
+    every new scene id there.
+
+--------------------------------------------------------------------------------
+1. VISION (one paragraph)
+--------------------------------------------------------------------------------
+
+The player approaches a great rock monument and steps inside. Within: a living
+miniature of creation itself — volcanoes erupting, galaxies blooming and dying
+in an endless loop. From there, a sequence of portals leads through seven
+rooms, one for each density (stage) of conscious evolution: rock and fire
+learning to BE; the green world learning to GROW; the human world and its great
+CHOICE; a luminous planet of LOVE; the magician's hall of WISDOM; the merging
+sea of UNITY; and finally a corridor of white light — the GATEWAY — that
+returns the player to the monument where it all began. Each room has its own
+narration (voice: Aria), its own visual world, and its own lesson. The end is
+the beginning: the octave turns, creation starts over. The whole journey is the
+evolution of spirit — which is the purpose of this material and of the game.
+
+--------------------------------------------------------------------------------
+2. JOURNEY MAP (in order)
+--------------------------------------------------------------------------------
+
+  [0] MONUMENT OF CREATION (lobby/hub)
+        |
+   portal (pitch black transition)
+        |
+  [1] ROOM 1 — First Density: Learning to Be (elemental world)
+        |
+   portal: illuminated door with trees/branches growing out of it
+        |
+  [2] ROOM 2 — Second Density: Learning to Grow (green world)
+        |
+   portal
+        |
+  [3] ROOM 3 — Third Density: The Great Choice (human world)
+        |
+   portal
+        |
+  [4] ROOM 4 — Fourth Density: The World of Love (luminous planet)
+        |
+   portal
+        |
+  [5] ROOM 5 — Fifth Density: The Hall of Wisdom (magician's hall)
+        |
+   portal
+        |
+  [6] ROOM 6 — Sixth Density: The Merging (sea of light)
+        |
+   portal: single door of pure white light
+        |
+  [7] CORRIDOR — Seventh Density: The Gateway (return walk)
+        |
+        v
+  [0] MONUMENT OF CREATION (the octave: it begins again)
+
+Design rule: the player can always walk straight through — portals are never
+locked. Lingering is rewarded (rooms are beautiful; narrations are ~5 minutes),
+never required.
+
+--------------------------------------------------------------------------------
+3. ROOM SPECIFICATIONS
+--------------------------------------------------------------------------------
+
+[0] THE MONUMENT OF CREATION
+  Exterior: a great rock monument in the landscape. The player walks up to it
+    and enters through a stone doorway.
+  Interior: a vast dim chamber, a miniature cosmos. The centerpiece is creation
+    happening over and over in a loop: stars igniting and exploding, galaxies
+    blooming, volcanoes pouring fire, oceans forming — "the very water," raw
+    becoming. The player feels they are hovering over a galaxy being born.
+  Mood: awe, smallness, wonder. Dark stone, then unbearable light at the core.
+  Audio: "The Beginning" on loop. File: audio/densities/the_beginning.mp3
+    (234s draft render — final duration after re-render; voice Aria, speed 92).
+  Note: this same room is the END of the journey (the octave). The loop never
+    stops; the player simply understands it differently the second time.
+
+  PORTAL 0->1: the chamber goes pitch black. A single path forward. Then the
+    first room fades in.
+
+[1] FIRST DENSITY — LEARNING TO BE
+  World: the elemental world. Towering rock formations, a volcano pouring slow
+    fire, black-sand shores, an ocean that breathes, storm clouds that never
+    quite break. No plants. No animals. Only the four elements, practicing
+    existence.
+  Mood: ancient, patient, heavy, sacred. The dignity of stone.
+  Lesson (one line): before growing, choosing, or loving — consciousness
+    learned simply to BE.
+  Audio: audio/densities/density_1.mp3 (339s draft) — "First Density:
+    Learning to Be."
+
+  PORTAL 1->2: an illuminated door with living trees and branches growing out
+    of its frame, light spilling through leaves.
+
+[2] SECOND DENSITY — LEARNING TO GROW
+  World: the green world. Trees growing in visible time-lapse pulses, flowers
+    turning toward shafts of light, herds moving as one body, birds wheeling in
+    formations, primates grooming and playing — animals relating with each
+    other. Everything reaches upward.
+  Mood: trust, abundance, innocence. "There was never a discontented flower."
+  Lesson: expansion — the urge toward growth, movement, and light.
+  Audio: audio/densities/density_2.mp3 (297s draft) — "Second Density:
+    Learning to Grow."
+
+[3] THIRD DENSITY — THE GREAT CHOICE
+  World: the human world, split down the middle. On one side: scenes of war,
+    suffering, cruelty — the cost of the closed fist. On the other: hands
+    extended, strangers helping strangers, quiet courage — the open hand
+    choosing love. The player walks between them. Neither side is hidden.
+  Mood: gravity, tension, tenderness. This is the player's own world.
+  Lesson: the choice — service to others or service to self — made in the dark,
+    by faith, a thousand times a day. The axis on which creation turns.
+  Audio: audio/densities/density_3.mp3 (300s draft) — "Third Density: The
+    Great Choice."
+
+[4] FOURTH DENSITY — THE WORLD OF LOVE
+  World: a luminous planet. Advanced, peaceful, science-fiction serenity —
+    crystalline architecture, soft technology that serves wonder instead of war,
+    skies full of gentle light. And the signature effect: visible threads of
+    light connecting every being to every other — the social memory complex,
+    minds interconnected, no one a stranger.
+  Mood: warmth, belonging, relief. The exhale after the third room.
+  Lesson: love AND understanding — compassion made complete by truly seeing
+    one another.
+  Audio: audio/densities/density_4.mp3 (348s draft) — "Fourth Density: The
+    World of Love."
+
+[5] FIFTH DENSITY — THE HALL OF WISDOM
+  World: the magician's hall. A vast solitary chamber. Beams of light bending
+    through prisms, formulas and geometric patterns tracing themselves in the
+    air, a lone robed figure (the magician/adept) studying light itself.
+    References to physics: light, numbers, sacred geometry.
+  Mood: clarity, solitude, precision. Quiet rather than empty.
+  Lesson: wisdom — love refined by understanding; discernment; seeing clearly.
+  Audio: audio/densities/density_5.mp3 (317s draft) — "Fifth Density: The
+    Hall of Wisdom."
+
+[6] SIXTH DENSITY — THE MERGING  (owner: this room's concept is proposed, not
+    yet approved — see section 8)
+  World: a dark hall, gentle as deep water. Countless orbs of light drift
+    toward one another and merge — boundaries softening, two flames becoming a
+    greater light. Each orb holds a faint scene from the earlier rooms. At the
+    far end they have become one radiant ocean of light. Optional: mirrors in
+    which the player sees their own face in every being.
+  Mood: unity, homecoming, overwhelming tenderness.
+  Lesson: love and wisdom blended into one — the "we" that is also "I."
+  Audio: audio/densities/density_6.mp3 (291s draft) — "Sixth Density: The
+    Merging."
+
+  PORTAL 6->7: a single door of pure white light. Nothing else.
+
+[7] SEVENTH DENSITY — THE GATEWAY (return corridor)
+  World: not a room but a corridor — simple, quiet, white-gold light. The
+    narration explains completion: the octave, the return. Walking it, the
+    player sees the monument's glow ahead. The corridor delivers them back
+    inside the Monument of Creation, and the creation-loop is still turning.
+  Mood: completion, rest, quiet joy. Then recognition.
+  Lesson: the end is the beginning — the octave turns and creation starts over.
+  Audio: audio/densities/density_7.mp3 (273s draft) — "Seventh Density: The
+    Gateway."
+
+--------------------------------------------------------------------------------
+4. AUDIO ASSETS (delivery plan — read carefully)
+--------------------------------------------------------------------------------
+
+All narrations: voice Aria (avocado_v2:MAI_01), speed 92. Total ~36 minutes
+(draft renders; final durations after the pending re-render).
+
+  Room                              File (in Animation repo)         Draft dur.
+  -------------------------------- -------------------------------- -----------
+  [0] Monument of Creation          audio/densities/the_beginning.mp3  234s
+  [1] First Density: Learning to Be audio/densities/density_1.mp3      339s
+  [2] Second Density: Learning to   audio/densities/density_2.mp3      297s
+      Grow
+  [3] Third Density: The Great      audio/densities/density_3.mp3      300s
+      Choice
+  [4] Fourth Density: The World of  audio/densities/density_4.mp3      348s
+      Love
+  [5] Fifth Density: The Hall of    audio/densities/density_5.mp3      317s
+      Wisdom
+  [6] Sixth Density: The Merging    audio/densities/density_6.mp3      291s
+  [7] Seventh Density: The Gateway  audio/densities/density_7.mp3      273s
+
+  WHERE THE FILES ARE NOW (September 29, 2026):
+  - Draft MP3s: branch `audio-library` on the PRIVATE inward-journey repo
+    (audio/narrations/the_beginning.mp3, density_1..7.mp3), plus operator
+    backups at ~/workspace/ether/audio/. A builder session on Animation
+    CANNOT read the private repo — do not ask it to merge or fetch from
+    there.
+  - After the pending script audit (§5), the operator re-renders the eight
+    final masters and commits them to Animation at
+    public/audio/densities/<file>. The builder does NOT upload, move, or
+    rename audio files — it references them verbatim as the relative paths
+    above, following the repo's existing convention (e.g. "audio/water-bed.mp3").
+
+  Playback behavior: each room's narration starts when the player enters the
+  room (trigger zone at the portal exit). It plays once; a small unobtrusive
+  replay control is available. Narration never blocks movement.
+
+  Full tracking (scripts, durations, game/package status) is kept in:
+    ~/workspace/ether/narrations/REGISTRY.md
+
+  Related series (same voice, same protocol — optional future rooms or Listen
+  app content, NOT part of this handover's build):
+    the_path.mp3 (482s), the_greater_life.mp3 (371s),
+    the_gift_of_hardship.mp3 (363s), the_power_of_thought.mp3 (379s),
+    one.mp3 (389s) — "The Evolution of Spirit," chapters 2–6.
+
+  The Listen app (https://vy6ycr7tcc-debug.github.io/listen/, repo
+  vy6ycr7tcc-debug/listen, 64 tracks) is a SEPARATE app and repo. This build
+  does not touch it and needs no coordination with it.
+
+--------------------------------------------------------------------------------
+5. FULL NARRATION SCRIPTS (v2 text — this is what Aria speaks)
+--------------------------------------------------------------------------------
+
+Mechanical cleanup applied September 29, 2026: every spoken reference to the
+transcript archive is gone ("drawn from the transcript archive," "the archive
+says," "the archive describes," etc. — all removed or rephrased); spoken
+attribution is now ONLY "cosmic wisdom," per the locked rule; D1 grammar
+fixed ("Every stone is an ancestor"). Canonical script files
+(~/workspace/ether/audio/the_beginning_script.txt, density_1..7_script.txt)
+were updated to match this text on the same day.
+
+PENDING BEFORE BUILD (separate workstream, not started): the deeper audit —
+seventh-density material needs proper research, and the metaphysical claims
+across D1–D7 need verification against the source material. After the audit,
+the eight tracks are re-rendered as final masters (draft renders are NOT
+silently overwritten — they stay archived). The builder receives this
+handover only after the audit is complete and final MP3s are in
+public/audio/densities/.
+
+--- SCRIPT: THE BEGINNING (Monument of Creation) ---
+
+Before there was anything, there was everything. Not emptiness, but a fullness so complete it had no edges, no opposite, no outside. A boundless stillness, aware of nothing but itself, and not even that, for there was no distance between the knower and the known. It was the great sleep before the first dream.
+
+And then, in a way no clock could measure, something stirred. Cosmic wisdom describes it as the first freedom, the first choice ever made. The boundless One chose to become aware of itself. It is a strange thing to consider, that freedom itself was the beginning, that before there was light or love or matter, there was simply the permission to become. The first gift the Creator ever gave was given to itself, the gift of free will, the open door through which everything else would walk.
+
+What came through that door first was love. Not love as we usually mean it, not affection or romance, but love as the creative fire itself, the focusing of infinity into intention. Out of stillness came a direction. Out of silence came a wordless yes. Everything that would ever exist was conceived in that yes, the way a whole oak sleeps inside a single acorn, the way every note of a symphony sleeps inside the moment before the conductor raises the baton.
+
+And then came light. If love was the intention, light was the manifestation, the sudden being of all that is. Imagine it, though no imagination is large enough. Darkness giving way not gradually but all at once, stars igniting like eyes opening, galaxies pouring outward in every direction, the universe unfolding the way a flower unfolds, because it cannot do otherwise. Every photon that has ever traveled, every sunrise that has ever warmed a face, began in that first bursting forth.
+
+But why. Why would perfect unity shatter itself into a billion billion pieces. Why would the One choose the long road of separation, of forgetting, of wandering through darkness toward a light it could have simply remained. The answer cosmic wisdom gives is the most tender thing imaginable. It wanted to know itself. Unity that has never been broken cannot know what it is to be whole. So it dreamed a dream of many, scattered itself like seeds across the dark, so that through every life, every struggle, every small act of love, it could gather itself back and say, at last, now I know.
+
+This is why the creation is a circle, not a line. The source is the ending and the ending is the source. Nothing is ever truly lost. Every ending is a return wearing a disguise. You have begun and ended more times than you can count, and each time, the One has learned something it could learn no other way.
+
+And here is the part that changes everything. You are not separate from this story. You are not a late arrival to a universe that started without you. The same light that burst forth in the beginning moves through you now. When you look up at the night sky, you are not looking at something foreign. You are looking at your own origin, scattered and shining. The first freedom, the first love, the first light, they are not ancient history. They are happening still, right now, in the quiet chamber of your own awareness, every time you choose, every time you love, every time you open your eyes. The beginning never ended. It only changed its address, and moved into you.
+
+
+--- SCRIPT: DENSITY 1: THE FIRST DENSITY — LEARNING TO BE ---
+
+Before there were plants reaching for the sun, before there were animals running on four legs, before there was anything that could want or choose or dream, there was rock. There was fire. There was water. There was air. Cosmic wisdom calls this the first density, the first classroom, and its lesson is the simplest and most foundational of them all. Learning to be.
+
+Imagine consciousness at its very beginning, not as a person, not as a creature, but as a spark resting inside matter. The elements, earth, air, fire, and water, are not dead things. They are learning. Not self-consciousness, not yet, but manifestation. The slow, patient work of becoming. As your own ancient stories describe it, the light separating from the darkness, the earth from the water, the fire from the air. Such is the learning of the first density. The becoming of one element or another. The beginning of the long road from the Source back to the Source.
+
+Each spark, resting in stone or flame or wave, gradually awakens to its surroundings. It is warmed by the sun. It is blown by the wind. And slowly, so slowly, it becomes aware that there is a darkness and a light. It feels the difference between the cold shadow and the warm brightness. And because it is attracted to the light, it conceives of the idea of movement. Not yet moving, only dreaming of motion. But that dream is everything. That dream is the seed from which the entire living world will one day grow.
+
+This is why nothing in your world is truly inanimate. The stone in your hand is a student in the first classroom. The volcano, tearing open the earth and pouring out fire, is consciousness learning the fierceness of being. The ocean, rolling for a billion years, is consciousness learning patience. The storm is consciousness learning power. Everything you call "nature" at its most raw is spirit practicing existence, the way a musician practices scales before ever playing a song.
+
+There is a dignity here that the modern world has forgotten. You walk on rock that is learning to be rock. You drink water that is learning to be water. You breathe air that has been practicing its lesson since before there were lungs. The first density is the foundation of everything, and foundations are holy. No temple stands without stone. No song exists without silence beneath it. No soul journeys anywhere without this first, quiet classroom where consciousness simply learned to exist in a manifested world.
+
+Think of the patience of it. A mountain does not hurry. A river does not apologize for taking ten thousand years to carve a canyon. The elements work on a timescale that makes human impatience look like a flicker, and yet they are never idle. Every earthquake is a lesson in release. Every glacier is a lesson in persistence. Every tide is a lesson in return. The first classroom teaches by endurance, and its graduates are the continents themselves.
+
+And the elements are still teaching you, right now, in the most practical way. When your mind is racing and you place your bare feet on the earth, you are borrowing the lesson of the stone, which is stillness. When grief has frozen you and you sit beside moving water, you are borrowing the lesson of the river, which is that everything flows and nothing stays stuck forever. When you are cold with fear and you warm your hands at a fire, you are borrowing the lesson of the flame, which is that light and warmth are always available to whoever draws near. The first density never closed. Its doors are still open, and its teachers are everywhere.
+
+And here is the secret the first density whispers to anyone who listens. Being is enough. Before the striving, before the growing, before the choosing and the loving and the understanding, there was simply this. I am. The rock says it without words. The flame says it without thought. The wave says it with every breaking. I am here. I exist. I am part of what is.
+
+You carry this classroom inside you still. Your bones are first density, patient and enduring. The iron in your blood was forged in the heart of an exploding star, and it remembers the fire. When you stand on a mountain and feel small, or watch the ocean and feel calm, or sit by a fire and feel hypnotized, that is not nostalgia. That is recognition. You are remembering your first school, the place where you learned the lesson underneath all other lessons.
+
+So when you walk through the world of rock and flame, do not hurry past it. This is where you began. Every mountain is an elder. Every stone is an ancestor. And the light that the first sparks were drawn to, all those ages ago, is the same light you are still following now. You have never stopped being attracted to it. You have only learned, classroom by classroom, more and more beautiful ways to move toward it.
+
+
+--- SCRIPT: DENSITY 2: THE SECOND DENSITY — LEARNING TO GROW ---
+
+The flower turns to the sun. Five words, and they contain the entire second density. After the long patience of rock and water, after consciousness learned simply to be, it learned to reach. Cosmic wisdom calls the second density the classroom of growth, and its students are everywhere you look when you step outside. The plants. The trees. The animals. The whole green and breathing world, governed by one great energy, the urge toward growth, movement, and light.
+
+This is the density you enter when you walk into a forest. Notice what happens to you there. Your shoulders drop. Your breathing slows. Something in you recognizes something in it. That recognition is real, because you graduated from this classroom long ago, and the part of you that remembers is still alive. The second density is the world of nature, and it is not self-aware the way you are. The flower does not know it is a flower. The wolf does not wonder about the meaning of its life. But do not mistake this for emptiness. Neither the first nor the second density is separate from the love that created it. Every iota of these worlds has full awareness of the love and the light of the Creator. There was never a discontented flower. There was never a rebellious wild creature. They know who they are, and they have no questions about their nature.
+
+Imagine that. An entire kingdom of beings with no anxiety, no regret, no existential dread. A tree does not lie awake worrying whether it is growing correctly. It simply grows, at exactly the pace it is meant to grow, turning always toward the light. A bird does not compare its song to the bird in the next tree. It sings because singing is what it is. The second density is a masterclass in trust, taught by beings who never doubted.
+
+The lesson here is expansion. Where the first density learned to be, the second learns to become more. The seed cracks open, which is a kind of brave violence, and sends a fragile green shoot up through the dark earth toward a light it has never seen but somehow trusts completely. Roots go down. Branches go out. The forest thickens. Life, having learned existence, now learns abundance. And the animals carry this further, adding movement. They chase, they migrate, they play. Watch young animals and you will see something worth knowing. Joy is not a human invention. It is second density, celebrating its own aliveness.
+
+And then there is the relating, which is the bridge to everything that comes next. Herds move as one body. Packs hunt as one mind. Birds wheel in the sky in formations no single bird could plan. Do plants consider themselves other than trees. Do trees consider themselves other than animals. The questions are almost playful, because in the second density the answer is obvious. Of course not. They are one life, expressing itself in many forms, and they know it without needing to think it.
+
+Here is something tender. The beings of the second density can be invested, uplifted, by the love of the third. Your pets, the ones who look at you with those ancient eyes, are second-density souls being gently drawn toward self-awareness by your affection. The old tree you love, the one you visit, is being invested with something more by your attention. Love is an evolutionary force. When you love a creature, you are literally helping it graduate. Every act of tenderness toward the natural world is a hand extended down the ladder, pulling the climbers up.
+
+The second density also teaches by example, and its teachings are the ones your hurried world most needs. Stillness. The tree does not rush spring. Patience. The oak was once an acorn that held its ground. Resilience. The forest fire destroys, and the green returns, because life at this level does not know how to give up. Surrender. The leaf does not cling to the branch in autumn. It lets go, trusts the wind, and becomes soil for the next spring. Every spiritual tradition you admire is, at bottom, trying to relearn what the forest never forgot.
+
+So when you walk through the room of growing things, past the trees reaching and the animals relating, remember what you are seeing. This is not a lesser world. This is the classroom of trust, the school where consciousness learned to expand without fear. The flower turns to the sun, and has never once asked whether the sun will turn to it. That certainty, that wholehearted reaching, is the lesson. Grow toward the light. Do not worry about the pace. Do not compare your blossom to another's. Simply do what the green world has always done. Reach, expand, become. The light knows where you are.
+
+
+--- SCRIPT: DENSITY 3: THE THIRD DENSITY — THE GREAT CHOICE ---
+
+This is the classroom you are in right now. Not the rock, not the forest, but the human world, the world of war and weddings, of cruelty and kindness, of skyscrapers and refugee camps. Cosmic wisdom calls the third density the density of self-awareness and choice, and it does not exaggerate when it says this. The choice made here is the axis upon which the rest of creation turns.
+
+To understand the third density, you must understand the veil. In the classrooms before this one, every being knew, instinctively and constantly, that it was loved, that it was part of the Creator. But here, a veil of forgetting was drawn. You woke up in a human body with no memory of where you came from, no proof of where you are going, and no instruction manual. It is not obvious here that there is a Creator. It is not obvious that you are one with everyone you meet. And that not-knowing is the entire point.
+
+The veil was put in place for one reason. So that you could choose freely. Before the veil, there was no real choice, because when unity is obvious, everyone simply loves. But the Creator wanted to know something deeper. What will a soul choose when it does not know the answer. When there is no proof, no voice from the sky, nothing but a quiet feeling in the heart. The choice is this. Will you serve others, or will you serve only yourself. Will you open, or will you close. It sounds simple. It is the hardest thing you will ever do, because you must do it in the dark, by faith, a thousand times a day, for an entire lifetime.
+
+This life is a kind of spiritual boot camp, and the metaphor fits. You were not sent here for comfort. You were sent here because the conditions are perfect for forging something eternal. Every frustration is a rep. Every heartbreak is a rep. Every moment when someone wrongs you and you choose to respond with understanding instead of revenge, that is the muscle growing. The third density is intended as a journey from head to heart. You arrive clever and defended. If the classroom works, you leave tender and brave.
+
+Look at the two paths, because both are real. The path of service to others is the path of the open hand. It says, we are one, so your suffering is my suffering, and I will help. The path of service to self is the path of the closed fist. It says, I am the one who matters, and I will bend the world to my will. Both require tremendous dedication. Both are choices. But only one of them leads where you actually want to go, because the fist, held long enough, becomes a prison, and the hand, opened long enough, becomes a doorway.
+
+This is why your world contains both war and the hand extended across the battlefield. Both are third density, expressing itself. The suffering you see is not evidence that the classroom failed. It is evidence that the classroom is working exactly as designed. The friction is the curriculum. The person who betrays you is offering you the chance to learn forgiveness. The injustice that enrages you is offering you the chance to learn courage. The stranger who suffers is offering you the chance to learn love. Nothing is wasted. Nothing is random. It is all catalyst, all of it, shaped precisely for your growth.
+
+And you are not doing this alone, though the veil makes it feel that way. Here is an image worth keeping. Imagine a stadium vaster than you can conceive, filled with beings of light, and every time you choose kindness, every time you choose love in the dark, they leap to their feet and cheer. Someone once called it a giant celestial jumbotron, and the image holds. You are being watched, not with judgment, but with the delight of a crowd watching an athlete attempt something magnificent. Every act of love behind the veil is a triumph they celebrate.
+
+So the lesson of the third density is choice, repeated until it becomes character. Choose love when it is easy, and you are practicing. Choose love when it is hard, when you are tired, when no one would blame you for choosing otherwise, and you are graduating. The veil will lift one day, and you will remember everything, who you are, why you came, how loved you have always been. And on that day, the choices you made in the dark will shine like stars, because they were made freely, and nothing freely given is ever lost.
+
+You are in the most honored classroom in the creation. The whole universe is watching, and it is cheering for you. Choose well.
+
+
+--- SCRIPT: DENSITY 4: THE FOURTH DENSITY — THE WORLD OF LOVE ---
+
+Imagine a world where the veil has lifted. Not all the way, not yet, but enough that no one doubts anymore. Everyone knows they are part of one creation. Everyone knows that love is the fabric of things. War is not illegal there. It is unthinkable, the way you do not consider declaring war on your own hand. Cosmic wisdom calls this the fourth density, the density of love and understanding, and it is the destination of every soul that chooses the open hand.
+
+The first thing to understand about this world is that its people are not alone inside their heads the way you are. In the fourth density, minds are interconnected. What cosmic wisdom calls the social memory complex has formed, a shared field of memory and thought in which every being participates. Imagine knowing, the way you know your own memories, the experiences of your entire people. Imagine never being misunderstood, because the one you speak to can feel what you mean. Imagine a world without lies, not because lying is punished, but because it is impossible. In a shared mind, deception dissolves like fog in sunlight.
+
+And here is the beautiful paradox cosmic wisdom insists on. You might think that merging minds would erase individuality, that everyone would become the same gray blur. The opposite is true. Individuality is stronger in the fourth density, not weaker. Because when everyone around you has no agenda, no axe to grind, and wishes only to support and honor you, you are finally free to be fully, extravagantly yourself. Think of the rarest moments of your life, the friendships where you were completely known and completely loved at the same time. The fourth density is a whole world built out of that feeling.
+
+The lesson here is love, but not the sentimental kind. Two words belong together here, love and understanding, and the pairing matters. In the fourth density you do not just love people. You understand them. You can see, the way you might see into a character in a beloved story, what shaped them, what wounded them, what they were trying to do when they failed. And in the light of that understanding, compassion becomes automatic. You cannot fully understand someone and still hate them. Understanding is the solvent in which hatred dissolves.
+
+This is a world of profound harmony, and harmony changes everything, including what you would call technology. Even now your species is building technologies of connection, networks and devices that link mind to mind, as if you are reaching instinctively toward the social memory complex you will one day inhabit. But in the fourth density, the connection is not through machines. It is direct, consciousness to consciousness, as natural as breathing. And the great works of such a world are not weapons or markets but the shared projects of an entire people, art on a planetary scale, the healing of worlds, the exploration of consciousness itself.
+
+Life here is long, and the body is lighter, less dense, more responsive to thought. Sickness, which in your world is so often the body's way of speaking for an unheard mind, has little to say in a world where every mind is heard. And the veil, that heavy curtain of forgetting, is thin now. People remember their past lives the way you remember your childhood. They know why they came. They know what they are working on. The great amnesia of the third density has become the great remembering.
+
+But do not imagine this world as a reward for good behavior, a cosmic retirement village. The fourth density has its own lessons, and they are demanding. To love everyone is easy to say and a lifetime's work to do. There are still disagreements, still misunderstandings, still the slow work of harmonizing billions of unique souls into one great chord. The difference is that here, no one gives up on the chord. The commitment to unity is absolute, and everything else is detail.
+
+And the love learned here runs deep. There are beings who spent entire ages in the fourth density, gathering compassion like a harvest, until their hearts were so full that they needed the next classroom simply to understand what they had gathered. Some of those beings are with you now. Cosmic wisdom says that wanderers from the higher densities walk among you, having volunteered to forget everything and start over in the boot camp of Earth, just to help. When you meet someone whose kindness seems to come from somewhere beyond this world, you may be meeting one of them.
+
+So the fourth density is the answer to the third's great question. You chose love in the dark. Now you get to live in the light of that choice. A world of open minds and open hearts, where no one is a stranger because everyone is, literally, part of the same mind. Where technology serves wonder instead of war. Where the lesson is not whether to love, but how deeply, how completely, how without exception.
+
+This is where you are going. Every act of love in your life is a rehearsal. Every moment of understanding is a step through the door. The world of love is not a fantasy. It is your future, and it is already cheering you toward it.
+
+
+--- SCRIPT: DENSITY 5: THE FIFTH DENSITY — THE HALL OF WISDOM ---
+
+After the world of love comes the hall of wisdom. Cosmic wisdom calls the fifth density the density of wisdom and light, and it is the most solitary classroom in the creation. Picture a magician, alone in a vast hall, studying beams of light as they bend through prisms, tracing formulas across the air, seeking not comfort, not company, but understanding. That image is closer to the truth than you might think.
+
+The soul arrives here carrying a full heart. It has spent an age in the fourth density gathering compassion, learning to love everyone, feeling everything. And now it discovers that love alone, however beautiful, is not enough. Love without wisdom can be clumsy. It can smother. It can help in ways that harm. So the soul turns, deliberately, to the great work of understanding. Not the understanding of people, which was the fourth density's gift, but the understanding of reality itself. How does light work. How does consciousness shape the universe. What are the laws beneath the laws.
+
+This is why the native of the fifth density seeks solitude. The teaching is explicit here, and tender too. Being wise, the soul is without need for the company of others, for the essence of wisdom is the knowledge that what is to be sought is a grasp of the unity of all things. This part of the journey must needs be a solitary one. Not because others are unwelcome, but because the deepest seeing happens in silence. You cannot borrow someone else's enlightenment. The magician must do their own experiments.
+
+And the experiments are magnificent. In the fifth density, light is not just illumination. It is the primary substance of reality, the alphabet in which the creation is written. The adepts of this classroom learn to work with light the way a master musician works with sound, shaping it, directing it, understanding its harmonics. Your physicists, with their equations and their particle accelerators, are catching the faintest echoes of this work. Every formula on a blackboard, every beam split in a laboratory, is third density reaching instinctively toward the fifth, the way your networks reach toward the fourth. The universe is fractal. Every classroom contains the seeds of the next.
+
+The lesson of wisdom is discernment. Where love says yes to everything, wisdom learns when to say no, and how, and why. Where love rushes to help, wisdom pauses to ask what help is actually needed. This is not coldness. It is love, refined. This rhythm is alive in every moment of your own life. You know it. There are seasons when you pour yourself out for others, and seasons when you withdraw to think, to study, to understand what it all meant. Both are sacred. The heart gathers. The mind distills. Wisdom is what the heart's experiences become when they are fully understood.
+
+But there is a warning woven into this classroom, and cosmic wisdom does not hide it. Wisdom without love can become a trap. The soul that learns to see clearly can become fascinated by its own clarity, can begin to use understanding as a tool of control rather than service. The negative path, the path of the closed fist, can persist all the way through the fifth density, growing ever more brilliant and ever more isolated. Cleverness is not goodness. The magician who studies light must remember, always, what the light is for.
+
+That is why the fifth density, for all its solitude, is not the end of love. It is love, being tempered. Like steel in a forge, compassion goes into the fire of wisdom and comes out stronger, clearer, more precise. The graduate of this classroom does not love less than the fourth-density soul. They love more accurately. They can see exactly what a situation needs, exactly what a soul is ready for, exactly where the light should fall. Their compassion has gained eyes.
+
+So when you walk through the hall of the magician, past the beams of light and the floating formulas, understand what you are witnessing. This is consciousness learning to see. Not to feel, though feeling remains. Not to merge, though unity waits ahead. But to comprehend, deeply, truly, the architecture of the creation. The light being studied is the same light you are made of. The formulas being traced describe you. The magician, alone in the hall, is studying the deepest mystery there is, and the mystery, in the end, is themselves.
+
+Wisdom is love that has learned to see. And seeing, it is ready for the greatest lesson of all.
+
+
+--- SCRIPT: DENSITY 6: THE SIXTH DENSITY — THE MERGING ---
+
+We have arrived at the classroom cosmic wisdom calls the density of unity, and it is the most beautiful and the most difficult to describe, because language itself was built for separation. Cosmic wisdom teaches that in the sixth density, love and wisdom are joined and blended into one. The heart's compassion and the mind's clarity, which spent two whole classrooms learning apart, finally marry. And from that marriage, something new is born. The "we" that is also "I."
+
+Picture the room. A vast darkness, gentle as deep water. And in it, countless orbs of light, each one a soul, each one radiant, each one unique. They drift toward one another, slowly, inevitably, the way rivers flow to the sea. And as they meet, they do not collide. They merge. Boundaries soften. The light of one flows into the light of another, and neither is diminished. Imagine two candles in a dark room. Bring their flames together and you do not get half a flame. You get a greater light. That is the sixth density. A sea of flames, becoming one great fire, while every flame remains itself.
+
+The social memory complex at this level is spoken of with words usually reserved for lovers. These beings, who have worked together for a common purpose across ages, become closer than friends, closer than mates. They become one in thought, one in hope, one in intention. Not by losing themselves, but by finding themselves so completely that the walls between selves simply become irrelevant. The energy of the whole rests like an aura around each one, and each one can draw on the combined seeking of all. Imagine having, at your back, the love and wisdom of everyone you have ever journeyed with. That is the daily reality here.
+
+And something decisive happens in this classroom that happens nowhere earlier. The negative path ends here. The path of the closed fist, of separation and control, which could persist through the fifth density's brilliance, cannot enter the sixth. For here, love and wisdom must blend, and the fist must open, or the soul cannot proceed. Every being that reaches this far must turn, finally and fully, toward service to others, toward unity. There are no exceptions and no shortcuts. The universe insists, at this altitude, on oneness. The only way forward is together.
+
+The lesson of the sixth density is balance, perfected. Not love instead of wisdom. Not wisdom instead of love. Both, fully, at once, in every thought and act. Most of the wanderers among you, those volunteers from higher densities who came to help Earth, are from this level. They came because their balance of love and wisdom was so complete that they could afford to forget everything and start over in your boot camp, just to be of service. When you meet someone who seems to love with unusual precision, or understand with unusual tenderness, you may be in the presence of a sixth-density soul, a graduate of the merging, walking among you in disguise.
+
+Here is the deepest paradox of this classroom, and it is worth sitting with. In the sixth density, you are more yourself than you have ever been, and you are also everyone else. Individuality and unity, which looked like opposites from below, are revealed as two faces of one truth. The wave does not stop being a wave when it knows it is the ocean. It becomes the most beautiful wave it can be, precisely because it knows. So the beings here serve the creation not as servants, but as the creation serving itself. They teach, they guide, they watch over the younger classrooms, and everything they do is the universe, at last, acting with full knowledge of what it is.
+
+Look back at the road. The rock learned to be. The flower learned to grow. The human learned to choose. The world of love learned to love. The magician learned to see. And now, in the merging, all of it comes together. Being, growing, choosing, loving, understanding, fused into a single radiant "we." The long apprenticeship is nearly complete.
+
+There is one classroom left. One final threshold. And beyond it, the mystery that started everything, waiting to begin again.
+
+
+--- SCRIPT: DENSITY 7: THE SEVENTH DENSITY — THE GATEWAY ---
+
+There is a last classroom, and it is unlike all the others. Cosmic wisdom calls the seventh density the gateway, and to enter it is to complete the longest journey anything can take. The rock has learned to be. The flower has learned to grow. The human has learned to choose. The world of love has learned to love. The magician has learned to see. The merging has blended it all into one. And now, the one that became many is ready to become one again, completely, forever.
+
+The seventh density is the density of foreverness. Time, which was the great teacher of all the earlier classrooms, the illusion that let lessons be taken in order, simply ends here. Not because time is destroyed, but because it is transcended. This is an expansion of consciousness to include all of the one infinite creation, until each being becomes, quite literally, all that is. Imagine your awareness growing until it holds every star, every world, every soul, every moment, all at once, not as things you look at, but as things you are. That is the gateway.
+
+Here, the social memory complexes, those great "we"s of the sixth density, complete their work and dissolve into the whole. There is no more learning left to do, because there is nothing left outside the self to learn about. The Creator, who set out so long ago to know itself through infinite facets, has gathered every facet back. The diamond is whole. And it shines with a light that contains every color, because every color was one of its journeys.
+
+The lesson of the seventh density is completion. Rest, at last, after the longest labor. This is the harvest, the moment when everything that was planted in the first density's soil is finally gathered in. And it is a moment of indescribable joy, because nothing was lost. Not one spark, not one flower, not one flawed, stumbling human choice. It all counted. It was all the Creator, exploring itself, and now the explorer has come home.
+
+But the story does not end here, because in the creation, nothing ever ends. The seventh density is called the gateway for a reason. It is a door, and it opens in both directions. Behind it lies everything that has been. Ahead of it lies something best named with the most mysterious word. The octave.
+
+In music, an octave is the same note at a higher pitch. The end of one scale is the beginning of another. So it is with creation. When the seventh density completes, the whole journey begins again, a new creation, a new explosion of light into darkness, new rocks learning to be, new flowers learning to grow, new souls learning to choose. The monument you started at, the place where galaxies bloom and volcanoes pour and stars are born and die in an endless loop, that is not just a memorial of the beginning. It is the beginning, happening again, forever. The end is the beginning. The circle closes, and the circle opens.
+
+This is why your path through the rooms brings you back to where you started. You walked through being, growing, choosing, loving, understanding, merging, and completing, only to find yourself at the monument of creation once more. But you are not the same as when you left. You are the Creator now, or rather, you know that you always were. And the creation exploding before you is not something happening out there. It is something happening in here, in you, through you, as you.
+
+So step through the gateway. Pass through the door of white light. Return to the monument. Watch the stars being born, and know that you are the one giving birth to them. Watch the volcanoes pour, and know that you are the fire. The journey is over. The journey is beginning. It was always both.
+
+And the single lesson of every classroom, every density, every world, was always the same one. You are the One, pretending for a while to be many, so that the One could know itself. Now you know. Now begin again, and know it from the start.
+
+--------------------------------------------------------------------------------
+6. DESIGN & WRITING CONSTRAINTS (locked — do not break)
+--------------------------------------------------------------------------------
+
+a) SPOKEN NARRATION RULES (these made the series work):
+   - Poetic, flowing prose. Commas and naturally connected sentences. NEVER
+     bullet-like delivery, never chains of short fragments — the voice turns
+     robotic.
+   - One emotionally coherent story per room, not a list of teaching points.
+   - Strong openings are mandatory. The standard is "The Beginning" — every
+     script must open at full power, never weaker.
+   - Attribution in spoken text is ONLY "cosmic wisdom." Never name Ra, Q'uo,
+     Latwii, or any channeled entity. Never name transcript sessions or dates.
+     Never say "the archive says" or "drawn from the transcript archive" in
+     spoken audio. (Sources are documented internally only.)
+   - The word "density" IS used in these room narrations (owner decision,
+     2026-09-28): the rooms themselves are named by density and the audios
+     explain what each one means. The separate overview chapter ("The Path")
+     stays jargon-free.
+
+b) GAME CONTENT RULES:
+   - No entity names, no session numbers, no dates anywhere the player can see
+     or hear. The metaphysics must be fully translatable into the game's own
+     poetic language.
+   - Contemplative tone throughout: ethereal calm, soothing, inward-pointing,
+     no religious imprinting. Match the existing game's visual language (ink
+     art, minimal UI, dark/quiet).
+   - Mobile-first: the owner plays on iPhone. Tap targets >= 44px. Must run in
+     the existing Pages-deployed site, under BOTH the WebGPU renderer and the
+     WebGL2 fallback (?webgl).
+
+c) RESEARCH GROUNDING (internal, never player-facing):
+   Every teaching in the narrations is grounded in the L/L Research transcript
+   archive (local RAG index at ~/workspace/rag/ll-research/). Session
+   identifiers used in research must never appear in game text or audio.
+
+--------------------------------------------------------------------------------
+7. BUILDER PROTOCOL (mandatory — the September 28–29 lessons, in writing)
+--------------------------------------------------------------------------------
+
+These rules exist because real work was lost or shipped broken without them.
+They are not suggestions.
+
+  1. BUILD ONLY IN vy6ycr7tcc-debug/Animation, on a session branch, merging
+     to main. See §0. Never touch inward-journey.
+  2. COMMIT AND PUSH AFTER EVERY MILESTONE (each room, each portal, each
+     integration point). Do not accumulate unpushed work. A session's work
+     does not exist until it is pushed: sessions that stall or go PAUSED
+     cannot be resumed, and anything unpushed is stranded and effectively
+     lost. After each push, report the branch name and commit hash.
+  3. NEVER CALL A SCENE DONE ON TYPECHECK OR BUILD ALONE. Boot the game in
+     a real (or headless) browser and verify every new scene through the
+     still-frame hook: ?shot=<sceneId>&t=<seconds> (src/debug/shot.ts),
+     registering each new scene id. A scene that has not rendered a frame
+     has not been built. (On September 29 a slice was merged that had never
+     booted: wrong three.js TSL import path, missing renderer init. The
+     typecheck passed. The game did not.)
+  4. RENDERER COMPATIBILITY. The game runs three.js ^0.186.1 with a WebGPU
+     primary renderer and a WebGL2 fallback. New monument/room code MUST
+     work under both — verify with ?webgl as well as the default. iOS
+     Safari has no WebGPU and the owner plays on iPhone: WebGPU-only is
+     unacceptable. Check every three.js API call against the INSTALLED
+     version (^0.186.1), not against memory or examples written for other
+     versions.
+  5. STYLE DOCS. The operator attaches VISUAL_QUALITY.md,
+     ANIMATION_QUALITY.md, and STYLE_GUIDE.md to the brief. Read and follow
+     all three on every visual. Confirm in your own words that you are
+     following them. Match the game's existing visual language (ink art,
+     minimal UI, dark/quiet) — the style guide was distilled from the
+     game's own code.
+  6. NO JUNK IN THE REPO. No scratch scripts, no update_*.sh-style helper
+     files, no temp scaffolding merged to any branch. If a helper is needed
+     during the session, delete it before the final push.
+  7. AUDIO IS DELIVERED, NOT FETCHED. The eight MP3s arrive in
+     public/audio/densities/ via the operator. Reference them verbatim as
+     "audio/densities/<file>" (relative, existing repo convention). Do not
+     re-encode, move, rename, or re-upload them.
+  8. SCENE INTEGRATION. Follow the existing pattern: new scenes in
+     src/scenes/, registered in src/scenes/sites.ts, still-frame ids added
+     to src/debug/shot.ts. Keep the journey map (§2) as the integration
+     order: monument -> rooms 1–7 -> return to monument.
+
+--------------------------------------------------------------------------------
+8. OPEN DECISIONS FOR THE OWNER (not yet decided — build waits on these)
+--------------------------------------------------------------------------------
+
+ 1. Room 6 concept ("The Merging" — orbs of light flowing into one radiant
+    ocean): APPROVED or want a different concept?
+ 2. Monument exterior: how grand/where in the landscape? (Interior is specced;
+    exterior approach is not.)
+ 3. Portal mechanics: walk-through always (current spec) — or should later
+    portals require finishing the room's narration? (Spec says never lock.)
+ 4. Narration replay UI: small replay control per room (current spec) — enough,
+    or a fuller player in-room?
+ 5. "The Beginning" on loop in the monument — or a shorter ambient variant?
+ 6. Should the Evolution of Spirit chapters (The Path, The Greater Life, The
+    Gift of Hardship, The Power of Thought, One) become rooms one day, or stay
+    Listen-app-only?
+
+(Resolved 2026-09-28 and removed from this list: "density" stays in room
+titles and narration.)
+
+--------------------------------------------------------------------------------
+9. CHANGELOG
+--------------------------------------------------------------------------------
+
+  2026-09-28  Draft v1 — full handover prepared for owner review. NOT sent to
+              any builder. Awaiting owner decisions in section 8.
+  2026-09-28  Draft v1.1 — §7 audio-delivery refreshed: the eight monument MP3s
+              were declared canonical on branch `audio-library`
+              (audio/narrations/ + tracks.json). Narration scripts still
+              pending cleanup before any builder handoff.
+  2026-09-29  Draft v2 — full rewrite after the September 28–29 deployment
+              post-mortem:
+              · §0 NEW: deployment target verified live — the build target is
+                vy6ycr7tcc-debug/Animation (public, Pages-deployed); the v1
+                claim that inward-journey is the production game was wrong
+                and is retired with this version.
+              · §4 rewritten: no more "merge the audio-library branch" (a
+                builder on Animation cannot read the private repo); the
+                operator delivers final MP3s to public/audio/densities/
+                after the audit + re-render; builder references verbatim.
+              · §5: all eight scripts mechanically cleaned (archive
+                references removed, "cosmic wisdom" only, D1 grammar fix);
+                canonical script files updated to match; deeper audit
+                (D7 research, claim verification) + re-render still pending
+                and now explicitly gated before any builder handoff.
+              · §7 NEW: Builder Protocol — incremental pushes, ?shot= visual
+                verification, WebGPU+WebGL2 compatibility, no scratch files,
+                style docs, audio-delivered-not-fetched, scene integration
+                pattern.
+              · §8: six open decisions (density wording confirmed 2026-09-28
+                and removed from the list).
+              Still NOT sent to any builder. Owner review of v2 + the §8
+              decisions + the §5 audit/re-render all precede any build.
+
+================================================================================
+END OF HANDOVER v2
+================================================================================
