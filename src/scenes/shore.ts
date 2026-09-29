@@ -30,8 +30,8 @@ const T_RELEASE = 562.88; // RELEASE
    unwrapped before the release */
 const RELEASE_AT = [200, 254, 308, 372, 424, 468, 506, 538];
 
-const N_FIG = 1400, N_CORDS = 8, CORD_PTS = 46, N_SPARK = 192, N_HAND = 96, N_LEAF = 7, N_RAIN = 110;
-const N_REED = 30, N_MOTE = 90;
+const N_FIG = 1600, N_CORDS = 8, CORD_PTS = 56, N_SPARK = 240, N_HAND = 120, N_LEAF = 9, N_RAIN = 120;
+const N_REED = 52, N_MOTE = 140;
 /* the two canon lights of this scene: the beams' pale blue (0xb8d1ff) and the bark-grain gold */
 const COOL = [0.7216, 0.8196, 1.0];
 const WARM = [1.0, 0.78, 0.48];
@@ -243,6 +243,7 @@ interface Built {
   fr: Frame;
   fig: Holo; cords: Holo; sparks: Holo; hands: Holo; rain: Holo; motes: Holo;
   figBase: Float32Array;
+  robeBase: Float32Array;
   spec: Cord[];
   sparkAt: Float32Array; sparkBirth: Float32Array;
   halo: THREE.Sprite;
@@ -299,23 +300,23 @@ export function createShoreScene(
     ctx.kit.pathLights(lamps);
 
     /* ---------- foreground reeds at the seat's waterline, swaying slowly ---------- */
-    const reedGeo = new THREE.CylinderGeometry(0.012, 0.024, 1, 5, 1).translate(0, 0.5, 0);
-    const reedMat = new THREE.MeshStandardMaterial({ color: 0x1c1a2c, roughness: 0.96, metalness: 0 });
+    const reedGeo = new THREE.CylinderGeometry(0.006, 0.022, 1, 6, 1).translate(0, 0.5, 0);
+    const reedMat = new THREE.MeshStandardMaterial({ color: 0x141824, roughness: 0.92, metalness: 0.1 });
     const reeds = new THREE.InstancedMesh(reedGeo, reedMat, N_REED);
     const reedBase = new Float32Array(N_REED * 3);
     const reedH = new Float32Array(N_REED), reedPh = new Float32Array(N_REED);
     for (let i = 0; i < N_REED; i++) {
-      const cl = i % 3;
-      const side = cl === 1 ? 1 : -1;
-      const fwdD = 1.7 + cl * 0.8 + h1(i, 51) * 1.5;
-      const lat = side * (2.2 + h1(i, 52) * 1.5);
+      const cl = i % 4;
+      const side = (i % 2 === 0) ? 1 : -1;
+      const fwdD = 1.2 + cl * 0.65 + h1(i, 51) * 1.8;
+      const lat = side * (1.6 + h1(i, 52) * 2.2);
       const x = seatPos.x + F.x * fwdD + right.x * lat;
       const z = seatPos.z + F.z * fwdD + right.z * lat;
       const g = heightAt(x, z);
       reedBase[i * 3] = x;
-      reedBase[i * 3 + 1] = (Number.isFinite(g) ? g : S.y) - 0.06;
+      reedBase[i * 3 + 1] = (Number.isFinite(g) ? Math.min(g, WATER_Y + 0.02) : S.y) - 0.05;
       reedBase[i * 3 + 2] = z;
-      reedH[i] = 0.75 + h1(i, 53) * 0.95;
+      reedH[i] = 0.7 + h1(i, 53) * 1.1;
       reedPh[i] = h1(i, 54) * Math.PI * 2;
     }
     ctx.group.add(reeds);
@@ -323,24 +324,15 @@ export function createShoreScene(
 
     /* ---------- the robe: a dark silhouette the wisp-light clings to ---------- */
     const robeProfile: THREE.Vector2[] = ROBE.map(([y, r]) => new THREE.Vector2(r < 0.02 ? 0.02 : r, y));
-    const robeGeo = new THREE.LatheGeometry(robeProfile, 36);
+    const robeGeo = new THREE.LatheGeometry(robeProfile, 48);
     const robePos = robeGeo.getAttribute("position") as THREE.BufferAttribute;
-    // Upgraded from StandardMaterial to NodeMaterial to create a softer, more atmospheric dark silhouette
-    // It should feel like a deep blue night, not a plastic primitive.
-    const robeMat = new THREE.MeshBasicNodeMaterial({ 
-      fog: true 
+    const robeBase = new Float32Array(robePos.array);
+
+    // Deep blue-black silhouette
+    const robeMat = new THREE.MeshBasicMaterial({ 
+      color: 0x080b18,
+      fog: true
     });
-    
-    // Depth-aware subtle fresnel rim lift for materiality
-    const viewDir = T.normalize(T.cameraPosition.sub(T.positionWorld));
-    // Lathe normal
-    const normal = T.normalWorld; 
-    const fresnel = T.pow(T.float(1.0).sub(T.max(T.dot(normal, viewDir), 0.0)), 3.0);
-    
-    // Deep blue black base with a subtle blue lift at the edges to give it dimension
-    const baseCol = T.color(0x06080e);
-    const rimCol = T.color(0x1a2238).mul(fresnel);
-    robeMat.colorNode = baseCol.add(rimCol);
 
     ctx.group.add(new THREE.Mesh(robeGeo, robeMat));
     disposables.push(robeGeo, robeMat);
@@ -462,11 +454,12 @@ export function createShoreScene(
         pts.push(Math.cos(a0) * r, Math.sin(a0) * r, 0, Math.cos(a1) * r, Math.sin(a1) * r, 0);
       }
     };
-    arcPairs(1.05, 72);
-    arcPairs(0.36, 40);
-    for (let k = 0; k < 8; k++) {
-      const a = (k / 8) * Math.PI * 2;
-      pts.push(Math.cos(a) * 0.36, Math.sin(a) * 0.36, 0, Math.cos(a) * 1.05, Math.sin(a) * 1.05, 0);
+    arcPairs(1.20, 96);
+    arcPairs(0.85, 72);
+    arcPairs(0.36, 48);
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2;
+      pts.push(Math.cos(a) * 0.36, Math.sin(a) * 0.36, 0, Math.cos(a) * 1.20, Math.sin(a) * 1.20, 0);
     }
     const wheelGeo = new THREE.BufferGeometry();
     wheelGeo.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
@@ -482,7 +475,7 @@ export function createShoreScene(
     disposables.push(wheelGeo, wheelMat);
 
     built = {
-      fr, fig, cords, sparks, hands, rain, motes, figBase, spec, sparkAt, sparkBirth,
+      fr, fig, cords, sparks, hands, rain, motes, figBase, robeBase, spec, sparkAt, sparkBirth,
       halo, ring, ringMat, wheelRig, wheelSpin, wheelMat,
       robeGeo, robePos, reeds, reedBase, reedH, reedPh, leaves,
     };
@@ -496,9 +489,10 @@ export function createShoreScene(
 
     /* ---- the robe: the dark silhouette, bowed and bound, half-risen, then standing free ---- */
     const RP = B.robePos.array as Float32Array;
+    const RB = B.robeBase;
     for (let i = 0, n = B.robePos.count; i < n; i++) {
       const j = i * 3;
-      pose(RP[j], RP[j + 1], RP[j + 2], f, 0, t, _pose);
+      pose(RB[j], RB[j + 1], RB[j + 2], f, 0, t, _pose);
       place(fr, _pose, f.lift, _w);
       RP[j] = _w.x; RP[j + 1] = _w.y; RP[j + 2] = _w.z;
     }
