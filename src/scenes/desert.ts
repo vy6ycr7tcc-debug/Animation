@@ -79,10 +79,10 @@ function radial(): any {
   return max(length(vec2(pxz.x.sub(center.x), pxz.z.sub(center.z))), 1e-3);
 }
 
-/* ------------------------------------------------------------------ the earth: cracked, then green */
+/* ------------------------------------------------------------------ the earth: luminous rolling dunes */
 
 function buildEarth(group: THREE.Group, uT: any): void {
-  const geo = new THREE.CircleGeometry(DISC_R, 96);
+  const geo = new THREE.PlaneGeometry(DISC_R * 2, DISC_R * 2, 128, 128);
   geo.rotateX(-Math.PI / 2);
 
   const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, fog: false });
@@ -95,26 +95,37 @@ function buildEarth(group: THREE.Group, uT: any): void {
   const u = clamp(uT.div(TRACK_SECONDS), 0, 1);
   const greenR = float(MEADOW_R).mul(smoothstep(0.1, 0.78, u));
 
-  const n1 = vnoise(pxz.mul(0.28));
-  const n2 = vnoise(pxz.mul(0.9).add(vec2(11.7, 4.1)));
-  const n3 = vnoise(pxz.mul(2.6).add(vec2(4.3, 19.2)));
+  // Multi-scale noise for dune ridges and sand ripple textures
+  const n1 = vnoise(pxz.mul(0.12));
+  const n2 = vnoise(pxz.mul(0.45).add(vec2(11.7, 4.1)));
+  const n3 = vnoise(pxz.mul(1.8).add(vec2(4.3, 19.2)));
 
-  // thin veins where the noise crosses 0.5 — the cracked, burnt crust
+  // Dune ridge shapes with subtle height variation
+  const duneShape = sin(pxz.x.mul(0.15).add(n1.mul(2.5))).mul(0.5).add(0.5);
+  const crest = smoothstep(0.4, 0.65, duneShape);
+
+  // Thin veins where the noise crosses 0.5 — cracked, burnt crust
   const crv = n1.sub(0.5).abs().add(n2.sub(0.5).abs().mul(0.55));
   const crack = smoothstep(0.08, 0.0, crv);
 
-  const greenMask = smoothstep(greenR, greenR.sub(2.5), dist); // 1 behind the wave
+  const greenMask = smoothstep(greenR, greenR.sub(2.5), dist); // 1 behind wave
   const fresh = smoothstep(greenR, greenR.sub(8.0), dist);     // freshly breathed-on glow
   const ember = crack.mul(float(1).sub(greenMask)).mul(float(0.35).add(n3.mul(0.9)));
 
-  const earth = mix(color(0x120c09), color(0x2c1b12), n1.mul(0.65).add(n2.mul(0.35)));
+  // Luminous golden sand palette with glowing crest highlights
+  const darkEarth = color(0x1a110a);
+  const goldenSand = mix(color(0x3d2716), color(0xbc8848), n1.mul(0.7).add(n2.mul(0.3)));
+  const sunlitSand = mix(goldenSand, color(0xe2b46d), crest.mul(0.8));
+  
   const meadow = mix(color(0x2b4a2a), color(0x5c8b3c), n2.mul(0.6).add(n3.mul(0.4)));
   const green = meadow.add(color(0x8ecb62).mul(fresh.mul(0.3)));
 
-  const col = mix(earth, green, greenMask).add(color(0xff8b3a).mul(ember.mul(0.8)));
+  const baseCol = mix(sunlitSand, darkEarth, smoothstep(0.2, 0.8, n3).mul(0.3));
+  const col = mix(baseCol, green, greenMask).add(color(0xff8b3a).mul(ember.mul(0.8)));
+
   mat.colorNode = withFog(col, positionWorld);
   mat.opacityNode = clamp(
-    float(0.98).mul(float(1).sub(smoothstep(DISC_R - 6, DISC_R, dist))),
+    float(0.98).mul(float(1).sub(smoothstep(DISC_R - 5, DISC_R, dist))),
     0, 1,
   );
 
@@ -125,7 +136,34 @@ function buildEarth(group: THREE.Group, uT: any): void {
   disposables.push(geo, mat);
 }
 
-/* ------------------------------------------------------------------ the green breath (additive glow) */
+/* ------------------------------------------------------------------ horizon dunes */
+
+function buildHorizonDunes(group: THREE.Group): void {
+  const geo = new THREE.RingGeometry(DISC_R - 2, DISC_R + 25, 96, 16);
+  geo.rotateX(-Math.PI / 2);
+
+  const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, fog: false });
+
+  const pxz = positionWorld.xz;
+  const dist = radial();
+
+  const n1 = vnoise(pxz.mul(0.08));
+  const n2 = vnoise(pxz.mul(0.25).add(vec2(7.3, 14.1)));
+  
+  const duneLayer = mix(color(0x2d1d11), color(0x8a5b30), n1.mul(0.8).add(n2.mul(0.2)));
+  const hazeFade = smoothstep(DISC_R - 2, DISC_R + 8, dist).mul(float(1).sub(smoothstep(DISC_R + 18, DISC_R + 25, dist)));
+
+  mat.colorNode = withFog(duneLayer, positionWorld);
+  mat.opacityNode = clamp(hazeFade.mul(0.85), 0, 1);
+
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(center.x, center.y + 0.05, center.z);
+  mesh.renderOrder = 0;
+  group.add(mesh);
+  disposables.push(geo, mat);
+}
+
+/* ------------------------------------------------------------------ green breath wavefront */
 
 function buildWaveGlow(group: THREE.Group, uT: any): void {
   const geo = new THREE.CircleGeometry(MEADOW_R + 2, 96);
@@ -134,7 +172,6 @@ function buildWaveGlow(group: THREE.Group, uT: any): void {
   const mat = new THREE.MeshBasicNodeMaterial({
     transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide,
   });
-  // additiveKeepsAlpha() runs once at startup and misses scene-entered materials.
   mat.blending = THREE.CustomBlending;
   mat.blendSrc = THREE.SrcAlphaFactor;
   mat.blendDst = THREE.OneFactor;
@@ -146,12 +183,10 @@ function buildWaveGlow(group: THREE.Group, uT: any): void {
   const u = clamp(uT.div(TRACK_SECONDS), 0, 1);
   const greenR = float(MEADOW_R).mul(smoothstep(0.1, 0.78, u));
 
-  // a constant-width glowing wavefront riding greenR, and a soft afterglow behind it
   const band = smoothstep(greenR.sub(3.4), greenR.sub(1.2), dist)
     .mul(float(1).sub(smoothstep(greenR.sub(1.2), greenR.add(1.6), dist)));
   const bloom = smoothstep(greenR, greenR.sub(10.0), dist)
     .mul(float(1).sub(smoothstep(4.0, 24.0, dist)));
-  // the seed of light: already glowing at u = 0, kindling brighter as the lesson turns
   const seedMask = float(1).sub(smoothstep(0.3, 3.4, dist));
 
   mat.colorNode = mix(
@@ -169,6 +204,144 @@ function buildWaveGlow(group: THREE.Group, uT: any): void {
   const mesh = new THREE.Mesh(geo, mat);
   mesh.position.set(center.x, center.y + 0.18, center.z);
   mesh.renderOrder = 2;
+  group.add(mesh);
+  disposables.push(geo, mat);
+}
+
+/* ------------------------------------------------------------------ luminous floating seed pods */
+
+function buildSeedPods(group: THREE.Group): void {
+  const count = 48;
+  const R = makeRng(88291);
+
+  const mat = softPoints();
+  mat.sizeAttenuation = true;
+  mat.size = 0.85;
+  mat.opacity = 0.9;
+  mat.color.set(0xffffff);
+
+  const cloud = spriteCloud(count, { position: 3, aData: 4 }, mat);
+  const pos = cloud.attrs.position.array as Float32Array;
+  const dat = cloud.attrs.aData.array as Float32Array;
+
+  for (let i = 0; i < count; i++) {
+    const a = R() * Math.PI * 2;
+    const r = 3 + R() * 20;
+    pos[i * 3 + 0] = center.x + Math.cos(a) * r;
+    pos[i * 3 + 1] = center.y + 1.2 + R() * 3.5;
+    pos[i * 3 + 2] = center.z + Math.sin(a) * r;
+
+    dat[i * 4 + 0] = r;                 // radius
+    dat[i * 4 + 1] = R() * 6.283;       // float phase X
+    dat[i * 4 + 2] = 0.6 + R() * 0.7;   // scale / brightness
+    dat[i * 4 + 3] = R() * 6.283;       // float phase Y
+  }
+  cloud.attrs.position.needsUpdate = true;
+  cloud.attrs.aData.needsUpdate = true;
+
+  const pn = cloud.nodes.position;
+  const phX = cloud.nodes.aData.y;
+  const br = cloud.nodes.aData.z;
+  const phY = cloud.nodes.aData.w;
+
+  // 3D harmonic turbulence drift
+  mat.positionNode = pn.add(vec3(
+    sin(life.mul(0.35).add(phX)).mul(0.9),
+    sin(life.mul(0.5).add(phY)).mul(0.4),
+    cos(life.mul(0.28).add(phX)).mul(0.9),
+  ));
+
+  const pulse = float(0.7).add(float(0.3).mul(sin(life.mul(1.4).add(phX))));
+  const round = smoothstep(0.5, 0.1, length(pointUV.sub(0.5)));
+
+  // Luminous warm amber-white pod core with halo
+  mat.colorNode = mix(color(0xfff3d1), color(0xe28d3b), length(pointUV.sub(0.5)).mul(2.0));
+  mat.opacityNode = clamp(materialOpacity.mul(round).mul(pulse).mul(br), 0, 1);
+
+  group.add(cloud.sprite);
+  disposables.push(mat);
+}
+
+/* ------------------------------------------------------------------ ethereal ghost plants */
+
+function buildGhostPlants(group: THREE.Group, uT: any): void {
+  const count = 120;
+  const R = makeRng(55129);
+
+  const mat = softPoints();
+  mat.sizeAttenuation = true;
+  mat.size = 0.65;
+  mat.opacity = 0.85;
+  mat.color.set(0xffffff);
+
+  const cloud = spriteCloud(count, { position: 3, aData: 4 }, mat);
+  const pos = cloud.attrs.position.array as Float32Array;
+  const dat = cloud.attrs.aData.array as Float32Array;
+
+  for (let i = 0; i < count; i++) {
+    const a = R() * Math.PI * 2;
+    const r = 2 + R() * 22;
+    pos[i * 3 + 0] = center.x + Math.cos(a) * r;
+    pos[i * 3 + 1] = center.y + 0.3 + R() * 1.2;
+    pos[i * 3 + 2] = center.z + Math.sin(a) * r;
+
+    dat[i * 4 + 0] = r;                 // radius from center
+    dat[i * 4 + 1] = R() * 6.283;       // phase
+    dat[i * 4 + 2] = 0.5 + R() * 0.5;   // brightness
+    dat[i * 4 + 3] = R() * 6.283;       // sway phase
+  }
+  cloud.attrs.position.needsUpdate = true;
+  cloud.attrs.aData.needsUpdate = true;
+
+  const pn = cloud.nodes.position;
+  const dt = cloud.nodes.aData.x;
+  const ph = cloud.nodes.aData.y;
+  const br = cloud.nodes.aData.z;
+  const swayPh = cloud.nodes.aData.w;
+
+  const u = clamp(uT.div(TRACK_SECONDS), 0, 1);
+  const greenR = float(MEADOW_R).mul(smoothstep(0.1, 0.78, u));
+
+  mat.positionNode = pn.add(vec3(
+    sin(life.mul(0.8).add(swayPh)).mul(0.08),
+    sin(life.mul(0.4).add(ph)).mul(0.1),
+    cos(life.mul(0.6).add(swayPh)).mul(0.08),
+  ));
+
+  const arrive = smoothstep(dt, dt.add(3.0), greenR);
+  const breathe = float(0.6).add(float(0.4).mul(sin(life.mul(1.1).add(ph))));
+  const round = smoothstep(0.5, 0.15, length(pointUV.sub(0.5)));
+
+  mat.colorNode = mix(color(0xffd38c), color(0xa2e088), arrive);
+  mat.opacityNode = clamp(materialOpacity.mul(round).mul(breathe).mul(br).mul(float(0.4).add(arrive.mul(0.6))), 0, 1);
+
+  group.add(cloud.sprite);
+  disposables.push(mat);
+}
+
+/* ------------------------------------------------------------------ heat haze shimmer atmosphere */
+
+function buildHeatHaze(group: THREE.Group): void {
+  const geo = new THREE.PlaneGeometry(DISC_R * 2, DISC_R * 2);
+  geo.rotateX(-Math.PI / 2);
+
+  const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, fog: false });
+  mat.blending = THREE.AdditiveBlending;
+
+  const pxz = positionWorld.xz;
+  const dist = radial();
+
+  const shimmer = vnoise(pxz.mul(0.8).add(vec2(life.mul(0.4), life.mul(0.6))))
+    .mul(vnoise(pxz.mul(1.5).sub(vec2(life.mul(0.5), life.mul(0.3)))));
+
+  const fade = float(1).sub(smoothstep(4.0, DISC_R - 2, dist));
+
+  mat.colorNode = color(0xffbe6b).mul(shimmer).mul(0.35);
+  mat.opacityNode = clamp(fade.mul(shimmer).mul(0.28), 0, 1);
+
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(center.x, center.y + 0.35, center.z);
+  mesh.renderOrder = 3;
   group.add(mesh);
   disposables.push(geo, mat);
 }
@@ -231,7 +404,7 @@ function buildFlowers(group: THREE.Group, uT: any): void {
 
   const arrive = smoothstep(dt, dt.add(2.2), greenR);      // kindles as the wave passes
   const dd = greenR.sub(dt);
-  const flash = exp(dd.mul(dd).div(1.6).negate());         // a small bloom at the moment of kindling
+  const flash = exp(dd.mul(dd).div(1.6).negate());         // small bloom at pass moment
   const round = smoothstep(0.5, 0.2, length(pointUV.sub(0.5)));
   const twinkle = float(0.7).add(float(0.3).mul(sin(life.mul(1.6).add(tw0))));
 
@@ -249,15 +422,15 @@ function buildFlowers(group: THREE.Group, uT: any): void {
   disposables.push(mat);
 }
 
-/* ------------------------------------------------------------------ drifting motes: embers out, pollen in */
+/* ------------------------------------------------------------------ drifting sand motes & pollen */
 
-function buildEmbers(group: THREE.Group, uT: any): void {
-  const count = 200;
+function buildSandMotes(group: THREE.Group, uT: any): void {
+  const count = 240;
   const R = makeRng(771103);
 
   const mat = softPoints();
   mat.sizeAttenuation = true;
-  mat.size = 0.3;
+  mat.size = 0.32;
   mat.opacity = 0.85;
   mat.color.set(0xffffff);
 
@@ -269,7 +442,7 @@ function buildEmbers(group: THREE.Group, uT: any): void {
     const a = R() * Math.PI * 2;
     const r = Math.sqrt(R()) * 24;
     pos[i * 3 + 0] = center.x + Math.cos(a) * r;
-    pos[i * 3 + 1] = center.y + 0.5 + R() * 5.5;
+    pos[i * 3 + 1] = center.y + 0.3 + R() * 4.5;
     pos[i * 3 + 2] = center.z + Math.sin(a) * r;
     dat[i * 4 + 0] = r;
     dat[i * 4 + 1] = R() * 6.283;
@@ -288,17 +461,18 @@ function buildEmbers(group: THREE.Group, uT: any): void {
   const u = clamp(uT.div(TRACK_SECONDS), 0, 1);
   const greenR = float(MEADOW_R).mul(smoothstep(0.1, 0.78, u));
 
+  // Horizontal wind drift
   mat.positionNode = pn.add(vec3(
-    sin(life.mul(0.35).add(ph)).mul(1.2),
-    sin(life.mul(0.22).add(ph2)).mul(0.8),
-    cos(life.mul(0.31).add(ph)).mul(1.2),
+    sin(life.mul(0.45).add(ph)).mul(1.6).add(life.mul(0.2).mod(10)),
+    sin(life.mul(0.3).add(ph2)).mul(0.6),
+    cos(life.mul(0.38).add(ph)).mul(1.2),
   ));
 
-  const gone = float(1).sub(smoothstep(greenR, greenR.sub(2.5), dt)); // 1 only where the burn still stands
+  const gone = float(1).sub(smoothstep(greenR, greenR.sub(2.5), dt));
   const flicker = float(0.55).add(float(0.45).mul(sin(life.mul(2.3).add(ph2.mul(1.7)))));
   const round = smoothstep(0.5, 0.2, length(pointUV.sub(0.5)));
 
-  mat.colorNode = color(0xd08a58).mul(float(0.5).add(flicker.mul(0.8)));
+  mat.colorNode = color(0xe8ad6e).mul(float(0.6).add(flicker.mul(0.7)));
   mat.opacityNode = clamp(materialOpacity.mul(round).mul(gone).mul(flicker).mul(br), 0, 1);
 
   group.add(cloud.sprite);
@@ -348,7 +522,7 @@ function buildPollen(group: THREE.Group, uT: any): void {
     cos(life.mul(0.38).add(ph)).mul(0.7),
   ));
 
-  const arrive = smoothstep(dt, dt.add(2.2), greenR);     // pollen wakes behind the wave
+  const arrive = smoothstep(dt, dt.add(2.2), greenR);
   const season = smoothstep(0.3, 0.62, u);
   const twinkle = float(0.55).add(float(0.45).mul(sin(life.mul(1.1).add(ph2.mul(2.1)))));
   const round = smoothstep(0.5, 0.2, length(pointUV.sub(0.5)));
@@ -373,7 +547,6 @@ function addGroundRing(
   const mat = new THREE.MeshBasicNodeMaterial({
     transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide,
   });
-  // additiveKeepsAlpha() runs once at startup and misses scene-entered materials.
   mat.blending = THREE.CustomBlending;
   mat.blendSrc = THREE.SrcAlphaFactor;
   mat.blendDst = THREE.OneFactor;
@@ -394,12 +567,6 @@ function addGroundRing(
 
 /* ------------------------------------------------------------------ soft light pillars (desert-local) */
 
-/*
-  Camera-facing billboarded glow columns. Replaces the shared kit's flat
-  cylinders (hard-edged clip-art rectangles) with the canon soft-shaft recipe:
-  Gaussian horizontal falloff, vertical fade, slow descending brightness bands,
-  near-camera fade. Hue stays the canon cool-light blue 0xb8d1ff.
-*/
 function addPillars(group: THREE.Group, positions: THREE.Vector3[], height: number, radius: number): void {
   const eps = 1e-4;
   const count = Math.min(positions.length, 6);
@@ -419,7 +586,6 @@ function addPillars(group: THREE.Group, positions: THREE.Vector3[], height: numb
       side: THREE.DoubleSide,
     });
 
-    // keeps-alpha additive: RGB accumulates, destination alpha untouched
     material.blending = THREE.CustomBlending;
     material.blendSrc = THREE.SrcAlphaFactor;
     material.blendDst = THREE.OneFactor;
@@ -428,21 +594,15 @@ function addPillars(group: THREE.Group, positions: THREE.Vector3[], height: numb
     material.blendDstAlpha = THREE.OneFactor;
     disposables.push(material);
 
-    // per-pillar phase (golden-angle spread so the shimmer never syncs)
     const phase = T.uniform((i * 2.3999632) % (Math.PI * 2));
 
-    // camera-facing (yaw-only) billboard basis: horizontal axis is
-    // perpendicular to the view direction (cross of world-up and toCam),
-    // so the quad faces the camera instead of sitting edge-on. Division guarded.
     const toCam = vec3(T.cameraPosition.x.sub(baseX), 0, T.cameraPosition.z.sub(baseZ));
     const toCamLen = max(length(toCam), float(eps));
     const right = vec3(0, 1, 0).cross(toCam).div(toCamLen);
 
-    // uv.x -> [-1, 1], uv.y -> [0, 1]
     const vX = T.uv().x.mul(2).sub(1);
     const vY = T.uv().y;
 
-    // quad spans +/-radius across the camera right vector, height above the base
     material.positionNode = right.mul(vX.mul(radius)).add(vec3(0, 1, 0).mul(vY.mul(height)));
 
     const dist = length(T.cameraPosition.sub(vec3(baseX, baseY, baseZ)));
@@ -453,10 +613,8 @@ function addPillars(group: THREE.Group, positions: THREE.Vector3[], height: numb
     const nearFade = smoothstep(8, 30, dist);
     const breathe = float(0.75).add(float(0.25).mul(sin(life.mul(1.5).add(phase))));
 
-    // additive glow: fold all fades into RGB; alpha stays 1 (keeps-alpha blending).
-    // NOTE: no vec4() wrap — colorNode takes the vec3 directly (file idiom, cf.
-    // buildWaveGlow/addGroundRing). Wrapping caused a vec4(vec4( nesting TSL error.
-    material.colorNode = color(0xb8d1ff).mul(1.6).mul(across).mul(up).mul(bands).mul(nearFade).mul(breathe);
+    // Luminous amber-gold palette for desert pillars
+    material.colorNode = color(0xffd8a8).mul(1.6).mul(across).mul(up).mul(bands).mul(nearFade).mul(breathe);
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(baseX, baseY, baseZ);
@@ -477,35 +635,34 @@ function build(ctx: LessonCtx): void {
 
   const uT: any = ctx.uT;
 
-  // the CreationKit draws into its own group, and its wisp is handed back unparented:
-  // seat both here, so every maker actually reaches the frame.
   ctx.group.add(ctx.kit.group);
 
   buildEarth(ctx.group, uT);
+  buildHorizonDunes(ctx.group);
   buildWaveGlow(ctx.group, uT);
+  buildSeedPods(ctx.group);
+  buildGhostPlants(ctx.group, uT);
+  buildHeatHaze(ctx.group);
   buildFlowers(ctx.group, uT);
-  buildEmbers(ctx.group, uT);
+  buildSandMotes(ctx.group, uT);
   buildPollen(ctx.group, uT);
 
-  // Introduce the "floating vegetation" canon requirement 
-  // (luminous seed pods that drift above the desert)
   ctx.kit.floatingVegetation(center, 28);
 
   addGroundRing(ctx.group, uT, 20, 0x2f2113, 0.22, 0.0);
-  addGroundRing(ctx.group, uT, 2.6, 0xffcc66, 0.3, 1.7);
-  addGroundRing(ctx.group, uT, 6.4, 0x7fe08c, 0.14, 3.1);
+  addGroundRing(ctx.group, uT, 2.6, 0xffd8a8, 0.35, 1.7);
+  addGroundRing(ctx.group, uT, 6.4, 0xe0a050, 0.18, 3.1);
 
-  // the seed of light, out in the middle of the burnt plain
+  // Seed of light
   seed = ctx.kit.wisp(0xffc766, 0.55);
   seed.setCenter(center.clone().setY(center.y + 0.9));
   ctx.group.add(seed.group);
 
-  // the wanderer's lantern-wisp, beside the seat
+  // Wanderer's lantern-wisp
   lantern = ctx.kit.wisp(0xffb84d, 0.6);
   lantern.setCenter(seat.clone().addScaledVector(fwd, 1.2).setY(seat.y + 1.1));
   ctx.group.add(lantern.group);
 
-  // first, quiet dressing — always present, never state
   ctx.kit.pathLights(
     [0.2, 0.36, 0.52, 0.68, 0.84].map((k) =>
       seat.clone().lerp(center, k).setY(center.y + 0.12),
@@ -514,7 +671,7 @@ function build(ctx: LessonCtx): void {
   addPillars(ctx.group, [center.clone().setY(center.y + 0.1)], 6, 0.3);
 }
 
-/* ------------------------------------------------------------------ CPU motion (never changes STATE) */
+/* ------------------------------------------------------------------ CPU motion */
 
 function tick(t: number, dt: number): void {
   const tt = Number.isFinite(t) ? t : 0;
@@ -557,7 +714,6 @@ export function createDesert(
   const s = SITES.desert;
   const seatPos = new THREE.Vector3(s.x, s.y, s.z);
 
-  // additive dressing fires once per scene instance, so re-sitting never stacks duplicates
   const fired = new Set<string>();
   const once = (key: string, fn: () => void): void => {
     if (fired.has(key)) return;
