@@ -16,10 +16,9 @@ function getFiles(dir, files = []) {
 }
 
 const publicFiles = getFiles('public').map(f => f.replace(/^public\//, ''));
-// The content files are also part of the asset set. We prefix them with content/
-// since the app fetches them from ./content/
-const contentFiles = getFiles('content').map(f => f.replace(/^content\//, 'content/'));
-
-const allFiles = [...publicFiles, ...contentFiles];
+// Do NOT include the content files here because they are bundled by Vite
+// into the app shell and do not exist at runtime in the public dist directory.
+// Attempting to manually cache them causes infinite 404 fetch loops.
+const allFiles = [...publicFiles];
 
 fs.writeFileSync('public/assets.json', JSON.stringify(allFiles, null, 2));

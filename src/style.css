@@ -162,16 +162,17 @@ body.loading #title h1, body.loading #title p { animation-play-state: paused; }
 #menu-btn {
   position: fixed; top: calc(10px + env(safe-area-inset-top, 0px)); right: calc(10px + env(safe-area-inset-right, 0px));
   width: 44px; height: 44px; display: grid; place-items: center; opacity: 0.7;
+  z-index: 10;
 }
 #menu-btn[hidden] { display: none; }
 #menu-btn span { width: 6px; height: 6px; border-radius: 50%; background: var(--pearl); box-shadow: 0 -10px 0 var(--pearl), 0 10px 0 var(--pearl); }
 #menu {
   position: fixed;
-  top: calc(12px + env(safe-area-inset-top, 0px));
+  top: calc(64px + env(safe-area-inset-top, 0px));
   right: calc(12px + env(safe-area-inset-right, 0px));
   bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   width: min(320px, calc(100% - 24px));
-  max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  max-height: calc(100dvh - 76px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
   display: flex; flex-direction: column;
   background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);

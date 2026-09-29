@@ -514,22 +514,5 @@
   "textures/temple/sandstone_blocks_08_nor.jpg",
   "textures/temple/sandstone_cracks_arm.jpg",
   "textures/temple/sandstone_cracks_diff.jpg",
-  "textures/temple/sandstone_cracks_nor.jpg",
-  "content/archetype_qa.json",
-  "content/dialogues.json",
-  "content/narration.json",
-  "content/passages.json",
-  "content/scripts/J01_the_shore.txt",
-  "content/scripts/J02_the_crossing.txt",
-  "content/scripts/J03_arrival.txt",
-  "content/scripts/J04_the_magician.txt",
-  "content/scripts/J05_the_high_priestess.txt",
-  "content/scripts/J06_the_empress.txt",
-  "content/scripts/J07_the_emperor.txt",
-  "content/scripts/J08_the_hierophant.txt",
-  "content/scripts/J09_the_lovers.txt",
-  "content/scripts/J10_the_chariot.txt",
-  "content/scripts/J11_the_return.txt",
-  "content/stations.json",
-  "content/transcript_orbs.json"
+  "textures/temple/sandstone_cracks_nor.jpg"
 ]
