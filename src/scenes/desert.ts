@@ -487,6 +487,10 @@ function build(ctx: LessonCtx): void {
   buildEmbers(ctx.group, uT);
   buildPollen(ctx.group, uT);
 
+  // Introduce the "floating vegetation" canon requirement 
+  // (luminous seed pods that drift above the desert)
+  ctx.kit.floatingVegetation(center, 28);
+
   addGroundRing(ctx.group, uT, 20, 0x2f2113, 0.22, 0.0);
   addGroundRing(ctx.group, uT, 2.6, 0xffcc66, 0.3, 1.7);
   addGroundRing(ctx.group, uT, 6.4, 0x7fe08c, 0.14, 3.1);

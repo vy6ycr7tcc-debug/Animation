@@ -325,7 +325,23 @@ export function createShoreScene(
     const robeProfile: THREE.Vector2[] = ROBE.map(([y, r]) => new THREE.Vector2(r < 0.02 ? 0.02 : r, y));
     const robeGeo = new THREE.LatheGeometry(robeProfile, 36);
     const robePos = robeGeo.getAttribute("position") as THREE.BufferAttribute;
-    const robeMat = new THREE.MeshStandardMaterial({ color: 0x1c1a2c, roughness: 0.95, metalness: 0 });
+    // Upgraded from StandardMaterial to NodeMaterial to create a softer, more atmospheric dark silhouette
+    // It should feel like a deep blue night, not a plastic primitive.
+    const robeMat = new THREE.MeshBasicNodeMaterial({ 
+      fog: true 
+    });
+    
+    // Depth-aware subtle fresnel rim lift for materiality
+    const viewDir = T.normalize(T.cameraPosition.sub(T.positionWorld));
+    // Lathe normal
+    const normal = T.normalWorld; 
+    const fresnel = T.pow(T.float(1.0).sub(T.max(T.dot(normal, viewDir), 0.0)), 3.0);
+    
+    // Deep blue black base with a subtle blue lift at the edges to give it dimension
+    const baseCol = T.color(0x06080e);
+    const rimCol = T.color(0x1a2238).mul(fresnel);
+    robeMat.colorNode = baseCol.add(rimCol);
+
     ctx.group.add(new THREE.Mesh(robeGeo, robeMat));
     disposables.push(robeGeo, robeMat);
 
