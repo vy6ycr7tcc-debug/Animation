@@ -11,7 +11,7 @@ import type { LessonCtx, LessonOpts, Beat } from "./lessonKit";
 import { CreationKit } from "./creationKit";
 import { SITES } from "./sites";
 import { heightAt } from "../world/terrain";
-import { glowShader, softPoints, spriteCloud, viewDepth, gpuUniforms, T } from "../gpu/tsl";
+import { softPoints, spriteCloud, viewDepth, gpuUniforms, T, vnoise } from "../gpu/tsl";
 import type { Narration } from "../core/narration";
 
 // pixel size helper for soft leaf points
@@ -442,55 +442,51 @@ const flameGroup = new THREE.Group();
 flameGroup.position.copy(flameAnchor);
 ctx.group.add(flameGroup);
 
-const flameCoreMat = glowShader({intensity: 0.95}, (u, uv) => {
-  const dist = T.length(uv.sub(0.5).mul(2.0));
-  const core = T.exp(dist.mul(dist).mul(-12.0));
-  const halo = T.exp(dist.mul(dist).mul(-3.0)).mul(T.float(1).sub(T.smoothstep(0.8, 1.0, dist)));
-  const coreCol = T.vec3(1.0, 0.98, 0.92);
-  const auraCol = T.vec3(1.0, 0.78, 0.35);
-  return T.mix(auraCol, coreCol, core).mul(halo).mul(u.intensity).mul(2.2);
-});
-const flameCoreGeo = new THREE.SphereGeometry(0.35, 20, 14);
-const flameCore = new THREE.Mesh(flameCoreGeo, flameCoreMat);
-flameGroup.add(flameCore);
+const flameMat = new THREE.SpriteNodeMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+flameMat.colorNode = T.Fn(() => {
+    const uv = T.uv();
+    const r = T.length(uv.sub(0.5).mul(2.0));
+    const t = gpuUniforms.time;
 
-const flameHaloMat = glowShader({intensity: 0.25}, (u, uv) => {
-  const dist = T.length(uv.sub(0.5).mul(2.0));
-  const halo = T.exp(dist.mul(dist).mul(-2.5)).mul(T.float(1).sub(T.smoothstep(0.7, 1.0, dist)));
-  return T.vec3(1.0, 0.68, 0.25).mul(halo).mul(u.intensity);
-});
-const flameHaloGeo = new THREE.SphereGeometry(1.2, 20, 14);
-const flameHalo = new THREE.Mesh(flameHaloGeo, flameHaloMat);
-flameGroup.add(flameHalo);
+    const flameNoise = vnoise(uv.mul(4.0).sub(T.vec2(0.0, t.mul(3.0))));
+    const shape = T.smoothstep(1.0, 0.1, r.add(flameNoise.mul(0.4)));
 
-// Floating flame embers rising
-const emberMat = softPoints();
-ours.push(emberMat);
-const emberCloud = spriteCloud(30, { position: 3, aK: 1 }, emberMat);
+    const colCore = T.vec3(1.0, 0.98, 0.92);
+    const auraCol = T.vec3(1.0, 0.68, 0.25);
+    const col = T.mix(auraCol, colCore, T.pow(shape, 1.5));
+
+    return T.vec4(col.mul(shape).mul(1.5), shape);
+})();
+
+const flameSprite = new THREE.Sprite(flameMat);
+flameSprite.scale.set(2.0, 2.5, 2.0);
+flameSprite.position.set(0, 0.8, 0);
+flameGroup.add(flameSprite);
+
+const emberMat = new THREE.SpriteNodeMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: true });
+const emberCloud = spriteCloud(30, { aK: 1, aPh: 1 }, emberMat);
 {
-  const posA = emberCloud.attrs.position.array as Float32Array;
-  const kA = emberCloud.attrs.aK.array as Float32Array;
-  for (let k = 0; k < 30; k++) {
-    posA[k * 3] = (rnd(k, 121) - 0.5) * 1.2;
-    posA[k * 3 + 1] = rnd(k, 122) * 2.5;
-    posA[k * 3 + 2] = (rnd(k, 123) - 0.5) * 1.2;
-    kA[k] = rnd(k, 124);
-  }
-  emberCloud.attrs.position.needsUpdate = true;
-  emberCloud.attrs.aK.needsUpdate = true;
-}
-{
-  const { position, aK } = emberCloud.nodes;
-  const riseY = T.mod(position.y.add(uLife.mul(0.6).mul(aK.add(0.5))), T.float(3.0));
-  const driftX = T.sin(uLife.mul(1.2).add(aK.mul(10))).mul(0.25);
-  const driftZ = T.cos(uLife.mul(1.1).add(aK.mul(15))).mul(0.25);
-  const ep = T.vec3(position.x.add(driftX), riseY, position.z.add(driftZ));
-  emberMat.positionNode = ep;
-  const fade = T.float(1.0).sub(riseY.div(3.0));
-  const dist = T.length(T.pointUV.sub(0.5)).mul(2.0);
-  const falloff = T.exp(dist.mul(dist).mul(-3.5));
+  const ep = T.positionWorld;
+  const aK = T.attribute("aK", "float");
+  const aPh = T.attribute("aPh", "float");
+  
+  const tr = T.fract(aPh.add(gpuUniforms.time.mul(0.2)));
+  const yEnv = T.smoothstep(0.0, 0.1, tr).mul(T.float(1).sub(T.smoothstep(0.7, 1.0, tr)));
+  const fade = T.smoothstep(0.0, 0.1, yEnv).mul(T.float(1).sub(T.smoothstep(0.8, 1.0, yEnv)));
+  
+  const ox = T.sin(gpuUniforms.time.mul(T.mix(1.5, 2.5, aK)).add(aPh.mul(T.float(13.1)))).mul(0.6).mul(tr);
+  const oz = T.cos(gpuUniforms.time.mul(T.mix(1.2, 2.1, aK)).add(aPh.mul(T.float(27.3)))).mul(0.6).mul(tr);
+  
+  const wy = T.mix(1.2, 4.0, aK).mul(tr);
+  const driftX = T.sin(gpuUniforms.time.mul(0.4).add(aPh.mul(T.float(5.5)))).mul(0.8).mul(tr);
+  const driftZ = T.cos(gpuUniforms.time.mul(0.5).add(aPh.mul(T.float(8.8)))).mul(0.8).mul(tr);
+  
+  emberMat.positionNode = T.vec3(ox.add(driftX), wy, oz.add(driftZ));
+  const falloff = T.exp(T.length(T.uv().sub(0.5).mul(2)).mul(-3.0));
+  
   emberMat.colorNode = T.vec4(T.vec3(1.0, 0.8, 0.35).mul(falloff).mul(fade).mul(1.5), 1.0);
-  emberMat.sizeNode = pxSize(T.mix(0.3, 0.7, aK), ep);
+  // @ts-ignore
+  emberMat.scaleNode = T.vec2(pxSize(T.mix(0.3, 0.7, aK), ep), pxSize(T.mix(0.3, 0.7, aK), ep));
 }
 emberCloud.setCount(30);
 flameGroup.add(emberCloud.sprite);
@@ -499,20 +495,15 @@ tickers.push(() => {
         const nt = Number.isFinite(ctxU!.value) ? ctxU!.value : 0;
         const heat = sampleKeys(nt);
         const env = fadeU(ctx.uT, 14, 20, 600, 617);
-        flameCoreMat.uniforms.intensity.value = 0.95 * (1 + 0.07 * Math.sin(1.1 * lifeT) + 0.05 * Math.sin(2.3 * lifeT + 1.7));
-        flameHaloMat.uniforms.intensity.value = 0.25 * (1 + 0.07 * Math.sin(1.1 * lifeT + 2.2) + 0.05 * Math.sin(2.3 * lifeT + 1.7 + 2.2));
         flameGroup.visible = env > 1e-3;
         flameGroup.position.y = flameAnchor.y + env * 0.06 * Math.sin(lifeT * 0.9 + 0.4);
         const fl = 1 + 0.07 * Math.sin(lifeT * 1.1) + 0.05 * Math.sin(lifeT * 2.3 + 1.7);
         flameGroup.scale.set(env * (0.7 + 0.5 * heat) * fl, env * (0.35 + 0.9 * heat) * fl, env * (0.7 + 0.5 * heat) * fl);
-    });
+});
 
 ours.push({
     dispose: () => {
-        flameCoreGeo.dispose();
-        flameHaloGeo.dispose();
-        flameCoreMat.dispose();
-        flameHaloMat.dispose();
+        flameMat.dispose();
     }
 });
 
@@ -520,24 +511,34 @@ const ringGroup = new THREE.Group();
 ringGroup.position.copy(ringCenter);
 ctx.group.add(ringGroup);
 
-const ringInnerMat = glowShader({intensity: 0.85}, (u, _uv) => T.vec3(T.float(0.75), T.float(0.85), T.float(1)).mul(u.intensity), {});
-const ringInnerGeo = new THREE.RingGeometry(1.5, 1.58, 96);
-const ringInner = new THREE.Mesh(ringInnerGeo, ringInnerMat);
-ringInner.rotation.x = -Math.PI / 2;
-ringGroup.add(ringInner);
+const ringMat = new THREE.MeshBasicNodeMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: true, side: THREE.DoubleSide });
+ringMat.colorNode = T.Fn(() => {
+    const uv = T.uv();
+    const r = T.length(uv.sub(0.5).mul(2.0));
+    
+    // Smooth dual ring painterly shape
+    const ring1 = T.smoothstep(0.1, 0.0, T.abs(r.sub(0.7)));
+    const ring2 = T.smoothstep(0.1, 0.0, T.abs(r.sub(0.95)));
+    
+    const noise = vnoise(uv.mul(12.0).sub(T.vec2(0.0, gpuUniforms.time.mul(0.5))));
+    const shape = ring1.add(ring2).mul(0.8).add(ring1.mul(ring2).mul(noise));
 
-const ringOuterMat = glowShader({intensity: 0.85}, (u, _uv) => T.vec3(T.float(0.75), T.float(0.85), T.float(1)).mul(u.intensity), {});
-const ringOuterGeo = new THREE.RingGeometry(2.1, 2.16, 96);
-const ringOuter = new THREE.Mesh(ringOuterGeo, ringOuterMat);
-ringOuter.rotation.x = -Math.PI / 2;
-ringGroup.add(ringOuter);
+    const col = T.vec3(0.75, 0.85, 1.0);
+    return T.vec4(col.mul(shape), shape);
+})();
+
+const ringGeo = new THREE.PlaneGeometry(5.0, 5.0);
+const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+ringMesh.rotation.x = -Math.PI / 2;
+ringGroup.add(ringMesh);
+ours.push(ringGeo, ringMat);
 
 tickers.push(() => {
         const env = fadeU(ctx.uT, 25, 35, 600, 617);
         ringGroup.visible = env > 1e-3;
         const BW = (2 * Math.PI) / 4.5;
-        ringInnerMat.uniforms.intensity.value = 0.85 + 0.25 * Math.sin(BW * lifeT);
-        ringOuterMat.uniforms.intensity.value = 0.85 - 0.25 * Math.sin(BW * lifeT);
+        // ringInnerMat.uniforms.intensity.value = 0.85 + 0.25 * Math.sin(BW * lifeT);
+        // ringOuterMat.uniforms.intensity.value = 0.85 - 0.25 * Math.sin(BW * lifeT);
         const s = env * (1 + 0.07 * Math.sin(BW * lifeT));
         ringGroup.scale.set(s, 1, s);
         ringGroup.rotation.y = 0.1 * lifeT;
@@ -545,10 +546,10 @@ tickers.push(() => {
 
 ours.push({
     dispose: () => {
-        ringInnerGeo.dispose();
-        ringOuterGeo.dispose();
-        ringInnerMat.dispose();
-        ringOuterMat.dispose();
+        // ringInnerGeo.dispose();
+        // ringOuterGeo.dispose();
+        // ringInnerMat.dispose();
+        // ringOuterMat.dispose();
     }
 });
 

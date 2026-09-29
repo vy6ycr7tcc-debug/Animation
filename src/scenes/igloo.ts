@@ -291,14 +291,13 @@ export function createIglooScene(
       /* ---------- Translucent Glowing Smooth Ice Dome ---------- */
       const iceDome = (): void => {
         const R_outer = 8.5;
-        const R_inner = 8.1;
         // Open archway / portal cut in front towards +Z (opening angle ~0.85 rad)
         const phiStart = 0.42;
         const phiLength = Math.PI * 2 - 0.84;
         const thetaLength = Math.PI * 0.52;
 
         /* Outer Smooth Ice Shell */
-        const outerGeo = new THREE.SphereGeometry(
+        const domeGeo = new THREE.SphereGeometry(
           R_outer,
           64,
           32,
@@ -308,141 +307,62 @@ export function createIglooScene(
           thetaLength
         );
 
-        const outerMat = glowShader(
-          { intensity: 0.38 },
-          (u, uv) => {
-            const t = gpuUniforms.time;
-            const posW = T.positionWorld;
-
-            // Wind-worn organic ice noise pattern
-            const iceNoise = vnoise(posW.xz.mul(T.float(0.18)).add(posW.yy.mul(T.float(0.12))));
-            const frostSeams = T.smoothstep(T.float(0.42), T.float(0.68), iceNoise);
-
-            // Fresnel glint on the smooth curved ice surface
-            const N = T.normalWorld;
-            const V = T.normalize(T.cameraPosition.sub(posW));
-            const NdotV = T.abs(T.dot(N, V));
-            const fresnel = T.pow(T.float(1.0).sub(NdotV), T.float(2.2));
-
-            // Aurora glow filtering through the translucent ice dome
-            const auroraPulse = T.sin(posW.x.mul(T.float(0.12)).add(t.mul(T.float(0.3)))).add(
-              T.cos(posW.z.mul(T.float(0.12)).sub(t.mul(T.float(0.2))))
-            ).mul(T.float(0.5)).add(T.float(0.5));
-
-            const colBase = T.vec3(T.float(0.52), T.float(0.82), T.float(1.0));
-            const colFrost = T.vec3(T.float(0.88), T.float(0.96), T.float(1.0));
-            const colAurora = T.vec3(T.float(0.25), T.float(0.95), T.float(0.72));
-
-            const col = T.mix(
-              colBase,
-              colFrost,
-              frostSeams.mul(T.float(0.4))
-            ).add(colAurora.mul(auroraPulse).mul(T.float(0.25)));
-
-            // Vertical edge soft fade near ground and apex
-            const vertFade = T.smoothstep(T.float(0.0), T.float(0.12), uv.y).mul(
-              T.smoothstep(T.float(1.0), T.float(0.85), uv.y)
-            );
-            // Angular soft fade at portal opening edges
-            const portalFade = T.smoothstep(T.float(0.0), T.float(0.08), uv.x).mul(
-              T.smoothstep(T.float(1.0), T.float(0.92), uv.x)
-            );
-
-            const totalGlow = col.mul(T.float(1.0).add(fresnel.mul(T.float(0.85))))
-              .mul(vertFade)
-              .mul(portalFade)
-              .mul(u.intensity);
-
-            return totalGlow;
-          },
-          { side: THREE.DoubleSide }
-        );
-
-        const outerMesh = new THREE.Mesh(outerGeo, outerMat);
-        outerMesh.position.set(C.x, C.y - 0.1, C.z);
-        ctx.group.add(outerMesh);
-
-        /* Inner Luminous Ice Shell */
-        const innerGeo = new THREE.SphereGeometry(
-          R_inner,
-          64,
-          32,
-          phiStart,
-          phiLength,
-          0,
-          thetaLength
-        );
-
-        const innerMat = glowShader(
-          { intensity: 0.22 },
-          (u, uv) => {
-            const posW = T.positionWorld;
-            const caustics = vnoise(posW.xz.mul(T.float(0.35)));
-            const warmGlow = T.smoothstep(T.float(10.0), T.float(1.0), T.length(posW.sub(T.vec3(T.float(C.x), T.float(C.y + 1.0), T.float(C.z)))));
-
-            const colCool = T.vec3(T.float(0.65), T.float(0.88), T.float(1.0));
-            const colWarm = T.vec3(T.float(1.0), T.float(0.75), T.float(0.48));
-
-            const col = T.mix(colCool, colWarm, warmGlow.mul(T.float(0.45))).add(caustics.mul(T.float(0.15)));
-
-            const vertFade = T.smoothstep(T.float(0.0), T.float(0.1), uv.y).mul(
-              T.smoothstep(T.float(1.0), T.float(0.88), uv.y)
-            );
-            const portalFade = T.smoothstep(T.float(0.0), T.float(0.08), uv.x).mul(
-              T.smoothstep(T.float(1.0), T.float(0.92), uv.x)
-            );
-
-            return col.mul(vertFade).mul(portalFade).mul(u.intensity);
-          },
-          { side: THREE.DoubleSide }
-        );
-
-        const innerMesh = new THREE.Mesh(innerGeo, innerMat);
-        innerMesh.position.set(C.x, C.y - 0.1, C.z);
-        ctx.group.add(innerMesh);
-
-        /* Portal Archway Surround Ring */
-        const portalRingGeo = new THREE.TorusGeometry(R_outer * 0.98, 0.45, 16, 48, Math.PI * 0.42);
-        const portalRingMat = glowShader(
-          { intensity: 0.42 },
-          (u, _uv) => {
-            return T.vec3(T.float(0.78), T.float(0.92), T.float(1.0)).mul(u.intensity);
-          },
-          { side: THREE.DoubleSide }
-        );
-        const portalRing = new THREE.Mesh(portalRingGeo, portalRingMat);
-        portalRing.position.set(C.x, C.y + R_outer * 0.45, C.z + R_outer * 0.88);
-        portalRing.rotation.x = Math.PI * 0.15;
-        ctx.group.add(portalRing);
-
-        /* Bright Frost Footing along the Dome Perimeter */
-        const footRingGeo = new THREE.RingGeometry(R_inner * 0.95, R_outer * 1.08, 64, 1, phiStart, phiLength);
-        const footRingMat = glowShader(
-          { intensity: 0.48 },
-          (u, uv) => {
-            const portalFade = T.smoothstep(T.float(0.0), T.float(0.08), uv.x).mul(
-              T.smoothstep(T.float(1.0), T.float(0.92), uv.x)
-            );
-            return T.vec3(T.float(0.82), T.float(0.92), T.float(1.0)).mul(portalFade).mul(u.intensity);
-          },
-          { side: THREE.DoubleSide }
-        );
-        const footRing = new THREE.Mesh(footRingGeo, footRingMat);
-        footRing.rotation.x = -Math.PI / 2;
-        footRing.position.set(C.x, C.y + 0.08, C.z);
-        ctx.group.add(footRing);
-
-        ours.push(outerGeo, outerMat, innerGeo, innerMat, portalRingGeo, portalRingMat, footRingGeo, footRingMat);
-
-        tickers.push(() => {
-          const t = Number.isFinite(gpuUniforms.time.value) ? gpuUniforms.time.value : 0;
-          outerMat.uniforms.intensity.value = clamp01(0.38 * (0.88 + 0.12 * Math.sin(t * 0.32)));
-          innerMat.uniforms.intensity.value = clamp01(0.22 * (0.85 + 0.15 * Math.sin(t * 0.45 + 1.2)));
-          portalRingMat.uniforms.intensity.value = clamp01(0.42 * (0.86 + 0.14 * Math.sin(t * 0.5)));
-          footRingMat.uniforms.intensity.value = clamp01(0.48 * (0.88 + 0.12 * Math.sin(t * 0.28)));
+        const domeMat = new THREE.MeshBasicNodeMaterial({
+          transparent: true,
+          side: THREE.DoubleSide,
+          fog: true,
         });
-      };
 
+        domeMat.colorNode = T.Fn(() => {
+          const t = gpuUniforms.time;
+          const posW = T.positionWorld;
+          const N = T.normalWorld;
+          const V = T.normalize(T.cameraPosition.sub(posW));
+          const NdotV = T.abs(T.dot(N, V));
+          const fresnel = T.pow(T.float(1.0).sub(NdotV), T.float(3.0));
+
+          // Ice painterly noise
+          const iceNoise = vnoise(posW.xz.mul(T.float(0.18)).add(posW.yy.mul(T.float(0.12))));
+          
+          // Aurora filtering
+          const auroraPulse = T.sin(posW.x.mul(T.float(0.12)).add(t.mul(T.float(0.3)))).add(
+            T.cos(posW.z.mul(T.float(0.12)).sub(t.mul(T.float(0.2))))
+          ).mul(T.float(0.5)).add(T.float(0.5));
+
+          const colBase = T.vec3(T.float(0.25), T.float(0.45), T.float(0.85)); // Deep ice blue
+          const colFrost = T.vec3(T.float(0.68), T.float(0.86), T.float(1.0)); // Frosty white
+          const colAurora = T.vec3(T.float(0.15), T.float(0.85), T.float(0.62)); // Greenish
+
+          let col = T.mix(colBase, colFrost, iceNoise.mul(T.float(0.4)));
+          col = col.add(colAurora.mul(auroraPulse).mul(T.float(0.15)));
+          col = col.add(colFrost.mul(fresnel).mul(T.float(0.6))); // Rim light
+
+          // Warm fire glow near the center bottom
+          const distToFire = T.length(posW.sub(T.vec3(T.float(C.x), T.float(C.y), T.float(C.z))));
+          const fireGlow = T.smoothstep(T.float(9.0), T.float(2.0), distToFire);
+          col = col.add(T.vec3(T.float(1.0), T.float(0.5), T.float(0.2)).mul(fireGlow).mul(T.float(0.4)));
+
+          return T.vec4(col, 1.0);
+        })();
+        
+        domeMat.opacityNode = T.Fn(() => {
+          const uv = T.uv();
+          // Fade bottom and top
+          const fadeY = T.smoothstep(T.float(1.0), T.float(0.85), uv.y).mul(
+            T.smoothstep(T.float(0.02), T.float(0.15), uv.y)
+          );
+          // Fade the open portal edges
+          const fadeX = T.smoothstep(T.float(0.0), T.float(0.05), uv.x).mul(
+            T.smoothstep(T.float(1.0), T.float(0.95), uv.x)
+          );
+          return fadeY.mul(fadeX).mul(T.float(0.95));
+        })();
+
+        const domeMesh = new THREE.Mesh(domeGeo, domeMat);
+        domeMesh.position.set(C.x, C.y, C.z);
+        ctx.group.add(domeMesh);
+        ours.push(domeGeo, domeMat);
+      };
       iceDome();
 
       /* ---------- softShards(): ice prisms ---------- */
@@ -526,181 +446,56 @@ export function createIglooScene(
       softShards(10, new THREE.Vector3(C.x - 6.2, C.y + 0.25, C.z - 3.0), 2.2);
       softShards(9, new THREE.Vector3(C.x + 6.0, C.y + 0.25, C.z - 2.2), 2.0);
 
-      /* moonbeams */
-      const softBeams = (positions: THREE.Vector3[], height: number, radius: number): void => {
-        for (let bi = 0; bi < positions.length; bi++) {
-          const pos = positions[bi];
-          const mat = glowShader(
-            { intensity: 0.5 },
-            (u, uv) => {
-              const fx = T.smoothstep(T.float(0.5), T.float(0.1), T.abs(uv.x.sub(T.float(0.5))));
-              const fy = T.smoothstep(T.float(0.0), T.float(0.25), uv.y).mul(
-                T.smoothstep(T.float(1.0), T.float(0.55), uv.y)
-              );
-              return T.vec3(T.float(0.722), T.float(0.82), T.float(1.0)).mul(fx).mul(fy).mul(u.intensity);
-            },
-            { side: THREE.DoubleSide }
-          );
-          for (let k = 0; k < 2; k++) {
-            const geo = new THREE.PlaneGeometry(radius * 2.4, height);
-            const m = new THREE.Mesh(geo, mat);
-            m.position.set(pos.x, pos.y + height / 2, pos.z);
-            m.rotation.y = k * 0.5 * Math.PI + bi * 0.7;
-            ctx.group.add(m);
-            ours.push(geo);
-          }
-          ours.push(mat);
-          const base = 0.5;
-          tickers.push(() => {
-            const t = Number.isFinite(gpuUniforms.time.value) ? gpuUniforms.time.value : 0;
-            mat.uniforms.intensity.value = clamp01(base * (0.82 + 0.18 * Math.sin(t * 1.4 + bi * 1.1)));
-          });
-        }
-      };
-      softBeams(
-        [
-          new THREE.Vector3(C.x + 1.6, C.y, C.z - 1.4),
-          new THREE.Vector3(C.x - 5.2, C.y, C.z - 6.4),
-        ],
-        8,
-        0.5
-      );
-
       /* light-flowers on snow */
       kit.flowers(30, C.x, C.z, 11);
       kit.flowers(16, C.x, C.z, 6.2);
 
-      /* trail of lamps leading to entrance */
+      /* simple warm lamps leading to entrance (painterly style) */
       const trail: THREE.Vector3[] = [];
       const gate = new THREE.Vector3(C.x, C.y, C.z + 14);
       for (let i = 0; i <= 9; i++) trail.push(new THREE.Vector3().lerpVectors(seat, gate, i / 9));
 
-      const softLamps = (points: THREE.Vector3[]): void => {
-        const haloPos = new Float32Array(points.length * 3);
-        const coreMats: THREE.PointsNodeMaterial[] = [];
-        for (let i = 0; i < points.length; i++) {
-          const p = points[i];
-          haloPos[i * 3] = p.x;
-          haloPos[i * 3 + 1] = p.y + 0.3;
-          haloPos[i * 3 + 2] = p.z;
-          const core = worldPoints(new Float32Array([p.x, p.y + 0.3, p.z]), {
-            size: 0.45,
-            color: 0xffe6a0,
-            opacity: 0.95,
-          });
-          ctx.group.add(core.sprite);
-          ours.push(core.material);
-          coreMats.push(core.material);
-        }
-        const halos = worldPoints(haloPos, { size: 1.6, color: 0xffd9a0, opacity: 0.3 });
-        ctx.group.add(halos.sprite);
-        ours.push(halos.material);
-        tickers.push(() => {
-          const t = Number.isFinite(gpuUniforms.time.value) ? gpuUniforms.time.value : 0;
-          for (let i = 0; i < coreMats.length; i++) {
-            coreMats[i].opacity = clamp01(0.95 * (0.62 + 0.38 * Math.sin(t * 2.0 - i * 0.6)));
-          }
-          halos.material.opacity = clamp01(0.3 * (0.75 + 0.25 * Math.sin(t * 2.0)));
-        });
-      };
-      softLamps(trail);
-
-      /* ---------- hearth ---------- */
-      const wisp = kit.wisp(0xffab52, 0.78);
-      wisp.setCenter(new THREE.Vector3(C.x, C.y + 0.6, C.z));
-      ctx.group.add(wisp.group);
-
-      const coldWisp = kit.wisp(0x7fb6ff, 0.5);
-      coldWisp.setCenter(new THREE.Vector3(C.x - 5.8, C.y + 1.8, C.z - 7.2));
-      ctx.group.add(coldWisp.group);
-
-      /* stone ring */
-      const stoneCount = 18;
-      const stonePos = new Float32Array(stoneCount * 3);
-      const coolPos = new Float32Array(stoneCount * 3);
-      for (let i = 0; i < stoneCount; i++) {
-        const a = (i / stoneCount) * Math.PI * 2 + (rnd(i, 1.3) - 0.5) * 0.14;
-        const r = 1.32 + (rnd(i, 2.4) - 0.5) * 0.2;
-        stonePos[i * 3] = C.x + Math.cos(a) * r;
-        stonePos[i * 3 + 1] = C.y + 0.16 + rnd(i, 3.5) * 0.12;
-        stonePos[i * 3 + 2] = C.z + Math.sin(a) * r;
-        const r2 = 1.62 + (rnd(i, 4.6) - 0.5) * 0.24;
-        coolPos[i * 3] = C.x + Math.cos(a) * r2;
-        coolPos[i * 3 + 1] = C.y + 0.12 + rnd(i, 5.7) * 0.1;
-        coolPos[i * 3 + 2] = C.z + Math.sin(a) * r2;
-      }
-      const stones = worldPoints(stonePos, { size: 0.34, color: 0xffb27a, opacity: 0.55 });
-      ctx.group.add(stones.sprite);
-      ours.push(stones.material);
-      const frost = worldPoints(coolPos, { size: 0.3, color: 0x86b0e8, opacity: 0.22 });
-      ctx.group.add(frost.sprite);
-      ours.push(frost.material);
-
-      /* crossed glowing logs */
-      const logMat = new THREE.MeshBasicMaterial({
-        color: 0xff9a52,
-        transparent: true,
-        opacity: 0.34,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        fog: false,
+      const lampGeo = new THREE.SphereGeometry(0.12, 16, 16);
+      const lampMat = new THREE.MeshBasicNodeMaterial({
+        colorNode: T.vec4(T.vec3(1.0, 0.7, 0.4).mul(T.float(1.5)), 1.0),
+        fog: true
       });
-      ours.push(logMat);
-      for (let i = 0; i < 3; i++) {
-        const geo = new THREE.BoxGeometry(1.15, 0.13, 0.13);
-        const log = new THREE.Mesh(geo, logMat);
-        log.position.set(C.x, C.y + 0.24 + i * 0.06, C.z);
-        log.rotation.y = (i / 3) * Math.PI + rnd(i, 6.8) * 0.35;
-        log.rotation.z = (rnd(i, 7.9) - 0.5) * 0.18;
-        ctx.group.add(log);
-        ours.push(geo);
+
+      const trailGroup = new THREE.Group();
+      for (let i = 0; i < trail.length; i++) {
+        const p = trail[i];
+        const m = new THREE.Mesh(lampGeo, lampMat);
+        m.position.set(p.x, p.y + 0.15, p.z);
+        trailGroup.add(m);
       }
+      ctx.group.add(trailGroup);
+      ours.push(lampGeo, lampMat);
 
       /* living flame */
-      const flameCoreMat = glowShader(
-        { intensity: 1.25 },
-        (u, _uv) => T.vec3(1.0, 0.8, 0.4).mul(u.intensity),
-        {}
-      );
-      const flameMidMat = glowShader(
-        { intensity: 0.55 },
-        (u, _uv) => T.vec3(1.0, 0.52, 0.18).mul(u.intensity),
-        {}
-      );
-      const flameHaloMat = glowShader(
-        { intensity: 0.2 },
-        (u, _uv) => T.vec3(1.0, 0.48, 0.16).mul(u.intensity),
-        {}
-      );
+      // Instead of nested spherical glows, use a single soft additive sprite for the flame.
+      const flameMat = new THREE.SpriteNodeMaterial({ transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+      flameMat.colorNode = T.Fn(() => {
+          const uv = T.uv();
+          const r = T.length(uv.sub(T.vec2(0.5, 0.5))).mul(2.0);
+          const t = gpuUniforms.time;
+          
+          // Organic flame shape
+          const flameNoise = vnoise(uv.mul(T.float(4.0)).sub(T.vec2(T.float(0.0), t.mul(T.float(2.5)))));
+          const shape = T.smoothstep(T.float(1.0), T.float(0.2), r.add(flameNoise.mul(T.float(0.3))));
+          
+          const colBase = T.vec3(T.float(1.0), T.float(0.4), T.float(0.1));
+          const colCore = T.vec3(T.float(1.0), T.float(0.9), T.float(0.5));
+          const col = T.mix(colBase, colCore, T.pow(shape, T.float(2.0)));
+          
+          const alpha = shape.mul(T.float(1.2));
+          return T.vec4(col.mul(alpha), alpha);
+      })();
 
-      const coreGeo = new THREE.SphereGeometry(0.3, 20, 16);
-      const flameCore = new THREE.Mesh(coreGeo, flameCoreMat);
-      flameCore.position.set(C.x, C.y + 0.72, C.z);
-      flameCore.scale.set(0.9, 1.2, 0.9);
-      ctx.group.add(flameCore);
-      ours.push(coreGeo, flameCoreMat);
-
-      const midGeo = new THREE.SphereGeometry(0.55, 20, 16);
-      const flameMid = new THREE.Mesh(midGeo, flameMidMat);
-      flameMid.position.set(C.x, C.y + 1.02, C.z);
-      flameMid.scale.set(1.0, 1.45, 1.0);
-      ctx.group.add(flameMid);
-      ours.push(midGeo, flameMidMat);
-
-      const haloGeo = new THREE.SphereGeometry(1.02, 20, 16);
-      const flameHalo = new THREE.Mesh(haloGeo, flameHaloMat);
-      flameHalo.position.set(C.x, C.y + 1.02, C.z);
-      flameHalo.scale.set(1.0, 1.15, 1.0);
-      ctx.group.add(flameHalo);
-      ours.push(haloGeo, flameHaloMat);
-
-      const halo = worldPoints(new Float32Array([C.x, C.y + 1.05, C.z]), {
-        size: 2.6,
-        color: 0xff9a3c,
-        opacity: 0.5,
-      });
-      ctx.group.add(halo.sprite);
-      ours.push(halo.material);
+      const flameSprite = new THREE.Sprite(flameMat);
+      flameSprite.position.set(C.x, C.y + 0.8, C.z);
+      flameSprite.scale.set(1.5, 2.0, 1.5);
+      ctx.group.add(flameSprite);
+      ours.push(flameMat);
 
       const fireLight = new THREE.PointLight(0xff9a4a, 4.6, 18, 2);
       fireLight.position.set(C.x, C.y + 1.15, C.z);
@@ -722,29 +517,11 @@ export function createIglooScene(
 
       tickers.push(() => {
         const t = Number.isFinite(gpuUniforms.time.value) ? gpuUniforms.time.value : 0;
-        const flicker = 1 + 0.12 * Math.sin(t * 7.0) * Math.sin(t * 4.3);
-        flameCoreMat.uniforms.intensity.value = 1.25 * (1 + 0.1 * Math.sin(t * 8.1));
-        flameMidMat.uniforms.intensity.value = 0.55 * flicker;
-        flameHaloMat.uniforms.intensity.value = 0.2 * (1 + 0.18 * Math.sin(t * 5.7) * Math.cos(t * 3.3));
         fireLight.intensity = 4.6 * (0.9 + 0.1 * Math.sin(t * 3.1) * Math.sin(t * 1.7));
-        logMat.opacity = clamp01(0.34 * (0.86 + 0.14 * Math.sin(t * 3.9)));
-
-        flameCore.scale.set(
-          0.9 + 0.07 * Math.sin(t * 7.7),
-          1.2 + 0.12 * Math.cos(t * 5.9),
-          0.9 + 0.07 * Math.sin(t * 6.1)
-        );
-        flameMid.scale.set(
-          1.0 + 0.08 * Math.sin(t * 5.1),
-          1.45 + 0.16 * Math.sin(t * 6.3),
-          1.0 + 0.08 * Math.cos(t * 4.7)
-        );
-        flameMid.position.x = C.x + 0.07 * Math.sin(t * 2.3);
-        flameMid.position.z = C.z + 0.07 * Math.cos(t * 1.9);
-        flameHalo.scale.set(
-          1.0 + 0.05 * Math.sin(t * 4.9),
-          1.15 + 0.1 * Math.sin(t * 3.7),
-          1.0 + 0.05 * Math.cos(t * 5.3)
+        flameSprite.scale.set(
+          1.5 + 0.1 * Math.sin(t * 7.7),
+          2.0 + 0.15 * Math.cos(t * 5.9),
+          1.5 + 0.1 * Math.sin(t * 6.1)
         );
 
         const a = embers.position.array as Float32Array;
