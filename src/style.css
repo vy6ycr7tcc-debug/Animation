@@ -546,6 +546,43 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 #guide-pick .row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 #guide-pick button, #map-guide { border: 1px solid var(--gold); border-radius: 22px; min-height: 44px; padding: 8px 16px; color: var(--gold); }
 
+/* ---- TV Kiosk Mode ---- */
+body.tv-mode #title,
+body.tv-mode #begin,
+body.tv-mode #loading,
+body.tv-mode #joy,
+body.tv-mode #act,
+body.tv-mode #ctx,
+body.tv-mode #menu-btn,
+body.tv-mode #menu,
+body.tv-mode #sub,
+body.tv-mode .whisper,
+body.tv-mode #tp,
+body.tv-mode #tp-mini,
+body.tv-mode #tp-source,
+body.tv-mode #labels,
+body.tv-mode #map,
+body.tv-mode #guide,
+body.tv-mode #sit-offer,
+body.tv-mode #sit-panel,
+body.tv-mode #cards-offer,
+body.tv-mode #temple-leave,
+body.tv-mode #shrine,
+body.tv-mode #rite-words,
+body.tv-mode #rite-end,
+body.tv-mode #cards,
+body.tv-mode #busy,
+body.tv-mode #prompt,
+body.tv-mode #question,
+body.tv-mode #journal,
+body.tv-mode #journal-btn,
+body.tv-mode #about,
+body.tv-mode #rest,
+body.tv-mode #stats,
+body.tv-mode #problem {
+  display: none !important;
+}
+
 /* calm: nothing touched for a while, or autofly: the controls and the half-moon fade away (an
    animation, not a transition: the stick sets its own inline transition while it moves) */
 body.calm #joy, body.calm #act, body.calm #ctx, body.calm #menu-btn, body.calm #tp-mini {

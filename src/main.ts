@@ -140,9 +140,14 @@ function gpuDiagEnd(): void {
     });
 }
 
+const isTv = new URLSearchParams(location.search).get("tv") === "1";
+if (isTv) {
+  document.body.classList.add("tv-mode");
+}
+
 type Mode = "intro" | "play" | "rest";
 const S = {
-  mode: "intro" as Mode,
+  mode: (isTv ? "play" : "intro") as Mode,
   t: 0,
   hidden: false,
   reducedPref: null as boolean | null, // null: follow the system setting
@@ -314,6 +319,7 @@ function additiveKeepsAlpha(root: THREE.Object3D): void {
   });
 }
 additiveKeepsAlpha(scene);
+
 // what the lakes don't mirror: the grass's blades and the lights seen through the ground
 for (const o of [grass.mesh, blooms.mesh, ...creation.noReflect]) o.layers.set(NO_MIRROR_LAYER);
 
@@ -457,7 +463,7 @@ input.onAction = () => {
   } else player.jump();
 };
 input.onTap = (x, y, touch) => {
-  if (S.mode !== "play" || genesis.active || temple.cardsOpen) return;
+  if (isTv || S.mode !== "play" || genesis.active || temple.cardsOpen) return;
   // in the deep archive: a tablet plays its narration again, an alcove's light its archetype
   if (depths.inside) {
     const got = depths.pick(x, y, camera);
@@ -869,6 +875,7 @@ const autofly = new Autofly(
   ORB_SITES.map((o) => ({ x: o.x, z: o.z })),
 );
 function setAutofly(on: boolean): void {
+  if (isTv && !on) return;
   if (on === autofly.active) return;
   if (on) {
     if (S.mode !== "play" || sitting.phase === "seated" || tourScenes.movementHeld || player.diving || genesis.active || apart()) return;
@@ -886,6 +893,7 @@ $("#autofly").addEventListener("click", () => {
   setMenu(false);
 });
 addEventListener("keydown", (e) => {
+  if (isTv) return;
   if (e.key.toLowerCase() === "p" && !e.repeat && S.mode === "play" && !(e.target as HTMLElement)?.closest?.("input, #menu")) setAutofly(!autofly.active);
 });
 
@@ -2276,6 +2284,10 @@ const tourScenes: TourScenes = initTourScenes({
 // additive glow punches dark squares into the lakes' reflection texture.
 additiveKeepsAlpha(scene);
 
+if (isTv) {
+  setAutofly(true);
+}
+
 function update(dt: number): void {
   S.t += dt;
   const t = S.t;
@@ -2287,7 +2299,7 @@ function update(dt: number): void {
 
   if (S.mode === "play") {
     if (wanderer.gesture !== "none" && Math.hypot(input.move.x, input.move.y) > 0.2 && wanderer.gesture === "sit") wanderer.setGesture("none");
-    if (autofly.active && (Math.hypot(input.move.x, input.move.y) > 0.25 || input.hold)) setAutofly(false); // the thumb takes over
+    if (autofly.active && !isTv && (Math.hypot(input.move.x, input.move.y) > 0.25 || input.hold)) setAutofly(false); // the thumb takes over
     if (genesis.active || temple.cardsOpen) player.update(dt, { x: 0, y: 0, glide: false, run: 0, hold: false, down: false, pitch: follow.pitch }, follow.yaw);
     else if (autofly.active) {
       const r = autofly.update(dt, player.pos);
@@ -2602,7 +2614,16 @@ const OPENING_AFTER = [
 let loadingEnded = false;
 let opening: "loading" | "ready" | "playing" | "done" = "loading";
 const openingTimers: number[] = [];
-window.setTimeout(endLoading, Math.max(0, 14000 - performance.now()));
+if (isTv) {
+  loadingEnded = true;
+  opening = "done";
+  document.body.classList.remove("loading");
+  $("#loading")?.remove();
+  $("#title")?.classList.add("gone");
+  if ($("#begin")) $("#begin").hidden = true;
+} else {
+  window.setTimeout(endLoading, Math.max(0, 14000 - performance.now()));
+}
 /** The world is ready: the light waits to be touched. */
 function endLoading(): void {
   if (loadingEnded) return;
