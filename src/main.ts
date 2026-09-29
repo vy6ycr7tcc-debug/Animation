@@ -2045,7 +2045,7 @@ $("#offline-btn").addEventListener("click", async () => {
 
   try {
     const listRes = await fetch("./assets.json");
-    if (!listRes.ok) throw new Error("Could not fetch assets list");
+    if (!listRes.ok) throw new Error(`Could not fetch assets list: ${listRes.status} ${listRes.statusText}`);
     const assets: string[] = await listRes.json();
 
     await downloadAssets(assets, (p) => {
@@ -2055,8 +2055,8 @@ $("#offline-btn").addEventListener("click", async () => {
 
     text.textContent = "Download complete.";
   } catch (err) {
-    console.error(err);
-    text.textContent = "Download failed. Please try again.";
+    console.error("Offline download failed:", err);
+    text.textContent = `Download failed: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`;
     btn.disabled = false;
   }
 });
