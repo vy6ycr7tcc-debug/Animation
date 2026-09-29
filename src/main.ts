@@ -58,6 +58,7 @@ import { Forest } from "./world/forest";
 import { RisingFlowers } from "./world/blooms";
 import { Wilds } from "./world/wilds";
 import { initTourScenes, tourPlaces, type TourScenes } from "./scenes/integration";
+import { bodyForms } from "./world/forms";
 
 import { downloadAssets, requestPersistentStorage, checkAssetUpdates } from "./core/offline";
 
@@ -837,7 +838,7 @@ function templeFrame(dt: number): void {
     if (temple.confine(player.pos) && !crossing) crossTemple(false);
     if (player.flying) player.flying = false; // no flight in the temple: you walk here
     riteFrame(dt);
-    $("#cards-offer").hidden = temple.cardsOpen || !temple.nearCards(player.pos) || crossing || shrineAt >= 0 || !!trite;
+    $("#cards-offer").hidden = temple.cardsOpen || !temple.nearCards(player.pos) || crossing || shrineAt >= 0 || !!trite || tourScenes.tour.active;
     $("#temple-leave").hidden = crossing || !temple.nearDoor(player.pos);
     $("#temple-leave").textContent = $("#menu-temple-leave").textContent = "Leave the temple";
     $("#menu-temple-leave").hidden = false;
@@ -2584,6 +2585,7 @@ renderer
         S,
         terrain,
         setInside,
+        ready: bodyForms(),
         genesisAt: (tt) => {
           beginGenesis();
           genesis.t = Math.max(0, tt - 1 / 60); // the one update that follows brings it to tt

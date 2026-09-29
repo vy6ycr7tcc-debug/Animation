@@ -35,7 +35,16 @@ export interface TourHooks2 {
   wanderer: { setGesture(g: Gesture): void };
   camera: THREE.Camera;
   whisper: (text: string, ms?: number) => void;
-  temple: { inside: boolean; gateAt: THREE.Vector3; gateHeading: number; outside(): { x: number; z: number } };
+  temple: {
+    inside: boolean;
+    gateAt: THREE.Vector3;
+    gateHeading: number;
+    outside(): { x: number; z: number };
+    standFor(i: number): { x: number; z: number; heading: number };
+    setRite(i: number, on: boolean): void;
+    entry(): { x: number; z: number; heading: number };
+    floorAt(x: number, z: number): number;
+  };
   crossTemple: (inside: boolean) => void;
   heightAt: (x: number, z: number) => number;
   sitting: { phase: "none" | "walking" | "seated" };
@@ -72,6 +81,7 @@ export function initTourScenes(hooks: TourHooks2): TourScenes {
     hooks.player,
     hooks.follow,
     { whisper: hooks.whisper },
+    hooks.temple,
   );
   const tree = new TreeOfLifeScene(
     hooks.scene,
@@ -87,7 +97,7 @@ export function initTourScenes(hooks: TourHooks2): TourScenes {
   const garden = createGardenScene(hooks.scene, hooks.narration, hooks.whisper);
   const galaxies = createGalaxiesScene(hooks.scene, hooks.narration, hooks.whisper);
   const desert = createDesert(hooks.scene, hooks.narration, hooks.whisper);
-  const treeStation = createTreeStationScene(hooks.scene, hooks.narration, hooks.whisper); // TEMP-VERIFY
+  const treeStation = createTreeStationScene(hooks.scene, hooks.narration, hooks.whisper);
 
   const lessons: Record<string, SceneModule> = { shore, igloo, garden, galaxies, desert, "tree-station": treeStation };
   const registry = new SceneRegistry([tour, tree, shore, igloo, garden, galaxies, desert, treeStation]);

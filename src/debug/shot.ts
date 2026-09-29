@@ -36,6 +36,8 @@ const DEFAULT_T: Record<string, number> = {
 };
 
 type XYZ = [number, number, number];
+/** The lessons told as visions (scenes/visionLesson.ts): framed from behind the seat. */
+const VISION_LESSONS = new Set(["shore", "igloo", "garden", "galaxies", "desert", "tree-station"]);
 type Site = { x: number; y: number; z: number; heading: number };
 const sites = SITES as Record<string, Site | undefined>;
 /** The temple tour's interior group sits here (scenes/templeTour.ts). */
@@ -69,7 +71,7 @@ export interface ShotCtx {
     lookAt(x: number, y: number, z: number): void;
     updateMatrixWorld(force?: boolean): void;
   };
-  player: { pos: { set(x: number, y: number, z: number): void }; heading: number };
+  player: { pos: { x: number; y: number; z: number; set(x: number, y: number, z: number): void }; heading: number };
   follow: { follow: number; startFollowing(now?: boolean): void };
   narration: { debugTime: number | null };
   tour: TourApi;
@@ -80,10 +82,17 @@ export interface ShotCtx {
   genesisAt?(t: number): XYZ;
   update(dt: number): void;
   draw(): void;
+  /** Settles when what the frame needs has loaded (the recorded figure the visions pose). */
+  ready?: Promise<unknown>;
 }
 
 /** Render one still frame of the requested scene at T seconds, then never again. */
 export function runShot(ctx: ShotCtx): void {
+  if (ctx.ready) {
+    const { ready, ...rest } = ctx;
+    void ready.then(() => runShot(rest));
+    return;
+  }
   const shot = getShot();
   if (!shot) return;
   const { id, t } = shot;
@@ -118,8 +127,13 @@ export function runShot(ctx: ShotCtx): void {
     const site = sites[id];
     const v = VIEWS[id];
     if (!site || !v) return;
-    base = [site.x, heightAt(site.x, site.z), site.z]; // TEMP-VERIFY: real ground, not the guessed site.y
+    base = [site.x, heightAt(site.x, site.z), site.z]; // real ground, not the guessed site.y
     view = v;
+    if (VISION_LESSONS.has(id)) {
+      // over the seated wanderer's shoulder, toward the vision 6.5 m ahead of the seat
+      const fx = -Math.sin(site.heading), fz = -Math.cos(site.heading);
+      view = { eye: [-fx * 4.2, 2.5, -fz * 4.2], look: [fx * 6.5, 2.2, fz * 6.5] };
+    }
     if (id === "tree") {
       if (ctx.tour.gotoTree) ctx.tour.gotoTree(); // teleports the player and rests at the tree
       else ctx.tour.tree?.rest?.();
@@ -140,6 +154,13 @@ export function runShot(ctx: ShotCtx): void {
   ctx.update(1 / 60);
   ctx.S.t = t;
   ctx.S.wt = t;
+
+  if (id === "temple-tour") {
+    // over the walking wanderer's shoulder, where the tour has brought it by T
+    const p = ctx.player.pos, fx = -Math.sin(ctx.player.heading), fz = -Math.cos(ctx.player.heading);
+    base = [p.x, p.y, p.z];
+    view = { eye: [-fx * 4.5, 2.6, -fz * 4.5], look: [fx * 5, 1.6, fz * 5] };
+  }
 
   ctx.camera.position.set(base[0] + view.eye[0], base[1] + view.eye[1], base[2] + view.eye[2]);
   ctx.camera.lookAt(base[0] + view.look[0], base[1] + view.look[1], base[2] + view.look[2]);

@@ -380,6 +380,21 @@ body.loading #title h1, body.loading #title p { animation-play-state: paused; }
 #shrine .row { display: flex; justify-content: center; gap: 2px; margin-top: 4px; flex-wrap: wrap; }
 #shrine .row button { font-size: 13px; font-style: italic; color: var(--dim); min-height: 40px; padding: 4px 9px; }
 #shrine .lit { color: var(--dim); font-size: 12px; font-style: italic; }
+/* the temple tour: a passage of soft light between the Mind and the Body, and the end's choice */
+#tour-passage {
+  position: fixed; inset: 0; z-index: 5; pointer-events: none; opacity: 0;
+  background: radial-gradient(ellipse at 50% 55%, rgba(255, 238, 205, 0.95), rgba(236, 206, 158, 0.85) 45%, rgba(120, 92, 60, 0.9));
+}
+#tour-choice {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 7;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;
+  width: min(92vw, 26em); padding: 8px 10px; border-radius: 20px;
+  background: rgba(24, 16, 8, 0.55); border: 1px solid rgba(214, 170, 90, 0.3);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); animation: rise 1.2s ease;
+}
+#tour-choice[hidden] { display: none; }
+#tour-choice button { font-size: 16px; font-style: italic; color: var(--gold); min-height: 44px; padding: 6px 16px; border-radius: 22px; border: 1px solid rgba(214, 170, 90, 0.45); }
 /* the rite's words: low in the view, one line at a time, slow to come and go */
 #rite-words {
   position: fixed; left: 50%; transform: translateX(-50%); z-index: 7; margin: 0;

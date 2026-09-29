@@ -301,6 +301,15 @@ function rootLineSegs(roots: Limb[]): Seg[] {
 /** Living bark: willow-bark relief, a thin rim of starlight, fine grain lines of light, and
     light flowing down from the crown. `accent`: the colour of that light (default: gold/silver).
     Instanced meshes carry each tree's seed in `aSeed`; a single tree passes its `seed`. */
+/** A stand-in until a rebuilt mesh's first contents arrive: `verts` coincident points (draws
+    nothing) carrying every attribute its material reads, so compiling it finds them all. */
+function blank(verts: number, name: string, size: number): THREE.BufferGeometry {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(verts * 3), 3));
+  g.setAttribute(name, new THREE.Float32BufferAttribute(new Float32Array(verts * size), size));
+  return g;
+}
+
 export function barkMaterial(accent?: THREE.Color, seed: number | null = null): THREE.MeshBasicNodeMaterial {
   const barkTex = surface("bark");
   const m = new THREE.MeshBasicNodeMaterial({ fog: false });
@@ -520,7 +529,7 @@ export class Creation {
       const tD = distance(vW.xz, U.uTouchPos.xz), tF = U.uTouchWave.mul(2.4);
       const answer = exp(tD.sub(tF).mul(tD.sub(tF)).mul(-1.5)).mul(float(1).sub(smoothstep(2, 4.5, U.uTouchWave))).mul(U.uTouchK).mul(float(1).sub(smoothstep(6, 9, tD)));
       mat.colorNode = vec4(c.mul(near.mul(0.06).add(0.03).add(flow.mul(near.mul(0.5).add(0.35))).add(answer.mul(1.2))).mul(fade).mul(U.uCommune.mul(2.5).add(1)), 1);
-      this.rootLines = new THREE.LineSegments(new THREE.BufferGeometry(), mat);
+      this.rootLines = new THREE.LineSegments(blank(2, "aR", 2), mat);
     }
     this.rootLines.frustumCulled = false;
     this.rootLines.renderOrder = 3;
@@ -698,7 +707,7 @@ export class Creation {
 
   /** Rainbow light thrown across the ground by the crystals. Rebuilt as clusters stream in. */
   private buildFans(): THREE.Mesh {
-    const g = new THREE.BufferGeometry();
+    const g = blank(3, "aF", 3);
     const mat = new THREE.MeshBasicNodeMaterial({
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
       polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
@@ -722,7 +731,7 @@ export class Creation {
 
   /** The network under the ground: every tree and crystal is joined to its neighbours. */
   private buildWeb(): THREE.LineSegments {
-    const g = new THREE.BufferGeometry();
+    const g = blank(2, "aS", 2);
     const mat = new THREE.LineBasicNodeMaterial({ transparent: true, depthWrite: false, depthFunc: THREE.GreaterDepth, blending: THREE.AdditiveBlending, fog: false });
     {
       const vS = attribute("aS", "vec2"), vW = positionWorld;
