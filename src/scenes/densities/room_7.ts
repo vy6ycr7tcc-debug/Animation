@@ -8,7 +8,7 @@ import { barkMaterial } from "../../world/creation";
 export function createDensity7(
   scene: THREE.Scene,
   narration: Narration,
-  whisper: (t: string, ms?: number) => void,
+  _whisper: (t: string, ms?: number) => void,
   startPos: THREE.Vector3,
   startHeading: number
 ): SceneModule {
@@ -24,8 +24,6 @@ export function createDensity7(
   const lengthZ = 120;
   const widthX = 8;
   
-  // Replay ring/anchor (at start of corridor)
-  const replayAnchor = startPos.clone();
 
   // Add the simple, quiet white-gold corridor geometry
   const floorGeo = new THREE.PlaneGeometry(widthX, lengthZ, 32, 128);
@@ -75,9 +73,8 @@ export function createDensity7(
   disposables.push(floorGeo, floorMat, pMat);
 
   let active = true;
-  let seated = false;
   
-  // The corridor doesn't hold movement, but we track 'seated' to mean 'inside and listening'
+  // The corridor doesn't hold movement
   return {
     id,
     active: true,
@@ -90,12 +87,10 @@ export function createDensity7(
     },
     onSit: () => {
       if (!active) return;
-      seated = true;
       void narration.play("audio/densities/density_7.mp3");
     },
     onStand: () => {
       if (!active) return;
-      seated = false;
       narration.stop();
     },
     update: (dt: number) => {
@@ -105,7 +100,6 @@ export function createDensity7(
     dispose: () => {
       if (!active) return;
       active = false;
-      seated = false;
       narration.stop();
       scene.remove(group);
       kit.dispose();

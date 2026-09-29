@@ -276,21 +276,9 @@ export class Controller {
           this.landing = false;
           this.vy = Math.max(this.vy, 1.5);
         }
-        // Graceful transition into glide: only trigger if we have fallen a bit or explicitly requested
         this.gliding = input.glide && !input.hold && this.vy < 0.5;
-        // Graceful hang-time: gravity lessens near the peak of the jump
-        const hangTime = !this.gliding && Math.abs(this.vy) < 1.5 ? 0.6 : 1.0;
-        // Easing trajectory with dampening on upward velocity
-        if (!this.gliding && this.vy > 0) {
-           this.vy -= GRAVITY * (hangTime) * dt * 1.05; // Slightly faster deceleration up
-        } else {
-           this.vy -= GRAVITY * (this.gliding ? 0.22 : hangTime) * dt;
-        }
-        if (this.gliding) {
-          // Smoothly approach the glide descent speed rather than snapping to it
-          this.vy += (-1.25 - this.vy) * Math.min(1, dt * 2.5);
-          this.vy = Math.max(this.vy, -1.25);
-        }
+        this.vy -= GRAVITY * (this.gliding ? 0.22 : 1) * dt;
+        if (this.gliding) this.vy = Math.max(this.vy, -1.25);
         this.pos.y += this.vy * dt;
         this.grounded = false;
         if (this.pos.y <= floor) {

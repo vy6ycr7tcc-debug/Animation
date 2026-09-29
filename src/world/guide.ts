@@ -29,7 +29,7 @@ function glowTex(): THREE.Texture {
   return t;
 }
 
-const TRAIL = 60;
+const TRAIL = 40;
 
 export class Guide {
   group = new THREE.Group();
@@ -113,12 +113,11 @@ export class Guide {
     this.hist.unshift(this.p.clone());
     if (this.hist.length > TRAIL) this.hist.pop();
     const a = this.trailPos.array as Float32Array;
-    const trailLength = this.hist.length;
     for (let i = 0; i < TRAIL; i++) {
-      const h = this.hist[Math.min(i, trailLength - 1) || 0];
+      const h = this.hist[Math.min(i, this.hist.length - 1)];
       a.set([h.x + Math.sin(i * 1.7 + t) * 0.05 * i * 0.1, h.y - i * 0.004, h.z], i * 3);
     }
     this.trailPos.needsUpdate = true;
-    this.trailMat.opacity = 0.8 * this.k;
+    this.trailMat.opacity = 0.5 * this.k;
   }
 }
