@@ -108,7 +108,7 @@ const narrator = new THREE.Mesh(new THREE.LatheGeometry(robeCurve, 32),
     })
   );
   // Starlight rim + inner wisp light
-  narrator.material.outputNode = T.fn(() => {
+  narrator.material.outputNode = T.Fn(() => {
     const base = T.vec3(0.01, 0.02, 0.05);
     const viewDir = T.normalize(T.cameraPosition.sub(T.positionWorld));
     const normal = T.normalize(T.normalWorld);
