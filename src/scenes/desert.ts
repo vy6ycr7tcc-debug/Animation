@@ -20,6 +20,9 @@
 */
 import * as THREE from "three/webgpu";
 import { T, softPoints, spriteCloud, vnoise, withFog } from "../gpu/tsl";
+import { heightAt } from "../world/terrain";
+import { barkMaterial, SHAPES, grow, tubes } from "../world/creation";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { LessonScene, type LessonCtx, type Beat, type SceneModule } from "./lessonKit";
 import { SITES } from "./sites";
 import type { Narration } from "../core/narration";
@@ -84,6 +87,14 @@ function radial(): any {
 function buildEarth(group: THREE.Group, uT: any): void {
   const geo = new THREE.PlaneGeometry(DISC_R * 2, DISC_R * 2, 128, 128);
   geo.rotateX(-Math.PI / 2);
+  
+  const pos = geo.attributes.position.array as Float32Array;
+  for (let i = 0; i < pos.length; i += 3) {
+    const wx = pos[i] + center.x;
+    const wz = pos[i + 2] + center.z;
+    pos[i + 1] = heightAt(wx, wz) - center.y;
+  }
+  geo.computeVertexNormals();
 
   const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, fog: false });
   mat.polygonOffset = true;
@@ -130,7 +141,7 @@ function buildEarth(group: THREE.Group, uT: any): void {
   );
 
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.set(center.x, center.y + 0.12, center.z);
+  mesh.position.set(center.x, center.y, center.z);
   mesh.renderOrder = 1;
   group.add(mesh);
   disposables.push(geo, mat);
@@ -141,6 +152,14 @@ function buildEarth(group: THREE.Group, uT: any): void {
 function buildHorizonDunes(group: THREE.Group): void {
   const geo = new THREE.RingGeometry(DISC_R - 2, DISC_R + 25, 96, 16);
   geo.rotateX(-Math.PI / 2);
+  
+  const pos = geo.attributes.position.array as Float32Array;
+  for (let i = 0; i < pos.length; i += 3) {
+    const wx = pos[i] + center.x;
+    const wz = pos[i + 2] + center.z;
+    pos[i + 1] = heightAt(wx, wz) - center.y;
+  }
+  geo.computeVertexNormals();
 
   const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, fog: false });
 
@@ -157,7 +176,7 @@ function buildHorizonDunes(group: THREE.Group): void {
   mat.opacityNode = clamp(hazeFade.mul(0.85), 0, 1);
 
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.set(center.x, center.y + 0.05, center.z);
+  mesh.position.set(center.x, center.y, center.z);
   mesh.renderOrder = 0;
   group.add(mesh);
   disposables.push(geo, mat);
@@ -168,6 +187,14 @@ function buildHorizonDunes(group: THREE.Group): void {
 function buildWaveGlow(group: THREE.Group, uT: any): void {
   const geo = new THREE.CircleGeometry(MEADOW_R + 2, 96);
   geo.rotateX(-Math.PI / 2);
+  
+  const pos = geo.attributes.position.array as Float32Array;
+  for (let i = 0; i < pos.length; i += 3) {
+    const wx = pos[i] + center.x;
+    const wz = pos[i + 2] + center.z;
+    pos[i + 1] = heightAt(wx, wz) - center.y + 0.08;
+  }
+  geo.computeVertexNormals();
 
   const mat = new THREE.MeshBasicNodeMaterial({
     transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide,
@@ -202,7 +229,7 @@ function buildWaveGlow(group: THREE.Group, uT: any): void {
   );
 
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.set(center.x, center.y + 0.18, center.z);
+  mesh.position.set(center.x, center.y, center.z);
   mesh.renderOrder = 2;
   group.add(mesh);
   disposables.push(geo, mat);
@@ -228,7 +255,7 @@ function buildSeedPods(group: THREE.Group): void {
     const a = R() * Math.PI * 2;
     const r = 3 + R() * 20;
     pos[i * 3 + 0] = center.x + Math.cos(a) * r;
-    pos[i * 3 + 1] = center.y + 1.2 + R() * 3.5;
+    pos[i * 3 + 1] = heightAt(pos[i * 3 + 0], pos[i * 3 + 2]) + 0.8 + R() * 3.5;
     pos[i * 3 + 2] = center.z + Math.sin(a) * r;
 
     dat[i * 4 + 0] = r;                 // radius
@@ -264,66 +291,70 @@ function buildSeedPods(group: THREE.Group): void {
 
 /* ------------------------------------------------------------------ ethereal ghost plants */
 
-function buildGhostPlants(group: THREE.Group, uT: any): void {
-  const count = 120;
+function buildPaleTrees(group: THREE.Group, uT: any): void {
+  const count = 32;
   const R = makeRng(55129);
 
-  const mat = softPoints();
-  mat.sizeAttenuation = true;
-  mat.size = 0.65;
-  mat.opacity = 0.85;
-  mat.color.set(0xffffff);
-
-  const cloud = spriteCloud(count, { position: 3, aData: 4 }, mat);
-  const pos = cloud.attrs.position.array as Float32Array;
-  const dat = cloud.attrs.aData.array as Float32Array;
-
+  const geometries: THREE.BufferGeometry[] = [];
+  
   for (let i = 0; i < count; i++) {
+    const seed = R() * 1000;
+    const { limbs } = grow(SHAPES[1], seed);
+    const geo = tubes(limbs);
+    
+    const seedArray = new Float32Array(geo.attributes.position.count);
+    seedArray.fill(seed);
+    geo.setAttribute('aSeed', new THREE.BufferAttribute(seedArray, 1));
+    
     const a = R() * Math.PI * 2;
-    const r = 2 + R() * 22;
-    pos[i * 3 + 0] = center.x + Math.cos(a) * r;
-    pos[i * 3 + 1] = center.y + 0.3 + R() * 1.2;
-    pos[i * 3 + 2] = center.z + Math.sin(a) * r;
+    const r = 4 + R() * 20;
+    const x = center.x + Math.cos(a) * r;
+    const z = center.z + Math.sin(a) * r;
+    const y = heightAt(x, z);
 
-    dat[i * 4 + 0] = r;                 // radius from center
-    dat[i * 4 + 1] = R() * 6.283;       // phase
-    dat[i * 4 + 2] = 0.5 + R() * 0.5;   // brightness
-    dat[i * 4 + 3] = R() * 6.283;       // sway phase
+    const matrix = new THREE.Matrix4();
+    matrix.makeTranslation(x, y, z);
+    const scale = 0.8 + R() * 0.4;
+    matrix.scale(new THREE.Vector3(scale, scale, scale));
+    matrix.multiply(new THREE.Matrix4().makeRotationY(R() * Math.PI * 2));
+    geo.applyMatrix4(matrix);
+    
+    geometries.push(geo);
   }
-  cloud.attrs.position.needsUpdate = true;
-  cloud.attrs.aData.needsUpdate = true;
 
-  const pn = cloud.nodes.position;
-  const dt = cloud.nodes.aData.x;
-  const ph = cloud.nodes.aData.y;
-  const br = cloud.nodes.aData.z;
-  const swayPh = cloud.nodes.aData.w;
-
+  const merged = mergeGeometries(geometries);
+  
+  const mat = barkMaterial(new THREE.Color(0xa2e088), null);
+  
+  const mesh = new THREE.Mesh(merged, mat);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  
+  const distNode = length(T.vec2(positionWorld.x.sub(center.x), positionWorld.z.sub(center.z)));
   const u = clamp(uT.div(TRACK_SECONDS), 0, 1);
   const greenR = float(MEADOW_R).mul(smoothstep(0.1, 0.78, u));
-
-  mat.positionNode = pn.add(vec3(
-    sin(life.mul(0.8).add(swayPh)).mul(0.08),
-    sin(life.mul(0.4).add(ph)).mul(0.1),
-    cos(life.mul(0.6).add(swayPh)).mul(0.08),
-  ));
-
-  const arrive = smoothstep(dt, dt.add(3.0), greenR);
-  const breathe = float(0.6).add(float(0.4).mul(sin(life.mul(1.1).add(ph))));
-  const round = smoothstep(0.5, 0.15, length(pointUV.sub(0.5)));
-
-  mat.colorNode = mix(color(0xffd38c), color(0xa2e088), arrive);
-  mat.opacityNode = clamp(materialOpacity.mul(round).mul(breathe).mul(br).mul(float(0.4).add(arrive.mul(0.6))), 0, 1);
-
-  group.add(cloud.sprite);
-  disposables.push(mat);
+  const arrive = smoothstep(distNode, distNode.add(3.0), greenR);
+  
+  mat.transparent = true;
+  mat.opacityNode = clamp(arrive, 0, 1);
+  
+  group.add(mesh);
+  disposables.push(merged, mat);
 }
 
 /* ------------------------------------------------------------------ heat haze shimmer atmosphere */
 
 function buildHeatHaze(group: THREE.Group): void {
-  const geo = new THREE.PlaneGeometry(DISC_R * 2, DISC_R * 2);
+  const geo = new THREE.PlaneGeometry(DISC_R * 2, DISC_R * 2, 64, 64);
   geo.rotateX(-Math.PI / 2);
+  
+  const pos = geo.attributes.position.array as Float32Array;
+  for (let i = 0; i < pos.length; i += 3) {
+    const wx = pos[i] + center.x;
+    const wz = pos[i + 2] + center.z;
+    pos[i + 1] = heightAt(wx, wz) - center.y + 0.35;
+  }
+  geo.computeVertexNormals();
 
   const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, fog: false });
   mat.blending = THREE.AdditiveBlending;
@@ -340,7 +371,7 @@ function buildHeatHaze(group: THREE.Group): void {
   mat.opacityNode = clamp(fade.mul(shimmer).mul(0.28), 0, 1);
 
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.set(center.x, center.y + 0.35, center.z);
+  mesh.position.set(center.x, center.y, center.z);
   mesh.renderOrder = 3;
   group.add(mesh);
   disposables.push(geo, mat);
@@ -370,7 +401,7 @@ function buildFlowers(group: THREE.Group, uT: any): void {
     const a = R() * Math.PI * 2;
     const r = Math.sqrt(R()) * FLOWER_R;
     pos[i * 3 + 0] = center.x + Math.cos(a) * r;
-    pos[i * 3 + 1] = center.y + 0.12 + R() * 0.55;
+    pos[i * 3 + 1] = heightAt(pos[i * 3 + 0], pos[i * 3 + 2]);
     pos[i * 3 + 2] = center.z + Math.sin(a) * r;
 
     const c = palette[Math.floor(R() * palette.length) % palette.length];
@@ -442,7 +473,7 @@ function buildSandMotes(group: THREE.Group, uT: any): void {
     const a = R() * Math.PI * 2;
     const r = Math.sqrt(R()) * 24;
     pos[i * 3 + 0] = center.x + Math.cos(a) * r;
-    pos[i * 3 + 1] = center.y + 0.3 + R() * 4.5;
+    pos[i * 3 + 1] = heightAt(pos[i * 3 + 0], pos[i * 3 + 2]) + 0.3 + R() * 4.5;
     pos[i * 3 + 2] = center.z + Math.sin(a) * r;
     dat[i * 4 + 0] = r;
     dat[i * 4 + 1] = R() * 6.283;
@@ -497,7 +528,7 @@ function buildPollen(group: THREE.Group, uT: any): void {
     const a = R() * Math.PI * 2;
     const r = Math.sqrt(R()) * 24;
     pos[i * 3 + 0] = center.x + Math.cos(a) * r;
-    pos[i * 3 + 1] = center.y + 0.4 + R() * 6.5;
+    pos[i * 3 + 1] = heightAt(pos[i * 3 + 0], pos[i * 3 + 2]) + 0.4 + R() * 6.5;
     pos[i * 3 + 2] = center.z + Math.sin(a) * r;
     dat[i * 4 + 0] = r;
     dat[i * 4 + 1] = R() * 6.283;
@@ -544,6 +575,15 @@ function addGroundRing(
 ): void {
   const geo = new THREE.RingGeometry(radius * 0.9, radius, 96);
   geo.rotateX(-Math.PI / 2);
+  
+  const pos = geo.attributes.position.array as Float32Array;
+  for (let i = 0; i < pos.length; i += 3) {
+    const wx = pos[i] + center.x;
+    const wz = pos[i + 2] + center.z;
+    pos[i + 1] = heightAt(wx, wz) - center.y + 0.02;
+  }
+  geo.computeVertexNormals();
+  
   const mat = new THREE.MeshBasicNodeMaterial({
     transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide,
   });
@@ -559,7 +599,7 @@ function addGroundRing(
     0, 1,
   );
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.set(center.x, center.y + 0.16, center.z);
+  mesh.position.set(center.x, center.y, center.z);
   mesh.renderOrder = 2;
   group.add(mesh);
   disposables.push(geo, mat);
@@ -573,7 +613,7 @@ function addPillars(group: THREE.Group, positions: THREE.Vector3[], height: numb
 
   for (let i = 0; i < count; i++) {
     const baseX = positions[i].x;
-    const baseY = positions[i].y;
+    const baseY = heightAt(positions[i].x, positions[i].z);
     const baseZ = positions[i].z;
 
     const geometry = new THREE.PlaneGeometry(1, 1);
@@ -641,13 +681,11 @@ function build(ctx: LessonCtx): void {
   buildHorizonDunes(ctx.group);
   buildWaveGlow(ctx.group, uT);
   buildSeedPods(ctx.group);
-  buildGhostPlants(ctx.group, uT);
+  buildPaleTrees(ctx.group, uT);
   buildHeatHaze(ctx.group);
   buildFlowers(ctx.group, uT);
   buildSandMotes(ctx.group, uT);
   buildPollen(ctx.group, uT);
-
-  ctx.kit.floatingVegetation(center, 28);
 
   addGroundRing(ctx.group, uT, 20, 0x2f2113, 0.22, 0.0);
   addGroundRing(ctx.group, uT, 2.6, 0xffd8a8, 0.35, 1.7);
@@ -721,8 +759,10 @@ export function createDesert(
     fn();
   };
 
-  const lamp = (k: number): THREE.Vector3 =>
-    seat.clone().lerp(center, k).setY(center.y + 0.12);
+  const lamp = (k: number): THREE.Vector3 => {
+    const p = seat.clone().lerp(center, k);
+    return p.setY(heightAt(p.x, p.z));
+  };
 
   const beats: Beat[] = [
     {
@@ -805,9 +845,10 @@ export function createDesert(
         once("road-out", () => {
           const dir = center.clone().sub(seat).normalize();
           ctx.kit.pathLights(
-            Array.from({ length: 8 }, (_, i) =>
-              center.clone().addScaledVector(dir, i + 1).setY(center.y + 0.12),
-            ),
+            Array.from({ length: 8 }, (_, i) => {
+              const p = center.clone().addScaledVector(dir, i + 1);
+              return p.setY(heightAt(p.x, p.z));
+            })
           );
         });
       },
