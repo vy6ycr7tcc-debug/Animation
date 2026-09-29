@@ -261,7 +261,26 @@ function pathU(uT: number): number {
 }
 
 function samplePos(uT: number, out: THREE.Vector3): THREE.Vector3 {
-  return PATH.getPoint(pathU(uT), out);
+  PATH.getPoint(pathU(uT), out);
+  
+  // Apply a slow S-weave that sways toward each card
+  const i = legIndex(uT);
+  if (i >= 0 && i < 8) {
+     const L = LEGS[i]!;
+     const depart = L.depart;
+     
+     let swayWeave = 1.0;
+     if (Number.isFinite(depart) && uT > depart) {
+        const travelU = clamp01((uT - depart) / Math.max(0.001, L.travel));
+        swayWeave = Math.cos(travelU * Math.PI * 2);
+     }
+     
+     const sign = (i % 2 === 0) ? -1 : 1;
+     const swayOffset = (1.0 - swayWeave) * 1.5 * sign; 
+     out.x += swayOffset; 
+  }
+  
+  return out;
 }
 
 const scratchA = new THREE.Vector3();
@@ -362,7 +381,6 @@ interface StationState {
   card: THREE.Group;
   level: { value: number };
   ignited: boolean;
-  orbitGroup: THREE.Group;
 }
 
 /** A TSL node: JS-side `.value` and shader-side `.mul()` — same convention as gpu/tsl. */
@@ -376,56 +394,17 @@ class StationSet {
   constructor(stops: StopDef[], life: LifeClock) {
     this.group.name = "temple-tour-stations";
 
-    const plinthGeo = new THREE.CylinderGeometry(0.75, 0.95, 0.4, 24);
-    const plinthMat = new THREE.MeshBasicNodeMaterial({ color: new THREE.Color(0x1a1410), fog: false });
-    const plinthRingGeo = new THREE.TorusGeometry(0.77, 0.025, 8, 32);
-    const plinthRingMat = new THREE.MeshBasicNodeMaterial({ color: new THREE.Color(0xd8ae55), fog: false });
-    const lensGeo = new THREE.CircleGeometry(0.68, 24).rotateX(-Math.PI / 2);
     const beamGeo = new THREE.CylinderGeometry(1.2, 0.5, 1, 24, 1, true);
     const auraGeo = new THREE.PlaneGeometry(2.8, 4.0);
-    const orbitRingGeo = new THREE.TorusGeometry(1.4, 0.02, 12, 32);
 
     for (let i = 0; i < stops.length; i++) {
       const s = stops[i]!;
       const colVec = stationColor(i);
       const level = T.uniform(0);
 
-      // Phase and tempo per station
-      const phase = i * 2.39996323;
-      const tempo = 0.42 + 0.09 * Math.sin(i * 1.7);
-
-      // 1. Carved Pedestal & Lens Base below the card position
-      const plinthH = 0.4;
-      const plinthY = s.p.y + plinthH / 2;
-      const plinthMesh = new THREE.Mesh(plinthGeo, plinthMat);
-      plinthMesh.position.set(s.c.x, plinthY, s.c.z);
-      this.group.add(plinthMesh);
-
-      const plinthRing = new THREE.Mesh(plinthRingGeo, plinthRingMat);
-      plinthRing.rotation.x = Math.PI / 2;
-      plinthRing.position.set(s.c.x, plinthY + 0.15, s.c.z);
-      this.group.add(plinthRing);
-
-      // Glowing lens aperture atop plinth
-      const lensMat = new THREE.MeshBasicNodeMaterial({
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.CustomBlending,
-        blendSrc: THREE.SrcAlphaFactor,
-        blendDst: THREE.OneFactor,
-        blendSrcAlpha: THREE.ZeroFactor,
-        blendDstAlpha: THREE.OneFactor,
-        fog: false,
-      });
-      const lensPulse = T.sin(life.mul(1.8).add(phase)).mul(0.15).add(0.85);
-      lensMat.colorNode = T.vec3(colVec.x, colVec.y, colVec.z).mul(lensPulse);
-      lensMat.opacityNode = level.mul(0.85);
-      const lensMesh = new THREE.Mesh(lensGeo, lensMat);
-      lensMesh.position.set(s.c.x, plinthY + plinthH / 2 + 0.01, s.c.z);
-      this.group.add(lensMesh);
 
       // 2. Volumetric Projection Cone / Light Beam
-      const beamBottomY = plinthY + plinthH / 2;
+      const beamBottomY = s.p.y + 0.4;
       const beamH = Math.max(0.5, s.c.y - beamBottomY);
       const beamCenterY = beamBottomY + beamH / 2;
 
@@ -485,56 +464,9 @@ class StationSet {
       auraMesh.position.set(0, 0, -0.05);
       card.add(auraMesh);
 
-      // Tilted Sacred Geometry Ring orbiting card
-      const orbitGroup = new THREE.Group();
-      orbitGroup.rotation.x = 0.4;
-      orbitGroup.rotation.z = 0.2;
-      const orbitRingMat = new THREE.MeshBasicNodeMaterial({
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.CustomBlending,
-        blendSrc: THREE.SrcAlphaFactor,
-        blendDst: THREE.OneFactor,
-        blendSrcAlpha: THREE.ZeroFactor,
-        blendDstAlpha: THREE.OneFactor,
-        fog: false,
-      });
-      orbitRingMat.colorNode = T.vec3(colVec.x, colVec.y, colVec.z).mul(1.2);
-      orbitRingMat.opacityNode = level.mul(0.55);
-      const orbitRingMesh = new THREE.Mesh(orbitRingGeo, orbitRingMat);
-      orbitGroup.add(orbitRingMesh);
-      card.add(orbitGroup);
 
-      // 4. Runic Floor Disc beneath Station
-      const runicMat = new THREE.MeshBasicNodeMaterial({
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.CustomBlending,
-        blendSrc: THREE.SrcAlphaFactor,
-        blendDst: THREE.OneFactor,
-        blendSrcAlpha: THREE.ZeroFactor,
-        blendDstAlpha: THREE.OneFactor,
-        fog: false,
-        side: THREE.DoubleSide,
-        polygonOffset: true,
-        polygonOffsetFactor: -2,
-        polygonOffsetUnits: -2,
-      });
-      const rUV = T.uv().sub(0.5);
-      const rDist = T.length(rUV).mul(2.0);
-      const ring1 = T.smoothstep(0.02, 0.0, T.abs(rDist.sub(0.85)));
-      const ring2 = T.smoothstep(0.02, 0.0, T.abs(rDist.sub(0.6)));
-      const innerFill = T.smoothstep(1.0, 0.0, rDist);
-      const rPulse = T.sin(life.mul(tempo).add(phase)).mul(0.15).add(0.85);
-      runicMat.colorNode = T.vec3(colVec.x, colVec.y, colVec.z);
-      runicMat.opacityNode = level.mul(rPulse).mul(ring1.add(ring2).mul(0.6).add(innerFill.mul(0.25)));
 
-      const runicDisc = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 3.6).rotateX(-Math.PI / 2), runicMat);
-      runicDisc.position.set(s.p.x, s.p.y + 0.06, s.p.z);
-      runicDisc.renderOrder = -1;
-      this.group.add(runicDisc);
-
-      this.states.push({ card, level, ignited: false, orbitGroup });
+      this.states.push({ card, level, ignited: false });
     }
   }
 
@@ -557,9 +489,6 @@ class StationSet {
       st.card.visible = t >= revAt;
       const grow = 0.9 + 0.1 * smooth01((t - revAt) / 1.8);
       st.card.scale.setScalar(grow);
-
-      // Rotate orbiting sacred geometry ring
-      st.orbitGroup.rotation.y = lt * 0.4 + i * 0.3;
 
       if (!st.ignited && t >= at) {
         // ignition is anchored to the cue itself, so any seek finds the same flare
@@ -597,7 +526,6 @@ class TourDecorations {
   private readonly dustPositions: Float32Array;
   private readonly dustBase: Float32Array;
   private readonly dustMesh: THREE.InstancedMesh;
-  private readonly choiceRingsGroup: THREE.Group;
 
   constructor(life: LifeClock) {
     this.group.name = "temple-tour-decorations";
@@ -758,66 +686,7 @@ class TourDecorations {
     choiceShaftMesh.renderOrder = 5;
     this.group.add(choiceShaftMesh);
 
-    // Choice Dais Sacred Concentric Ground Discs
-    const choiceDiscMat = new THREE.MeshBasicNodeMaterial({
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.CustomBlending,
-      blendSrc: THREE.SrcAlphaFactor,
-      blendDst: THREE.OneFactor,
-      blendSrcAlpha: THREE.ZeroFactor,
-      blendDstAlpha: THREE.OneFactor,
-      fog: false,
-      side: THREE.DoubleSide,
-      polygonOffset: true,
-      polygonOffsetFactor: -3,
-      polygonOffsetUnits: -3,
-    });
-    const cR_UV = T.uv().sub(0.5);
-    const cR_Dist = T.length(cR_UV).mul(2.0);
-    const cRing1 = T.smoothstep(0.015, 0.0, T.abs(cR_Dist.sub(0.9)));
-    const cRing2 = T.smoothstep(0.015, 0.0, T.abs(cR_Dist.sub(0.65)));
-    const cRing3 = T.smoothstep(0.015, 0.0, T.abs(cR_Dist.sub(0.4)));
-    const cPulse = T.sin(life.mul(0.5)).mul(0.12).add(0.88);
-    choiceDiscMat.colorNode = T.vec3(1.0, 0.88, 0.65);
-    choiceDiscMat.opacityNode = cPulse.mul(cRing1.add(cRing2).add(cRing3).mul(0.55));
 
-    const choiceDiscMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(8.4, 8.4).rotateX(-Math.PI / 2),
-      choiceDiscMat,
-    );
-    choiceDiscMesh.position.set(DAIS_LOCAL.x, 0.32, DAIS_LOCAL.z);
-    choiceDiscMesh.renderOrder = -1;
-    this.group.add(choiceDiscMesh);
-
-    // Overhead Rotating Sacred Rings over the Choice Dais
-    this.choiceRingsGroup = new THREE.Group();
-    this.choiceRingsGroup.position.set(DAIS_LOCAL.x, 9.5, DAIS_LOCAL.z);
-
-    const overheadRingGeo1 = new THREE.TorusGeometry(3.2, 0.035, 12, 48);
-    const overheadRingGeo2 = new THREE.TorusGeometry(2.1, 0.025, 12, 48);
-    const overheadMat = new THREE.MeshBasicNodeMaterial({
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.CustomBlending,
-      blendSrc: THREE.SrcAlphaFactor,
-      blendDst: THREE.OneFactor,
-      blendSrcAlpha: THREE.ZeroFactor,
-      blendDstAlpha: THREE.OneFactor,
-      fog: false,
-    });
-    overheadMat.colorNode = T.vec3(1.0, 0.88, 0.62);
-    overheadMat.opacityNode = T.sin(life.mul(0.6)).mul(0.15).add(0.65);
-
-    const ringMesh1 = new THREE.Mesh(overheadRingGeo1, overheadMat);
-    ringMesh1.rotation.x = 0.3;
-    const ringMesh2 = new THREE.Mesh(overheadRingGeo2, overheadMat);
-    ringMesh2.rotation.x = -0.4;
-    ringMesh2.rotation.z = 0.5;
-
-    this.choiceRingsGroup.add(ringMesh1);
-    this.choiceRingsGroup.add(ringMesh2);
-    this.group.add(this.choiceRingsGroup);
   }
 
   update(lifeT: number): void {
@@ -839,9 +708,6 @@ class TourDecorations {
     }
     this.dustMesh.instanceMatrix.needsUpdate = true;
 
-    if (this.choiceRingsGroup) {
-      this.choiceRingsGroup.rotation.y = lifeT * 0.2;
-    }
   }
 }
 
@@ -1348,10 +1214,16 @@ export class TempleTour implements SceneModule {
 
     // the wanderer faces down the rail, and turns toward the station while dwelling
     let want = Math.atan2(finite(tan.x, 0), finite(tan.z, -1));
-    if (stop && w > 0.001) {
+    if (stop) {
       const dx = stop.c.x - pos.x;
       const dz = stop.c.z - pos.z;
-      if (dx * dx + dz * dz > 1e-3) want = mixAngle(want, Math.atan2(dx, dz), w * 0.85);
+      if (dx * dx + dz * dz > 1e-3) {
+         const angleToCard = Math.atan2(dx, dz);
+         want = mixAngle(want, angleToCard, 0.35); // Gentle look towards the card while passing
+         if (w > 0.001) {
+            want = mixAngle(want, angleToCard, w * 0.85); // Stricter lock while dwelling
+         }
+      }
     }
     const h = finite(this.player.heading, want);
     const d = Math.atan2(Math.sin(want - h), Math.cos(want - h));
