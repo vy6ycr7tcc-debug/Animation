@@ -242,7 +242,9 @@ export class Pyramid {
   whisperTimer: number = 0;
   doorPos: THREE.Vector3 = new THREE.Vector3(-34, -7.4, 7.7);
   playerPos: THREE.Vector3 | null = null;
-  doorSlab: THREE.Mesh | null = null;  /** Duat root group — child of `inside`, so `show()` toggles it with the interior. */
+  doorSlab: THREE.Mesh | null = null;
+  roomsGroup: THREE.Group = new THREE.Group();
+  /** Duat root group — child of `inside`, so `show()` toggles it with the interior. */
   duat: THREE.Group = new THREE.Group();
 
   /** Duat-local waypoints (y = 0 floor): hidden-door threshold → stations 1–6 → dawn ascent (last two rise). */
@@ -419,6 +421,45 @@ export class Pyramid {
     dome.frustumCulled = false;
     this.duat.add(dome);
 
+    // Celestial Eclipse: the centerpiece of the Duat sky — black disc ringed with living gold corona
+    const eclipseGroup = new THREE.Group();
+    eclipseGroup.position.set(10, 32, -10);
+
+    const blackDiscMat = new THREE.MeshBasicNodeMaterial({ fog: false });
+    blackDiscMat.colorNode = T.vec3(0.002, 0.002, 0.005);
+    const blackDisc = new THREE.Mesh(new THREE.CircleGeometry(3.6, 64), blackDiscMat);
+    blackDisc.rotation.x = 0.2;
+    eclipseGroup.add(blackDisc);
+
+    const coronaMat = new THREE.MeshBasicNodeMaterial({
+      transparent: true,
+      depthWrite: false,
+      fog: false,
+      blending: THREE.CustomBlending,
+      blendEquation: THREE.AddEquation,
+      blendSrc: THREE.SrcAlphaFactor,
+      blendDst: THREE.OneFactor,
+      blendEquationAlpha: THREE.AddEquation,
+      blendSrcAlpha: THREE.ZeroFactor,
+      blendDstAlpha: THREE.OneFactor,
+    });
+    const cUv = uv().sub(0.5).mul(2.0);
+    const cR = T.length(cUv);
+    const cAngle = T.atan(cUv.y, cUv.x);
+    const rays = vnoise(vec2(cAngle.mul(6.0), this.uT.mul(0.15))).mul(0.35).add(0.65);
+    const haloGlow = smoothstep(0.48, 0.52, cR).mul(smoothstep(1.0, 0.52, cR));
+    const outerGlow = smoothstep(0.50, 0.95, cR).mul(smoothstep(1.0, 0.70, cR)).mul(0.4);
+    const coronaBreath = sin(this.uT.mul(0.6)).mul(0.15).add(0.85);
+    const coronaCol = vec3(1.0, 0.82, 0.48).mul(haloGlow.mul(rays).mul(1.8).add(outerGlow)).mul(coronaBreath);
+    coronaMat.colorNode = coronaCol;
+
+    const corona = new THREE.Mesh(new THREE.PlaneGeometry(16, 16), coronaMat);
+    corona.position.z = -0.05;
+    corona.rotation.x = 0.2;
+    eclipseGroup.add(corona);
+
+    this.duat.add(eclipseGroup);
+
     const count = 180;
     const pos = new Float32Array(count * 3);
     const seed = new Float32Array(count * 3);
@@ -481,13 +522,14 @@ export class Pyramid {
 
     const col0 = base.add(grain).add(kiss).add(rim);
 
-    // rim melt into fog so the disc edge never reads as a hard line
+    // Soft radial edge dissolve: organic falloff starting at r=40m to r=95m
     const d = T.length(xz.sub(vec2(5, -2)));
-    const col = T.mix(col0, vec3(0.020, 0.022, 0.045), smoothstep(55.0, 95.0, d));
+    const edgeDissolve = smoothstep(40.0, 95.0, d);
+    const col = T.mix(col0, vec3(0.020, 0.022, 0.045), edgeDissolve);
 
     groundMat.colorNode = duatAir(col, T.positionWorld);
 
-    const ground = new THREE.Mesh(new THREE.CircleGeometry(95, 48), groundMat);
+    const ground = new THREE.Mesh(new THREE.CircleGeometry(95, 64), groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(5, -0.08, -2);
     ground.frustumCulled = false;
@@ -507,9 +549,9 @@ export class Pyramid {
     this.pathLen = len;
 
     // --- palette: dark water, bank melt, gold current, warm pool ---
-    const WATER = vec3(0.02, 0.035, 0.075);
-    const BANK = vec3(0.02, 0.024, 0.045);
-    const GOLD = vec3(1.0, 0.78, 0.45);
+    const WATER = vec3(0.012, 0.028, 0.065);
+    const BANK = vec3(0.015, 0.018, 0.032);
+    const GOLD = vec3(1.0, 0.82, 0.50);
     const POOL = vec3(1.0, 0.80, 0.50).mul(0.85);
 
     // --- C. river ribbon: dark water + thread of gold current, edges melt into ground ---
@@ -520,16 +562,19 @@ export class Pyramid {
 
     const rp = uv();
     const across = abs(rp.x.sub(0.5)).mul(2.0);                 // 0 centre → 1 edge
-    const rWater = T.mix(WATER, BANK, smoothstep(0.55, 1.0, across));
-    const rShimmer = vnoise(vec2(rp.x.mul(4.0), rp.y.mul(30.0)).add(this.uT.mul(0.05))).mul(0.015);
-    const rCore = T.exp(across.mul(across).mul(-18.0));
-    const rPulse = sin(this.uT.mul(0.9).sub(rp.y.mul(25.0))).mul(0.22)
-      .add(sin(this.uT.mul(0.53).add(1.7)).mul(0.10))
-      .add(0.62);
-    const rEnds = smoothstep(0.0, 0.10, rp.y).mul(smoothstep(1.0, 0.90, rp.y));
+    const rWater = T.mix(WATER, BANK, smoothstep(0.45, 1.0, across));
+    const flowUV = vec2(rp.x.mul(5.0), rp.y.mul(35.0).sub(this.uT.mul(0.12)));
+    const rShimmer1 = vnoise(flowUV).mul(0.03);
+    const rShimmer2 = vnoise(flowUV.mul(2.2).add(1.5)).mul(0.015);
+    const rCore = T.exp(across.mul(across).mul(-14.0));
+    const rPulse = sin(this.uT.mul(1.1).sub(rp.y.mul(28.0))).mul(0.25)
+      .add(sin(this.uT.mul(0.65).add(2.1)).mul(0.12))
+      .add(0.65);
+    const rEnds = smoothstep(0.0, 0.08, rp.y).mul(smoothstep(1.0, 0.92, rp.y));
     const rCol = rWater
-      .add(rShimmer)
-      .add(GOLD.mul(rCore.mul(rPulse)).mul(0.5))
+      .add(rShimmer1)
+      .add(rShimmer2)
+      .add(GOLD.mul(rCore.mul(rPulse)).mul(0.55))
       .mul(rEnds);
     ribbonMat.colorNode = duatAir(rCol, T.positionWorld);
 
@@ -796,33 +841,6 @@ export class Pyramid {
       return s - Math.floor(s);
     };
 
-    // --- The cavern: a soft dome, darker at the rim, faint blue glow at center-top ---
-    const domeMat = new THREE.MeshBasicNodeMaterial({
-      side: THREE.BackSide,
-      transparent: true,
-      depthWrite: false,
-      fog: false,
-    });
-    /* UNCHANGED */ const h = T.positionWorld.y.sub(cy).mul(0.055).add(0.16);
-    const col = T.mix(
-      vec3(0.010, 0.016, 0.035),
-      vec3(0.030, 0.048, 0.088),
-      T.smoothstep(0, 1, h),
-    );
-    const heartD = T.length(T.positionWorld.sub(vec3(cx, cy + 2.0, cz)));
-    const heart = T.exp(heartD.mul(heartD).mul(-1.0).div(60.0))
-      .mul(vec3(1.0, 0.78, 0.45))
-      .mul(0.35);
-    domeMat.colorNode = col.add(heart);
-    /* UNCHANGED */ // domeMat: BackSide, transparent:true, depthWrite:false, fog:false, renderOrder
-    const dome = new THREE.Mesh(
-      new THREE.SphereGeometry(24, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.55),
-      domeMat,
-    );
-    dome.position.set(cx, cy, cz);
-    dome.renderOrder = -10;
-    dome.frustumCulled = false;
-    this.duat.add(dome);
 
     // --- The union: ram-headed Ra fused with mummiform Osiris, breathing as one ---
     this.stillRa = new THREE.Sprite(glow(new THREE.Color(0.98, 0.82, 0.48), 0.95));
@@ -947,20 +965,36 @@ export class Pyramid {
       return new THREE.Sprite(mat);
     };
 
-    // Hall of Two Truths — eight pillars, two rows of four, flanking PATH[5].
-    const colGeo = new THREE.CylinderGeometry(0.7, 0.85, 9, 10);
+    // Hall of Two Truths — eight papyrus/lotus columns with carved capitals and architrave cornices, flanking PATH[5].
+    const colGeo = new THREE.CylinderGeometry(0.65, 0.85, 8.4, 12);
+    const capitalGeo = new THREE.CylinderGeometry(1.2, 0.65, 1.2, 12);
+    const abacusGeo = new THREE.BoxGeometry(1.5, 0.35, 1.5);
+    const architraveGeo = new THREE.BoxGeometry(15, 0.8, 1.2);
+    const corniceGeo = new THREE.BoxGeometry(15.8, 0.45, 1.5);
+
     for (const x of [-20, -16, -12, -8]) {
       for (const z of [13, 23]) {
         const col = new THREE.Mesh(colGeo, stone);
-        col.position.set(x, 4.5, z);
+        col.position.set(x, 4.2, z);
         this.duat.add(col);
+
+        const cap = new THREE.Mesh(capitalGeo, stone);
+        cap.position.set(x, 9.0, z);
+        this.duat.add(cap);
+
+        const ab = new THREE.Mesh(abacusGeo, stone);
+        ab.position.set(x, 9.75, z);
+        this.duat.add(ab);
       }
     }
-    const lintelGeo = new THREE.BoxGeometry(14, 0.8, 1);
     for (const z of [13, 23]) {
-      const lintel = new THREE.Mesh(lintelGeo, stone);
-      lintel.position.set(-14, 9.4, z);
+      const lintel = new THREE.Mesh(architraveGeo, stone);
+      lintel.position.set(-14, 10.35, z);
       this.duat.add(lintel);
+
+      const cornice = new THREE.Mesh(corniceGeo, stone);
+      cornice.position.set(-14, 10.95, z);
+      this.duat.add(cornice);
     }
 
     // The scales of the weighing.
@@ -1222,27 +1256,55 @@ export class Pyramid {
     meadow.position.set(-15, 0.02, -12);
     this.duat.add(meadow);
 
-    // Reed tufts — annulus r 6..24 around (-15,-12)
-    const reedGeo = new THREE.ConeGeometry(0.09, 2.2, 5);
-    const reedMat = new THREE.MeshStandardNodeMaterial({ color: 0x14241a, roughness: 1.0, fog: false });
-    const tipMat = new THREE.SpriteMaterial({ map: dotTexture(), color: 0xffd27a, opacity: 0.85 });
-    additive(tipMat);
-    for (let i = 0; i < 40; i++) {
+    // Field of Reeds — organic papyrus fan clusters & swaying stalks
+    const reedBladeMat = new THREE.MeshBasicNodeMaterial({
+      transparent: true,
+      depthWrite: false,
+      fog: false,
+      side: THREE.DoubleSide,
+      blending: THREE.CustomBlending,
+      blendSrc: THREE.SrcAlphaFactor,
+      blendDst: THREE.OneFactor,
+      blendEquation: THREE.AddEquation,
+      blendSrcAlpha: THREE.ZeroFactor,
+      blendDstAlpha: THREE.OneFactor,
+    });
+    const bUv2 = T.uv();
+    const blade2 = smoothstep(0.5, 0.10, abs(bUv2.x.sub(0.5)).mul(2.0));
+    const taper2 = smoothstep(0.0, 0.18, bUv2.y).mul(smoothstep(1.0, 0.45, bUv2.y));
+    const moon2 = T.mix(vec3(0.08, 0.11, 0.18), vec3(0.32, 0.40, 0.58), bUv2.y);
+    reedBladeMat.colorNode = moon2.mul(blade2).mul(taper2);
+    const ph2 = vnoise(T.positionWorld.xz.mul(0.35)).mul(6.28);
+    const sway2 = sin(this.uT.mul(0.8).add(ph2)).mul(T.pow(T.uv().y, 2.0)).mul(0.22);
+    reedBladeMat.positionNode = T.positionLocal.add(vec3(sway2, 0.0, sway2.mul(0.6)));
+
+    const reedTipMat = new THREE.SpriteMaterial({ map: dotTexture(), color: 0xffd27a, opacity: 0.85 });
+    additive(reedTipMat);
+
+    for (let i = 0; i < 45; i++) {
       const a = rnd() * Math.PI * 2;
       const r = 6 + rnd() * 18;
       const x = -15 + Math.cos(a) * r;
       const z = -12 + Math.sin(a) * r;
-      const reed = new THREE.Mesh(reedGeo, reedMat);
-      reed.position.set(x, 1.1, z);
-      reed.rotation.z = (rnd() - 0.5) * 0.12;
-      reed.rotation.x = (rnd() - 0.5) * 0.12;
-      this.duat.add(reed);
-      const tip = new THREE.Sprite(tipMat);
-      tip.position.set(x, 2.35, z);
-      tip.scale.setScalar(0.5);
+
+      const tuft = new THREE.Group();
+      tuft.position.set(x, 0, z);
+      const fanCount = 2 + Math.floor(rnd() * 2);
+      for (let k = 0; k < fanCount; k++) {
+        const plane = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 2.8), reedBladeMat);
+        plane.rotation.y = (k * Math.PI) / fanCount + (rnd() - 0.5) * 0.3;
+        plane.position.set(0, 1.35, 0);
+        plane.frustumCulled = false;
+        tuft.add(plane);
+      }
+      this.duat.add(tuft);
+
+      const tip = new THREE.Sprite(reedTipMat);
+      tip.position.set(x, 2.6, z);
+      tip.scale.setScalar(0.32);
       this.duat.add(tip);
       this.reedsTips.push(tip);
-      this.reedsSway.push({ y: 2.35, phase: rnd() * Math.PI * 2 });
+      this.reedsSway.push({ y: 2.6, phase: rnd() * Math.PI * 2 });
     }
 
     // Horizon — gold dawn band, brightest at bottom-center
@@ -1574,24 +1636,39 @@ export class Pyramid {
     }
     this.duat.add(serpent);
 
-    // --- Gates flanking the path ---
+    // --- Gates flanking the path: Tapered Egyptian pylon piers & stepped cavetto cornices ---
     const gateDefs = [
       { x: 30, z: -13, name: 'The gate of the Silent Earth opens — it knows your step.' },
       { x: 38, z: 1, name: 'The gate of the Ember Watch opens — it knows your name.' }
     ];
     const stoneMat = duatStone(this.uT);
+    const pylonGeo = new THREE.CylinderGeometry(0.42, 0.62, 4.6, 4); // rotated 45° = battered square pylon
+    pylonGeo.rotateY(Math.PI / 4);
+    const capitalGeo = new THREE.BoxGeometry(0.85, 0.3, 0.85);
+
     for (let i = 0; i < gateDefs.length; i++) {
       const def = gateDefs[i];
       const group = new THREE.Group();
       group.position.set(def.x, 0, def.z);
       for (let s = 0; s < 2; s++) {
-        const post = new THREE.Mesh(new THREE.BoxGeometry(0.5, 4.2, 0.5), stoneMat);
-        post.position.set(s === 0 ? -1.7 : 1.7, 2.1, 0);
+        const xPos = s === 0 ? -1.8 : 1.8;
+        const post = new THREE.Mesh(pylonGeo, stoneMat);
+        post.position.set(xPos, 2.3, 0);
         group.add(post);
+
+        const cap = new THREE.Mesh(capitalGeo, stoneMat);
+        cap.position.set(xPos, 4.75, 0);
+        group.add(cap);
       }
-      const lintel = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.6, 0.7), stoneMat);
-      lintel.position.set(0, 4.5, 0);
+      // Main Architrave Lintel
+      const lintel = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.6, 0.9), stoneMat);
+      lintel.position.set(0, 5.1, 0);
       group.add(lintel);
+
+      // Flared Cavetto Cornice
+      const cornice = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.45, 1.1), stoneMat);
+      cornice.position.set(0, 5.6, 0);
+      group.add(cornice);
 
       const discU = T.uniform(0.35);
       const dR = T.length(T.uv().sub(0.5)).mul(2.0);
@@ -1805,7 +1882,12 @@ export class Pyramid {
     for (const r of ROOMS) buildRoom(r, r.granite ? gran : lime);
     const limeM = limestone(this.uT, [1.25, 1.2, 1.1], 1.4);
     limeM.side = THREE.FrontSide;
-    this.inside.add(new THREE.Mesh(lime.geometry(), limeM), new THREE.Mesh(gran.geometry(), granite(this.uT)));
+    this.roomsGroup = new THREE.Group();
+    this.roomsGroup.add(
+      new THREE.Mesh(lime.geometry(), limeM),
+      new THREE.Mesh(gran.geometry(), granite(this.uT))
+    );
+    this.inside.add(this.roomsGroup);
     // the coffer: a lidless box of granite
     const gm = granite(this.uT);
     const box = (w: number, h: number, d: number, x: number, y: number, z: number) => {
@@ -1983,6 +2065,11 @@ export class Pyramid {
     }
     this.uDoor.value += ((this.doorFound ? 1 : 0) - this.uDoor.value) * 0.04;
     if (this.doorSlab) this.doorSlab.position.y = this.doorPos.y + this.uDoor.value * 2.2;
+
+    // Hide pyramid interior rooms when in Duat so no room quads float in the Duat sky
+    const inDuatSpace = this.duatActive || (this.playerPos && this.inDuat(this.playerPos)) || (T.cameraPosition && T.cameraPosition.x < 49800);
+    this.roomsGroup.visible = !inDuatSpace;
+
     this.updateDuat();
 
     this.uPit.value += (pit - this.uPit.value) * 0.05;
