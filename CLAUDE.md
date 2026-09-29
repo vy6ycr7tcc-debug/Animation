@@ -324,6 +324,20 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - Synthesis: when a place is lit in mind, body and spirit (Ra's grouping 88.24: I, VIII, XV; II, IX, XVI; …) the altar answers with a light of their three colours, three bells and a spoken synthesis (`SYNTHESES`); saved (`journey.synth`). When all twenty-one are lit the Choice (XXII) opens (before that its panel shows the count); its question is "How will you love?".
   - Fixes found on the way: the shrine beings kept their landmark offsets (the Magician stood 1.9 m aside, inside the niche's wall, only a hand showing); in the shrines they now stand centred, as on the cards. Turning the cards quickly left the one still leaving on the altar. During a rite at a Spirit shrine the card on the altar rests (`Temple.quietStage`), as it stood between the view and the shrine. Beings beyond 40 m hold their pose (in the temple all 22 would move at once); each is posed once first.
   - All the rite words are ours, placeholders for Samuel's own (and his voice choice among the Piper samples).
+- 2026-09-29: the owner, of the scene work done after PR #61 by another tool (the `src/scenes/*` lessons, the tree, the temple tour, the Duat): "this delta was done with Gemini as it was awful. Use the foundation you had built as reference. Fix all code too."
+  - Foundation restored (PR #101): `genesis.ts`, `temple.ts`, `controller.ts` and `guide.ts` are back to their pre-delta form; the whole tree typechecks.
+  - The lessons are visions (`scenes/visionStage.ts`, `scenes/visionLesson.ts`, forms in `world/forms.ts`). They use the format of the vision of creation: one body of ~8k (phone) / 12k points that holds a form and swirls into the next, each point on its own delay.
+    - Its forms follow the narration second by second while you sit on the etched stone seat. They are figures posed from the wanderer's own clips, a rope with its knot, a wheel, a river, a coal, a hearth, a well, a fountain, a tree grown by `creation.ts`, a galaxy, a lantern and a candle.
+    - The vision stands 6.5 m ahead of the seat. Nothing else is built at a site.
+    - Keys are timed to each lesson's transcript (shore L03, igloo L04, garden L05, galaxies L06, desert L07, tree-station TREE).
+  - The tree of life (`scenes/tree.ts`) is a great tree of the world's own kind in living bark, with a canopy of soft lights on its twig tips and a stone seat facing it. The invented rest lines are gone.
+  - The temple tour (`scenes/templeTour.ts`) walks the real temple.
+    - Its path: the Mind's shrines down the left wall, a passage of soft light, the Body's down the right wall, through the gateway, round the Spirit ring, then up to the Choice. Each stop is `temple.standFor(i)`.
+    - Each shrine's being performs its signature at its stop (`temple.setRite`).
+    - A small guiding light leads; tapping it leaves the tour.
+    - At the end: "Rest at the tree of life" or "Stay in the temple".
+    - The delta's floating tarot cards, stair of light and fabricated whispers are gone (`tarotTex.ts`, `tour/tarotArt.ts` removed).
+  - Still to redo: the Duat (`world/pyramid.ts` delta). Still to ask about: the underwater cave ("makes no sense"), and the beings as particle tarot characters.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.
