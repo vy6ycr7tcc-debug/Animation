@@ -9,7 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from "three/webgpu";
-import { T, glowShader, softPoints, spriteCloud, worldPoints, viewDepth, gpuUniforms } from "../gpu/tsl";
+import { T, glowShader, softPoints, spriteCloud, worldPoints, viewDepth, gpuUniforms, vnoise } from "../gpu/tsl";
 import { LessonScene } from "./lessonKit";
 import type { LessonCtx, LessonOpts, Beat } from "./lessonKit";
 import { CreationKit } from "./creationKit";
@@ -85,23 +85,43 @@ const SPIRIT_PAINT = new THREE.Vector3(-3.0, 2.4, 6.0);
 // narration beats (pure no-ops — all choreography rides the clock in update())
 const beats: Beat[] = [5, 40, 75, 115, 150, 190, 225].map((t) => ({ t, apply: () => {} }));
 
-// ── bark: near-black blue base + hemisphere lift + gold grain + starlight rim ─
+// ── bark: near-black blue base + noise ridges + gold grain + moss lift + starlight rim ─
 const makeBark = (): THREE.MeshBasicNodeMaterial => {
   const m = new THREE.MeshBasicNodeMaterial();
   m.fog = true;
   const n = T.normalize(T.normalWorld);
   const v = T.normalize(T.cameraPosition.sub(T.positionWorld));
   const k = T.float(1).sub(T.abs(T.dot(n, v)));
-  const rim = T.pow(k, 5).mul(T.vec3(0.3, 0.38, 0.8)).mul(0.18);
-  const hemi = T.vec3(0.48, 0.53, 0.82).mul(0.25).mul(n.y.mul(0.5).add(0.5));
-  const base = T.mix(T.vec3(0.006, 0.005, 0.014), T.vec3(0.03, 0.028, 0.06), hemi);
+  const rim = T.pow(k, 4.5).mul(T.vec3(0.35, 0.45, 0.9)).mul(0.22);
+  const hemi = T.vec3(0.42, 0.48, 0.78).mul(0.28).mul(n.y.mul(0.5).add(0.5));
+  const base = T.mix(T.vec3(0.012, 0.01, 0.022), T.vec3(0.045, 0.038, 0.07), hemi);
   const ang = T.atan(T.positionLocal.z, T.positionLocal.x);
-  // vertical bark ridges (not horizontal barcode stripes) with a slight wobble
-  const lines = T.sin(ang.mul(24).add(T.sin(T.positionLocal.y.mul(3)).mul(2)))
-    .mul(0.5)
-    .add(0.5);
-  const grain = T.vec3(1.0, 0.78, 0.48).mul(lines).mul(0.035);
-  m.colorNode = T.vec4(base.add(grain).add(rim), 1);
+
+  // TSL vnoise for natural organic bark ridges and wood texture
+  const noiseUv = T.vec2(ang.mul(3.5), T.positionLocal.y.mul(1.2));
+  const nv1 = vnoise(noiseUv.mul(2.5));
+  const nv2 = vnoise(noiseUv.mul(7.0).add(T.vec2(3.1, 1.7)));
+  const ridges = nv1.mul(0.6).add(nv2.mul(0.4));
+
+  const grain = T.vec3(1.0, 0.8, 0.52).mul(ridges).mul(0.055);
+  // subtle mossy tint near lower height
+  const moss = T.smoothstep(3.0, 0.0, T.positionLocal.y).mul(T.vec3(0.015, 0.04, 0.025)).mul(nv1);
+
+  m.colorNode = T.vec4(base.add(grain).add(moss).add(rim), 1);
+  return m;
+};
+
+// ── raw heartwood / splintered wood material for broken branch ends ─────────
+const makeHeartwood = (): THREE.MeshBasicNodeMaterial => {
+  const m = new THREE.MeshBasicNodeMaterial();
+  m.fog = true;
+  const n = T.normalize(T.normalWorld);
+  const v = T.normalize(T.cameraPosition.sub(T.positionWorld));
+  const k = T.float(1).sub(T.abs(T.dot(n, v)));
+  const rim = T.pow(k, 3.0).mul(T.vec3(1.0, 0.8, 0.45)).mul(0.35);
+  const nv = vnoise(T.positionLocal.mul(18.0)).mul(0.18);
+  const base = T.vec3(0.58, 0.4, 0.18).add(nv);
+  m.colorNode = T.vec4(base.add(rim), 1);
   return m;
 };
 
@@ -210,19 +230,35 @@ export function createTreeStationScene(
       uLife.value = lifeT;
     });
 
-    // ── the great tree: trunk (seeded jitter, slight lean) ───────────────────
+    // ── the great tree: monumental trunk + flared root buttresses ─────────────
     const bark = makeBark();
     ours.push(bark);
-    const trunkGeo = new THREE.CylinderGeometry(0.55, 0.95, 7, 14, 6);
+    const trunkGeo = new THREE.CylinderGeometry(0.5, 1.45, 7, 32, 28);
     {
       const pos = trunkGeo.attributes.position as THREE.BufferAttribute;
       for (let i = 0; i < pos.count; i++) {
-        pos.setXYZ(
-          i,
-          pos.getX(i) + (rnd(i, 1) - 0.5) * 0.12,
-          pos.getY(i) + (rnd(i, 2) - 0.5) * 0.12,
-          pos.getZ(i) + (rnd(i, 3) - 0.5) * 0.12,
-        );
+        const yLocal = pos.getY(i) + 3.5; // 0 at base to 7 at top
+        const x = pos.getX(i);
+        const z = pos.getZ(i);
+        const ang = Math.atan2(z, x);
+        const rNorm = Math.hypot(x, z);
+        if (rNorm > 1e-4) {
+          // 5 major flared root buttresses at the base
+          let flare = 0;
+          for (let k = 0; k < 5; k++) {
+            const kAng = k * ((Math.PI * 2) / 5) + 0.2;
+            const diff = Math.cos(5 * (ang - kAng));
+            if (diff > 0) {
+              flare += Math.pow(diff, 2.5) * Math.pow(Math.max(0, (2.6 - yLocal) / 2.6), 2) * 0.7;
+            }
+          }
+          // gentle trunk gnarl and organic sway
+          const swayX = Math.sin(yLocal * 0.6) * 0.15;
+          const swayZ = Math.cos(yLocal * 0.5) * 0.12;
+          const noiseR = (rnd(i, 1) - 0.5) * 0.08;
+          const scaleR = (rNorm + flare + noiseR) / rNorm;
+          pos.setXYZ(i, x * scaleR + swayX, pos.getY(i), z * scaleR + swayZ);
+        }
       }
       pos.needsUpdate = true;
       trunkGeo.computeVertexNormals();
@@ -230,10 +266,27 @@ export function createTreeStationScene(
     ours.push(trunkGeo);
     const trunk = new THREE.Mesh(trunkGeo, bark);
     trunk.position.set(TREE.x, 3.5, TREE.z);
-    trunk.rotation.z = 0.03;
+    trunk.rotation.z = 0.02;
     treeG.add(trunk);
 
+    // root buttress extension tubes anchoring deep into terrain
+    for (let k = 0; k < 5; k++) {
+      const kAng = k * ((Math.PI * 2) / 5) + 0.2;
+      const rx = Math.cos(kAng);
+      const rz = Math.sin(kAng);
+      const rootCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(TREE.x + rx * 0.8, 1.2, TREE.z + rz * 0.8),
+        new THREE.Vector3(TREE.x + rx * 1.5, 0.4, TREE.z + rz * 1.5),
+        new THREE.Vector3(TREE.x + rx * 2.4, -0.2, TREE.z + rz * 2.4),
+      ]);
+      const rootGeo = new THREE.TubeGeometry(rootCurve, 12, 0.22, 8, false);
+      ours.push(rootGeo);
+      treeG.add(new THREE.Mesh(rootGeo, bark));
+    }
+
     // ── 7 primary branches: stubs stay, distal parts break at tB_i and land ──
+    const heartwood = makeHeartwood();
+    ours.push(heartwood);
     const A0 = Math.atan2(-TREE.z, -TREE.x); // branch 0 points from the trunk toward the seat
     const branchTips: THREE.Vector3[] = [];
     const branchB: THREE.Vector3[] = [];
@@ -246,6 +299,9 @@ export function createTreeStationScene(
     const notchMats: Array<{ uniforms: { op: { value: number } } }> = [];
     const taper = (h: number): number => 0.95 + (0.55 - 0.95) * (h / 7); // trunk radius at height h
 
+    const spikeGeo = new THREE.ConeGeometry(0.018, 0.18, 5);
+    ours.push(spikeGeo);
+
     for (let i = 0; i < 7; i++) {
       const h = 3.4 + i * 0.42;
       const a = A0 + i * ((Math.PI * 2) / 7) + (rnd(i, 11) - 0.5) * 0.5;
@@ -253,8 +309,8 @@ export function createTreeStationScene(
       const L = 2.4 + rnd(i, 13) * 0.9;
       const rH = taper(h) * 1.02;
       const S = new THREE.Vector3(TREE.x + Math.cos(a) * rH, h, TREE.z + Math.sin(a) * rH);
-      const B = S.clone().addScaledVector(dir, L * 0.35);
-      const tip = S.clone().addScaledVector(dir, L).add(new THREE.Vector3(0, 0.35, 0));
+      const B = S.clone().addScaledVector(dir, L * 0.38);
+      const tip = S.clone().addScaledVector(dir, L).add(new THREE.Vector3(0, 0.35 + (rnd(i, 99) - 0.5) * 0.2, 0));
       const dirH = new THREE.Vector3(dir.x, 0, dir.z);
       if (dirH.lengthSq() > 1e-6) dirH.normalize();
       else dirH.set(0, 0, 1);
@@ -262,46 +318,82 @@ export function createTreeStationScene(
       branchB.push(B);
       branchDirH.push(dirH);
 
-      // stub — stays forever
-      const stubCurve = new THREE.CatmullRomCurve3([
-        S,
-        S.clone().lerp(B, 0.5).add(new THREE.Vector3(0, 0.08, 0)),
-        B,
-      ]);
-      const stubGeo = new THREE.TubeGeometry(stubCurve, 12, 0.085, 8);
+      // gnarled stub curve with organic mid-way offset
+      const midS = S.clone().lerp(B, 0.5).add(new THREE.Vector3((rnd(i, 101) - 0.5) * 0.25, 0.12 + rnd(i, 102) * 0.1, (rnd(i, 103) - 0.5) * 0.25));
+      const stubCurve = new THREE.CatmullRomCurve3([S, midS, B]);
+      const stubGeo = new THREE.TubeGeometry(stubCurve, 16, 0.09, 8);
       ours.push(stubGeo);
       treeG.add(new THREE.Mesh(stubGeo, bark));
+
+      // Splinter spikes on stub break end (raw heartwood fibers)
+      const splinterGroupStub = new THREE.Group();
+      splinterGroupStub.position.copy(B);
+      splinterGroupStub.quaternion.setFromUnitVectors(Z_AXIS, dir);
+      treeG.add(splinterGroupStub);
+      for (let sp = 0; sp < 5; sp++) {
+        const spike = new THREE.Mesh(spikeGeo, heartwood);
+        const sAng = sp * ((Math.PI * 2) / 5) + rnd(i * 10 + sp, 201);
+        const sR = 0.03 + rnd(sp, 202) * 0.03;
+        spike.position.set(Math.cos(sAng) * sR, Math.sin(sAng) * sR, rnd(sp, 203) * 0.08);
+        spike.rotation.x = Math.PI / 2 + (rnd(sp, 204) - 0.5) * 0.3;
+        splinterGroupStub.add(spike);
+      }
 
       // distal part — breaks off and lands; group origin at the break point
       const distal = new THREE.Group();
       distal.position.copy(B);
       treeG.add(distal);
       const relTip = tip.clone().sub(B);
+      const midD = relTip.clone().multiplyScalar(0.5).add(new THREE.Vector3((rnd(i, 104) - 0.5) * 0.3, 0.15, (rnd(i, 105) - 0.5) * 0.3));
       const distalCurve = new THREE.CatmullRomCurve3([
         new THREE.Vector3(0, 0, 0),
-        relTip.clone().multiplyScalar(0.5).add(new THREE.Vector3(0, 0.1, 0)),
+        midD,
         relTip,
       ]);
-      const distalGeo = new THREE.TubeGeometry(distalCurve, 12, 0.05, 7);
+      const distalGeo = new THREE.TubeGeometry(distalCurve, 16, 0.055, 7);
       ours.push(distalGeo);
       distal.add(new THREE.Mesh(distalGeo, bark));
+
+      // Splinter spikes on distal break end
+      const splinterGroupDistal = new THREE.Group();
+      distal.add(splinterGroupDistal);
+      splinterGroupDistal.quaternion.setFromUnitVectors(Z_AXIS, dir.clone().negate());
+      for (let sp = 0; sp < 4; sp++) {
+        const spike = new THREE.Mesh(spikeGeo, heartwood);
+        const sAng = sp * ((Math.PI * 2) / 4) + rnd(i * 10 + sp, 301);
+        const sR = 0.02 + rnd(sp, 302) * 0.025;
+        spike.position.set(Math.cos(sAng) * sR, Math.sin(sAng) * sR, rnd(sp, 303) * 0.06);
+        spike.rotation.x = Math.PI / 2 + (rnd(sp, 304) - 0.5) * 0.3;
+        splinterGroupDistal.add(spike);
+      }
+
       distalGrp.push(distal);
       distalB.push(B.clone());
-      distalLand.push(new THREE.Vector3(B.x + dirH.x * 1.1, 0.14, B.z + dirH.z * 1.1));
+      const lx = B.x + dirH.x * 1.1;
+      const lz = B.z + dirH.z * 1.1;
+      const landY = (heightAt(SITE.x + lx, SITE.z + lz) - (seatPos.y + TREE_LIFT)) + 0.14;
+      distalLand.push(new THREE.Vector3(lx, landY, lz));
       distalRotX.push(2.0 + rnd(i, 14) * 0.8);
       distalRotZ.push(1.4 + rnd(i, 15) * 0.6);
 
-      // notch — the opening the spirit comes through: dark torus + pale gold disc
+      // notch — the opening the spirit comes through: torus + warm inner glowing core
       const notch = new THREE.Group();
       notch.position.copy(B);
       notch.quaternion.setFromUnitVectors(Z_AXIS, dir);
       treeG.add(notch);
-      const torusGeo = new THREE.TorusGeometry(0.1, 0.028, 8, 20);
+      const torusGeo = new THREE.TorusGeometry(0.12, 0.032, 8, 20);
       ours.push(torusGeo);
       notch.add(new THREE.Mesh(torusGeo, bark));
-      const notchMat = glowShader({ op: 0 }, (u, _uv) => T.vec3(1.0, 0.85, 0.55).mul(u.op), {});
+      const notchMat = glowShader(
+        { op: 0 },
+        (u, _uv) => {
+          const pulse = T.sin(uLife.mul(2.5).add(i)).mul(0.15).add(0.85);
+          return T.vec3(1.0, 0.8, 0.45).mul(u.op).mul(pulse);
+        },
+        {},
+      );
       ours.push(notchMat);
-      const discGeo = new THREE.CircleGeometry(0.075, 16);
+      const discGeo = new THREE.CircleGeometry(0.09, 16);
       ours.push(discGeo);
       notch.add(new THREE.Mesh(discGeo, notchMat));
       notchMats.push(notchMat);
@@ -324,25 +416,25 @@ export function createTreeStationScene(
       }
     });
 
-    // ── canopy: 750 leaves hung around the branch tips (creation.ts idiom) ───
+    // ── canopy: 1100 leaves hung around the branch tips (creation.ts idiom) ───
     const leafMat = softPoints();
     ours.push(leafMat);
-    const canopy = spriteCloud(750, { base: 3, aK: 1, aHue: 1, aLand: 3, aFall: 1 }, leafMat);
+    const canopy = spriteCloud(1100, { base: 3, aK: 1, aHue: 1, aLand: 3, aFall: 1 }, leafMat);
     {
       const baseA = canopy.attrs.base.array as Float32Array;
       const kA = canopy.attrs.aK.array as Float32Array;
       const hueA = canopy.attrs.aHue.array as Float32Array;
       const landA = canopy.attrs.aLand.array as Float32Array;
       const fallA = canopy.attrs.aFall.array as Float32Array;
-      for (let k = 0; k < 750; k++) {
+      for (let k = 0; k < 1100; k++) {
         const b = k % 7;
         const tip = branchTips[b];
         let bx = tip.x;
         let by = tip.y;
         let bz = tip.z;
-        if (rnd(k, 34) < 0.15) {
-          // 15% sit along the branch itself
-          const s = 0.5 + 0.5 * rnd(k, 35);
+        if (rnd(k, 34) < 0.22) {
+          // 22% sit along the branch itself
+          const s = 0.35 + 0.65 * rnd(k, 35);
           const Bv = branchB[b];
           bx = Bv.x + (tip.x - Bv.x) * s;
           by = Bv.y + (tip.y - Bv.y) * s;
@@ -350,7 +442,7 @@ export function createTreeStationScene(
         }
         const u = rnd(k, 31) * 2 - 1;
         const th = rnd(k, 32) * Math.PI * 2;
-        const rr = 0.95 * Math.cbrt(rnd(k, 33));
+        const rr = 1.15 * Math.cbrt(rnd(k, 33));
         const sp = Math.sqrt(Math.max(0, 1 - u * u));
         bx += Math.cos(th) * sp * rr;
         by += u * rr;
@@ -380,33 +472,30 @@ export function createTreeStationScene(
       const fallP = T.smoothstep(aFall, aFall.add(4), uT);
       const keep = T.float(1).sub(fallP);
       const sway = T.vec3(
-        T.sin(uT.mul(0.7).add(aK.mul(40))).mul(0.08),
-        T.sin(uT.mul(0.9).add(aK.mul(23))).mul(0.06),
-        0,
+        T.sin(uLife.mul(0.6).add(aK.mul(40))).mul(0.09),
+        T.sin(uLife.mul(0.8).add(aK.mul(23))).mul(0.06),
+        T.cos(uLife.mul(0.5).add(aK.mul(15))).mul(0.07),
       );
       const lp = T.mix(base, aLand, fallP)
         .add(sway.mul(keep))
         .add(T.vec3(0, dry.mul(keep).mul(-0.25), 0)); // dry droop, only while still up
       leafMat.positionNode = lp;
-      // deep green-gold foliage: the old near-white bands stacked additively over
-      // 750 sprites and clipped to white. Each leaf now carries only K of its
-      // green-gold band colour through a 0–1 soft mask (the old mask peaked at
-      // 2.7), so the canopy accumulates to painterly mid-tones, unclipped.
+      // rich painterly foliage layers: deep moss green, warm gold, bronze ochre, dusky emerald
       const bandC = T.mix(
-        T.mix(T.vec3(0.62, 0.52, 0.22), T.vec3(0.26, 0.4, 0.16), T.step(0.33, aHue)),
-        T.vec3(0.52, 0.38, 0.15),
-        T.step(0.72, aHue),
+        T.mix(T.vec3(0.55, 0.48, 0.18), T.vec3(0.18, 0.38, 0.14), T.step(0.3, aHue)),
+        T.mix(T.vec3(0.65, 0.35, 0.12), T.vec3(0.12, 0.28, 0.16), T.step(0.7, aHue)),
+        T.step(0.5, aHue),
       );
-      const vC = T.mix(bandC, T.vec3(0.34, 0.22, 0.1), dry.mul(0.85));
-      const tw = T.sin(uT.mul(aK.mul(2.5).add(1.2)).add(aK.mul(60))).mul(0.45).add(0.55);
-      const wave = T.sin(uT.mul(0.5).sub(lp.y.mul(0.4))).mul(0.4).add(0.6);
+      const vC = T.mix(bandC, T.vec3(0.38, 0.2, 0.08), dry.mul(0.85));
+      const tw = T.sin(uLife.mul(aK.mul(1.8).add(0.9)).add(aK.mul(60))).mul(0.35).add(0.65);
+      const wave = T.sin(uLife.mul(0.4).sub(lp.y.mul(0.3))).mul(0.3).add(0.7);
       const vA = T.mix(1.0, 0.55, fallP).mul(T.mix(1.0, 0.8, dry));
       const r = T.length(T.pointUV.sub(0.5)).mul(2);
-      const mask = T.smoothstep(1, 0, r).mul(0.6).add(T.smoothstep(0.35, 0, r).mul(0.4));
-      leafMat.colorNode = T.vec4(vC.mul(tw).mul(wave).mul(vA).mul(mask).mul(0.12), 1);
-      leafMat.sizeNode = pxSize(T.mix(0.45, 0.95, aK).mul(T.float(1).sub(dry.mul(0.4))), lp);
+      const mask = T.smoothstep(1, 0, r).mul(0.65).add(T.smoothstep(0.35, 0, r).mul(0.35));
+      leafMat.colorNode = T.vec4(vC.mul(tw).mul(wave).mul(vA).mul(mask).mul(0.14), 1);
+      leafMat.sizeNode = pxSize(T.mix(0.5, 1.1, aK).mul(T.float(1).sub(dry.mul(0.35))), lp);
     }
-    canopy.setCount(750);
+    canopy.setCount(1100);
     treeG.add(canopy.sprite);
 
     // ── new growth (rebirth, NOT restoration): 5 upward branches + fresh leaves
@@ -526,19 +615,40 @@ export function createTreeStationScene(
     root.add(new THREE.Mesh(groundGeo, groundMat));
 
     kit.groundDisc(4.2, 0xffd700, 0.5, 0.02);
-    // the kit parks its ring at the kit origin — move it around the tree
+    // the kit parks its ring at the kit origin — make it terrain-conforming around tree
     const goldRing = kit.group.children[kit.group.children.length - 1] as THREE.Mesh;
     treeG.add(goldRing);
-    goldRing.position.set(TREE.x, 0.02, TREE.z);
+    const goldRingGeo = new THREE.RingGeometry(1.2, 4.2, 48, 12);
+    goldRingGeo.rotateX(-Math.PI / 2);
+    {
+      const pos = goldRingGeo.attributes.position as THREE.BufferAttribute;
+      for (let i = 0; i < pos.count; i++) {
+        const lx = TREE.x + pos.getX(i);
+        const lz = TREE.z + pos.getZ(i);
+        const wx = SITE.x + lx;
+        const wz = SITE.z + lz;
+        pos.setY(i, (heightAt(wx, wz) - (seatPos.y + TREE_LIFT)) + 0.04);
+      }
+      pos.needsUpdate = true;
+      goldRingGeo.computeVertexNormals();
+    }
+    ours.push(goldRingGeo);
+    goldRing.geometry.dispose();
+    goldRing.geometry = goldRingGeo;
+    goldRing.position.set(0, 0, 0);
 
-    // path lights lead from behind the seat toward the tree (seat-local coords)
-    kit.pathLights([
-      new THREE.Vector3(0, 0.12, -3),
-      new THREE.Vector3(0.4, 0.12, -1),
-      new THREE.Vector3(0.9, 0.12, 1),
-      new THREE.Vector3(1.3, 0.12, 3),
-      new THREE.Vector3(1.7, 0.12, 5),
-    ]);
+    // path lights lead from behind the seat toward the tree, hugging slope height
+    const pathPts = [
+      new THREE.Vector3(0, 0, -3),
+      new THREE.Vector3(0.4, 0, -1),
+      new THREE.Vector3(0.9, 0, 1),
+      new THREE.Vector3(1.3, 0, 3),
+      new THREE.Vector3(1.7, 0, 5),
+    ];
+    for (const pt of pathPts) {
+      pt.y = (heightAt(SITE.x + pt.x, SITE.z + pt.z) - seatPos.y) + 0.15;
+    }
+    kit.pathLights(pathPts);
 
     // ── forest ring: 14 dark trunk silhouettes (seeded) ──────────────────────
     const forestGeo = new THREE.CylinderGeometry(0.3, 0.55, 1, 8, 1);
@@ -619,7 +729,14 @@ export function createTreeStationScene(
     const shellGeo = new THREE.SphereGeometry(1, 20, 14);
     ours.push(shellGeo);
     const mkShell = (sx: number, sy: number, sz: number, w: number): void => {
-      const mat = glowShader({}, () => T.vec3(1.0, 0.9, 0.7).mul(uSpirit).mul(w), {});
+      const mat = glowShader(
+        {},
+        () => {
+          const breathe = T.sin(uLife.mul(2.0)).mul(0.12).add(0.88);
+          return T.vec3(1.0, 0.9, 0.7).mul(uSpirit).mul(w).mul(breathe);
+        },
+        {},
+      );
       ours.push(mat);
       const m = new THREE.Mesh(shellGeo, mat);
       m.scale.set(sx, sy, sz);
@@ -636,14 +753,17 @@ export function createTreeStationScene(
     head.position.y = 0.72;
     spirit.add(head);
 
-    // two orbiting trail wisps
-    const wispGeo = new THREE.SphereGeometry(0.1, 12, 8);
+    // 4 orbiting trail wisps around the spirit
+    const wispGeo = new THREE.SphereGeometry(0.09, 12, 8);
     ours.push(wispGeo);
-    const wispMat = glowShader({}, () => T.vec3(1.0, 0.9, 0.7).mul(uSpirit).mul(0.55), {});
+    const wispMat = glowShader({}, () => T.vec3(1.0, 0.88, 0.65).mul(uSpirit).mul(0.6), {});
     ours.push(wispMat);
-    const wispA = new THREE.Mesh(wispGeo, wispMat);
-    const wispB = new THREE.Mesh(wispGeo, wispMat);
-    spirit.add(wispA, wispB);
+    const wisps: THREE.Mesh[] = [];
+    for (let w = 0; w < 4; w++) {
+      const wisp = new THREE.Mesh(wispGeo, wispMat);
+      spirit.add(wisp);
+      wisps.push(wisp);
+    }
 
     tickers.push(() => {
       const nt = ctx.uT.value;
@@ -653,19 +773,21 @@ export function createTreeStationScene(
       const d = smooth01((nt - 225) * (1 / 15)); // drifts toward the painting
       spirit.position.lerpVectors(SPIRIT_FROM, SPIRIT_HOVER, e);
       spirit.position.lerp(SPIRIT_PAINT, d);
-      spirit.position.y += 0.12 * Math.sin(nt * 0.9) * smooth01((nt - 138) * (1 / 6));
-      const ang = nt * ((Math.PI * 2) / 9); // period ~9 s
-      wispA.position.set(Math.cos(ang) * 0.5, Math.sin(nt * 0.7) * 0.2, Math.sin(ang) * 0.5);
-      wispB.position.set(Math.cos(ang + 2.4) * 0.5, Math.sin(nt * 0.7 + 1.9) * 0.2, Math.sin(ang + 2.4) * 0.5);
+      spirit.position.y += 0.12 * Math.sin(lifeT * 1.2) * smooth01((nt - 138) * (1 / 6));
+      for (let w = 0; w < 4; w++) {
+        const ang = lifeT * 1.4 + w * (Math.PI / 2);
+        const rW = 0.45 + 0.1 * Math.sin(lifeT * 2.0 + w);
+        wisps[w].position.set(Math.cos(ang) * rW, Math.sin(lifeT * 1.8 + w * 1.2) * 0.25, Math.sin(ang) * rW);
+      }
     });
 
     // ── water: 3 streams from the spirit to the roots (t 146–212) + root mist ─
     const streamMat = glowShader(
       {},
       (_u, uv) => {
-        const flow = T.pow(T.fract(uv.x.mul(3).sub(uT.mul(0.7))), 6);
-        const col = T.mix(T.vec3(0.72, 0.85, 1.0), T.vec3(1.0, 0.85, 0.55), uv.x);
-        return col.mul(T.float(0.25).add(flow)).mul(uWater);
+        const flow = T.pow(T.fract(uv.x.mul(3.5).sub(uLife.mul(0.8))), 5);
+        const col = T.mix(T.vec3(0.68, 0.88, 1.0), T.vec3(1.0, 0.88, 0.6), uv.x);
+        return col.mul(T.float(0.3).add(flow.mul(1.4))).mul(uWater);
       },
       {},
     );
@@ -681,7 +803,7 @@ export function createTreeStationScene(
         new THREE.Vector3(1.8, 1.1, 7.0),
         new THREE.Vector3(TREE.x + dx, 0.15, TREE.z + dz),
       );
-      const geo = new THREE.TubeGeometry(curve, 20, 0.055, 6);
+      const geo = new THREE.TubeGeometry(curve, 24, 0.06, 8);
       ours.push(geo);
       treeG.add(new THREE.Mesh(geo, streamMat));
     }
