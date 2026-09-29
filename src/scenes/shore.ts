@@ -272,7 +272,7 @@ export function createShoreScene(
   const back = F.clone().negate();
 
   // the figure's footing: the ground (or the water) a little ahead of the seat, off its forward axis
-  const G = seatPos.clone().addScaledVector(F, 7.5).addScaledVector(right, 1.35);
+  const G = seatPos.clone().addScaledVector(F, 4.0).addScaledVector(right, 0.3);
   const gy = heightAt(G.x, G.z);
   const footY = Number.isFinite(gy) ? Math.max(gy, WATER_Y) : S.y;
   const fr: Frame = { G, right, fwd: F, footY };
@@ -328,11 +328,14 @@ export function createShoreScene(
     const robePos = robeGeo.getAttribute("position") as THREE.BufferAttribute;
     const robeBase = new Float32Array(robePos.array);
 
-    // Deep blue-black silhouette
-    const robeMat = new THREE.MeshBasicMaterial({ 
-      color: 0x080b18,
-      fog: true
-    });
+    // Deep blue-black silhouette with TSL lighting
+    const robeMat = new THREE.MeshBasicNodeMaterial({ fog: true });
+    const viewDir = T.positionView.negate().normalize();
+    const ndv = T.max(0, T.dot(T.normalView, viewDir));
+    const rim = T.pow(T.sub(1, ndv), 5).mul(0.18);
+    const baseCol = T.vec3(0.006, 0.01, 0.02);
+    const rimCol = T.vec3(0.3, 0.38, 0.8);
+    robeMat.colorNode = T.vec4(baseCol.add(rimCol.mul(rim)), 1);
 
     ctx.group.add(new THREE.Mesh(robeGeo, robeMat));
     disposables.push(robeGeo, robeMat);
