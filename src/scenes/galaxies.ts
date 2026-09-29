@@ -93,6 +93,32 @@ export function createGalaxiesScene(
 ): SceneModule {
   void scene;
   const seatPos = new THREE.Vector3(SITES.galaxies.x, SITES.galaxies.y, SITES.galaxies.z);
+  
+  // Narrator Character
+  
+  
+// Narrator Character ROBE profile
+const ROBE_PTS: Array<[number, number]> = [[0.0, 0.02], [0.03, 0.24], [0.4, 0.25], [0.8, 0.22], [1.1, 0.17], [1.36, 0.12], [1.5, 0.08], [1.55, 0.02]];
+const robeCurve: THREE.Vector2[] = ROBE_PTS.map(([y, r]) => new THREE.Vector2(r < 0.02 ? 0.02 : r, y));
+const narrator = new THREE.Mesh(new THREE.LatheGeometry(robeCurve, 32),
+    new THREE.MeshBasicNodeMaterial({
+      colorNode: T.vec3(0.01, 0.02, 0.05), // near-black blue base
+      transparent: true,
+      side: THREE.DoubleSide,
+    })
+  );
+  // Starlight rim + inner wisp light
+  narrator.material.outputNode = T.fn(() => {
+    const base = T.vec3(0.01, 0.02, 0.05);
+    const viewDir = T.normalize(T.cameraPosition.sub(T.positionWorld));
+    const normal = T.normalize(T.normalWorld);
+    const rim = T.pow(T.float(1.0).sub(T.max(0.0, T.dot(viewDir, normal))), 3.0);
+    const rimColor = T.vec3(0.8, 0.9, 1.0).mul(rim).mul(0.5); // starlight rim
+    return T.vec4(base.add(rimColor), 1.0);
+  })();
+  narrator.position.copy(seatPos).add(new THREE.Vector3(-4, 0, -2)); // near the seat
+  narrator.rotation.y = Math.PI * 0.2;
+  scene.add(narrator);
   const state: Record<string, any> = {};
   const setU = (name: string, v: number): void => {
     const u = state[name];
@@ -328,34 +354,27 @@ export function createGalaxiesScene(
   }
 
   const beats: Beat[] = [
-    { t: 83.54, apply: () => { whisper("a mother of stars", 3800); setU("uSky", 1.15); } },
-    { t: 89.54, apply: () => { whisper("and the small light she keeps close", 4200); setU("uCool", 1.18); } },
+    { t: 83.54, apply: () => { setU("uSky", 1.15); } },
+    { t: 89.54, apply: () => { setU("uCool", 1.18); } },
     { t: 156.83, apply: () => setU("uWarm", 1.1) },
-    { t: 158.6, apply: () => whisper("she curls around her child", 3800) },
     { t: 160, apply: () => setU("uCool", 1.24) },
     { t: 163.85, apply: () => setU("uWarm", 1.16) },
-    { t: 175.2, apply: () => whisper("nothing between them but light", 4000) },
     { t: 178, apply: () => setU("uHalo", 1.25) },
     { t: 183.6, apply: () => setU("uSky", 1.22) },
-    { t: 195, apply: () => whisper("the sky holds them both", 3800) },
     { t: 215, apply: () => setU("uWarm", 1.22) },
     { t: 220.16, apply: () => setU("uCool", 1.3) },
-    { t: 279.05, apply: () => { whisper("a whole galaxy, and a whole galaxy inside her", 4600); setU("uSky", 1.3); } },
+    { t: 279.05, apply: () => { setU("uSky", 1.3); } },
     { t: 300, apply: () => setU("uHalo", 1.35) },
-    { t: 507.97, apply: () => { whisper("we are the child, looking up", 4200); setU("uWarm", 1.3); } },
+    { t: 507.97, apply: () => { setU("uWarm", 1.3); } },
     { t: 520.62, apply: () => setU("uCool", 1.38) },
     { t: 535, apply: () => setU("uSky", 1.4) },
-    { t: 575.91, apply: () => whisper("and we are held", 4000) },
     { t: 585, apply: () => setU("uHalo", 1.5) },
     { t: 595.39, apply: () => setU("uWarm", 1.42) },
     { t: 605, apply: () => setU("uCool", 1.5) },
-    { t: 612.83, apply: () => whisper("rest here, under the mother sky", 5200) },
-    { t: 620, apply: () => setU("uSky", 1.55) },
+    { t: 620, apply: () => setU("uSky", 1.55) }
   ];
 
-  const onEnd = (): void => {
-    whisper("the sky keeps breathing", 3200);
-  };
+  const onEnd = (): void => {};
 
   return new LessonScene(scene, narration, whisper, {
     id: "galaxies",
