@@ -112,6 +112,14 @@ export function runShot(ctx: ShotCtx): void {
     view = { eye: [0, 9, 24], look: [0, 5, -44] };
     ctx.setInside(true); // crossTemple's delays are skipped on purpose
     ctx.tour.beginTour(); // narration.play: muted
+  } else if (id === "temple-sanctuary" || id === "temple-hall" || id === "temple-choice") {
+    // the temple empty of the tour: the sanctuary from its gateway, the hall from the door, the Choice's platform
+    base = TEMPLE_ORIGIN;
+    view = id === "temple-sanctuary" ? { eye: [0, 3.4, -29], look: [0, 2.6, -50] }
+      : id === "temple-hall" ? { eye: [0, 3.2, 30], look: [0, 3, 0] }
+      : { eye: [0, 4, -40], look: [0, 3.5, -56] };
+    ctx.setInside(true);
+    ctx.player.pos.set(base[0] + view.eye[0], base[1], base[2] + view.eye[2] - 2);
   } else if (id === "genesis") {
     if (!ctx.genesisAt) return;
     base = ctx.genesisAt(t);

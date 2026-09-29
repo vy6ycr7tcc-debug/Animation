@@ -594,19 +594,6 @@ function closeCards(): void {
   cardsEl.hidden = true;
 }
 $("#cards-offer").addEventListener("click", openCards);
-// out of the temple: through the door, or by this word near it, or from the menu
-const leaveTemple = (): void => {
-  setMenu(false);
-  if (temple.inside) crossTemple(false);
-  else if (depths.inside) crossDeep(false);
-  else if (pyramid.isInside) crossPyr(false);
-};
-// on the touch itself (a phone sends no click while the other thumb holds the stick)
-$("#temple-leave").addEventListener("pointerdown", (e) => {
-  e.preventDefault();
-  leaveTemple();
-});
-$("#menu-temple-leave").addEventListener("click", leaveTemple);
 $("#cards-close").addEventListener("click", closeCards);
 $("#cards-prev").addEventListener("click", () => setCard(cardIndex - 1));
 $("#cards-next").addEventListener("click", () => setCard(cardIndex + 1));
@@ -839,9 +826,6 @@ function templeFrame(dt: number): void {
     if (player.flying) player.flying = false; // no flight in the temple: you walk here
     riteFrame(dt);
     $("#cards-offer").hidden = temple.cardsOpen || !temple.nearCards(player.pos) || crossing || shrineAt >= 0 || !!trite || tourScenes.tour.active;
-    $("#temple-leave").hidden = crossing || !temple.nearDoor(player.pos);
-    $("#temple-leave").textContent = $("#menu-temple-leave").textContent = "Leave the temple";
-    $("#menu-temple-leave").hidden = false;
     // the air inside: warm, dim, a little dust in the light
     fogUniforms.color.value.setRGB(0.09, 0.065, 0.045);
     fogUniforms.glow.value.setRGB(0.3, 0.22, 0.15);
@@ -859,8 +843,6 @@ function templeFrame(dt: number): void {
   if (trite) endTempleRite(false);
   if (shrineAt >= 0) (shrineAt = -1), (shrineEl.hidden = true);
   if (depths.inside || pyramid.isInside) return; // the deep archive and the pyramid keep their own
-  $("#temple-leave").hidden = true;
-  $("#menu-temple-leave").hidden = true;
   const d = player.pos.distanceTo(temple.gateAt);
   if (!toldGate && d < 30) {
     toldGate = true;
@@ -1751,10 +1733,6 @@ function pyramidFrame(dt: number): void {
   if (ch === "queen") tellPyr("queen", "The Queen's Chamber: the place of initiation, and of resurrection. Stand at its centre and be still.");
   if (ch === "gallery") tellPyr("gallery", "Light is drawn in at the base, and spirals upward toward the apex.");
   if (ch === "king") tellPyr("king", "The King's Chamber: the place of healing, where the spiral is strongest. Stand by the coffer and be still.");
-  const leave = $("#temple-leave");
-  leave.hidden = crossing || ch !== "entry" || player.pos.z - pyramid.entry().z > 6;
-  leave.textContent = $("#menu-temple-leave").textContent = "Leave the pyramid";
-  $("#menu-temple-leave").hidden = false;
   fogUniforms.color.value.setRGB(0.06, 0.045, 0.03);
   fogUniforms.density.value = 0.012;
   gradeUniforms.shadow.value.setRGB(0.015, 0.008, 0.0);
@@ -1830,10 +1808,6 @@ function deepFrame(dt: number, wt: number, inWater: boolean): void {
   if (depths.inside) {
     if (!player.swimming) player.placeUnder();
     if (depths.confine(player.pos) && !crossing) crossDeep(false);
-    const near = depths.nearExit(player.pos) && !crossing;
-    $("#temple-leave").hidden = !near;
-    $("#temple-leave").textContent = $("#menu-temple-leave").textContent = "Return to the lake";
-    $("#menu-temple-leave").hidden = false;
     // the still water of the grotto: clear, blue-dark, a little warm light from the centre
     fogUniforms.color.value.setRGB(0.02, 0.04, 0.06);
     fogUniforms.density.value = 0.01;

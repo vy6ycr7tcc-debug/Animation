@@ -350,7 +350,7 @@ body.loading #title h1, body.loading #title p { animation-play-state: paused; }
 }
 #sit-offer[hidden], #sit-panel[hidden] { display: none; }
 /* ---- the cards, at the temple's centre ---- */
-#cards-offer, #temple-leave {
+#cards-offer {
   position: fixed; left: 50%; transform: translateX(-50%);
   bottom: calc(96px + env(safe-area-inset-bottom, 0px)); z-index: 6;
   padding: 10px 22px; min-height: 44px; border-radius: 22px;
@@ -411,7 +411,7 @@ body.loading #title h1, body.loading #title p { animation-play-state: paused; }
   font-size: 14px; font-style: italic; color: var(--dim); padding: 6px 18px; min-height: 40px;
   border-radius: 20px; border: 1px solid rgba(214, 170, 90, 0.25); background: rgba(24, 16, 8, 0.35);
 }
-#cards-offer[hidden], #cards[hidden], #temple-leave[hidden], #menu-temple-leave[hidden] { display: none; }
+#cards-offer[hidden], #cards[hidden] { display: none; }
 #cards-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 #cards-head > div { flex: 1; }
 #cards-title { margin: 0; font-size: 20px; color: var(--gold); letter-spacing: 0.04em; }
@@ -426,7 +426,7 @@ body.loading #title h1, body.loading #title p { animation-play-state: paused; }
 /* on a narrow (portrait) phone the stick and the round button fill the bottom corners, so the
    offer to sit and the subtitles rise above them */
 @media (max-width: 600px) {
-  #sit-offer, #cards-offer, #temple-leave { bottom: calc(164px + env(safe-area-inset-bottom, 0px)); }
+  #sit-offer, #cards-offer { bottom: calc(164px + env(safe-area-inset-bottom, 0px)); }
   #sub { bottom: calc(218px + env(safe-area-inset-bottom, 0px)); }
 }
 #sit-panel {
