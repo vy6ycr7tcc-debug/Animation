@@ -1,7 +1,7 @@
 import * as THREE from "three/webgpu";
 import { LessonScene } from "../lessonKit";
 import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
-import { worldPoints, glowShader, gpuUniforms, T, vnoise } from "../../gpu/tsl";
+import { worldPoints, glowShader, gpuUniforms, T } from "../../gpu/tsl";
 import { prismGeometry, crystalMaterial } from "../../world/creation";
 
 const rnd = (i: number, s: number): number => {
