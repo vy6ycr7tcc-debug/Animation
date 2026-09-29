@@ -128,7 +128,7 @@ export interface SpriteCloud {
 /** A cloud of `max` soft points drawn as one instanced sprite. `layout` gives each per-instance
     attribute's item size, e.g. { position: 3, aSeed: 4 }. The material's positionNode is set to
     the instance position unless the caller replaces it. */
-export function spriteCloud(max: number, layout: Record<string, number>, material: THREE.PointsNodeMaterial): SpriteCloud {
+export function spriteCloud(max: number, layout: Record<string, number>, material: THREE.PointsNodeMaterial | THREE.SpriteNodeMaterial): SpriteCloud {
   const attrs: Record<string, THREE.InstancedBufferAttribute> = {};
   const nodes: Record<string, N> = {};
   for (const [name, size] of Object.entries(layout)) {
