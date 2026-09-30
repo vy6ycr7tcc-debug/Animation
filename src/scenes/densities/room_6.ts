@@ -131,11 +131,22 @@ export function createDensityRoom6Scene(
       const hg = new THREE.SphereGeometry(1.7, 48, 24);
       const hm = new THREE.MeshBasicNodeMaterial({ transparent: true, fog: false });
       hm.colorNode = vec3(0, 0, 0);
-      hm.opacityNode = smoothstep(0.1, 0.6, uHole);
+      hm.opacityNode = smoothstep(0.1, 0.35, uHole);
       const horizon = new THREE.Mesh(hg, hm);
       horizon.renderOrder = 3; // first: its depth hides the ring's far half, the near half passes in front
       holeGroup.add(horizon);
       ours.push(hg, hm);
+      // the darkness held truly black: a soft disc of pure black over the glow that bloom and the
+      // souls behind would wash into it (the ring's near half, drawn after, still crosses it)
+      const bm = new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false, fog: false });
+      const rb = length(uv().sub(0.5)).mul(2);
+      bm.colorNode = vec3(0, 0, 0);
+      bm.opacityNode = smoothstep(0.37, 0.33, rb).mul(smoothstep(0.1, 0.35, uHole));
+      const shade = new THREE.Sprite(bm);
+      shade.scale.setScalar(9.6);
+      shade.renderOrder = 3;
+      holeGroup.add(shade);
+      ours.push(bm);
 
       // the accretion ring: a flat disc of light round it, tilted toward us, swirling, hottest at
       // its inner edge; soft, the game's glow, never hard CG
@@ -148,7 +159,7 @@ export function createDensityRoom6Scene(
       const swirl = vnoise(vec2(ang.mul(3).add(t.mul(0.35)).add(u.mul(6)), u.mul(9))).mul(0.6).add(vnoise(vec2(ang.mul(9).add(t.mul(0.6)), u.mul(20))).mul(0.4));
       const heat = mix(vec3(1.0, 0.97, 0.9), vec3(0.95, 0.55, 0.25), smoothstep(0.0, 0.6, u));
       const fall = exp(u.mul(-4.5)).mul(smoothstep(0.0, 0.03, u));
-      rm.colorNode = vec4(heat.mul(fall).mul(swirl.mul(0.8).add(0.35)).mul(uHole).mul(1.6), 1);
+      rm.colorNode = vec4(heat.mul(fall).mul(swirl.mul(0.8).add(0.35)).mul(uHole).mul(1.05), 1);
       const ring = new THREE.Mesh(rg, rm);
       ring.rotation.x = -Math.PI / 2 + 0.28; // seen a little from above, as the eye expects of it
       ring.renderOrder = 4;
@@ -158,7 +169,7 @@ export function createDensityRoom6Scene(
       // the photon ring: a thin fierce circle hugging the darkness, always facing us
       const pr = keepAlpha(new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false, fog: false }));
       const r2 = length(uv().sub(0.5)).mul(2);
-      const band = exp(r2.sub(0.36).mul(r2.sub(0.36)).mul(-900)).mul(1.6).add(exp(max(r2.sub(0.36), 0).mul(-9)).mul(0.25).mul(smoothstep(0.34, 0.37, r2)));
+      const band = exp(r2.sub(0.365).mul(r2.sub(0.365)).mul(-1400)).mul(0.85).add(exp(max(r2.sub(0.36), 0).mul(-9)).mul(0.25).mul(smoothstep(0.34, 0.37, r2)));
       pr.colorNode = vec4(vec3(1.0, 0.88, 0.7).mul(band).mul(uHole), 1);
       const photon = new THREE.Sprite(pr);
       photon.scale.setScalar(9.6);
@@ -169,14 +180,20 @@ export function createDensityRoom6Scene(
 
     /* ---------------- the last souls, spiralling in ---------------- */
     {
-      const s = pointCloud(INFALL, 0.12);
+      // each soul drawn three times along its own path, a moment apart: far out the three are one
+      // point; near the horizon, where it falls fastest, they draw it out into a streak
+      const s = pointCloud(INFALL * 3, 0.12);
       for (let i = 0; i < INFALL; i++) {
-        s.pos.set([0, 0, 0], i * 3);
-        s.k.set([R(), R(), R(), R()], i * 4);
+        const k = [R(), R(), R(), R()];
+        for (let j = 0; j < 3; j++) {
+          s.pos.set([j, 0, 0], (i * 3 + j) * 3);
+          s.k.set(k, (i * 3 + j) * 4);
+        }
       }
       touch(s.cloud);
-      const K = s.cloud.nodes.aK;
-      const life = fract(K.x.add(t.mul(float(0.03).add(K.y.mul(0.04)))));
+      const K = s.cloud.nodes.aK, trail = s.cloud.nodes.position.x;
+      const life0 = fract(K.x.add(t.mul(float(0.03).add(K.y.mul(0.04)))));
+      const life = life0.sub(trail.mul(0.006).mul(smoothstep(0.55, 0.95, life0)));
       const r = mix(float(22).add(K.z.mul(14)), float(1.8), pow(life, 0.6));
       const a = K.w.mul(6.283).add(life.mul(float(9).add(K.y.mul(6))));
       // in the ring's plane (tilted like it), sinking a little as they near
@@ -184,8 +201,11 @@ export function createDensityRoom6Scene(
       const tilt = 0.28;
       const pos = vec3(x, z.mul(-Math.sin(tilt)).add(sin(K.z.mul(40)).mul(float(1).sub(life)).mul(2)), z.mul(Math.cos(tilt)));
       s.material.positionNode = c.add(pos);
-      const hue = mix(vec3(0.8, 0.88, 1.0), vec3(1.0, 0.8, 0.55), K.z);
-      s.material.colorNode = vec4(hue.mul(s.round).mul(smoothstep(0, 0.2, life)).mul(smoothstep(1, 0.9, life)).mul(uHole).mul(0.9), 1);
+      // and as they near the horizon they redden and dim: the last light of each before it is one
+      const near = smoothstep(0.62, 0.97, life0);
+      const hue = mix(mix(vec3(0.8, 0.88, 1.0), vec3(1.0, 0.8, 0.55), K.z), vec3(0.85, 0.16, 0.06), near);
+      const fade = mix(float(1), float(0.55), near).mul(float(1).sub(trail.mul(0.3)));
+      s.material.colorNode = vec4(hue.mul(s.round).mul(smoothstep(0, 0.2, life)).mul(smoothstep(1, 0.9, life)).mul(fade).mul(uHole).mul(0.9), 1);
       g.add(s.cloud.sprite);
       ours.push(s.material);
     }
