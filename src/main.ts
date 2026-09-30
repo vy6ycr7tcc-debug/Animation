@@ -2703,11 +2703,12 @@ renderer
           const mods: Record<number, () => Promise<Record<string, unknown>>> = {
             1: () => import("./scenes/densities/room_1"),
             2: () => import("./scenes/densities/room_2"),
+            3: () => import("./scenes/densities/room_3"),
             4: () => import("./scenes/densities/room_4"),
             6: () => import("./scenes/densities/room_6"),
           };
           const mod = await (mods[n] ?? mods[1])();
-          const make = mod[`createDensityRoom${n}Scene`] as (s: THREE.Scene, nar: typeof narration, w: typeof whisper) => { onSit(): void; update(dt: number): void };
+          const make = mod[n === 3 ? "createRoom3Scene" : `createDensityRoom${n}Scene`] as (s: THREE.Scene, nar: typeof narration, w: typeof whisper) => { onSit(): void; update(dt: number): void };
           const lesson = make(scene, narration, whisper);
           await (lesson as { loaded?: Promise<void> }).loaded;
           additiveKeepsAlpha(scene);
