@@ -721,7 +721,7 @@ export class Temple {
       pivot.scale.setScalar(STATUE_SCALE);
       const stations: Station[] = [];
       stations[i] = { center: new THREE.Vector3(0, 0, 0) } as unknown as Station;
-      const beings = new Beings(stations, sparks);
+      const beings = new Beings(stations, sparks, { flat: true });
       for (const b of beings.list) (b.spec.under = false), (b.turns = false);
       // each stood off-centre in its landmark (the Magician 1.9 m aside, into the niche's wall):
       // in its shrine it stands in the middle, as on its card (its height is kept: XII hangs)
@@ -1011,7 +1011,7 @@ export class Temple {
       const pivot = new THREE.Group();
       const stations: Station[] = [];
       stations[i] = { center: new THREE.Vector3(0, 0, 0) } as unknown as Station;
-      const beings = new Beings(stations, this.sparks);
+      const beings = new Beings(stations, this.sparks, { flat: true });
       for (const b of beings.list) (b.spec.under = false), (b.turns = false);
       if (this.model) beings.attach(this.model);
       pivot.add(beings.group);
