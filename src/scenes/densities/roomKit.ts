@@ -6,6 +6,7 @@
 import * as THREE from "three/webgpu";
 import { T, fogUniforms, gpuUniforms, gradeUniforms, softPoints, spriteCloud, vnoise, type N, type SpriteCloud } from "../../gpu/tsl";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
 import { fbm } from "../../world/terrain";
 import { stoneBlock } from "../../world/stoneworks";
 import { surface, type SurfaceName } from "../../world/textures";
@@ -264,5 +265,52 @@ export function lamps(points: THREE.Vector3[], colors: THREE.Color[], size: numb
   const breathe = T.sin(gpuUniforms.time.mul(0.7).add(K.y.mul(6.28))).mul(0.12).add(0.88);
   pc.material.colorNode = vec4(C.mul(pc.round).mul(K.x).mul(breathe), 1);
   return pc;
+}
+
+
+/** Segments along each strand. */
+const STRAND_SEGS = 12;
+/** A set of threads, each drawn as an arcing ribbon between two points that may move. */
+export function strands(pairs: { a: THREE.Vector3; b: THREE.Vector3; lift: number }[], shade: (U: N, K: N) => N, px: number) {
+  const segN = pairs.length * STRAND_SEGS;
+  const geo = ribbonGeometry(new Float32Array(segN * 6));
+  const aU = new Float32Array(segN * 4), aK = new Float32Array(segN * 4);
+  pairs.forEach((_, k) => {
+    for (let s = 0; s < STRAND_SEGS; s++) {
+      const base = (k * STRAND_SEGS + s) * 4;
+      [s / STRAND_SEGS, s / STRAND_SEGS, (s + 1) / STRAND_SEGS, (s + 1) / STRAND_SEGS].forEach((u, c) => {
+        aU[base + c] = u;
+        aK[base + c] = (k + 0.5) / pairs.length;
+      });
+    }
+  });
+  geo.setAttribute("aU", new THREE.BufferAttribute(aU, 1));
+  geo.setAttribute("aK", new THREE.BufferAttribute(aK, 1));
+  const mat = keepAlpha(ribbonMaterial(shade(T.attribute("aU", "float"), T.attribute("aK", "float")), px));
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.frustumCulled = false;
+  const posA = geo.attributes.position as THREE.BufferAttribute, othA = geo.attributes.aO as THREE.BufferAttribute;
+  const pa = new THREE.Vector3(), pb = new THREE.Vector3();
+  const at = (p: { a: THREE.Vector3; b: THREE.Vector3; lift: number }, u: number, out: THREE.Vector3) => {
+    out.lerpVectors(p.a, p.b, u);
+    out.y += Math.sin(u * Math.PI) * (p.lift + p.a.distanceTo(p.b) * 0.08);
+    return out;
+  };
+  const write = () => {
+    pairs.forEach((p, k) => {
+      for (let s = 0; s < STRAND_SEGS; s++) {
+        at(p, s / STRAND_SEGS, pa);
+        at(p, (s + 1) / STRAND_SEGS, pb);
+        const base = (k * STRAND_SEGS + s) * 4;
+        posA.setXYZ(base, pa.x, pa.y, pa.z); othA.setXYZ(base, pb.x, pb.y, pb.z);
+        posA.setXYZ(base + 1, pa.x, pa.y, pa.z); othA.setXYZ(base + 1, pb.x, pb.y, pb.z);
+        posA.setXYZ(base + 2, pb.x, pb.y, pb.z); othA.setXYZ(base + 2, pa.x, pa.y, pa.z);
+        posA.setXYZ(base + 3, pb.x, pb.y, pb.z); othA.setXYZ(base + 3, pa.x, pa.y, pa.z);
+      }
+    });
+    posA.needsUpdate = othA.needsUpdate = true;
+  };
+  write();
+  return { mesh, write, dispose: () => (geo.dispose(), mat.dispose()) };
 }
 

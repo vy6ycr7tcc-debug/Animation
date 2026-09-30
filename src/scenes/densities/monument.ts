@@ -435,12 +435,12 @@ export function densityStages(seen: () => Set<string>): Stage[] {
     },
     {
       id: "room5",
-      focus: [[0, 9, -16]],
+      focus: [[0, 16, -31], [0, 1.2, -31], [0, 1, -12]],
       title: "The fifth density",
       make: mk(() => import("./room_5"), "createDensity5Scene"),
       start: { x: 0, z: 0, heading: Math.PI },
-      exits: [{ x: 0, z: -32.3, r: 2.2, to: 7 }], // beyond the seeker, the way on
-      confine: box(-22, 22, -34, 6),
+      exits: [{ x: 0, z: -60, r: 2.4, to: 7 }], // beyond the plaza, the way on
+      confine: box(-28, 28, -62, 6),
       ownAir: true,
     },
     {

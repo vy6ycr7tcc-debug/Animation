@@ -23,13 +23,12 @@
 import * as THREE from "three/webgpu";
 import { LessonScene } from "../lessonKit";
 import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
-import { T, hash2, vnoise, type N } from "../../gpu/tsl";
-import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
+import { T, hash2, vnoise } from "../../gpu/tsl";
 import { stoneBlock } from "../../world/stoneworks";
 import { GlassFolk, type FolkSpec } from "../glassFolk";
-import { applyAir, damp, fbmN, keepAlpha, pointCloud, roomClock, roomPos, scannedGround, seeded, skyDome, touch, type Air } from "./roomKit";
+import { applyAir, damp, fbmN, keepAlpha, pointCloud, roomClock, roomPos, scannedGround, seeded, skyDome, strands, touch, type Air } from "./roomKit";
 
-const { abs, attribute, exp, float, floor, fract, length, max, mix, pow, sin, smoothstep, step, uniform, uv, vec2, vec3, vec4 } = T;
+const { abs, exp, float, floor, fract, length, max, mix, pow, sin, smoothstep, step, uniform, uv, vec2, vec3, vec4 } = T;
 
 /** Where things stand (room frame: you arrive at z 3.4 facing −z). */
 const STO = new THREE.Vector3(-5.2, 0, -12); // the circle
@@ -37,54 +36,8 @@ const STS = new THREE.Vector3(5.6, 0, -13.5); // the dais
 const DAIS_TOP = 1.8;
 const PORTAL = new THREE.Vector3(0, 0, -32);
 const SEAM_Z = -4; // the standing seam at the threshold
-const SEGS = 12;
 /** The sitting clip sits on a chair: lowered this far, the figure kneels and sits on the ground. */
 const SIT_Y = -0.42;
-
-type V = THREE.Vector3;
-/** A set of threads, each drawn as an arcing ribbon between two points that may move. */
-function strands(pairs: { a: V; b: V; lift: number }[], shade: (U: N, K: N) => N, px: number) {
-  const segN = pairs.length * SEGS;
-  const geo = ribbonGeometry(new Float32Array(segN * 6));
-  const aU = new Float32Array(segN * 4), aK = new Float32Array(segN * 4);
-  pairs.forEach((_, k) => {
-    for (let s = 0; s < SEGS; s++) {
-      const base = (k * SEGS + s) * 4;
-      [s / SEGS, s / SEGS, (s + 1) / SEGS, (s + 1) / SEGS].forEach((u, c) => {
-        aU[base + c] = u;
-        aK[base + c] = (k + 0.5) / pairs.length;
-      });
-    }
-  });
-  geo.setAttribute("aU", new THREE.BufferAttribute(aU, 1));
-  geo.setAttribute("aK", new THREE.BufferAttribute(aK, 1));
-  const mat = keepAlpha(ribbonMaterial(shade(attribute("aU", "float"), attribute("aK", "float")), px));
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.frustumCulled = false;
-  const posA = geo.attributes.position as THREE.BufferAttribute, othA = geo.attributes.aO as THREE.BufferAttribute;
-  const pa = new THREE.Vector3(), pb = new THREE.Vector3();
-  const at = (p: { a: V; b: V; lift: number }, u: number, out: V) => {
-    out.lerpVectors(p.a, p.b, u);
-    out.y += Math.sin(u * Math.PI) * (p.lift + p.a.distanceTo(p.b) * 0.08);
-    return out;
-  };
-  const write = () => {
-    pairs.forEach((p, k) => {
-      for (let s = 0; s < SEGS; s++) {
-        at(p, s / SEGS, pa);
-        at(p, (s + 1) / SEGS, pb);
-        const base = (k * SEGS + s) * 4;
-        posA.setXYZ(base, pa.x, pa.y, pa.z); othA.setXYZ(base, pb.x, pb.y, pb.z);
-        posA.setXYZ(base + 1, pa.x, pa.y, pa.z); othA.setXYZ(base + 1, pb.x, pb.y, pb.z);
-        posA.setXYZ(base + 2, pb.x, pb.y, pb.z); othA.setXYZ(base + 2, pa.x, pa.y, pa.z);
-        posA.setXYZ(base + 3, pb.x, pb.y, pb.z); othA.setXYZ(base + 3, pa.x, pa.y, pa.z);
-      }
-    });
-    posA.needsUpdate = othA.needsUpdate = true;
-  };
-  write();
-  return { mesh, write, dispose: () => (geo.dispose(), mat.dispose()) };
-}
 
 export function createRoom3Scene(
   scene: THREE.Scene,
@@ -266,7 +219,7 @@ export function createRoom3Scene(
     g.add(left.group);
     ours.push(left);
     const hearts = circle.map((c) => new THREE.Vector3(c.x, 1.25, c.z));
-    const goldPairs: { a: V; b: V; lift: number }[] = [];
+    const goldPairs: { a: THREE.Vector3; b: THREE.Vector3; lift: number }[] = [];
     for (let a = 0; a < CN; a++) for (let b = a + 1; b < CN; b++) goldPairs.push({ a: hearts[a], b: hearts[b], lift: 0.2 });
     const fallHeart = new THREE.Vector3(FALL.x, 0.85 + SIT_Y, FALL.z), helpHeart = new THREE.Vector3(HELP.x, 1.25, HELP.z);
     goldPairs.push({ a: helpHeart, b: fallHeart, lift: 0.15 });
