@@ -31,7 +31,7 @@ const ROOM_COLORS = [0xf4f0ff, 0xff7a3a, 0xffd479, 0x9fd8ff, 0xf0c060, 0xffb070,
 const BASE = 36, TIER = 6.5;
 
 /** A quartz point: the world's own prism in its glassy, rainbow-splitting light. */
-function quartz(radius: number, height: number, hue: number, glow: number): THREE.Mesh {
+export function quartz(radius: number, height: number, hue: number, glow: number): THREE.Mesh {
   const g = prismGeometry();
   g.scale(radius / 0.2, height, radius / 0.2);
   const n = g.attributes.position.count;
@@ -349,8 +349,20 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
       },
       floor: (x, z) => (callFloor ? callFloor(x, z) : 0),
       start: { x: 0, z: 0, heading: Math.PI },
-      exits: [{ x: 0, z: -42.3, r: 2.2, to: 0, at: HOME }], // the next station is still to come: home for now
+      exits: [{ x: 0, z: -42.3, r: 2.2, to: 2, dark: 1.5 }], // into the fire
       confine: box(-3, 3, -43, 6),
+      ownAir: true,
+    },
+    {
+      id: "crucible",
+      title: "The crucible",
+      make: async (scene, nar, wh) => (await import("./crucible")).createCrucibleScene(scene, nar, wh) as Room,
+      start: { x: 0, z: 4.5, heading: Math.PI },
+      exits: [{ x: 0, z: -18.4, r: 1.8, to: 0, at: HOME }], // the next station is still to come: home for now
+      confine: (p) => {
+        const dx = p.x, dz = p.z + 6, d = Math.hypot(dx, dz), lim = Math.abs(p.x) < 1.5 && p.z < -6 ? 12.8 : 10.4;
+        if (d > lim) (p.x = (dx / d) * lim), (p.z = -6 + (dz / d) * lim);
+      },
       ownAir: true,
     },
   ];
