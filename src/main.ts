@@ -303,6 +303,7 @@ creationUniforms.uFogD.value = FOG.density * 0.9;
 creationUniforms.uStar.value.copy(starDir);
 // the sky's moods, which change as you travel
 const moods = new Moods({ hemi, star, scene, creationFog: creationUniforms.uFogC.value });
+const worldLit = { hemi: hemi.intensity, star: star.intensity }; // the lights as the moods last set them
 const creation = new Creation(sparks);
 // the forests beyond, out to half a kilometre
 const forest = new Forest(creation);
@@ -2695,15 +2696,22 @@ function update(dt: number): void {
   glow.set(player.pos.x, S.mode === "intro" ? 0 : 1, player.pos.z);
   water.update(camera.position.x, camera.position.z, glow);
   skyUniforms.uT.value = wtSafe;
-  if (!apart()) moods.update(player.pos, dt);
-  // a lesson that asks for real darkness (the desert's lantern): after the moods, so it holds
-  if (lessonDark.k > 0.001 && !apart()) {
+  if (!apart()) {
+    moods.update(player.pos, dt);
+    worldLit.hemi = hemi.intensity;
+    worldLit.star = star.intensity;
+  }
+  // a lesson or a room that asks for real darkness (the desert's lantern, the beginning's black):
+  // after the moods, so it holds; the lights from what the moods set (they rest in a place apart)
+  {
     const k = lessonDark.k;
-    hemi.intensity *= 1 - 0.9 * k;
-    star.intensity *= 1 - 0.94 * k;
-    fogUniforms.color.value.multiplyScalar(1 - 0.85 * k);
-    fogUniforms.glow.value.multiplyScalar(1 - 0.8 * k);
-    fogUniforms.density.value += (0.022 - fogUniforms.density.value) * k;
+    hemi.intensity = worldLit.hemi * (1 - 0.9 * k);
+    star.intensity = worldLit.star * (1 - 0.94 * k);
+    if (k > 0.001 && !apart()) {
+      fogUniforms.color.value.multiplyScalar(1 - 0.85 * k);
+      fogUniforms.glow.value.multiplyScalar(1 - 0.8 * k);
+      fogUniforms.density.value += (0.022 - fogUniforms.density.value) * k;
+    }
   }
   lessonDark.k *= 0.92; // held only while a lesson keeps asking for it
   templeFrame(dt);
