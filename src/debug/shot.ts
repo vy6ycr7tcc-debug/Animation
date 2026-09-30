@@ -84,6 +84,8 @@ export interface ShotCtx {
   draw(): void;
   /** Settles when what the frame needs has loaded (the recorded figure the visions pose). */
   ready?: Promise<unknown>;
+  /** After the first update: settles when what it asked for has arrived (the carvings). */
+  settle?(): Promise<unknown>;
 }
 
 /** Render one still frame of the requested scene at T seconds, then never again. */
@@ -165,6 +167,18 @@ export function runShot(ctx: ShotCtx): void {
   ctx.terrain.update(base[0], base[2], true);
 
   // one update with the override in place: beats up to T apply, and uT reads T
+  ctx.update(1 / 60);
+  ctx.S.t = t;
+  ctx.S.wt = t;
+  if (ctx.settle) {
+    const { settle, ...rest } = ctx;
+    void settle().then(() => finish(rest, id, t, base, view));
+    return;
+  }
+  finish(ctx, id, t, base, view);
+}
+
+function finish(ctx: ShotCtx, id: string, t: number, base: XYZ, view: { eye: XYZ; look: XYZ }): void {
   ctx.update(1 / 60);
   ctx.S.t = t;
   ctx.S.wt = t;

@@ -59,6 +59,7 @@ import { RisingFlowers } from "./world/blooms";
 import { Wilds } from "./world/wilds";
 import { initTourScenes, tourPlaces, type TourScenes } from "./scenes/integration";
 import { bodyForms } from "./world/forms";
+import { glyphsLoaded } from "./world/glyphs";
 
 import { downloadAssets, requestPersistentStorage, checkAssetUpdates } from "./core/offline";
 
@@ -2560,6 +2561,7 @@ renderer
         terrain,
         setInside,
         ready: bodyForms(),
+        settle: glyphsLoaded,
         genesisAt: (tt) => {
           beginGenesis();
           genesis.t = Math.max(0, tt - 1 / 60); // the one update that follows brings it to tt

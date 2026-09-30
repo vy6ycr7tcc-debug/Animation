@@ -310,8 +310,6 @@ class Being {
       g.u.wake.value = this.wake;
       g.u.rite.value = this.riteK;
       g.u.greet.value = greet;
-      // drawn in the first time you come near, then it stays drawn
-      if (this.met || this.wake > 0.2) g.u.drawn.value = Math.min(1, g.u.drawn.value + dt / (reduced ? 0.8 : 3.2));
       this.halo.material.opacity *= 0.35;
     }
     this.skin.emissiveIntensity = this.U.uPulse.value * Math.min(1, this.U.uForm.value);
