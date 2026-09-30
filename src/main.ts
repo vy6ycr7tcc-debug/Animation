@@ -2843,14 +2843,15 @@ renderer
             2: () => import("./scenes/densities/room_2"),
             3: () => import("./scenes/densities/room_3"),
             4: () => import("./scenes/densities/room_4"),
+            5: () => import("./scenes/densities/room_5"),
             6: () => import("./scenes/densities/room_6"),
           };
           const mod = await (mods[n] ?? mods[1])();
-          const make = mod[n === 3 ? "createRoom3Scene" : `createDensityRoom${n}Scene`] as (s: THREE.Scene, nar: typeof narration, w: typeof whisper) => { onSit(): void; update(dt: number): void };
+          const make = mod[n === 3 ? "createRoom3Scene" : n === 5 ? "createDensity5Scene" : `createDensityRoom${n}Scene`] as (s: THREE.Scene, nar: typeof narration, w: typeof whisper) => { onSit(): void; update(dt: number): void };
           const lesson = make(scene, narration, whisper);
           await (lesson as { loaded?: Promise<void> }).loaded;
           additiveKeepsAlpha(scene);
-          for (const o of scene.children) if (!(o as THREE.Light).isLight && o.name !== `lesson:density_${n}` && o !== camera) o.visible = false;
+          for (const o of scene.children) if (!(o as THREE.Light).isLight && o.name !== `lesson:density_${n}` && o.name !== `lesson:density-${n}` && o !== camera) o.visible = false;
           return lesson;
         },
         camera,
