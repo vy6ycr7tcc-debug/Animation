@@ -394,7 +394,8 @@ const cWeb = Fn(([p, t]: N[]) => {
 function groundMaterial(): THREE.MeshStandardNodeMaterial {
   // matte earth: no sheen of sky or moon sliding over it as the camera moves (Samuel: "you
   // don't need to be ray tracing the floor")
-  const m = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
+  // (the vertex colours are applied in colorNode, so the snow can cover them)
+  const m = new THREE.MeshStandardNodeMaterial({ roughness: 1, metalness: 0 });
   m.envMapIntensity = 0.35;
   const [sand, meadow, rock, cliff] = [surface("sand"), surface("meadow"), surface("rock"), surface("cliff")];
   const uT = groundUniforms.uT;
@@ -420,14 +421,34 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
   // smeared down its face from above as the flat layers would be.
   const nW = normalize(normalWorld);
   // steep ground, and the mountains (their gentle slopes too): rock
-  const steep = max(smoothstep(0.14, 0.42, float(1).sub(nW.y)), smoothstep(22, 60, vGW.y)).mul(step(0.5, vGW.y));
-  const bx = pow(abs(nW.x), 3), bz = pow(abs(nW.z), 3), bsum = max(bx.add(bz), 1e-4);
+  const mtn = smoothstep(22, 60, vGW.y);
+  const steep = max(smoothstep(0.14, 0.42, float(1).sub(nW.y)), mtn).mul(step(0.5, vGW.y));
+  // the rock seen from all three sides (the gentle slopes from above): a scan projected only from
+  // the sides stretched into streaks across the mountains' shoulders
+  const bx = pow(abs(nW.x), 4), bz = pow(abs(nW.z), 4), by = pow(abs(nW.y), 4), bsum = max(bx.add(bz).add(by), 1e-4);
   const CS = 7; // metres a repeat of the cliff scan
   // near, the scan at its own scale; far, the same scan much larger, so its strata still read
   // from a kilometre away (a small pattern averages to flat grey at that distance)
   const farK = smoothstep(120, 600, camD);
-  const tri = (s: number) => texture(cliff.diff, vGW.zy.div(s)).rgb.mul(bx).add(texture(cliff.diff, vGW.xy.div(s)).rgb.mul(bz)).div(bsum);
+  const tri = (s: number) =>
+    texture(cliff.diff, vGW.zy.div(s)).rgb.mul(bx).add(texture(cliff.diff, vGW.xy.div(s)).rgb.mul(bz)).add(texture(cliff.diff, vGW.xz.div(s)).rgb.mul(by)).div(bsum);
   const cliffC = tmix(tri(CS), tri(CS * 9), farK);
+  // Crags: the mountains' faces broken into ridges and gullies in the light (ridged noise at two
+  // scales, its slope turned into the surface's tilt), finer than the land's triangles can carry
+  const ridge = (p: N) => float(1).sub(abs(gN(p).mul(2).sub(1)));
+  const crag = (p: N) => ridge(p.mul(0.025)).mul(0.7).add(ridge(p.mul(0.08).add(17)).mul(0.22)).add(gN(p.mul(0.35).add(5)).mul(0.08));
+  const E = 0.7;
+  const c0 = crag(q), cx = crag(q.add(vec2(E, 0))), cz = crag(q.add(vec2(0, E)));
+  const dCrag = vec3(c0.sub(cx), 0, c0.sub(cz)).mul(mtn.mul(5.5 / E));
+  const nP = normalize(nW.add(dCrag));
+  // Snow, decided for every point rather than at the land's corners (which painted soft blobs):
+  // it lies where the ground (crags and all) is gentle enough, above a ragged line, with wind-cut
+  // edges; drifts carry the fine grain of the sand scan
+  const snowLine = gN(q.mul(0.01).add(3)).sub(0.5).mul(60).add(95);
+  const lieN = gN(q.mul(0.09).add(11)).sub(0.5).mul(0.22).add(gN(q.mul(0.6)).sub(0.5).mul(0.08));
+  const snow = smoothstep(snowLine, snowLine.add(12), vGW.y).mul(smoothstep(0.6, 0.7, nP.y.add(lieN)));
+  const grain = dot(texture(sand.diff, vGW.xz.div(2.4)).rgb, vec3(0.3, 0.5, 0.2)).mul(0.5).add(0.8);
+  const snowC = tmix(vec3(0.5, 0.49, 0.7), vec3(0.76, 0.78, 0.89), smoothstep(150, 230, vGW.y)).mul(grain);
 
   // each scan at two scales, so no repeat reads as a grid across the ground
   const two = (t: THREE.Texture, s0: number) => samp(t, s0).mul(0.6).add(samp(t, s0 * 2.618).mul(0.4));
@@ -437,9 +458,7 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
   const aoFlat = two(sand.arm, 3).r.mul(w.x).add(two(rock.arm, 4).r.mul(w.y)).add(two(meadow.arm, 2.2).r.mul(w.z));
   const aoCliff = texture(cliff.arm, vGW.zy.div(CS)).r.mul(bx).add(texture(cliff.arm, vGW.xy.div(CS)).r.mul(bz)).div(bsum);
   const ao = tmix(float(1), tmix(float(0.3), float(1.08), tmix(aoFlat, aoCliff, steep)), float(1).sub(smoothstep(40, 260, camD)));
-  // snowfields keep their white: only a trace of the rock beneath shows through
-  const snowK = smoothstep(0.32, 0.6, dot(T.vertexColor().rgb, vec3(0.3, 0.5, 0.2)));
-  const det0 = tmix(flat0, tmix(cliffC.mul(2.3), tmix(vec3(1), cliffC.mul(2.3), 0.25), snowK), steep);
+  const det0 = tmix(flat0, cliffC.mul(2.3), steep);
   // keep the moonlit palette: mostly the scan's light and shade, a little of its colour
   const det = tmix(vec3(dot(det0, vec3(0.3, 0.5, 0.2))), det0, 0.72).mul(ao);
   // the scans' detail reaches far now (mipmapped, it doesn't shimmer), and cliffs to the mountains
@@ -457,7 +476,9 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
   const pebble = step(0.86, gH(pc)).mul(smoothstep(0.26, 0.12, length(pbf.add(vec2(gH(pc.add(3)), gH(pc.add(7))).sub(0.5).mul(0.4)))));
   const floorC = tmix(tmix(silt, vec3(0.12, 0.2, 0.13), growth.mul(0.8)), vec3(0.78, 0.74, 0.66), pebble.mul(0.7)).mul(ao);
   const ground = tmix(tmix(vec3(1), det, fade).mul(macro), floorC, sea.mul(float(1).sub(steep.mul(0.6))));
-  m.colorNode = vec4(ground.mul(gr.x), 1);
+  // the rock darkens into its crevices (the crags' hollows), the snow keeps its white
+  const crev = tmix(float(1), smoothstep(0.15, 0.7, c0).mul(0.5).add(0.62), mtn);
+  m.colorNode = vec4(tmix(ground.mul(T.vertexColor().rgb).mul(crev), snowC, snow).mul(gr.x), 1);
 
   // the scans' relief: each surface's normal map, blended as the ground is
   const near = float(1).sub(smoothstep(30, 160, camD));
@@ -469,7 +490,9 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
   const dFlat = vec3(pn.x.add(pn2.x), 0, pn.y.add(pn2.y).negate()).mul(near).mul(1.8);
   // on a cliff, each side's normal map turns about its own plane (x-facing: z and y; z-facing: x and y)
   const nX = texture(cliff.nor, vGW.zy.div(CS)).xy.mul(2).sub(1), nZ = texture(cliff.nor, vGW.xy.div(CS)).xy.mul(2).sub(1);
-  const dCliff = vec3(0, nX.y, nX.x).mul(bx).add(vec3(nZ.x, nZ.y, 0).mul(bz)).div(bsum).mul(float(1).sub(smoothstep(60, 400, camD))).mul(1.6);
+  const nY = texture(cliff.nor, vGW.xz.div(CS)).xy.mul(2).sub(1);
+  const dCliff = vec3(0, nX.y, nX.x).mul(bx).add(vec3(nZ.x, nZ.y, 0).mul(bz)).add(vec3(nY.x, 0, nY.y.negate()).mul(by)).div(bsum)
+    .mul(float(1).sub(smoothstep(60, 400, camD))).mul(tmix(float(1.6), float(0.5), snow));
   // Sand, as in Journey: ripples the wind combs across it (two wavelengths, bent by slow noise),
   // tilting its surface so the light catches their crests
   const WIND = vec2(0.8, 0.6);
@@ -478,7 +501,7 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
   // each set fades where it grows finer than the pixels can show (it aliased into a diamond moiré)
   const aa = (ph: N) => float(1).sub(smoothstep(0.6, 1.6, fwidth(ph)));
   const dRip = vec3(WIND.x, 0, WIND.y).mul(sin(ripPh).mul(0.13).mul(aa(ripPh))).add(vec3(0.6, 0, -0.8).mul(sin(ripPh2).mul(0.06).mul(aa(ripPh2)))).mul(ripK);
-  const dW = tmix(dFlat, dCliff, steep).add(dRip);
+  const dW = tmix(dFlat, dCliff, steep).add(dRip).add(dCrag);
   m.normalNode = normalize(normalView.add(cameraViewMatrix.mul(vec4(dW, 0)).xyz));
 
   m.emissiveNode = Fn(() => {
@@ -691,14 +714,10 @@ export class Terrain {
       const region = fbm(x * 0.004 + 9, z * 0.004 - 4);
       this.col.copy(C.meadowA).lerp(C.meadowB, smooth(0.35, 0.6, region)).lerp(C.meadowC, smooth(0.6, 0.78, region));
       this.col.lerp(this.tmp.copy(C.sand), k.sand).lerp(C.stone, k.stone);
-      // the mountains: bare dark rock on their steep faces, snow only where it can lie (gentler
-      // ground, higher up), its line ragged; the high snowfields whiter
+      // the mountains: bare dark rock on their steep faces (the snow is laid by the ground's shader)
       const up = nor.getY(v);
       const mount = smooth(25, 60, h);
       this.col.lerp(C.granite, mount * smooth(0.9, 0.62, up));
-      const snowLine = 95 + (fbm(x * 0.01 + 3, z * 0.01 - 8) - 0.5) * 60;
-      const lies = smooth(snowLine, snowLine + 30, h) * smooth(0.58, 0.8, up);
-      this.col.lerp(C.snow, lies).lerp(C.snowHigh, lies * smooth(150, 230, h));
       // broad stretches of bare earth, warm and deeply textured
       const earth = smooth(0.42, 0.62, fbm(x * 0.005 + 123, z * 0.005 - 7)) * (1 - k.sand) * smooth(0.6, 2.5, h);
       this.tmp.copy(C.earth).lerp(C.loam, smooth(0.3, 0.7, fbm(x * 0.03 - 9, z * 0.03 + 4)));

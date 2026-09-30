@@ -454,9 +454,28 @@ input.onLand = () => {
   if (player.flying) {
     player.land();
     whisper("Coming down to land", 2500);
-  } else if (player.diving) player.surface();
+  } else if (player.seabed || player.sinking) player.descend(); // back up to the surface
+  else if (player.diving) player.descend(); // down to the floor
   else if (player.swimming) player.dive();
 };
+// In the water, a double tap on the orb takes you down to the lake floor, where you stand and
+// walk; again, and you rise back to the surface (the owner's way).
+let lastOrbTap = 0;
+function tapOnOrb(x: number, y: number): boolean {
+  if (!player.swimming) return false;
+  heartAt(heartScreen).project(camera);
+  const sx = (heartScreen.x * 0.5 + 0.5) * innerWidth, sy = (-heartScreen.y * 0.5 + 0.5) * innerHeight;
+  if (heartScreen.z >= 1 || Math.hypot(x - sx, y - sy) > Math.max(80, innerHeight * 0.1)) return false;
+  const now = performance.now();
+  if (now - lastOrbTap < 450) {
+    lastOrbTap = 0;
+    const down = !(player.seabed || player.sinking);
+    player.descend();
+    if (down) whisper("Down to the floor", 2200);
+    audio.bowl(down ? 196 : 294, 0.05);
+  } else lastOrbTap = now;
+  return true;
+}
 input.onAction = () => {
   if (genesis.active) return;
   if (wanderer.gesture !== "none") wanderer.setGesture("none");
@@ -483,6 +502,7 @@ input.onTap = (x, y, touch) => {
     }
     return;
   }
+  if (tapOnOrb(x, y)) return;
   // an orb or a fruit under the tap: its narration begins (never by itself)
   const v = vessels.pick(x, y, camera);
   if (v) {
@@ -2295,13 +2315,13 @@ function update(dt: number): void {
     // the one context word: "Land" high in the air, "Dive" on the water, "Surface" under it
     const ctx = $("#ctx");
     const high = player.flying && !player.landing && player.pos.y - Math.max(heightAt(player.pos.x, player.pos.z), WATER_Y) > 2.5;
-    const word = sitting.phase === "seated" ? "" : high ? "Land" : player.swimming ? (player.diving ? "Surface" : "Dive") : "";
+    const word = sitting.phase === "seated" ? "" : high ? "Land" : player.swimming ? (player.seabed || player.sinking ? "Surface" : player.diving ? "Floor" : "Dive") : "";
     ctx.hidden = !(MOBILE || input.touchUsed) || !word;
     if (ctx.textContent !== word) ctx.textContent = word;
     document.body.classList.toggle("flying", player.flying);
     if (player.swimming && !S.toldDive) {
       S.toldDive = true;
-      whisper(MOBILE ? "Tap the round button to dive. Under the water, swim where you look" : "Tap Space to dive. Under the water, swim where you look", 6000);
+      whisper(MOBILE ? "Tap the round button to dive; under the water it takes you up. Double tap the orb to go down to the floor" : "Tap Space to dive; under the water it takes you up. L goes down to the floor", 7000);
     }
   }
   S.wt += dt * landmarks.timeScale;
