@@ -2615,6 +2615,7 @@ renderer
             1: () => import("./scenes/densities/room_1"),
             2: () => import("./scenes/densities/room_2"),
             4: () => import("./scenes/densities/room_4"),
+            6: () => import("./scenes/densities/room_6"),
           };
           const mod = await (mods[n] ?? mods[1])();
           const make = mod[`createDensityRoom${n}Scene`] as (s: THREE.Scene, nar: typeof narration, w: typeof whisper) => { onSit(): void; update(dt: number): void };
