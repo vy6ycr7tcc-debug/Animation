@@ -338,6 +338,14 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
     - At the end: "Rest at the tree of life" or "Stay in the temple".
     - The delta's floating tarot cards, stair of light and fabricated whispers are gone (`tarotTex.ts`, `tour/tarotArt.ts` removed).
   - Still to redo: the Duat (`world/pyramid.ts` delta). Still to ask about: the underwater cave ("makes no sense"), and the beings as particle tarot characters.
+- 2026-09-30: the owner: the tour "claustrophobic… you can't move around and it's not intuitive; interactive next… with the guide… walk around; remove the columns from the sight"; "clean up the temple's final room before fixing the tour"; "the tarot cards should be a vector in that same glowy light… not copy paste of the picture"; "all the other buildings should be legit structures made of rocks and realistic"; "leave pyramid, leave temple… that button is annoying. They can just exit through the door".
+  - No "Leave" button anywhere (floating word and ⋮ entry removed); every place apart is left by walking out its door (`confine` → cross), as before.
+  - The sanctuary: each Spirit being's card objects gather in only as you come to its shrine or in its rite (`Temple.gatherObjects`); the card on the altar shows only while the cards are open; the plaques are carved stone with gilded letters.
+  - The cards are drawn in thin gold light (`ribbonGeometry`: a double border with rounded corners, curls, a star at the crown, a ground line), a faint breath of the archetype's colour behind, glowing numeral and name. Never the card photos.
+  - Columns between the camera and the wanderer thin away in a dither (`columnClear` as their `maskNode`).
+  - The tour (`scenes/templeTour.ts`) is a guide, not a ride: you walk freely; a light goes ahead to the next shrine and waits; coming within ~2.4 m wakes the being's rite and plays that shrine's part of TEMPLE (`Narration.play(id, from, to)`); a panel: ‹ back, the shrine's name and a hint, Next › (it glows when the part is spoken), ✕ end; a tap on the light walks you there; after the Choice: rest at the tree or stay.
+  - The homes of all 22 (`world/stoneworks.ts`, used by `Station`): a round platform of fitted sandstone paving in two courses and a ring of seven rough standing stones, one fallen, in the scanned stone laid triplanar and weathered (`landStone`); the stones are colliders; no grass on the paving.
+  - The Duat (the other tool's, in `pyramid.ts`) is built on Egyptian gods (Nun, Sokar, Ra and Osiris, Apophis, Ma'at's judges, Khepri), against the no-deities rule: asked the owner whether to remove it or rebuild it as a godless night passage under the pyramid.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.
