@@ -27,7 +27,7 @@ export interface Masonry {
   block?: number;
   flag?: number;
 }
-export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number, number, number] = [1, 1, 1], masonry?: Masonry): THREE.MeshStandardNodeMaterial {
+export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number, number, number] = [1, 1, 1], masonry?: Masonry, finish?: "marble"): THREE.MeshStandardNodeMaterial {
   const m = new THREE.MeshStandardNodeMaterial({ metalness: 0, roughness: 0.9 });
   const S = scan(set);
   const pw = T.positionWorld, n = T.normalWorldGeometry;
@@ -38,15 +38,27 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
   const arm = tri(S.arm);
   let c: N = tri(S.diff).rgb.mul(mix(float(0.35), float(1), arm.r)).mul(vec3(...tint));
   const nz = (p: N) => T.mx_noise_float(p).mul(0.5).add(0.5);
+  const marble = finish === "marble";
+  if (marble) {
+    // pale marble: the scan's grain kept as a quiet variation in a white stone, grey-blue veins
+    // wandering through it (warped noise), a warmth where it is thickest
+    const lum = T.dot(c, vec3(0.3, 0.5, 0.2)).div(tint[1]);
+    const q = pw.mul(0.22);
+    const warp = vec3(nz(q.add(1.7)), nz(q.add(8.3)), nz(q.add(4.1))).mul(2.2);
+    const v = abs(nz(q.mul(1.4).add(warp)).sub(0.5));
+    const vein = smoothstep(0.035, 0.0, v).mul(0.55).add(smoothstep(0.09, 0.0, v).mul(0.2));
+    c = mix(vec3(0.86, 0.84, 0.8), vec3(0.97, 0.94, 0.88), smoothstep(0.2, 0.6, lum)).mul(vec3(...tint));
+    c = mix(c, vec3(0.5, 0.54, 0.6).mul(tint[1]), vein).mul(mix(float(0.78), float(1), arm.r));
+  }
   // lichen and moss on what faces the sky, in patches
   const up = smoothstep(0.45, 0.9, n.y);
-  const lichen = up.mul(smoothstep(0.55, 0.78, nz(pw.mul(1.3).add(3.1)))).mul(0.7);
+  const lichen = up.mul(smoothstep(0.55, 0.78, nz(pw.mul(1.3).add(3.1)))).mul(marble ? 0.12 : 0.7);
   c = mix(c, vec3(0.34, 0.38, 0.24).mul(nz(pw.mul(7)).mul(0.5).add(0.7)), lichen);
   // soil and damp at the foot, streaks where rain runs down the faces
   const foot = smoothstep(0.9, 0.0, pw.y.sub(base)).mul(0.55);
   const streak = smoothstep(0.6, 0.85, nz(vec3(pw.x.mul(3.1), pw.y.mul(0.2), pw.z.mul(3.1)))).mul(float(1).sub(up)).mul(0.3);
   c = c.mul(float(1).sub(foot)).mul(float(1).sub(streak));
-  let rough: N = T.clamp(arm.g.add(lichen.mul(0.2)), 0.6, 1);
+  let rough: N = marble ? T.clamp(arm.g.mul(0.5).add(0.12), 0.32, 0.62) : T.clamp(arm.g.add(lichen.mul(0.2)), 0.6, 1);
   // relief from the scan's normal map, turned to each side
   const nm = (t: THREE.Texture) => [T.texture(t, pw.zy.div(tile)), T.texture(t, pw.xz.div(tile)), T.texture(t, pw.xy.div(tile))].map((x: N) => x.xy.mul(2).sub(1));
   const [nx, ny, nzz] = nm(S.nor);
@@ -77,7 +89,7 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
     const arris = smoothstep(0.1, mortar, e); // the worn edge of each stone
     const tone = mix(float(0.84), float(1.12), id);
     c = c.mul(tone).mul(mix(float(1), float(0.42), joint)).mul(float(1).sub(arris.mul(0.12)));
-    rough = T.clamp(rough.add(id.sub(0.5).mul(0.12)).add(joint.mul(0.1)), 0.55, 1);
+    rough = T.clamp(rough.add(id.sub(0.5).mul(0.12)).add(joint.mul(0.1)), marble ? 0.3 : 0.55, 1);
     // the mortar lies deeper: the stone's face turns away from it toward each joint
     const sU = T.sign(T.select(wall.greaterThan(0.5), fu, ffu).sub(0.5)), sV = T.sign(T.select(wall.greaterThan(0.5), fv, ffv).sub(0.5));
     const kU = smoothstep(0.08, 0.0, T.select(wall.greaterThan(0.5), du, du2)).mul(0.5), kV = smoothstep(0.08, 0.0, T.select(wall.greaterThan(0.5), dv, dv2)).mul(0.5);

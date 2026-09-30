@@ -4,7 +4,7 @@
 import { SITES } from "../scenes/sites";
 import { DUAT_ORIGIN } from "../world/pyramid";
 import { RUIN_SITES } from "../world/depths";
-import { ADEPT_HALL, DENSITY_HALL, LANDMARK_SITES, PEAKS, PYRAMID, SPAWN, heightAt } from "../world/terrain";
+import { ADEPT_HALL, DENSITY_HALL, LANDMARK_SITES, PAST_HALL, PEAKS, PYRAMID, SPAWN, heightAt } from "../world/terrain";
 import { JOURNEY_ORIGIN } from "../scenes/journey";
 
 export interface Shot {
@@ -132,6 +132,16 @@ const ADEPT_VIEWS: Record<number, { eye: XYZ; look: XYZ }> = {
   7: { eye: [2, 3.2, 8], look: [0, 6, -30] },
 };
 
+/** The monument of past choices (0 the lobby, 1 Maldek, 2 Mars, 3 Atlantis, 4 Egypt): from
+    behind the seat, a little above, looking on into what it shows. */
+const PAST_VIEWS: Record<number, { eye: XYZ; look: XYZ }> = {
+  0: { eye: [0, 3.0, 10], look: [0, 3.2, -10] },
+  1: { eye: [1.5, 2.4, 6], look: [0, 30, -118] },
+  2: { eye: [1.2, 2.4, 5], look: [0, -12, -70] },
+  3: { eye: [1.2, 2.4, 6], look: [0, 10, -150] },
+  4: { eye: [1.2, 2.2, 6], look: [0, 14, -80] },
+};
+
 /** Render one still frame of the requested scene at T seconds, then never again. */
 export function runShot(ctx: ShotCtx): void {
   if (ctx.ready) {
@@ -163,13 +173,13 @@ export function runShot(ctx: ShotCtx): void {
     return;
   }
 
-  const jm = /^(journey|adept)-(\d)$/.exec(id);
+  const jm = /^(journey|adept|past)-(\d)$/.exec(id);
   if (jm && ctx.journey) {
     // the density journey itself: walked into stage k (the real wiring: placed, its air, its seat)
     const { journey, ...rest } = ctx;
     ctx.narration.debugTime = t;
     const k = Number(jm[2]), name = jm[1] === "journey" ? "densities" : jm[1];
-    const views = name === "adept" ? ADEPT_VIEWS : JOURNEY_VIEWS;
+    const views = name === "adept" ? ADEPT_VIEWS : name === "past" ? PAST_VIEWS : JOURNEY_VIEWS;
     void journey(name, k, t).then(() => {
       ctx.S.mode = "play";
       ctx.follow.startFollowing(true);
@@ -222,9 +232,9 @@ export function runShot(ctx: ShotCtx): void {
     base = [px, Math.max(gy, 0) + (above ? top - gy + 90 : 40), pz];
     view = above ? { eye: [0, 0, 0], look: [pk.x - px, top - base[1], pk.z - pz] } : { eye: [0, 0, 0], look: [pk.x - px, top * 0.7 - base[1], pk.z - pz] };
     ctx.player.pos.set(base[0], base[1], base[2]);
-  } else if (/^(density|adept)-hall(-near)?$/.test(id)) {
+  } else if (/^(density|adept|past)-hall(-near)?$/.test(id)) {
     // a monument from the approach, its door toward the shore
-    const H = id.startsWith("adept") ? ADEPT_HALL : DENSITY_HALL;
+    const H = id.startsWith("adept") ? ADEPT_HALL : id.startsWith("past") ? PAST_HALL : DENSITY_HALL;
     const f = H.face, d = id.endsWith("near") ? 38 : 80;
     const px = H.x + Math.sin(f) * d, pz = H.z + Math.cos(f) * d;
     base = [px, heightAt(px, pz), pz];

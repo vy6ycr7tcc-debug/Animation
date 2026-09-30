@@ -154,7 +154,7 @@ export class DensityMonument implements Hall {
   /** Where you stand coming out (a few steps before the door, facing away). */
   outside(): { x: number; y: number; z: number; heading: number } {
     const p = new THREE.Vector3(0, 0, HALL_R + 4).applyMatrix4(this.world.matrixWorld);
-    return { x: p.x, y: DENSITY_HALL.y + platformRise(HALL_R + 4), z: p.z, heading: this.face };
+    return { x: p.x, y: DENSITY_HALL.y + platformRise(HALL_R + 4), z: p.z, heading: this.face + Math.PI };
   }
   /** The rooms walked light their stones' crowns fully. */
   light(seen: Set<string>): void {
@@ -339,7 +339,7 @@ function lobby(scene: THREE.Scene, seen: () => Set<string>): Room {
 
 /** The walk: the lobby, the beginning, the seven densities, and home to the lobby. */
 export function densityStages(seen: () => Set<string>): Stage[] {
-  const LOBBY_BACK = { x: 0, z: -9.5, heading: 0 };
+  const LOBBY_BACK = { x: 0, z: -9.5, heading: Math.PI };
   const mk = <K extends string>(load: () => Promise<Record<K, unknown>>, name: K, extra: unknown[] = []) =>
     async (scene: THREE.Scene, nar: unknown, wh: unknown): Promise<Room> => {
       const mod = await load();
@@ -352,7 +352,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
       focus: [[0, 3, -10]],
       title: "",
       make: async (scene) => lobby(scene, seen),
-      start: { x: 0, z: 10.5, heading: Math.PI },
+      start: { x: 0, z: 10.5, heading: 0 },
       exits: [
         { x: 0, z: -R_LOBBY - 0.2, r: 1.9, to: 1 },
         { x: 0, z: R_LOBBY + 0.2, r: 1.9, to: "out" },
@@ -376,7 +376,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
       focus: [[0, 4, -14], [0, 6, -30], [0, 1.3, 1.5]],
       title: "The beginning",
       make: mk(() => import("./room_0"), "createDensityRoom0Scene"),
-      start: { x: 0, z: 1.5, heading: Math.PI },
+      start: { x: 0, z: 1.5, heading: 0 },
       exits: [
         { x: 0, z: -24, r: 2.2, to: 2, dark: 3, mark: true }, // into the first density, through pitch black
         { x: 0, z: 5, r: 1.6, to: 0, at: LOBBY_BACK },
@@ -394,7 +394,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
         return mod.createDensityRoom1Scene(scene, nar, wh) as Room;
       },
       floor: (x, z) => (sand ? sand(x, z) : 0),
-      start: { x: 0, z: 0, heading: Math.PI },
+      start: { x: 0, z: 0, heading: 0 },
       exits: [{ x: 0, z: -44, r: 2.6, to: 3 }], // the illuminated tree-door
       confine: box(-15, 22, -47, 10),
       ownAir: true,
@@ -409,7 +409,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
         return mod.createDensityRoom2Scene(scene, nar, wh) as Room;
       },
       floor: (x, z) => (meadow ? meadow(x, z) : 0),
-      start: { x: 0, z: 0, heading: Math.PI },
+      start: { x: 0, z: 0, heading: 0 },
       exits: [{ x: 0, z: -46, r: 2.6, to: 4 }],
       confine: box(-26, 26, -49, 10),
       ownAir: true,
@@ -419,7 +419,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
       focus: [[-5.2, 1.3, -12], [5.6, 2.8, -13.5], [0, 2.6, -32]],
       title: "The third density",
       make: mk(() => import("./room_3"), "createRoom3Scene"),
-      start: { x: 0, z: 3.4, heading: Math.PI },
+      start: { x: 0, z: 3.4, heading: 0 },
       exits: [{ x: 0, z: -32, r: 2.2, to: 5 }], // the white door at the seam's end
       confine: box(-26, 26, -35, 8),
       ownAir: true,
@@ -429,7 +429,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
       focus: [[-1, 2.2, -18], [0, 1.3, -14], [19, 20, -34]],
       title: "The fourth density",
       make: mk(() => import("./room_4"), "createDensityRoom4Scene"),
-      start: { x: 0, z: 0, heading: Math.PI },
+      start: { x: 0, z: 0, heading: 0 },
       exits: [{ x: 0, z: -40, r: 2.6, to: 6 }],
       confine: box(-30, 30, -43, 10),
       ownAir: true,
@@ -439,7 +439,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
       focus: [[0, 16, -31], [0, 1.2, -31], [0, 1, -12]],
       title: "The fifth density",
       make: mk(() => import("./room_5"), "createDensity5Scene"),
-      start: { x: 0, z: 0, heading: Math.PI },
+      start: { x: 0, z: 0, heading: 0 },
       exits: [{ x: 0, z: -60, r: 2.4, to: 7 }], // beyond the plaza, the way on
       confine: box(-28, 28, -62, 6),
       ownAir: true,
@@ -449,7 +449,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
       focus: [[0, 2, -18]],
       title: "The sixth density",
       make: mk(() => import("./room_6"), "createDensityRoom6Scene"),
-      start: { x: 0, z: 0, heading: Math.PI },
+      start: { x: 0, z: 0, heading: 0 },
       exits: [{ x: 15, z: -36, r: 2.4, to: 8, dark: 1.5 }], // the door of white light
       confine: box(-20, 24, -40, 12),
       ownAir: true,
@@ -459,7 +459,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
       focus: [[0, 1.6, -52]],
       title: "The seventh density",
       make: mk(() => import("./room_7"), "createDensity7", [new THREE.Vector3(0, 0, 0), 0]),
-      start: { x: 0, z: -1, heading: Math.PI },
+      start: { x: 0, z: -1, heading: 0 },
       exits: [{ x: 0, z: -52, r: 2.6, to: 0, at: LOBBY_BACK }], // the ring of gold far ahead: home to the lobby
       confine: box(-40, 40, -54, 20),
       ownAir: true,

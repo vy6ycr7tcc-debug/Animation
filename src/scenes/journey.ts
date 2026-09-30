@@ -55,6 +55,9 @@ export interface Stage {
   focus?: [number, number, number][];
   /** The room was drawn around its seat, somewhere else: move it so the seat is at the origin. */
   centreOnSeat?: boolean;
+  /** Its recording waits for you to sit on its seat, and stops when you stand (the monument of
+      past choices: "sitting plays, standing stops"). */
+  seated?: boolean;
 }
 /** A monument's front door in the world. */
 export interface Hall {
@@ -88,6 +91,10 @@ export interface JourneyHost {
   outside(): { x: number; y: number; z: number; heading: number };
   /** The visitor's body: how present it is (1 fully). */
   presence?(k: number): void;
+  /** Sit the visitor down on a room's seat (world position, facing `heading`). */
+  sit?(x: number, y: number, z: number, heading: number): void;
+  /** Whether the visitor is still sitting. */
+  seated?(): boolean;
 }
 
 const wait = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms));
@@ -135,6 +142,10 @@ export class Journey {
   private marks: { dispose(): void }[] = [];
   private hidden: [THREE.Object3D, boolean][] = [];
   private local = new THREE.Vector3();
+  /** Sitting on the room's seat (a seated room), and whether you have stepped off it since
+      standing (so standing up never sits you straight back down). */
+  sitting = false;
+  private offSeat = true;
 
   constructor(
     readonly name: string,
@@ -185,15 +196,27 @@ export class Journey {
   /** The room's recording, again from its beginning. */
   replay(): void {
     const r = this.room, s = this.stage;
-    if (!r || !s || this.crossing) return;
+    if (!r || !s || this.crossing || (s.seated && !this.sitting)) return;
     r.onStand();
     r.onSit();
     if (s.track) void this.host.narration.play(s.track);
   }
-  /** Whether the room you are in has a recording to hear again. */
+  /** Whether the room you are in has a recording to hear again (a seated room: once you sit). */
   get hasVoice(): boolean {
     const s = this.stage;
+    return !!s && s.id !== "lobby" && (!s.seated || this.sitting);
+  }
+  /** Whether the room you are in has a recording at all. */
+  get voiced(): boolean {
+    const s = this.stage;
     return !!s && s.id !== "lobby";
+  }
+  /** A seated room's seat (world), while you are not sitting on it. */
+  seatAt(): THREE.Vector3 | null {
+    const s = this.stage, r = this.room;
+    if (!this.inside || this.crossing || !s?.seated || !r?.seatPos || this.sitting) return null;
+    const x = JOURNEY_ORIGIN.x + r.seatPos.x, z = JOURNEY_ORIGIN.z + r.seatPos.z;
+    return new THREE.Vector3(x, this.floorAt(x, z), z);
   }
 
   private async go(to: number | "out", dark: number, at?: Spot): Promise<void> {
@@ -249,6 +272,8 @@ export class Journey {
     this.objs = [];
     this.marks = [];
     this.room = null;
+    this.sitting = false;
+    this.offSeat = true;
     roomOrigin.value.set(0, 0, 0);
     this.host.presence?.(1);
   }
@@ -281,12 +306,48 @@ export class Journey {
     this.airNow = s.ownAir ? null : s.air ?? QUIET_AIR;
     gradeUniforms.high.value.setRGB(1, 1, 1);
     if (this.airNow) applyAir(this.airNow);
-    room.onSit(); // its recording begins, and its beats with it
-    if (s.track) void h.narration.play(s.track);
+    if (!s.seated) {
+      room.onSit(); // its recording begins, and its beats with it
+      if (s.track) void h.narration.play(s.track);
+    }
     if (s.title) h.whisper(s.title, 4200);
   }
 
   private airNow: Air | null = null;
+
+  /** Sit down on the room's seat at once (the still frames). */
+  sitNow(): void {
+    const r = this.room, s = this.stage;
+    if (!r || !s?.seated || !r.seatPos || this.sitting || !this.host.sit) return;
+    this.sitting = true;
+    const x = JOURNEY_ORIGIN.x + r.seatPos.x, z = JOURNEY_ORIGIN.z + r.seatPos.z;
+    this.host.sit(x, this.floorAt(x, z), z, r.seatHeading ?? 0);
+    r.onSit();
+  }
+
+  /** A seated room: walking onto its seat sits you down and its recording begins; standing up
+      (the stick) stops it. */
+  private seat(r: Room, l: THREE.Vector3): void {
+    const h = this.host;
+    const on = r.nearSeat(l);
+    if (this.sitting) {
+      if (h.seated && !h.seated()) {
+        this.sitting = false;
+        this.offSeat = false;
+        r.onStand();
+      }
+      return;
+    }
+    if (!on) this.offSeat = true;
+    else if (this.offSeat && h.sit && r.seatPos) {
+      this.sitting = true;
+      const x = JOURNEY_ORIGIN.x + r.seatPos.x, z = JOURNEY_ORIGIN.z + r.seatPos.z;
+      h.sit(x, this.floorAt(x, z), z, r.seatHeading ?? 0);
+      l.x = r.seatPos.x;
+      l.z = r.seatPos.z;
+      r.onSit();
+    }
+  }
 
   /** Each frame, after the world's moods: the room lives, keeps you within it, and its doors
       take you on. Returns false outside. */
@@ -300,6 +361,7 @@ export class Journey {
     if (this.airNow) applyAir(this.airNow);
     if (this.crossing) return true;
     const l = this.local.copy(pos).sub(JOURNEY_ORIGIN);
+    if (s.seated && r.seatPos) this.seat(r, l);
     s.confine(l);
     pos.x = JOURNEY_ORIGIN.x + l.x;
     pos.z = JOURNEY_ORIGIN.z + l.z;

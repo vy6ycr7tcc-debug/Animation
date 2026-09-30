@@ -52,6 +52,7 @@ import { Vision } from "./world/vision";
 import { Journey, JOURNEY_ORIGIN, inJourney, type Hall, type JourneyHost } from "./scenes/journey";
 import { AdeptMonument, adeptStages } from "./scenes/adept/monument";
 import { DensityMonument, densityStages } from "./scenes/densities/monument";
+import { PastMonument, pastStages } from "./scenes/past/monument";
 import { cloudUniforms } from "./world/atmosphere";
 import { NO_MIRROR_LAYER, Water } from "./world/water";
 import { FOG } from "./world/fog";
@@ -412,7 +413,7 @@ function persist(): void {
   const d: SaveData = {
     v: 1,
     pos: inHall() ? ((o) => [o.x, o.y, o.z] as [number, number, number])(inHall()!.hall.outside()) : temple.inside ? templeReturnPos() : depths.inside ? deepReturnPos() : pyramid.isInside ? [pyramid.outside().x, heightAt(pyramid.outside().x, pyramid.outside().z), pyramid.outside().z] : [player.pos.x, player.pos.y, player.pos.z],
-    heading: inHall() ? inHall()!.hall.face : pyramid.isInside ? 0 : temple.inside ? temple.outside().heading : depths.inside ? depths.outside(deepMouth ?? depths.mouths[0].site).heading : player.heading,
+    heading: inHall() ? inHall()!.hall.outside().heading : pyramid.isInside ? 0 : temple.inside ? temple.outside().heading : depths.inside ? depths.outside(deepMouth ?? depths.mouths[0].site).heading : player.heading,
     heard: [],
     visited: [],
     settings: { volume: audio.volume, reduced: S.reducedPref, subtitles: narration.subtitlesOn, voices: playlist.on, awake: awake.on },
@@ -1079,7 +1080,7 @@ function places(): Place[] {
     { numeral: "", label: "The pyramid", group: "Shore" as const, x: pyramid.door.x, z: pyramid.door.z, narration: "J01", start: { x: pyramid.door.x, z: pyramid.door.z - 14, heading: Math.PI } },
     ...halls.map(({ hall }) => {
       const o = hall.outside(), f = hall.face;
-      return { numeral: "", label: hall.label, group: "Shore" as const, x: hall.door.x, z: hall.door.z, narration: "J01", start: { x: o.x + Math.sin(f) * 22, z: o.z + Math.cos(f) * 22, heading: f + Math.PI } };
+      return { numeral: "", label: hall.label, group: "Shore" as const, x: hall.door.x, z: hall.door.z, narration: "J01", start: { x: o.x + Math.sin(f) * 22, z: o.z + Math.cos(f) * 22, heading: f } };
     }),
     // beneath the water: the sunken ruins, and the cave that leads to the deep archive (you wake
     // on the water above; dive, and swim down to them)
@@ -1540,7 +1541,8 @@ scene.add(pyramid.world, pyramid.inside);
    the lobby. The densities (scenes/densities/monument.ts); the adept (scenes/adept/monument.ts). */
 const densityHall = new DensityMonument();
 const adeptHall = new AdeptMonument();
-scene.add(densityHall.world, adeptHall.world);
+const pastHall = new PastMonument();
+scene.add(densityHall.world, adeptHall.world, pastHall.world);
 function journeyHost(hall: Hall): JourneyHost {
   return {
     scene,
@@ -1574,6 +1576,18 @@ function journeyHost(hall: Hall): JourneyHost {
     },
     outside: () => hall.outside(),
     presence: (k) => (hallPresence = k),
+    sit: (x, y, z, heading) => {
+      // a seated room's seat: you sit, and the view turns to what it shows
+      Object.assign(sitting, { phase: "seated", since: 0, asked: false });
+      player.pos.set(x, y, z);
+      player.target = null;
+      player.vel.set(0, 0, 0);
+      player.heading = heading;
+      wanderer.setGesture("sit");
+      faceYaw = heading;
+      faceFor = 2.5;
+    },
+    seated: () => sitting.phase === "seated",
   };
 }
 let hallPresence = 1; // a room's own say in how much of the wanderer is there (the seventh fades it)
@@ -1581,7 +1595,8 @@ const halls: { hall: Hall; journey: Journey; lit: number }[] = [];
 {
   const dj: Journey = new Journey("densities", densityStages(() => dj.seen), journeyHost(densityHall));
   const aj: Journey = new Journey("adept", adeptStages(() => aj.seen), journeyHost(adeptHall));
-  halls.push({ hall: densityHall, journey: dj, lit: -1 }, { hall: adeptHall, journey: aj, lit: -1 });
+  const pj: Journey = new Journey("past", pastStages(() => pj.seen), journeyHost(pastHall));
+  halls.push({ hall: densityHall, journey: dj, lit: -1 }, { hall: adeptHall, journey: aj, lit: -1 }, { hall: pastHall, journey: pj, lit: -1 });
 }
 /** The journey you are in (null out in the world). */
 const inHall = (): { hall: Hall; journey: Journey } | null => halls.find((h) => h.journey.inside || h.journey.crossing) ?? null;
@@ -1733,6 +1748,9 @@ function lessonUxFrame(dt: number): void {
       if (d < 18 && (!near || d < near.d)) near = { pos: m.seatPos, d };
     }
   }
+  // a monument's seated room (its recording waits for you to sit)
+  const hallSeat = S.mode === "play" && sitting.phase === "none" ? inHall()?.journey.seatAt() : null;
+  if (hallSeat) near = { pos: hallSeat, d: player.pos.distanceTo(hallSeat) };
   const want = near ? THREE.MathUtils.smoothstep(18, 12, near.d) : 0;
   seatRing.k.value += (want * (0.55 + 0.25 * Math.sin(S.t * 2.2)) - seatRing.k.value) * Math.min(1, dt * 3);
   seatRing.mesh.visible = seatRing.k.value > 0.01;
@@ -1783,10 +1801,11 @@ interface WalkStop { hall: number; stage: number }
 const WALKS: { id: string; label: string; stops: () => WalkStop[] }[] = [
   { id: "densities", label: "The densities, end to end", stops: () => halls[0].journey.stages.map((_, i) => ({ hall: 0, stage: i })) },
   { id: "adept", label: "The school of the adept, end to end", stops: () => halls[1].journey.stages.map((_, i) => ({ hall: 1, stage: i })) },
+  { id: "past", label: "Past choices, end to end", stops: () => halls[2].journey.stages.map((_, i) => ({ hall: 2, stage: i })) },
   {
     id: "all",
     label: "Every monument, end to end",
-    stops: () => [0, 1].flatMap((h) => halls[h].journey.stages.map((_, i) => ({ hall: h, stage: i }))),
+    stops: () => [0, 1, 2].flatMap((h) => halls[h].journey.stages.map((_, i) => ({ hall: h, stage: i }))),
   },
 ];
 let walked = new Set<string>();
@@ -1886,10 +1905,16 @@ function walkFrame(dt: number): void {
   const stage = j.stage;
   walkTitle(stage?.title || (stage?.id === "lobby" ? "The lobby" : walk.label), `${walk.i + 1} of ${walk.stops.length}`);
   if (walk.phase === "listen") {
+    // a seated room: walk to its seat and sit (its recording begins as you do)
+    const seat = j.seatAt();
+    if (seat && !walk.heard) {
+      walkTo.set(seat.x, seat.z);
+      player.target = walkTo.clone();
+    }
     const pr = narration.progress();
     if (pr) walk.heard = true;
     // a room is heard when its recording has played to its end; a room without a voice, a moment
-    const quiet = !j.hasVoice ? walk.t > 7 : walk.heard ? !pr || pr.t > pr.total - 0.4 : walk.t > 14;
+    const quiet = !j.voiced ? walk.t > 7 : walk.heard ? !pr || pr.t > pr.total - 0.4 : walk.t > (stage?.seated ? 30 : 14);
     if (quiet || walk.t > 480) {
       walk.phase = "linger";
       walk.t = 0;
@@ -1900,6 +1925,7 @@ function walkFrame(dt: number): void {
       walk.t = 0;
     }
   } else if (walk.phase === "go") {
+    if (sitting.phase === "seated") standUp(); // up from the seat first
     // walk to the door onward (the one that leads where the tour goes next), and through it
     const nx = walk.stops[walk.i + 1];
     const door = stage?.exits.find((e) => nx && nx.hall === s.hall && e.to === nx.stage) ?? stage?.exits[0];
@@ -3006,6 +3032,7 @@ renderer
         journey: async (name: string, i: number, tt: number) => {
           const j = (halls.find((h) => h.journey.name === name) ?? halls[0]).journey;
           await j.jump(i);
+          j.sitNow(); // a seated room: as if you had sat down on its seat
           for (let k = 0, n = Math.min(7200, Math.max(40, Math.round(tt / 0.05))); k < n; k++) j.room?.update(0.05);
         },
         room: async (n: number) => {
@@ -3080,4 +3107,4 @@ function endLoading(): void {
   }, wait);
 }
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall } });

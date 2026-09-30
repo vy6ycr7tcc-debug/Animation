@@ -101,6 +101,7 @@ export function initTourScenes(hooks: TourHooks2): TourScenes {
   const registry = new SceneRegistry([tour, tree, shore, igloo, garden, galaxies, desert, treeStation]);
 
   let seated: SceneModule | null = null;
+  let stoodFrom: SceneModule | null = null;
   let inside = hooks.temple.inside;
 
   /* ---------- transitions ---------- */
@@ -142,12 +143,15 @@ export function initTourScenes(hooks: TourHooks2): TourScenes {
       else if (tour.active) tour.exit();
     }
 
+    // standing up never sits you straight back down: a seat waits until you have stepped off it
+    if (stoodFrom && !stoodFrom.nearSeat(hooks.player.pos)) stoodFrom = null;
     if (seated && hooks.sitting.phase === "none") {
       seated.onStand();
+      stoodFrom = seated;
       seated = null;
     } else if (!seated && !tour.active && hooks.sitting.phase === "none") {
       const module = registry.seatFor(hooks.player.pos);
-      if (module) {
+      if (module && module !== stoodFrom) {
         seated = module;
         hooks.sitting.phase = "seated";
         hooks.wanderer.setGesture("sit");
