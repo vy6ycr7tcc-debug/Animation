@@ -60,6 +60,7 @@ import { Wilds } from "./world/wilds";
 import { initTourScenes, tourPlaces, type TourScenes } from "./scenes/integration";
 import { bodyForms } from "./world/forms";
 import { glyphsLoaded } from "./world/glyphs";
+import { Duat } from "./world/duat";
 
 import { downloadAssets, requestPersistentStorage, checkAssetUpdates } from "./core/offline";
 
@@ -1614,7 +1615,7 @@ function enterDuatCrossing(): void {
     player.vel.set(0, 0, 0);
     follow.snapTo(player.pos);
     pyramid.duatActive = true;
-    whisper("The hidden door opens onto the Duat — a river of gold beneath a deep blue night.", 11000);
+    whisper("The Duat", 5000);
     window.setTimeout(() => {
       fadeEl.classList.remove("on");
       crossing = false;
@@ -1639,7 +1640,6 @@ function exitDuatWalkBack(): void {
     player.vel.set(0, 0, 0);
     follow.snapTo(player.pos);
     pyramid.duatActive = false;
-    whisper("You turn back; the pyramid keeps its silence and its gold.", 7000);
     window.setTimeout(() => {
       fadeEl.classList.remove("on");
       crossing = false;
@@ -1665,7 +1665,7 @@ function exitDuatDawn(): void {
     player.vel.set(0, 0, 0);
     follow.snapTo(player.pos);
     pyramid.duatActive = false;
-    whisper("At the apex, dawn: the sun is reborn, gold over the deep blue world.", 9000);
+    whisper("Dawn", 5000);
     window.setTimeout(() => {
       fadeEl.classList.remove("on");
       crossing = false;
@@ -2525,12 +2525,16 @@ renderer
     shadersReady = true;
     quality.hold(3);
     endLoading();
-    if (shot?.id === "duat") {
+    if (shot?.id.startsWith("duat")) {
       duatVentured = false;
       crossing = false;
       setPyr(true);
-      const e = pyramid.duatEntryPoint();
-      const h = duatPathHeading();
+      // duat-<k>: stand at hour k, having come through its gate; its story at t
+      const k = Number(shot.id.slice(5)) || 0;
+      Duat.clockOverride = shot.t;
+      const e = k ? DUAT_ORIGIN.clone().add(pyramid.PATH[k]).lerp(DUAT_ORIGIN.clone().add(pyramid.PATH[k - 1]), 0.25) : pyramid.duatEntryPoint();
+      if (k) e.y = pyramid.floorAt(e.x, e.z);
+      const h = k ? Math.atan2(-(pyramid.PATH[k].x - pyramid.PATH[k - 1].x), -(pyramid.PATH[k].z - pyramid.PATH[k - 1].z)) : duatPathHeading();
       player.pos.set(e.x, e.y, e.z);
       player.heading = h;
       follow.yaw = h;

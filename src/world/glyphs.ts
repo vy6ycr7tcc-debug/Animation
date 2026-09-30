@@ -52,7 +52,8 @@ export function makeGlyph(numeral: string, tint: THREE.Color, height: number): G
   const tex = texture(blank);
   const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
   const s = tex.sample(uv());
-  const line = s.r, halo = s.a;
+  // only the firm strokes: faint hatching (shaded skies, canopies) would fill the card with a haze
+  const line = T.smoothstep(0.32, 0.85, s.r);
   const v = uv().y;
   // a slow band of light rising through it, quicker in its rite
   const bandY = fract(u.t.mul(mix(float(0.05), float(0.14), u.rite)));
@@ -61,7 +62,7 @@ export function makeGlyph(numeral: string, tint: THREE.Color, height: number): G
   const k = float(0.4).add(u.wake.mul(0.45)).add(u.rite.mul(0.45)).add(u.greet.mul(0.6)).mul(breathe).add(band);
   const c = vec3(tint.r, tint.g, tint.b);
   const gold = vec3(1.0, 0.8, 0.5);
-  const col = mix(gold, c, 0.45).mul(line).mul(0.95).add(c.mul(halo).mul(0.16));
+  const col = mix(gold, c, 0.3).mul(line).mul(0.85);
   mat.colorNode = vec4(col.mul(k), 1);
   const w = height * GLYPH_ASPECT;
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, height).translate(0, height / 2, 0), mat);

@@ -132,6 +132,11 @@ export function runShot(ctx: ShotCtx): void {
     if (!ctx.genesisAt) return;
     base = ctx.genesisAt(t);
     view = VIEWS.genesis;
+  } else if (/^duat-\d$/.test(id)) {
+    // over the shoulder of the wanderer standing at hour k (main.ts places it), toward the vision
+    const p = ctx.player.pos, fx = -Math.sin(ctx.player.heading), fz = -Math.cos(ctx.player.heading);
+    base = [p.x, p.y, p.z];
+    view = { eye: [-fx * 5, 3, -fz * 5], look: [fx * 6, 2.2, fz * 6] };
   } else if (id === "pyramid" || id === "duat") {
     // camera only: main.ts pre-positions the player before runShot is called
     const o = id === "pyramid" ? PYRAMID : DUAT_ORIGIN;
