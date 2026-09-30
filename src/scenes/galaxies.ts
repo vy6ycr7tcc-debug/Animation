@@ -8,38 +8,34 @@
    point; the breath; and the galaxy again. */
 import type * as THREE from "three/webgpu";
 import type { Narration } from "../core/narration";
-import { combine, galaxy, offering, point, rain, river, road, rock, shift, sphere, storm, turnY, FORM_H } from "../world/forms";
+import { combine, galaxy, heart, point, rain, river, road, rock, shift, sphere, storm, FORM_H } from "../world/forms";
+import { crackedHeart, doorway, footsteps, letGo, offeredHand, pushing, rings } from "../world/symbols";
 import type { SceneModule } from "./lessonKit";
 import { SITES } from "./sites";
 import { visionLesson } from "./visionLesson";
 import { GOLD, PALE, PEARL, ROSE, type Maker } from "./visionStage";
 
-const BOWED: [string, number][] = [["DEF-spine.001", 0.28], ["DEF-spine.003", 0.22], ["DEF-neck", 0.35]];
-
 const forms: Record<string, Maker> = {
   galaxy: (n, R) => galaxy(n, R, 2.6),
   rain: (n, R) => rain(n, R),
   weather: (n, R) => storm(n, R, 0),
-  ache: (n, R, b) => b && b.figure(n, R, "Idle_Loop", 0.8, BOWED, FORM_H * 0.72),
+  ache: (n, R) => crackedHeart(n, R),
   // you cannot hold something you are pushing away
-  push: (n, R, b) => b && b.figure(n, R, "Interact", 0.7, [], FORM_H * 0.78),
+  push: (n, R) => pushing(n, R),
   // allowing is a posture
-  allow: (n, R, b) => b && offering(n, R, b, 0),
+  allow: (n, R) => letGo(n, R),
   // the stillness wants to sit with it
-  still: (n, R, b) => b && combine(n, [[(m) => b.figure(m, R, "Sitting_Idle_Loop", 1.2, [], FORM_H * 0.52), 0.82], [(m) => rock(m, R, 0.75, 0.42, 0.6), 0.18]]),
+  still: (n, R) => combine(n, [[(m) => rock(m, R, 1.2, 0.4, 0.9), 0.55], [(m) => sphere(m, R, 0.3, 1.3, 0.5), 0.45]]),
   // a river does not apologise for its banks
   river: (n, R) => river(n, R),
   // real, felt space in the chest
-  space: (n, R, b) => b && combine(n, [[(m) => b.figure(m, R, "Idle_Loop", 2.2, [], FORM_H * 0.8), 0.72], [(m) => sphere(m, R, 0.55, FORM_H * 0.53, 0.45), 0.28]]),
+  space: (n, R) => combine(n, [[(m) => heart(m, R, 1.3), 0.6], [(m) => rings(m, R, 2), 0.4]]),
   // a path appears under walking feet
-  path: (n, R, b) => b && combine(n, [[(m) => road(m, R), 0.5], [(m) => shift(turnY(b.figure(m, R, "Walk_Loop", 0.2, [], FORM_H * 0.62), Math.PI), 0, 0, -1.5), 0.5]]),
+  path: (n, R) => combine(n, [[(m) => road(m, R), 0.5], [(m) => footsteps(m, R), 0.5]]),
   // not staying where it harms you: walking out
-  leave: (n, R, b) => b && shift(turnY(b.figure(n, R, "Walk_Loop", 0.6, [], FORM_H * 0.7), Math.PI * 0.8), 0.6, 0, -0.5),
+  leave: (n, R) => combine(n, [[(m) => doorway(m, R, 0.2), 0.5], [(m) => footsteps(m, R, 4), 0.5]]),
   // the guest at the door, welcomed because it is here
-  guest: (n, R, b) => b && combine(n, [
-    [(m) => shift(turnY(offering(m, R, b, 0), Math.PI / 2), -1.1, 0, 0), 0.5],
-    [(m) => shift(turnY(b.figure(m, R, "Idle_Loop", 1.8, BOWED, FORM_H * 0.7), -Math.PI / 2), 1.1, 0, 0), 0.5],
-  ]),
+  guest: (n, R) => combine(n, [[(m) => doorway(m, R, 1), 0.7], [(m) => shift(offeredHand(m, R, 0), 0, -0.3, 1.2, 0.6), 0.3]]),
   // this moment: the only place anything ever happens
   moment: (n, R) => point(n, R, FORM_H * 0.5),
   // the next breath

@@ -9,6 +9,7 @@ import { fbm, heightAt } from "../world/terrain";
 import { LessonScene, type SceneModule } from "./lessonKit";
 import type { SiteDef } from "./sites";
 import { VisionStage, type Key, type Maker } from "./visionStage";
+import { LEXICON, withLexicon } from "./lexicon";
 
 export interface VisionLessonCfg {
   id: string;
@@ -55,7 +56,8 @@ export function visionLesson(scene: THREE.Scene, narration: Narration, whisper: 
     beats: [],
     build: (ctx) => {
       ctx.group.add(seatStone(seatPos));
-      stage = new VisionStage({ at: new THREE.Vector3(sx, heightAt(sx, sz), sz), face: site.heading, forms: cfg.forms, keys: cfg.keys, seedNum: cfg.seedNum });
+      // the moments placed by hand, and between them more images called up by the narration's words
+      stage = new VisionStage({ at: new THREE.Vector3(sx, heightAt(sx, sz), sz), face: site.heading, forms: { ...LEXICON, ...cfg.forms }, keys: withLexicon(cfg.trackId, cfg.keys), seedNum: cfg.seedNum });
       ctx.group.add(stage.group);
     },
   });
