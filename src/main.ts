@@ -60,6 +60,7 @@ import { lightField } from "./world/lightfield";
 import { Forest } from "./world/forest";
 import { RisingFlowers } from "./world/blooms";
 import { Wilds } from "./world/wilds";
+import { lessonDark } from "./scenes/enacted";
 import { initTourScenes, tourPlaces, type TourScenes } from "./scenes/integration";
 import { bodyForms } from "./world/forms";
 import { glyphsLoaded } from "./world/glyphs";
@@ -2695,6 +2696,16 @@ function update(dt: number): void {
   water.update(camera.position.x, camera.position.z, glow);
   skyUniforms.uT.value = wtSafe;
   if (!apart()) moods.update(player.pos, dt);
+  // a lesson that asks for real darkness (the desert's lantern): after the moods, so it holds
+  if (lessonDark.k > 0.001 && !apart()) {
+    const k = lessonDark.k;
+    hemi.intensity *= 1 - 0.9 * k;
+    star.intensity *= 1 - 0.94 * k;
+    fogUniforms.color.value.multiplyScalar(1 - 0.85 * k);
+    fogUniforms.glow.value.multiplyScalar(1 - 0.8 * k);
+    fogUniforms.density.value += (0.022 - fogUniforms.density.value) * k;
+  }
+  lessonDark.k *= 0.92; // held only while a lesson keeps asking for it
   templeFrame(dt);
   pyramidFrame(dt);
   journeyFrame(dt);

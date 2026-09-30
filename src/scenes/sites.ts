@@ -5,6 +5,8 @@
    archetype's hearth, so the lessons arrive as guests and never crowd the
    houses. Here the temple tour stops, and stays a while. */
 
+import { KEEP_CLEAR } from "../world/terrain";
+
 export interface SiteDef {
   x: number;
   z: number;
@@ -21,3 +23,11 @@ export const SITES: Record<"shore" | "igloo" | "garden" | "galaxies" | "desert" 
   tree:     { x: -2428.1, z: -1044.9, y: 19.35, heading: 1.164  },
   "tree-station": { x: -1200, z: 1600, y: 5.0, heading: 0.303 }, // TEMP-VERIFY (harness sets final)
 };
+
+/* The lessons' stages stand before their seats and fill the view (scenes/enacted.ts): nothing
+   grows between the seat and its stage, or round it. */
+for (const [id, s] of Object.entries(SITES)) {
+  if (id === "tree") continue;
+  const fx = -Math.sin(s.heading), fz = -Math.cos(s.heading);
+  KEEP_CLEAR.push({ x: s.x + fx * 5, z: s.z + fz * 5, r: 17 });
+}
