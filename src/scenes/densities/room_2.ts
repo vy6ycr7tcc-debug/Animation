@@ -13,7 +13,7 @@ import { T, spriteCloud, vnoise } from "../../gpu/tsl";
 import { barkMaterial, grow, SHAPES, tubes } from "../../world/creation";
 import { herdOf, type Animal } from "../../world/creatures";
 import { fbm } from "../../world/terrain";
-import { applyAir, scannedGround, cloudSheet, damp, keepAlpha, pointCloud, roomClock, seeded, skyDome, touch, type Air } from "./roomKit";
+import { applyAir, scannedGround, cloudSheet, damp, keepAlpha, pointCloud, roomClock, seeded, skyDome, touch, type Air, roomPos } from "./roomKit";
 
 const { attribute, cameraPosition, cos, float, fract, length, max, mix, normalize, positionGeometry, positionLocal, positionWorld, pow, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
 
@@ -98,7 +98,7 @@ export function createDensityRoom2Scene(
       geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
       geo.computeVertexNormals();
       const m = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
-      const grain = vnoise(positionWorld.xz.mul(1.6)).mul(0.4).add(vnoise(positionWorld.xz.mul(0.25)).mul(0.5)).add(0.55);
+      const grain = vnoise(roomPos.xz.mul(1.6)).mul(0.4).add(vnoise(roomPos.xz.mul(0.25)).mul(0.5)).add(0.55);
       // the forest-floor scan: soil, leaf litter and moss, its relief and occlusion
       const scan = scannedGround("meadow", 2.2, { hue: 0.45, relief: 1.5, bright: 2.4 });
       m.colorNode = T.vertexColor().rgb.mul(grain.mul(0.5).add(0.5)).mul(scan.color);
@@ -135,7 +135,7 @@ export function createDensityRoom2Scene(
       const m = mesh.material as THREE.MeshStandardNodeMaterial;
       const h = positionGeometry.y.div(0.5);
       const ph = attribute("aPh", "float");
-      const sway = sin(t.mul(0.9).add(ph.mul(30)).add(positionWorld.x.mul(0.15))).mul(0.12).add(sin(t.mul(0.37).add(ph.mul(11))).mul(0.06)).mul(h.mul(h));
+      const sway = sin(t.mul(0.9).add(ph.mul(30)).add(roomPos.x.mul(0.15))).mul(0.12).add(sin(t.mul(0.37).add(ph.mul(11))).mul(0.06)).mul(h.mul(h));
       m.positionNode = positionLocal.add(vec3(sway, 0, sway.mul(0.5)));
       m.colorNode = mix(vec3(0.03, 0.07, 0.015), vec3(0.3, 0.42, 0.1), h).mul(ph.mul(0.4).add(0.8));
       mesh.receiveShadow = true;

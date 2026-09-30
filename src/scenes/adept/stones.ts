@@ -17,7 +17,7 @@ import { T, hash2, vnoise } from "../../gpu/tsl";
 import { landStone } from "../../world/stoneworks";
 import { GlassFolk } from "../glassFolk";
 import { quartz } from "./monument";
-import { applyAir, boulderGeometry, damp, keepAlpha, merge, pointCloud, roomClock, scannedGround, seeded, skyDome, touch, type Air } from "../densities/roomKit";
+import { applyAir, boulderGeometry, damp, keepAlpha, merge, pointCloud, roomClock, scannedGround, seeded, skyDome, touch, type Air, roomPos } from "../densities/roomKit";
 
 const { exp, float, floor, length, max, mix, normalize, positionWorld, pow, sin, smoothstep, step, uniform, uv, vec2, vec3, vec4 } = T;
 
@@ -84,7 +84,7 @@ export function createStonesScene(scene: THREE.Scene, narration: LessonCtx["narr
       const geo = new THREE.PlaneGeometry(2400, 2400);
       geo.rotateX(-Math.PI / 2);
       const m = new THREE.MeshBasicNodeMaterial({ fog: true });
-      const P = positionWorld;
+      const P = roomPos;
       const view = normalize(P.sub(T.cameraPosition));
       const refl = vec3(view.x, view.y.negate(), view.z);
       const wave = vnoise(P.xz.mul(vec2(0.35, 0.9)).add(vec2(t.mul(0.15), t.mul(0.05)))).mul(0.6).add(vnoise(P.xz.mul(1.4).add(vec2(0, t.mul(0.3)))).mul(0.4));

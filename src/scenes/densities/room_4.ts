@@ -14,9 +14,9 @@ import { T, hash2, vnoise } from "../../gpu/tsl";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
 import { lightBodyMaterial, tickLightBody } from "../../player/lightBody";
 import { loadBeingModel } from "../../world/beings";
-import { applyAir, damp, keepAlpha, pointCloud, roomClock, scannedGround, seeded, skyDome, touch, type Air } from "./roomKit";
+import { applyAir, damp, keepAlpha, pointCloud, roomClock, scannedGround, seeded, skyDome, touch, type Air, roomPos } from "./roomKit";
 
-const { attribute, float, floor, fract, length, max, mix, positionGeometry, positionWorld, pow, sin, smoothstep, step, uniform, uv, vec2, vec3, vec4 } = T;
+const { attribute, float, floor, fract, length, max, mix, positionGeometry, pow, sin, smoothstep, step, uniform, uv, vec2, vec3, vec4 } = T;
 
 const PLANET = new THREE.Vector3(-0.55, 0.16, -1).normalize();
 const PORTAL = new THREE.Vector3(0, 0, -40);
@@ -93,7 +93,7 @@ export function createDensityRoom4Scene(
       const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.88, metalness: 0 });
       const scan = scannedGround("rock", 3.2, { hue: 0.2, relief: 0.55, bright: 1.6 });
       // pale stone laid in great rings round the plaza's heart, a thin light in the joints
-      const r = length(positionWorld.xz.sub(vec2(0, -14)));
+      const r = length(roomPos.xz.sub(vec2(0, -14)));
       const joint = smoothstep(0.05, 0.0, T.abs(fract(r.div(4.2)).sub(0.5)).sub(0.47));
       m.colorNode = vec3(0.13, 0.12, 0.16).mul(scan.color);
       m.normalNode = scan.normal;
@@ -107,7 +107,7 @@ export function createDensityRoom4Scene(
       wg.rotateX(-Math.PI / 2);
       wg.translate(0, 0.03, -14);
       const wm = new THREE.MeshStandardNodeMaterial({ roughness: 0.08, metalness: 0.2 });
-      wm.colorNode = vec3(0.05, 0.05, 0.1).add(vec3(0.25, 0.2, 0.3).mul(vnoise(positionWorld.xz.mul(0.8).add(vec2(t.mul(0.05), 0))).mul(0.2)));
+      wm.colorNode = vec3(0.05, 0.05, 0.1).add(vec3(0.25, 0.2, 0.3).mul(vnoise(roomPos.xz.mul(0.8).add(vec2(t.mul(0.05), 0))).mul(0.2)));
       const water = new THREE.Mesh(wg, wm);
       g.add(water);
       ours.push(wg, wm);

@@ -12,6 +12,14 @@ import { surface, type SurfaceName } from "../../world/textures";
 const { vec3, vec4, mix, smoothstep, length, exp, max, positionLocal, normalize, uniform } = T;
 
 
+/** Where the room you are in has been placed in the world (the journey moves rooms to a place
+    apart at x = 22000; a room seen on its own is at the origin). Shading that depends on where a
+    point is in the room (patterns, distances to the room's own landmarks) reads `roomPos`, the
+    point in the room's own frame: never `positionWorld` against the room's constants, and it keeps
+    fine patterns precise so far from the origin. */
+export const roomOrigin = T.uniform(new THREE.Vector3());
+export const roomPos: N = T.positionWorld.sub(roomOrigin);
+
 /** A repeatable random stream. */
 export function seeded(seed: number): () => number {
   let s = seed % 2147483647;
@@ -155,7 +163,7 @@ export function cloudSheet(size: number, height: number, t: N, color: (q: N, cov
   const sc = opts.scale ?? 0.006;
   const [c0, c1] = opts.cover ?? [0.38, 0.78];
   const [dx, dz] = opts.drift ?? [0.004, 0.0022];
-  const P = T.positionWorld;
+  const P = roomPos;
   const q0 = P.xz.mul(sc).add(T.vec2(t.mul(dx), t.mul(dz)));
   const warp = T.vec2(fbmN(q0.mul(1.7)), fbmN(q0.mul(1.7).add(7.3))).sub(0.5).mul(0.9);
   const q = q0.add(warp);
@@ -177,13 +185,13 @@ export function cloudSheet(size: number, height: number, t: N, color: (q: N, cov
     doesn't shimmer). Returns the colour to multiply into the ground, and the normal to use. */
 export function scannedGround(set: SurfaceName, tile: number, opts: { hue?: number; relief?: number; bright?: number } = {}): { color: N; normal: N } {
   const s = surface(set);
-  const P = T.positionWorld;
+  const P = roomPos;
   const u1 = P.xz.div(tile), u2 = P.xz.div(tile * 2.618).add(T.vec2(0.37, 0.71));
   const d = T.texture(s.diff, u1).rgb.mul(0.6).add(T.texture(s.diff, u2).rgb.mul(0.4));
   const ao = T.texture(s.arm, u1).r.mul(0.6).add(T.texture(s.arm, u2).r.mul(0.4));
   const lum = T.dot(d, T.vec3(0.3, 0.5, 0.2));
   const col = mix(T.vec3(lum), d, opts.hue ?? 0.35).mul(opts.bright ?? 2.2).mul(mix(T.float(0.45), T.float(1.05), ao));
-  const camD = length(T.cameraPosition.sub(P));
+  const camD = length(T.cameraPosition.sub(T.positionWorld));
   const near = T.float(1).sub(smoothstep(20, 90, camD));
   const n1 = T.texture(s.nor, u1).xy.mul(2).sub(1), n2 = T.texture(s.nor, u2).xy.mul(2).sub(1);
   const n = n1.mul(0.6).add(n2.mul(0.4)).mul(near).mul(opts.relief ?? 1.4);

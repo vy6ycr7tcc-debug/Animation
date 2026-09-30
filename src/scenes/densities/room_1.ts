@@ -14,7 +14,7 @@ import { T, vnoise, hash2 } from "../../gpu/tsl";
 import { etchedStone } from "../../world/etching";
 import { barkMaterial, grow, SHAPES, tubes } from "../../world/creation";
 import { fbm } from "../../world/terrain";
-import { applyAir, scannedGround, boulderGeometry, cloudSheet, damp, keepAlpha, pointCloud, roomClock, seeded, skyDome, spireGeometry, touch, type Air } from "./roomKit";
+import { applyAir, scannedGround, boulderGeometry, cloudSheet, damp, keepAlpha, pointCloud, roomClock, seeded, skyDome, spireGeometry, touch, type Air, roomPos } from "./roomKit";
 
 const {
   abs, cameraPosition, cameraViewMatrix, cos, exp, float, floor, fract, length, max, mix, mod, normalize,
@@ -110,17 +110,17 @@ export function createDensityRoom1Scene(
       geo.computeVertexNormals();
       const m = new THREE.MeshStandardNodeMaterial({ vertexColors: true, roughness: 0.93, metalness: 0 });
       // the sand's own grain and wind-laid streaks, so it never reads as one flat sheet
-      const grain = vnoise(positionWorld.xz.mul(2.2)).mul(0.5).add(vnoise(positionWorld.xz.mul(vec2(0.35, 1.4))).mul(0.6)).add(0.45);
+      const grain = vnoise(roomPos.xz.mul(2.2)).mul(0.5).add(vnoise(roomPos.xz.mul(vec2(0.35, 1.4))).mul(0.6)).add(0.45);
       // the coast-sand scan: its grain, ripples and pits, in the black of volcanic sand
       const scan = scannedGround("sand", 2.6, { hue: 0.15, relief: 1.8, bright: 2.0 });
       m.colorNode = T.vertexColor().rgb.mul(grain.mul(0.5).add(0.5)).mul(scan.color);
       m.normalNode = scan.normal;
       // glitter: grains of obsidian that catch the light as you move (near only)
-      const cell = floor(positionWorld.xz.mul(16));
+      const cell = floor(roomPos.xz.mul(16));
       const view = normalize(cameraPosition.sub(positionWorld));
       const tw = hash2(cell.add(floor(view.xz.mul(20))));
       const near = float(1).sub(smoothstep(6, 26, length(cameraPosition.sub(positionWorld))));
-      const dot_ = smoothstep(0.24, 0.0, length(fract(positionWorld.xz.mul(16)).sub(0.5)));
+      const dot_ = smoothstep(0.24, 0.0, length(fract(roomPos.xz.mul(16)).sub(0.5)));
       m.emissiveNode = vec3(1.0, 0.8, 0.6).mul(step(0.986, hash2(cell)).mul(step(0.55, tw)).mul(dot_).mul(near).mul(0.9));
       const mesh = new THREE.Mesh(geo, m);
       mesh.receiveShadow = true;
@@ -314,7 +314,7 @@ export function createDensityRoom1Scene(
       // patch lights from within, softly, and the storm still doesn't break
       const volDir = new THREE.Vector2(VOLCANO.x, VOLCANO.z).normalize();
       const ceiling = cloudSheet(1400, 95, t, (q, cover) => {
-        const P = positionWorld;
+        const P = roomPos;
         const toward = smoothstep(-0.2, 0.9, T.dot(normalize(P.xz), vec2(volDir.x, volDir.y))).mul(smoothstep(500, 60, length(P.xz.sub(vec2(VOLCANO.x, VOLCANO.z)))));
         const base = mix(vec3(0.03, 0.028, 0.052), vec3(0.2, 0.075, 0.04), toward.mul(0.8));
         const cell = floor(q.mul(5.0)); // small cells: a flash lights one knot of cloud, not a whole bank
