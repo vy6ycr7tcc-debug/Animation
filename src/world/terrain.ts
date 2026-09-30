@@ -220,6 +220,29 @@ export const KEEP_CLEAR: { x: number; z: number; r: number }[] = [
   { x: PYRAMID.x, z: PYRAMID.z, r: PYRAMID.half * 1.5 },
   { x: MONUMENT.x, z: MONUMENT.z, r: MONUMENT.r + 4 },
 ];
+/** The flower glades (the owner: "spots that are special with them… really well done, not
+    everywhere"): a glade beside each archetype's home, out of its stone ring, and three near the
+    shore where you begin. Only here do flowers grow; elsewhere the land is soil, stone and grass. */
+export const GLADES: { x: number; z: number; r: number }[] = (() => {
+  const out: { x: number; z: number; r: number }[] = [];
+  LANDMARK_SITES.forEach(([x, z], i) => {
+    if (LANDMARK_KINDS[i] === "deep") return;
+    const a = i * 2.39996;
+    out.push({ x: x + Math.cos(a) * 17, z: z + Math.sin(a) * 17, r: 11 });
+  });
+  for (const [dx, dz] of [[26, -18], [-30, -12], [8, -38]]) out.push({ x: SPAWN.x + dx, z: SPAWN.z + dz, r: 13 });
+  return out;
+})();
+/** 0 outside every glade, 1 at a glade's heart. */
+export const gladeAt = (x: number, z: number): number => {
+  let k = 0;
+  for (const g of GLADES) {
+    const d = Math.hypot(x - g.x, z - g.z);
+    if (d < g.r) k = Math.max(k, 1 - d / g.r);
+  }
+  return k;
+};
+
 export const keptClear = (x: number, z: number, pad = 0) => KEEP_CLEAR.some((k) => Math.hypot(x - k.x, z - k.z) < k.r + pad);
 
 const PADS = LANDMARK_SITES.map(([x, z], i) => {

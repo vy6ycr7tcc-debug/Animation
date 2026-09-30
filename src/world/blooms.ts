@@ -9,7 +9,7 @@ import * as THREE from "three/webgpu";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { T, withFog } from "../gpu/tsl";
 import type { LifeFrame } from "./life";
-import { fbm, groundKind, heightAt, keptClear, LANDMARK_SITES, SPAWN, WATER_Y } from "./terrain";
+import { fbm, gladeAt, heightAt, keptClear, LANDMARK_SITES, SPAWN, WATER_Y } from "./terrain";
 
 const { attribute, cameraPosition, cos, Discard, float, fract, Fn, If, length, max, mix, normalGeometry, positionGeometry, pow, screenCoordinate, sin, smoothstep, step, uniform, varying, vec2, vec3, vec4, dot } = T;
 
@@ -174,11 +174,11 @@ export class RisingFlowers {
     let p: Patch | null = null;
     const x = (i + 0.2 + hash(i, j, 1) * 0.6) * PCELL, z = (j + 0.2 + hash(i, j, 2) * 0.6) * PCELL;
     const h = heightAt(x, z);
-    const k = groundKind(x, z, h);
     // in the meadows, in drifts: some stretches thick with them, others bare
     const drift = THREE.MathUtils.smoothstep(fbm(x * 0.012 - 41, z * 0.012 + 17), 0.42, 0.62);
     const clear = Math.hypot(x - SPAWN.x, z - SPAWN.z) > 6 && LANDMARK_SITES.every(([lx, lz]) => Math.hypot(x - lx, z - lz) > 13) && !keptClear(x, z, 2);
-    if (clear && h > WATER_Y + 0.4 && h < 40 && k.meadow > 0.3 && hash(i, j, 3) < 0.04 + drift * 0.16) {
+    const glade = gladeAt(x, z);
+    if (clear && glade > 0 && h > WATER_Y + 0.4 && hash(i, j, 3) < 0.35 + glade * 0.6) {
       const n = 2 + Math.floor(hash(i, j, 4) * 3);
       const hue = Math.floor(hash(i, j, 5) * 4) / 4 + 0.01;
       const plants: Plant[] = [];
