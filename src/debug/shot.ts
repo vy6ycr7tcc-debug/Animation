@@ -87,7 +87,18 @@ export interface ShotCtx {
   ready?: Promise<unknown>;
   /** After the first update: settles when what it asked for has arrived (the carvings). */
   settle?(): Promise<unknown>;
+  /** Build density room `n` alone (the open world hidden); `density-<n>` still frames. */
+  room?(n: number): Promise<{ onSit(): void; update(dt: number): void }>;
 }
+
+/** The density rooms' still frames: where the eye stands and looks (room frame, the seat at the
+    origin facing −z). */
+const ROOM_VIEWS: Record<string, { eye: XYZ; look: XYZ }> = {
+  "density-1": { eye: [1.5, 2.2, 7], look: [-3, 5, -40] },
+  "density-2": { eye: [1.5, 2.0, 7], look: [2, 4, -30] },
+  "density-4": { eye: [1.5, 2.4, 8], look: [0, 5, -30] },
+  "density-6": { eye: [0, 1.8, 10], look: [0, 2, -18] },
+};
 
 /** Render one still frame of the requested scene at T seconds, then never again. */
 export function runShot(ctx: ShotCtx): void {
@@ -99,6 +110,26 @@ export function runShot(ctx: ShotCtx): void {
   const shot = getShot();
   if (!shot) return;
   const { id, t } = shot;
+  const dm = /^density-(\d)$/.exec(id);
+  if (dm && ctx.room) {
+    // a density room: built alone, seated (so its beats up to T apply), then lived for a while
+    // so its eased moods settle where T puts them
+    const { room, ...rest } = ctx;
+    ctx.narration.debugTime = t;
+    void room(Number(dm[1])).then((lesson) => {
+      lesson.onSit();
+      for (let k = 0, n = Math.min(2400, Math.max(200, Math.round(t / 0.05))); k < n; k++) lesson.update(0.05);
+      ctx.S.mode = "play";
+      ctx.follow.startFollowing(true);
+      ctx.follow.follow = 1;
+      ctx.player.pos.set(0, -50, 0);
+      // the room keeps its own air: it runs after the world's moods, as it will in the journey
+      const worldUpdate = rest.update;
+      rest.update = (dt: number) => (worldUpdate(dt), lesson.update(0));
+      finish(rest, id, t, [0, 0, 0], ROOM_VIEWS[id] ?? { eye: [0, 2, 8], look: [0, 3, -30] });
+    });
+    return;
+  }
 
   // narrated time, world time and the ambient drift all read T; no audio is ever touched
   ctx.narration.debugTime = t;
@@ -235,6 +266,7 @@ function finish(ctx: ShotCtx, id: string, t: number, base: XYZ, view: { eye: XYZ
 
   const loading = document.getElementById("loading");
   if (loading) loading.style.display = "none"; // endLoading's prompt must not cover the frame
+  document.getElementById("title")?.classList.add("gone");
   ctx.draw();
   (window as unknown as { __shotReady?: boolean }).__shotReady = true;
 }
