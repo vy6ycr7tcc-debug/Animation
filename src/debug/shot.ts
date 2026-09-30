@@ -96,7 +96,7 @@ export interface ShotCtx {
 const ROOM_VIEWS: Record<string, { eye: XYZ; look: XYZ }> = {
   "density-1": { eye: [1.5, 2.2, 7], look: [-3, 5, -40] },
   "density-2": { eye: [1.5, 2.0, 7], look: [2, 4, -30] },
-  "density-4": { eye: [1.5, 2.4, 8], look: [0, 5, -30] },
+  "density-4": { eye: [2.5, 2.0, -1], look: [-1, 2.2, -18] },
   "density-6": { eye: [0, 1.8, 10], look: [0, 2, -18] },
 };
 
@@ -266,7 +266,8 @@ function finish(ctx: ShotCtx, id: string, t: number, base: XYZ, view: { eye: XYZ
 
   const loading = document.getElementById("loading");
   if (loading) loading.style.display = "none"; // endLoading's prompt must not cover the frame
-  document.getElementById("title")?.classList.add("gone");
+  const title = document.getElementById("title");
+  if (title) title.style.display = "none";
   ctx.draw();
   (window as unknown as { __shotReady?: boolean }).__shotReady = true;
 }
