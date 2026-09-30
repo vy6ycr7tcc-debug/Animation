@@ -15,11 +15,11 @@ import * as THREE from "three/webgpu";
 import type { Narration } from "../../core/narration";
 import type { SceneModule } from "../lessonKit";
 import { T } from "../../gpu/tsl";
-import { applyAir, damp, pointCloud, roomClock, seeded, skyDome, touch, type Air } from "./roomKit";
+import { applyAir, damp, keepAlpha, pointCloud, roomClock, seeded, skyDome, touch, type Air } from "./roomKit";
 
 const { float, fract, mix, sin, smoothstep, uniform, vec3, vec4 } = T;
 
-/** Where the way home hangs (room frame: you begin at the origin facing −z). */
+/** Where the way home stands (room frame: you begin at the origin facing −z). */
 export const HOME_RING = new THREE.Vector3(0, 1.6, -52);
 
 export function createDensity7(
@@ -40,6 +40,7 @@ export function createDensity7(
   const t = clock.u;
   const uBright = uniform(0.5); // the brilliance, always rising, never arrived
   const uRing = uniform(0.3);
+  const uDissolve = uniform(0); // how far through the telling: the travellers loosen one by one
   let time = 0, sat = false, ringGoal = 0.3;
   const R = seeded(7007);
   const air: Air = {
@@ -90,10 +91,10 @@ export function createDensity7(
   // other travellers far off: each a point of light that loosens into motes and is gone
   {
     const TRAV = 9, PER = 60;
-    const s = pointCloud(TRAV * PER, 1.3);
+    const s = pointCloud(TRAV * PER, 2.2);
     for (let i = 0; i < TRAV; i++) {
-      const a = (i / TRAV) * Math.PI * 2 + R() * 0.5, r = 40 + R() * 60, y = 1 + R() * 10;
-      const ph = R();
+      const a = (i / TRAV) * Math.PI * 2 + R() * 0.5, r = 24 + R() * 34, y = 1 + R() * 8;
+      const ph = i / TRAV;
       for (let j = 0; j < PER; j++) {
         s.pos.set([Math.sin(a) * r, y, -Math.cos(a) * r], (i * PER + j) * 3);
         s.k.set([ph, j / PER, R(), R()], (i * PER + j) * 4);
@@ -102,33 +103,45 @@ export function createDensity7(
     touch(s.cloud);
     const K = s.cloud.nodes.aK, B = s.cloud.nodes.position;
     // each traveller's own slow cycle: gathered, then loosening, then gone, then again elsewhere
-    const life = fract(K.x.add(t.mul(0.011)));
+    // each traveller's moment comes in turn as the telling goes on (the \"we\" dissolving)
+    const at = K.x.mul(0.8).add(0.1);
+    const life = uDissolve.sub(at).mul(3).add(0.5).clamp(0, 1);
     const loosen = smoothstep(0.45, 0.95, life);
     const dir = vec3(sin(K.z.mul(40)), sin(K.w.mul(33)).mul(0.7).add(0.3), T.cos(K.z.mul(40)));
     s.material.positionNode = B.add(dir.mul(loosen.mul(float(1.5).add(K.y.mul(6)))));
-    const show = smoothstep(0.0, 0.1, life).mul(float(1).sub(smoothstep(0.7, 1.0, life)));
+    const show = float(1).sub(smoothstep(0.7, 1.0, life));
     // one bright point while gathered (the first of each), a fine cloud as it loosens
     const lead = smoothstep(0.02, 0.0, K.y);
     s.material.blending = THREE.NormalBlending;
-    s.material.colorNode = vec4(mix(vec3(0.75, 0.42, 0.1), vec3(0.9, 0.6, 0.25), loosen), s.round.mul(show).mul(mix(lead.add(0.2), float(0.55), loosen)));
+    s.material.colorNode = vec4(mix(vec3(0.5, 0.25, 0.04), vec3(0.72, 0.42, 0.12), loosen), s.round.mul(show).mul(mix(lead.add(0.6), float(0.85), loosen)).min(1));
     group.add(s.cloud.sprite);
     ours.push(s.material);
   }
-  // the way home: a slow ring of gold motes far ahead
+  // the way home: a threshold of light far ahead, open both ways (not a road: a door standing in
+  // the brilliance, a little deeper gold at its edges, motes crossing it in both directions)
   {
-    const n = 48;
-    const s = pointCloud(n, 0.55);
-    for (let i = 0; i < n; i++) {
-      s.pos.set([0, 0, 0], i * 3);
-      s.k.set([i / n, R(), 0, 0], i * 4);
-    }
+    const geo = new THREE.PlaneGeometry(7, 12);
+    geo.translate(0, 6, 0);
+    const m = keepAlpha(new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide }));
+    const U = T.uv();
+    const edge = smoothstep(0.0, 0.12, U.x).mul(smoothstep(1.0, 0.88, U.x)).mul(smoothstep(0.0, 0.05, U.y)).mul(smoothstep(1.0, 0.9, U.y));
+    const rim = smoothstep(0.0, 0.08, edge).mul(float(1).sub(smoothstep(0.3, 0.65, edge)));
+    m.blending = THREE.NormalBlending;
+    m.colorNode = vec4(vec3(0.42, 0.2, 0.03), rim.mul(uRing).min(1));
+    const door = new THREE.Mesh(geo, m);
+    door.position.copy(HOME_RING).setY(0);
+    group.add(door);
+    ours.push(geo, m);
+    const n = 90;
+    const s = pointCloud(n, 0.3);
+    for (let i = 0; i < n; i++) s.k.set([R(), R(), R(), R()], i * 4);
     touch(s.cloud);
     const K = s.cloud.nodes.aK;
-    const a = K.x.mul(Math.PI * 2).add(t.mul(0.08));
-    s.material.positionNode = vec3(T.cos(a).mul(1.9), T.sin(a).mul(1.9).add(sin(t.mul(0.4).add(K.y.mul(6))).mul(0.05)), 0);
+    const f = fract(K.x.add(t.mul(0.05)));
+    const dir = T.step(0.5, K.y).mul(2).sub(1); // some come through toward you, some go the other way
+    s.material.positionNode = vec3(K.z.sub(0.5).mul(6.4), K.w.mul(12), f.sub(0.5).mul(8).mul(dir)).add(vec3(HOME_RING.x, 0, HOME_RING.z));
     s.material.blending = THREE.NormalBlending;
-    s.material.colorNode = vec4(vec3(0.8, 0.46, 0.12), s.round.mul(uRing));
-    s.cloud.sprite.position.copy(HOME_RING);
+    s.material.colorNode = vec4(vec3(0.8, 0.46, 0.12), s.round.mul(smoothstep(0, 0.2, f)).mul(smoothstep(1, 0.8, f)).mul(uRing).mul(0.8));
     group.add(s.cloud.sprite);
     ours.push(s.material);
   }
@@ -156,12 +169,18 @@ export function createDensity7(
       time += d;
       clock.tick(d);
       applyAir(air);
-      // the brilliance: rising all the time, slower and slower, never arriving
-      uBright.value = 0.62 + 0.38 * (1 - Math.exp(-time / 160));
-      air.color.setRGB(1.15, 1.0, 0.76).multiplyScalar(0.8 + 0.3 * (1 - Math.exp(-time / 160)));
-      // "So step through the gateway… Return to the monument": the way home brightens
+      // the brilliance: breathing (a slow swell every ~9 s, felt, not seen as flicker), rising all
+      // the time, and in the last half minute of the telling unmistakably approaching, never arriving
       const pr = narration.progress();
-      if (!sat && pr && pr.t / pr.total > 0.77) (sat = true), (ringGoal = 1);
+      const f = pr ? pr.t / pr.total : Math.min(1, time / 156);
+      const near = Math.max(0, (f - 0.8) / 0.2);
+      const breath = 1 + 0.09 * Math.sin((time * Math.PI * 2) / 9);
+      const rise = 0.74 + 0.22 * (1 - Math.exp(-time / 90)) + 0.35 * near * near;
+      uBright.value = rise * breath;
+      uDissolve.value = f;
+      air.color.setRGB(1.15, 1.0, 0.76).multiplyScalar((0.8 + 0.3 * (1 - Math.exp(-time / 90)) + 0.25 * near) * breath);
+      // "So step through the gateway… Return to the monument": the way home brightens
+      if (!sat && f > 0.77) (sat = true), (ringGoal = 1);
       uRing.value = damp(uRing.value, ringGoal, 0.3, d);
     },
     /** Almost invisible before perfect light: the longer you remain, the less of you is there. */
