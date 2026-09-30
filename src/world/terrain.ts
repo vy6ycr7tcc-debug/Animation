@@ -302,6 +302,11 @@ export const DENSITY_HALL = monumentSite(2.3, 200, 520, 30);
 /** The adept's school (scenes/adept/monument.ts): a stepped tower of three terraces crowned
     with a crystal, a small shrine at each corner, its door toward the shore. */
 export const ADEPT_HALL = monumentSite(-1.9, 220, 560, 34);
+/** The monument of past choices (scenes/past/monument.ts): a round Atlantean temple on an island
+    ringed by water, on a stepped platform, its door toward the shore. */
+export const PAST_HALL = monumentSite(0.9, 240, 620, 30);
+/** Its platform's rise at distance `d` from its centre (walked up; scenes/past/monument.ts). */
+const pastRise = (d: number): number => (d < 12.4 ? 1.3 : d < 22 ? 0.9 : d < 23 ? 0.6 : d < 24 ? 0.3 : 0);
 /** The stepped platform's rise at distance `d` from a monument's centre (three steps of 0.45 m). */
 export const platformRise = (d: number): number => (d < 19.6 ? 1.35 : d < 20.8 ? 0.9 : d < 22 ? 0.45 : 0);
 
@@ -327,7 +332,9 @@ export function standAt(x: number, z: number): number {
   const m = Math.max(Math.abs(x - PYRAMID.x), Math.abs(z - PYRAMID.z));
   if (m < PYRAMID.half) return Math.max(h, PYRAMID.y + PYRAMID.height * (1 - m / PYRAMID.half));
   const dm = Math.hypot(x - DENSITY_HALL.x, z - DENSITY_HALL.z);
-  return dm < 22 ? Math.max(h, DENSITY_HALL.y + platformRise(dm)) : h;
+  if (dm < 22) return Math.max(h, DENSITY_HALL.y + platformRise(dm));
+  const dp = Math.hypot(x - PAST_HALL.x, z - PAST_HALL.z);
+  return dp < 24 ? Math.max(h, PAST_HALL.y + pastRise(dp)) : h;
 }
 
 /** Caves in the steep hillsides (Samuel: "caves"): where the ground climbs sharply, away from

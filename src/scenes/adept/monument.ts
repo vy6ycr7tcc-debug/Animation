@@ -146,7 +146,7 @@ export class AdeptMonument implements Hall {
   }
   outside(): { x: number; y: number; z: number; heading: number } {
     const p = new THREE.Vector3(0, 0, BASE / 2 + 4).applyMatrix4(this.world.matrixWorld);
-    return { x: p.x, y: ADEPT_HALL.y, z: p.z, heading: this.face };
+    return { x: p.x, y: ADEPT_HALL.y, z: p.z, heading: this.face + Math.PI };
   }
   light(seen: Set<string>): void {
     const k = this.lights.k;
@@ -312,7 +312,7 @@ function lobby(scene: THREE.Scene, seen: () => Set<string>): Room {
 /** The walk: the lobby, the stations and chambers built so far, and home to the lobby. */
 export function adeptStages(seen: () => Set<string>): Stage[] {
   const R = 11;
-  const HOME = { x: 0, z: -8.5, heading: 0 };
+  const HOME = { x: 0, z: -8.5, heading: Math.PI };
   let callFloor: ((x: number, z: number) => number) | null = null;
   let stonesFloor: ((x: number, z: number) => number) | null = null;
   let dunes: ((x: number, z: number) => number) | null = null;
@@ -323,7 +323,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
       focus: [[0, 3, -10]],
       title: "",
       make: async (scene) => lobby(scene, seen),
-      start: { x: 0, z: 9, heading: Math.PI },
+      start: { x: 0, z: 9, heading: 0 },
       exits: [
         { x: 0, z: -R - 0.1, r: 1.8, to: 1 },
         { x: 0, z: R + 0.1, r: 1.8, to: "out" },
@@ -353,7 +353,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
         return mod.createCallScene(scene, nar, wh) as Room;
       },
       floor: (x, z) => (callFloor ? callFloor(x, z) : 0),
-      start: { x: 0, z: 0, heading: Math.PI },
+      start: { x: 0, z: 0, heading: 0 },
       exits: [{ x: 0, z: -42.3, r: 2.2, to: 2, dark: 1.5 }], // into the fire
       confine: box(-3, 3, -43, 6),
       ownAir: true,
@@ -363,7 +363,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
       focus: [[0, 4.5, -12]],
       title: "The crucible",
       make: async (scene, nar, wh) => (await import("./crucible")).createCrucibleScene(scene, nar, wh) as Room,
-      start: { x: 0, z: 4.5, heading: Math.PI },
+      start: { x: 0, z: 4.5, heading: 0 },
       exits: [{ x: 0, z: -18.4, r: 1.8, to: 3, dark: 1.5 }], // out of the fire, into the dawn
       confine: (p) => {
         const dx = p.x, dz = p.z + 6, d = Math.hypot(dx, dz), lim = Math.abs(p.x) < 1.5 && p.z < -6 ? 12.8 : 10.4;
@@ -376,7 +376,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
       focus: [[0, 2, -16]],
       title: "The radiance",
       make: async (scene, nar, wh) => (await import("./radiance")).createRadianceScene(scene, nar, wh) as Room,
-      start: { x: 0, z: 9, heading: Math.PI },
+      start: { x: 0, z: 9, heading: 0 },
       exits: [{ x: 0, z: -16.6, r: 1.8, to: 4 }], // on to the ancient practices
       confine: (p) => {
         const d = Math.hypot(p.x, p.z), lim = Math.abs(p.x) < 1.6 && p.z < 0 ? 17 : 15.6;
@@ -394,7 +394,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
         return mod.createStonesScene(scene, nar, wh) as Room;
       },
       floor: (x, z) => (stonesFloor ? stonesFloor(x, z) : 0),
-      start: { x: 0, z: 0, heading: Math.PI },
+      start: { x: 0, z: 0, heading: 0 },
       exits: [{ x: 8, z: -34.3, r: 1.8, to: 5 }],
       confine: box(-9, 14, -35, 6),
       ownAir: true,
@@ -409,7 +409,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
         return mod.createPyramidsScene(scene, nar, wh) as Room;
       },
       floor: (x, z) => (dunes ? dunes(x, z) : 0),
-      start: { x: 0, z: 0, heading: Math.PI },
+      start: { x: 0, z: 0, heading: 0 },
       exits: [{ x: 11, z: -30.3, r: 1.8, to: 6 }],
       confine: box(-16, 16, -34, 6),
       ownAir: true,
@@ -419,7 +419,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
       focus: [[-1, 1.4, -9]],
       title: "The daily disciplines",
       make: async (scene, nar, wh) => (await import("./disciplines")).createDisciplinesScene(scene, nar, wh) as Room,
-      start: { x: 0, z: -1.5, heading: Math.PI },
+      start: { x: 0, z: -1.5, heading: 0 },
       exits: [{ x: 0, z: -32.2, r: 1.8, to: 7 }],
       confine: (p) => {
         if (p.z > -12) p.x = Math.max(-4.6, Math.min(4.6, p.x));
@@ -439,7 +439,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
         return mod.createOthersScene(scene, nar, wh) as Room;
       },
       floor: (x, z) => (hill ? hill(x, z) : 0),
-      start: { x: 0, z: 4, heading: Math.PI },
+      start: { x: 0, z: 4, heading: 0 },
       exits: [{ x: 0, z: -24.3, r: 1.8, to: 0, at: HOME }], // home to the school
       confine: box(-24, 24, -25, 14),
       ownAir: true,
