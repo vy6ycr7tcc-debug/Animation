@@ -85,7 +85,7 @@ export class FollowCamera {
     // The intro: low over the shallows, drifting slowly, looking out toward the far island.
     const drift = reduced ? 0 : t;
     const introPos = new THREE.Vector3(Math.sin(drift * 0.03) * 3, 2.2, 16 - Math.sin(drift * 0.02) * 3);
-    const introLook = new THREE.Vector3(0, 6, -150);
+    const introLook = new THREE.Vector3(-45, 8, -150); // a little left: the shore's tree stays clear of the title
 
     const k = THREE.MathUtils.smoothstep(this.follow, 0, 1);
     this.cam.position.copy(introPos).lerp(followPos, k);

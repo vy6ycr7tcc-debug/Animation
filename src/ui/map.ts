@@ -150,6 +150,7 @@ export class StartMap {
     this.places = places;
     this.you = you;
     this.closeBtn.hidden = !closable;
+    document.getElementById("map-title")!.textContent = closable ? "Where would you like to go?" : "Where will you begin?";
     this.guideBtn.hidden = !closable;
     this.continueBtn.hidden = !(resume && you);
     this.selected = null;
@@ -170,30 +171,48 @@ export class StartMap {
     return new Promise((res) => (this.resolve = res));
   }
 
+  /** The places below the map, one group at a time behind a row of tabs (all of them at once
+      were a long, confusing list). */
+  private tab: Group = "Shore";
   private buildList(): HTMLElement[] {
-    return GROUPS.map(({ g, title }) => {
-      const row = document.createElement("div");
-      row.className = "map-group";
-      if (title) {
-        const h = document.createElement("p");
-        h.className = "map-group-title";
-        h.textContent = title;
-        row.append(h);
-      }
-      for (const p of this.places.filter((q) => q.group === g)) {
-        const b = document.createElement("button");
-        b.type = "button";
-        b.textContent = p.numeral ? `${p.numeral} · ${p.label.replace(/^The /, "")}` : p.label;
-        if (p.deep) b.textContent += " · in the deep";
-        b.addEventListener("click", () => {
-          this.select(p, true);
-          this.go();
-        });
-        b.addEventListener("focus", () => this.select(p, false));
-        row.append(b);
-      }
-      return row;
-    });
+    const tabs = document.createElement("div");
+    tabs.className = "map-tabs";
+    tabs.setAttribute("role", "tablist");
+    const body = document.createElement("div");
+    body.className = "map-group";
+    const shown = GROUPS.filter(({ g }) => g !== "Choice" && this.places.some((q) => q.group === g));
+    const show = (g: Group) => {
+      this.tab = g;
+      for (const b of tabs.children) b.setAttribute("aria-selected", String((b as HTMLElement).dataset.g === g));
+      body.replaceChildren(...this.groupButtons(g), ...(g === "Spirit" ? this.groupButtons("Choice") : []));
+    };
+    for (const { g, title } of shown) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.setAttribute("role", "tab");
+      b.dataset.g = g;
+      b.textContent = g === "Shore" ? "Places" : g === "Deep" ? "Deep" : title.replace(/^The /, "");
+      b.addEventListener("click", () => show(g));
+      tabs.append(b);
+    }
+    show(shown.some(({ g }) => g === this.tab) ? this.tab : "Shore");
+    return [tabs, body];
+  }
+  private groupButtons(g: Group): HTMLElement[] {
+    const out: HTMLElement[] = [];
+    for (const p of this.places.filter((q) => q.group === g)) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = p.numeral ? `${p.numeral} · ${p.label.replace(/^The /, "")}` : p.label;
+      if (p.deep) b.textContent += " · in the deep";
+      b.addEventListener("click", () => {
+        this.select(p, true);
+        this.go();
+      });
+      b.addEventListener("focus", () => this.select(p, false));
+      out.push(b);
+    }
+    return out;
   }
 
   private finish(c: Choice | null): void {
@@ -455,6 +474,9 @@ export class StartMap {
       g.fillText(this.continueBtn.hidden ? "you" : "where you were", x + 11 * k, y);
     }
     const close = this.view.size < 1300;
+    // Names are gathered as the marks are drawn, then placed most important first, each only
+    // where it overlaps nothing already written (they piled into an unreadable knot)
+    const labels: { text: string; x: number; y: number; align: CanvasTextAlign; font: string; fill: string; rank: number }[] = [];
     // the planets and stars overhead: a ringed disc, a four-pointed sparkle
     for (const m of this.sky) {
       const x = this.toMapX(m.x), y = this.toMapY(m.z);
@@ -503,13 +525,8 @@ export class StartMap {
         g.closePath();
         g.fill();
       }
-      if (close) {
-        g.shadowColor = "rgba(0,0,0,0.9)";
-        g.font = `italic ${10.5 * k}px ${SERIF}`;
-        g.textAlign = "left";
-        g.fillStyle = m.kind === "grove" ? "rgba(255,236,200,0.9)" : "rgba(220,228,255,0.85)";
-        g.fillText(m.label, x + 11 * k, y + 3 * k);
-      }
+      if (close)
+        labels.push({ text: m.label, x: x + 11 * k, y: y + 3 * k, align: "left", font: `italic ${10.5 * k}px ${SERIF}`, fill: m.kind === "grove" ? "rgba(255,236,200,0.9)" : "rgba(220,228,255,0.85)", rank: 3 });
       g.restore();
     }
     for (const p of this.places) {
@@ -558,16 +575,29 @@ export class StartMap {
         }
         g.stroke();
       }
-      // names only when there is room for them, or for the one you've chosen
-      if (on || close || !p.numeral) {
-        g.textAlign = x > W * 0.72 ? "right" : "left";
-        g.font = `italic ${(on ? 13 : 11.5) * k}px ${SERIF}`;
-        g.fillStyle = on ? "#fff4dc" : "rgba(244,239,230,0.85)";
-        g.shadowColor = "rgba(0,0,0,0.9)";
-        g.shadowBlur = 6 * k;
-        g.fillText(p.label, x + (x > W * 0.72 ? -17 : 17) * k, y);
-        g.shadowBlur = 0;
-      }
+      // names only where there is room for them, and always the one you've chosen
+      const right = x > W * 0.72;
+      labels.push({
+        text: p.numeral && !on ? p.label.replace(/^The /, "") : p.label, x: x + (right ? -17 : 17) * k, y, align: right ? "right" : "left",
+        font: `italic ${(on ? 13 : 11.5) * k}px ${SERIF}`, fill: on ? "#fff4dc" : "rgba(244,239,230,0.85)",
+        rank: on ? 0 : p.numeral ? (close ? 1 : 9) : p.group === "Shore" ? 2 : close ? 2.5 : 9,
+      });
+    }
+    const taken: [number, number, number, number][] = [];
+    g.textBaseline = "middle";
+    for (const l of labels.filter((q) => q.rank < 9).sort((a, b) => a.rank - b.rank)) {
+      g.font = l.font;
+      const w = g.measureText(l.text).width, h = 13 * k;
+      const x0 = l.align === "right" ? l.x - w : l.x, y0 = l.y - h / 2;
+      if (x0 < 2 || x0 + w > W - 2 || y0 < 2 || y0 + h > H - 2) continue;
+      if (taken.some(([a, b, c, d]) => x0 < c + 4 * k && x0 + w + 4 * k > a && y0 < d && y0 + h > b)) continue;
+      taken.push([x0, y0, x0 + w, y0 + h]);
+      g.textAlign = l.align;
+      g.fillStyle = l.fill;
+      g.shadowColor = "rgba(0,0,0,0.9)";
+      g.shadowBlur = 6 * k;
+      g.fillText(l.text, l.x, l.y);
+      g.shadowBlur = 0;
     }
     // a chosen spot on open land
     const s = this.selected;
