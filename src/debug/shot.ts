@@ -4,7 +4,7 @@
 import { SITES } from "../scenes/sites";
 import { DUAT_ORIGIN } from "../world/pyramid";
 import { RUIN_SITES } from "../world/depths";
-import { LANDMARK_SITES, PYRAMID, heightAt } from "../world/terrain";
+import { LANDMARK_SITES, PEAKS, PYRAMID, heightAt } from "../world/terrain";
 
 export interface Shot {
   id: string;
@@ -123,6 +123,14 @@ export function runShot(ctx: ShotCtx): void {
       : { eye: [0, 4, -40], look: [0, 3.5, -56] };
     ctx.setInside(true);
     ctx.player.pos.set(base[0] + view.eye[0], base[1], base[2] + view.eye[2] - 2);
+  } else if (/^peak-\d$/.test(id)) {
+    // a massif seen from the land, about 900 m off toward the shore
+    const pk = PEAKS[Number(id.slice(5))] ?? PEAKS[0];
+    const d = Math.hypot(pk.x, pk.z), ux = -pk.x / d, uz = -pk.z / d;
+    const px = pk.x + ux * (pk.r + 700), pz = pk.z + uz * (pk.r + 700);
+    base = [px, heightAt(px, pz), pz];
+    view = { eye: [0, 25, 0], look: [pk.x - px, pk.h * 0.45, pk.z - pz] };
+    ctx.player.pos.set(px, heightAt(px, pz), pz);
   } else if (/^ruin-\d$/.test(id)) {
     // under the water, standing on the floor before a ruin
     const r = RUIN_SITES[Number(id.slice(5))] ?? RUIN_SITES[0];

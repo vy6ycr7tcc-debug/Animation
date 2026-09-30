@@ -1,12 +1,14 @@
 /* The lessons' visions told in more images (the owner: "simpler stuff, but more of it in the
    storytelling"): between the moments placed by hand (each lesson's own keys), the narration's own
    lines (content/narration.json, timed cues) call up a simple symbol when they name one: a hand,
+   first the widely known sign for a concept (a broken chain for forgiveness, a lotus for peace, a
+   butterfly for change, an anchor for hope, an ensō for presence…), else what it names: a hand,
    a door, a flame, a heart, a breath, footsteps, an eye, an ear, a river, rain, the sun, stars,
    a tree, a knot, a bird, an hourglass, a tangle of worry, a stone, a bowl, a gift… Each image
    holds at least `MIN_GAP` seconds and never crowds a moment placed by hand. */
 import { TRACKS } from "../core/narration";
 import { book, heart, river, rock, rope, shift, sprout, stars, storm, sun, tree, wheel, FORM_H } from "../world/forms";
-import { bird, doorway, ear, eye, fist, flames, footsteps, hand, hourglass, offeredHand, raisedHand, rings, spiral, steamingBowl, tangle } from "../world/symbols";
+import { anchor, bird, bridge, brokenChain, butterfly, compass, crescent, doorway, dove, ear, enso, eye, fist, flames, footsteps, hand, hourglass, house, infinity, key, lotus, mountain, offeredHand, prayerHands, raisedHand, rings, spiral, steamingBowl, tangle, teardrop, unalome, wave, yinYang } from "../world/symbols";
 import { EMBER, GOLD, PALE, PEARL, ROSE, type Key, type Maker, type RGB } from "./visionStage";
 
 const MIN_GAP = 9; // seconds each image holds, at least
@@ -14,6 +16,25 @@ const CLEAR = 7; // seconds kept clear before and after a moment placed by hand
 
 /** Words in a line → the symbol it calls up (the first match wins; order matters). */
 const WORDS: [RegExp, string, RGB][] = [
+  // concepts first, by their widely known symbol
+  [/\b(forgiv|release|releas|untie|untying|let go|letting go|set down)/i, "lex-chain", GOLD],
+  [/\b(peace|peaceful|calm|serene|awake|awaken)/i, "lex-lotus", PEARL],
+  [/\b(dove|gentle|gentleness|kindness|kind)\b/i, "lex-dove", PEARL],
+  [/\b(balance|both sides|two sides)/i, "lex-yinyang", PALE],
+  [/\b(change|changes|transform|become|becoming)/i, "lex-butterfly", ROSE],
+  [/\b(hope|trust|faith|anchor)/i, "lex-anchor", GOLD],
+  [/\b(always|forever|never ends|endless|eternal)/i, "lex-infinity", PEARL],
+  [/\b(grateful|gratitude|thank|bless)/i, "lex-prayer", GOLD],
+  [/\b(steady|steadies|strength|strong|stand firm)/i, "lex-mountain", PEARL],
+  [/\b(feel|feeling|feelings|emotion|tide)/i, "lex-wave", PALE],
+  [/\b(sleep|rest|resting|evening|moon)/i, "lex-moon", PALE],
+  [/\b(understand|answer|secret|unlock|meaning)/i, "lex-key", GOLD],
+  [/\b(direction|lost|find your way|which way)/i, "lex-compass", PALE],
+  [/\b(connect|between|bridge|reach across)/i, "lex-bridge", GOLD],
+  [/\b(whole|wholeness|empty|emptiness|present|presence)/i, "lex-enso", PEARL],
+  [/\b(path|practice|teaching|way of)/i, "lex-unalome", GOLD],
+  [/\b(grief|tears|cry|crying|sorrow|sad)/i, "lex-tear", PALE],
+  [/\b(home|house|belong)/i, "lex-house", GOLD],
   [/\b(fist|clench|grip|grasp|tight)/i, "lex-fist", EMBER],
   [/\b(stop|refus|push(ed|ing)? away|no\b)/i, "lex-raised", PALE],
   [/\b(gift|give|giving|offer|share)/i, "lex-offer", GOLD],
@@ -45,6 +66,24 @@ const WORDS: [RegExp, string, RGB][] = [
 
 /** The symbols the lexicon may call up (added to a lesson's own forms). */
 export const LEXICON: Record<string, Maker> = {
+  "lex-chain": (n, R) => brokenChain(n, R),
+  "lex-lotus": (n, R) => lotus(n, R),
+  "lex-dove": (n, R) => dove(n, R),
+  "lex-yinyang": (n, R) => yinYang(n, R),
+  "lex-butterfly": (n, R) => butterfly(n, R),
+  "lex-anchor": (n, R) => anchor(n, R),
+  "lex-infinity": (n, R) => infinity(n, R),
+  "lex-prayer": (n, R) => prayerHands(n, R),
+  "lex-mountain": (n, R) => mountain(n, R),
+  "lex-wave": (n, R) => wave(n, R),
+  "lex-moon": (n, R) => crescent(n, R),
+  "lex-key": (n, R) => key(n, R),
+  "lex-compass": (n, R) => compass(n, R),
+  "lex-bridge": (n, R) => bridge(n, R),
+  "lex-enso": (n, R) => enso(n, R),
+  "lex-unalome": (n, R) => unalome(n, R),
+  "lex-tear": (n, R) => teardrop(n, R),
+  "lex-house": (n, R) => house(n, R),
   "lex-fist": (n, R) => fist(n, R),
   "lex-raised": (n, R) => raisedHand(n, R),
   "lex-offer": (n, R) => offeredHand(n, R, 0.25),
