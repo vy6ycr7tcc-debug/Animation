@@ -154,20 +154,40 @@ export function createDisciplinesScene(scene: THREE.Scene, narration: LessonCtx[
       g.add(bmesh);
       ours.push(bm, bmesh.geometry);
     }
-    // the slow brightening: seven small lights climbing the figure at the sink
+    // the slow brightening: seven lights climbing the figure at the sink, each in its own colour
+    // (red at the ground of the body to violet at the brow), each with a soft halo, and as they
+    // climb a warm aura gathers round the whole figure and a column of light rises through it
     {
       const n = 7;
-      const L = pointCloud(n, 0.1);
       const f = specs[0];
-      for (let i = 0; i < n; i++) {
-        L.pos.set([f.x + 0.02, 0.85 + i * 0.15, f.z], i * 3);
-        L.k.set([i / (n - 1), 0, 0, 0], i * 4);
+      const cols = [[1, 0.25, 0.2], [1, 0.55, 0.2], [1, 0.9, 0.35], [0.45, 1, 0.55], [0.4, 0.75, 1], [0.45, 0.45, 1], [0.8, 0.5, 1]];
+      for (const [size, lum] of [[0.22, 2.2], [0.9, 0.45]] as [number, number][]) {
+        const L = pointCloud(n, size);
+        for (let i = 0; i < n; i++) {
+          L.pos.set([f.x + 0.04, 0.8 + i * 0.16, f.z], i * 3);
+          L.k.set([i / (n - 1), cols[i][0], cols[i][1], cols[i][2]], i * 4);
+        }
+        touch(L.cloud);
+        const K = L.cloud.nodes.aK;
+        const lit = smoothstep(K.x.sub(0.02), K.x.add(0.1), uClimb);
+        const pulse = T.sin(clock.u.mul(1.3).sub(K.x.mul(4))).mul(0.2).add(0.8);
+        L.material.colorNode = vec4(vec3(K.y, K.z, K.w).mul(L.round).mul(lit).mul(pulse).mul(lum), 1);
+        g.add(L.cloud.sprite);
+        ours.push(L.material);
       }
-      touch(L.cloud);
-      const K = L.cloud.nodes.aK;
-      L.material.colorNode = vec4(vec3(1, 0.9, 0.7).mul(L.round).mul(smoothstep(K.x.sub(0.02), K.x.add(0.1), uClimb)).mul(0.9), 1);
-      g.add(L.cloud.sprite);
-      ours.push(L.material);
+      const au = pointCloud(1, 3.2);
+      au.pos.set([f.x, 1.3, f.z]);
+      touch(au.cloud);
+      au.material.colorNode = vec4(vec3(1, 0.88, 0.7).mul(au.round).mul(uClimb).mul(0.12), 1);
+      g.add(au.cloud.sprite);
+      ours.push(au.material);
+      const cg = new THREE.CylinderGeometry(0.08, 0.14, 2.6, 16, 1, true);
+      cg.translate(f.x, 1.3, f.z);
+      const cm = keepAlpha(new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide }));
+      const yy = T.positionGeometry.y.sub(0).div(2.6);
+      cm.colorNode = vec4(vec3(1, 0.92, 0.8).mul(T.smoothstep(uClimb.add(0.05), uClimb.sub(0.05), yy)).mul(0.05).mul(uClimb), 1);
+      g.add(new THREE.Mesh(cg, cm));
+      ours.push(cg, cm);
     }
     // each alcove's light, lit in turn; the queue's cold strip of light
     {
