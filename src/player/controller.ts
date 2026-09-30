@@ -4,7 +4,9 @@
    (a small leap and a curving plunge); hold to rise out of the water into flight. Under the
    water you swim where you look, in three dimensions: look down to go deeper, up to rise. Tap
    for a stroke (a burst that eases off; taps in rhythm keep the glide going); hold to rise; let
-   go and you sink slowly toward the floor. No breath, no current, nothing to fear. */
+   go and you sink slowly toward the floor. Reaching the floor you stand and walk on it, in your
+   own body (the owner: "swimming becomes flying… you can walk on the floor"); off it, floating,
+   you are the orb of light. No breath, no current, nothing to fear. */
 import * as THREE from "three/webgpu";
 import { colliders, standAt as heightAt, WATER_Y } from "../world/terrain";
 import type { Pose } from "./wanderer";
@@ -17,7 +19,9 @@ const SWIM = 2.6;
 const SWIM_FAST = 4.5; // the thumb at the edge
 const UNDER = 3.0; // swimming under the water
 const STROKE = 6.0; // the burst of one stroke
-const SINK = 1.1; // drifting down under the water when you let go
+const SINK = 1.5; // drifting down under the water when you let go, to land on the floor
+const SEABED_WALK = 2.0; // walking on the lake floor, slowed by the water
+const SEABED_RUN = 3.6;
 const FLY = 6.0;
 const FLY_FAST = 13.0; // flying while holding Run
 const FLY_GLIDE = 7.5; // flying with the stick let go: a steady glide straight ahead
@@ -65,6 +69,8 @@ export class Controller {
   get diving(): boolean {
     return this.swimming && this.depth > 0.4;
   }
+  /** Standing on the lake floor, walking in your own body (not the orb). */
+  seabed = false;
   /** The swimmer's own velocity under the water (3D); the stroke's burst, easing off. */
   private swimVel = new THREE.Vector3();
   private burst = 0;
@@ -323,6 +329,13 @@ export class Controller {
     const mag = Math.min(1, dir.length());
     if (mag > 0.001) dir.divideScalar(dir.length());
     this.target = null;
+    // on the floor: stand and walk on it, until the button lifts you off (as flight lands and takes off)
+    const floor = heightAt(this.pos.x, this.pos.z);
+    if (this.pos.y <= floor + 0.3 && !input.hold && !this.surfacing && this.plunge <= 0 && this.burst < 0.5) {
+      this.walkSeabed(dt, input, camYaw, floor);
+      return;
+    }
+    this.seabed = false;
     // the dive: a curving plunge forward and down from the surface
     if (this.plunge > 0) {
       this.plunge -= dt;
@@ -396,5 +409,50 @@ export class Controller {
     this.grounded = false;
     this.gliding = false;
     this.pose = "swim";
+  }
+
+  /** Walking on the lake floor: level, slowed by the water; the button lifts you off into the orb. */
+  private walkSeabed(dt: number, input: MoveInput, camYaw: number, floor: number): void {
+    const fx = -Math.sin(camYaw), fz = -Math.cos(camYaw);
+    const rx = Math.cos(camYaw), rz = -Math.sin(camYaw);
+    let dx = fx * input.y + rx * input.x, dz = fz * input.y + rz * input.x;
+    const len = Math.hypot(dx, dz), mag = Math.min(1, len);
+    if (len > 0.001) (dx /= len), (dz /= len);
+    const speed = mag * THREE.MathUtils.lerp(SEABED_WALK, SEABED_RUN, input.run ?? (input.glide ? 1 : 0));
+    this.swimVel.x += (dx * speed - this.swimVel.x) * Math.min(1, dt * 5);
+    this.swimVel.z += (dz * speed - this.swimVel.z) * Math.min(1, dt * 5);
+    this.swimVel.y = 0;
+    this.pos.x += this.swimVel.x * dt;
+    this.pos.z += this.swimVel.z * dt;
+    // the solid things on the floor (ruins, stones) keep you out as they do on land
+    for (const c of colliders) {
+      const ex = this.pos.x - c.x, ez = this.pos.z - c.z, d = Math.hypot(ex, ez), r = c.r + BODY_R;
+      if (d < r && d > 1e-4 && this.pos.y < c.top) (this.pos.x = c.x + (ex / d) * r), (this.pos.z = c.z + (ez / d) * r);
+    }
+    const g = heightAt(this.pos.x, this.pos.z);
+    this.pos.y += (Math.max(g, floor - 0.6) - this.pos.y) * Math.min(1, dt * 12);
+    this.speed = Math.hypot(this.swimVel.x, this.swimVel.z);
+    this.odometer += this.speed * dt;
+    this.depth = Math.max(0, SWIM_FEET - this.pos.y);
+    this.vel.set(this.swimVel.x, 0, this.swimVel.z);
+    if (mag > 0.05) {
+      const want = Math.atan2(-dx, -dz);
+      let dh = want - this.heading;
+      dh = Math.atan2(Math.sin(dh), Math.cos(dh));
+      this.heading += dh * Math.min(1, dt * 8);
+    }
+    // the shallows: out of the deep altogether
+    if (g >= WATER_Y - SWIM_DEPTH) {
+      this.swimming = false;
+      this.seabed = false;
+      this.depth = 0;
+      this.swimVel.set(0, 0, 0);
+      this.grounded = true;
+      return;
+    }
+    this.seabed = true;
+    this.grounded = false;
+    this.gliding = false;
+    this.pose = this.speed < 0.2 ? "idle" : "walk";
   }
 }

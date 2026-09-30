@@ -3,6 +3,7 @@
    the `shot` query param is present — normal play is untouched. */
 import { SITES } from "../scenes/sites";
 import { DUAT_ORIGIN } from "../world/pyramid";
+import { RUIN_SITES } from "../world/depths";
 import { PYRAMID, heightAt } from "../world/terrain";
 
 export interface Shot {
