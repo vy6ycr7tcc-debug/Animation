@@ -53,6 +53,8 @@ export interface Stage {
   ownAir?: boolean;
   /** Where contemplation turns the view, in turn (the room's own frame): what moves there. */
   focus?: [number, number, number][];
+  /** The animation's centre, the gravity point while its narration plays (default the first focus). */
+  centre?: [number, number, number];
   /** The room was drawn around its seat, somewhere else: move it so the seat is at the origin. */
   centreOnSeat?: boolean;
   /** Its recording waits for you to sit on its seat, and stops when you stand (the monument of
@@ -158,6 +160,14 @@ export class Journey {
     const s = this.stage;
     if (!this.inside || !s?.focus) return [];
     return s.focus.map(([x, y, z]) => new THREE.Vector3(JOURNEY_ORIGIN.x + x, this.floorAt(JOURNEY_ORIGIN.x + x, JOURNEY_ORIGIN.z + z) + y, JOURNEY_ORIGIN.z + z));
+  }
+  /** The room's gravity point (world), or null. */
+  centre(): THREE.Vector3 | null {
+    const s = this.stage;
+    const c = s?.centre ?? s?.focus?.[0];
+    if (!this.inside || !c) return null;
+    const x = JOURNEY_ORIGIN.x + c[0], z = JOURNEY_ORIGIN.z + c[2];
+    return new THREE.Vector3(x, this.floorAt(x, z) + c[1], z);
   }
   get stage(): Stage | null {
     return this.at >= 0 ? this.stages[this.at] : null;

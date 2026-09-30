@@ -426,6 +426,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
     {
       id: "room3",
       focus: [[-5.2, 1.3, -12], [5.6, 2.8, -13.5], [0, 2.6, -32]],
+      centre: [0, 2.4, -14],
       title: "The third density",
       make: mk(() => import("./room_3"), "createRoom3Scene"),
       start: { x: 0, z: 3.4, heading: 0 },

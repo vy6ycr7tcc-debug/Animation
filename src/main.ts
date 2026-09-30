@@ -41,7 +41,7 @@ import { Vessels } from "./world/vessels";
 import { TranscriptPlayer } from "./ui/transcriptPlayer";
 import { StartMap, type Choice, type Place } from "./ui/map";
 import { buildSky, skyUniforms, starDirection } from "./world/sky";
-import { floorHook, groundUniforms, heightAt, LANDMARK_SITES, MONUMENT, SPAWN, Terrain, WATER_Y } from "./world/terrain";
+import { floorHook, groundUniforms, heightAt, LANDMARK_SITES, MONUMENT, PEAKS, SPAWN, Terrain, WATER_Y } from "./world/terrain";
 import { Temple } from "./world/temple";
 import { Autofly } from "./player/autofly";
 import { Genesis } from "./world/genesis";
@@ -1550,6 +1550,7 @@ function journeyHost(hall: Hall): JourneyHost {
     whisper,
     keep: (o) => o === wanderer.root || o === wanderer.fx || o === camera || (o as THREE.Light).isLight,
     place: (x, y, z, heading) => {
+      if (sitting.phase === "seated") standUp(); // a new room: you arrive on your feet
       player.pos.set(x, y, z);
       player.heading = heading;
       follow.yaw = heading;
@@ -1683,11 +1684,13 @@ try {
   /* no storage: on */
 }
 const INWARD_AFTER = 15000;
+/** Sitting at a lesson's seat or a monument room's (not with an archetype, whose panel is open). */
+const lessonSeated = (): boolean => sitting.phase === "seated" && (!!tourScenes.seatedId || !!inHall()?.journey.sitting);
 function contemplationFrame(dt: number): void {
   const idle = performance.now() - lastTouch > INWARD_AFTER && Math.hypot(input.move.x, input.move.y) < 0.05 && !input.hold;
   const want = inwardOn && idle && S.mode === "play" && !startMap.isOpen && $("#menu").hidden && player.speed < 0.3 &&
     !player.flying && !player.diving && !follow.underwater && !autofly.active && !genesis.active && !crossing &&
-    sitting.phase === "none" && !tourScenes.movementHeld && !document.body.classList.contains("touring");
+    (sitting.phase === "none" || lessonSeated()) && !document.body.classList.contains("touring");
   inwardK += ((want ? 1 : 0) - inwardK) * Math.min(1, dt * (want ? 0.35 : 3));
   if (inwardK < 0.002 && !want) inwardK = 0;
   follow.inward = inwardK;
@@ -1702,11 +1705,66 @@ function contemplationFrame(dt: number): void {
     }
   }
   if (!want) return void (follow.gaze = null);
-  let pts = inHall()?.journey.focus() ?? [];
-  if (!pts.length && !apart() && player.pos.distanceTo(vision.group.position) < 70) pts = [vision.group.position.clone().setY(vision.group.position.y + 3)];
   gazeFor += dt;
+  // a narrated animation: hold it, with the slightest drift so the view breathes
+  const g = gravityPoint();
+  if (g) {
+    const d = g.distanceTo(player.pos) * 0.03;
+    follow.gaze = g.add(new THREE.Vector3(Math.sin(S.t * 0.07) * d, Math.sin(S.t * 0.05 + 1) * d * 0.5, Math.cos(S.t * 0.06) * d * 0.4));
+    return;
+  }
+  // otherwise a slow drift between the loveliest views: the room's points of interest, the
+  // vision of creation, and out in the world the sky (where the moon or low sun glows, a peak
+  // standing against it, the stars overhead), never a wall
+  let pts = inHall()?.journey.focus() ?? [];
+  if (!pts.length && !apart()) {
+    if (player.pos.distanceTo(vision.group.position) < 70) pts = [vision.group.position.clone().setY(vision.group.position.y + 3)];
+    else {
+      const eye = player.pos.clone().setY(player.pos.y + 1.6);
+      const glow = fogUniforms.glowDir.value.clone().setY(Math.max(0.18, fogUniforms.glowDir.value.y)).normalize();
+      const peak = PEAKS.reduce((a, b) => (Math.hypot(b.x - eye.x, b.z - eye.z) < Math.hypot(a.x - eye.x, a.z - eye.z) ? b : a));
+      const toPeak = new THREE.Vector3(peak.x - eye.x, 0, peak.z - eye.z).normalize();
+      const up = new THREE.Vector3(glow.x, 0, glow.z).normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), 2.1);
+      pts = [
+        eye.clone().addScaledVector(glow, 400),
+        eye.clone().addScaledVector(toPeak, 400).setY(eye.y + 400 * 0.12),
+        eye.clone().addScaledVector(up, 300).setY(eye.y + 300 * 0.9),
+      ];
+    }
+  }
   if (gazeFor > 20) (gazeFor = 0), gazeI++;
-  follow.gaze = pts.length ? pts[gazeI % pts.length] : null;
+  const base = pts.length ? pts[gazeI % pts.length] : null;
+  // a gentle parallax drift about whatever it rests on
+  follow.gaze = base ? base.clone().add(new THREE.Vector3(Math.sin(S.t * 0.05), Math.sin(S.t * 0.04 + 2) * 0.4, Math.cos(S.t * 0.045)).multiplyScalar(base.distanceTo(player.pos) * 0.025)) : null;
+}
+
+/* The gravity point (the owner: "SUPER important"). While a narration with an animation plays,
+   in a monument's room (standing or seated) or at a lesson's seat, the view eases round to frame
+   the animation's centre, the wanderer in the foreground. Look away if you like: while a finger
+   is on the screen it never fights the hand, and a couple of seconds after you let go it eases
+   back. */
+function gravityPoint(): THREE.Vector3 | null {
+  if (S.mode !== "play" || !narration.progress()) return null;
+  const h = inHall();
+  if (h) return h.journey.inside && !h.journey.crossing ? h.journey.centre() : null;
+  const id = tourScenes.seatedId;
+  if (!id) return null;
+  const m = tourScenes.registry.byId(id) as { focus?: THREE.Vector3 } | undefined;
+  return m?.focus?.clone() ?? null;
+}
+const GRAVITY_AFTER = 2500;
+function gravityFrame(dt: number): void {
+  const g = document.body.classList.contains("touring") && !walk ? null : gravityPoint();
+  follow.frame = g;
+  if (!g) return;
+  const idle = performance.now() - lastTouch > GRAVITY_AFTER && Math.hypot(input.move.x, input.move.y) < 0.05 && !input.hold;
+  follow.frameHold = idle ? 1 : 0.35;
+  if (!idle || player.speed > 0.3 || faceFor > 0) return;
+  // swing round behind the wanderer, on the line to the animation
+  const want = Math.atan2(-(g.x - player.pos.x), -(g.z - player.pos.z));
+  const d = Math.atan2(Math.sin(want - follow.yaw), Math.cos(want - follow.yaw));
+  follow.yaw += d * Math.min(1, dt * 0.7);
+  follow.pitch += (0.12 - follow.pitch) * Math.min(1, dt * 0.6);
 }
 
 /* The lessons' seats and the narration's progress (the owner: nobody knew a stone seat starts a
@@ -2896,6 +2954,7 @@ function update(dt: number): void {
   journeyFrame(dt);
   busyFrame();
   calmFrame();
+  gravityFrame(realDt);
   contemplationFrame(realDt);
   lessonUxFrame(realDt);
   walkFrame(realDt);
