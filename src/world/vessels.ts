@@ -375,6 +375,9 @@ export class Vessels {
     }
     for (const g of this.groves) {
       for (const f of g.fruits) {
+        // a fruit is a small thing: past a few hundred metres it isn't drawn (the tree still is)
+        f.mesh.visible = f.glow.visible = Math.hypot(player.x - f.base.x, player.z - f.base.z) < 320;
+        if (!f.mesh.visible) continue;
         const sway = reduced ? 0 : Math.sin(t * 0.8 + f.phase) * 0.08;
         f.mesh.position.set(f.base.x + sway, f.base.y + Math.abs(sway) * 0.3, f.base.z);
         f.glow.position.copy(f.mesh.position);

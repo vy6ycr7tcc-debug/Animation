@@ -577,25 +577,34 @@ export class Depths {
   private ray = new THREE.Raycaster();
   private lastReflection = -1;
   private uT = uniform(0);
+  /** Each ruin's merged stone, shown only within `RUIN_SEEN` of the wanderer. */
+  private ruinParts: { x: number; z: number; group: THREE.Group }[] = [];
 
   constructor(items: ArchiveItem[], beings: Being[]) {
-    const s = new Stones(this.uT), mg = new Merge();
+    const s = new Stones(this.uT);
     const lights: number[] = [];
-    for (const r of RUIN_SITES) buildRuin(s, mg, r, lights);
-    s.done();
-    this.group.add(...Object.values(s.meshes));
     const mats: Record<Mat, THREE.Material> = {
       stone: ruinStone("sandstone_cracks", "bands", this.uT),
       terracotta: ruinStone("red_sandstone_pavement", "none", this.uT, false, [1.2, 0.82, 0.62]),
       pearl: ruinStone("sandstone_blocks_08", "none", this.uT),
     };
-    for (const k of Object.keys(mats) as Mat[]) {
-      if (!mg.parts[k].length) continue;
-      const mesh = new THREE.Mesh(mergeGeometries(mg.parts[k]), mats[k]);
-      mesh.frustumCulled = false;
-      mesh.receiveShadow = true;
-      this.group.add(mesh);
+    // each ruin's own pieces merged apart from the others, so only the ruins near you are drawn
+    // (merged together, all nine were drawn whenever you were in the water)
+    for (const r of RUIN_SITES) {
+      const mg = new Merge();
+      buildRuin(s, mg, r, lights);
+      const g = new THREE.Group();
+      for (const k of Object.keys(mats) as Mat[]) {
+        if (!mg.parts[k].length) continue;
+        const mesh = new THREE.Mesh(mergeGeometries(mg.parts[k]), mats[k]);
+        mesh.receiveShadow = true;
+        g.add(mesh);
+      }
+      this.ruinParts.push({ x: r.x, z: r.z, group: g });
+      this.group.add(g);
     }
+    s.done();
+    this.group.add(...Object.values(s.meshes));
     // soft lights settled on the stones
     if (lights.length) {
       const pts = worldPoints(new Float32Array(lights), { color: new THREE.Color(0.75, 0.95, 1.0), size: 1.1, opacity: 0.55 });
@@ -804,6 +813,8 @@ export class Depths {
   /** Each frame. Returns the ring of stillness the wanderer rests in, if any. */
   update(t: number, player: THREE.Vector3, inWater: boolean, near: boolean): Ring | null {
     this.group.visible = !this.inside && (inWater || near);
+    // the water swallows everything past a few tens of metres: farther ruins aren't drawn
+    for (const r of this.ruinParts) r.group.visible = Math.hypot(player.x - r.x, player.z - r.z) < 140;
     this.uT.value = t;
     for (const m of this.mouths) (m.door as unknown as { timeU: { value: number } }).timeU.value = t;
     let inRing: Ring | null = null;

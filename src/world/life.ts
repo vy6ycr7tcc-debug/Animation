@@ -23,7 +23,7 @@ export interface LifeFrame {
 const SCALE = [440, 493.88, 587.33, 659.25, 739.99, 880, 987.77, 1174.66];
 
 const {
-  abs, attribute, cameraPosition, clamp, cos, Discard, dot, exp, float, fract, Fn, If, length, Loop, max, min, mix, pointUV, positionGeometry, positionLocal,
+  attribute, cameraPosition, clamp, cos, Discard, dot, exp, float, fract, Fn, If, length, Loop, max, min, mix, pointUV, positionGeometry, positionLocal,
   pow, screenCoordinate, sin, smoothstep, step, uniform, uniformArray, varying, vec2, vec3, vec4,
 } = T;
 const tuv = T.uv;
@@ -190,8 +190,12 @@ export class LightGrass {
       if (h < WATER_Y + 0.25) continue;
       // no grass on the homes' stone floors (stoneworks.ts: paving to 4.7 m)
       if (LANDMARK_SITES.some(([lx, lz]) => Math.hypot(x - lx, z - lz) < 5)) continue;
+      // only in the glades (the owner: special spots, not everywhere); elsewhere the ground's
+      // own scanned texture is the land
+      const glade = gladeAt(x, z);
+      if (glade <= 0) continue;
       const m = groundKind(x, z, h).meadow;
-      if (R() > m * 1.6 + 0.08) continue;
+      if (R() > (m * 1.6 + 0.3) * Math.min(1, glade * 2)) continue;
       // drifts of tall grass, waist to head high, that part around you as you wade through
       const drift = Math.min(1, Math.max(0, (fbm(x * 0.011 + 57, z * 0.011 - 21) - 0.52) / 0.12));
       const tall = (0.3 + R() * 0.3) * (1 + drift * drift * 0.6); // no more head-high drifts: a light, low meadow
@@ -514,126 +518,3 @@ export class Lanterns {
   }
 }
 
-/* ---------------------------------------------------------------- butterflies of light */
-export class Butterflies {
-  points: THREE.Sprite;
-  private n = 36;
-  private pos: Float32Array;
-  private vel: Float32Array;
-  private follow: Float32Array;
-  private cloud: SpriteCloud;
-  private U = { uDpr: uniform(1), uT: uniform(0) };
-  private tmp = new THREE.Vector3();
-  private target = new THREE.Vector3();
-  constructor(private flowers: Flowers) {
-    const mat = softPoints();
-    this.cloud = spriteCloud(this.n, { position: 3, aK: 1 }, mat);
-    this.pos = this.cloud.attrs.position.array as Float32Array;
-    this.vel = new Float32Array(this.n * 3);
-    this.follow = new Float32Array(this.n);
-    const k = this.cloud.attrs.aK.array as Float32Array;
-    for (let i = 0; i < this.n; i++) k[i] = Math.random();
-    const { position, aK } = this.cloud.nodes, U = this.U;
-    const vF = abs(sin(U.uT.mul(aK.mul(4).add(9)).add(aK.mul(30)))); // wing beats
-    mat.sizeNode = clamp(vF.mul(8).add(10).div(max(viewDepth(position), 0.5)).mul(3), float(1.5).div(U.uDpr), 24);
-    mat.colorNode = Fn(() => {
-      // two wings: an ellipse pinched at the middle, opening and closing
-      const q0 = pointUV.sub(0.5);
-      const q = vec2(q0.x.div(max(0.15, vF)), q0.y);
-      const r = length(q.mul(vec2(1, 1.6)));
-      const wing = smoothstep(0.5, 0.1, r).mul(smoothstep(0, 0.06, abs(q.x.mul(vF))));
-      const c = mix(vec3(0.7, 0.9, 1.0), vec3(1.0, 0.8, 0.95), step(0.5, aK));
-      return vec4(c.mul(wing.mul(0.9).add(smoothstep(0.15, 0, length(q0)).mul(0.8))), 1);
-    })();
-    this.points = this.cloud.sprite;
-  }
-  private started = false;
-  update(f: LifeFrame): void {
-    this.U.uDpr.value = f.dpr;
-    this.U.uT.value = f.t;
-    const p = this.pos, v = this.vel;
-    if (!this.started) {
-      for (let i = 0; i < this.n; i++) p.set([f.player.x + (Math.random() - 0.5) * 30, f.player.y + 1 + Math.random() * 2, f.player.z + (Math.random() - 0.5) * 30], i * 3);
-      this.started = true;
-    }
-    for (let i = 0; i < this.n; i++) {
-      const j = i * 3;
-      this.tmp.set(p[j], p[j + 1], p[j + 2]);
-      const d = this.tmp.distanceTo(f.player);
-      // Near the wanderer, some decide to follow a while.
-      if (d < 6 && this.follow[i] <= 0 && Math.random() < f.dt * 0.4) this.follow[i] = 20 + Math.random() * 20;
-      this.follow[i] -= f.dt;
-      if (this.follow[i] > 0) {
-        const a = f.t * 0.9 + i;
-        this.target.set(f.player.x + Math.cos(a) * 1.4, f.player.y + 1.3 + Math.sin(f.t * 1.3 + i) * 0.4, f.player.z + Math.sin(a) * 1.4);
-      } else if (d > 40) {
-        // wandered too far: drift back toward flowers near the wanderer
-        this.flowers.near(f.player, this.target);
-        this.target.x += (Math.random() - 0.5) * 20;
-        this.target.z += (Math.random() - 0.5) * 20;
-      } else {
-        this.flowers.near(this.tmp, this.target);
-        this.target.y += Math.sin(f.t + i) * 0.5;
-      }
-      // soft, fluttering steering
-      const ax = (this.target.x - p[j]) * 0.6 + Math.sin(f.t * 3.1 + i * 7) * 1.5;
-      const ay = (this.target.y - p[j + 1]) * 0.8 + Math.sin(f.t * 4.3 + i * 3) * 1.2;
-      const az = (this.target.z - p[j + 2]) * 0.6 + Math.cos(f.t * 2.7 + i * 5) * 1.5;
-      v[j] += (ax - v[j] * 1.2) * f.dt;
-      v[j + 1] += (ay - v[j + 1] * 1.2) * f.dt;
-      v[j + 2] += (az - v[j + 2] * 1.2) * f.dt;
-      p[j] += v[j] * f.dt;
-      p[j + 1] = Math.max(heightAt(p[j], p[j + 2]) + 0.3, p[j + 1] + v[j + 1] * f.dt);
-      p[j + 2] += v[j + 2] * f.dt;
-    }
-    this.cloud.attrs.position.needsUpdate = true;
-  }
-}
-
-/* ---------------------------------------------------------------- gliders overhead */
-export class Gliders {
-  group = new THREE.Group();
-  private items: { mesh: THREE.Mesh; r: number; h: number; speed: number; phase: number }[] = [];
-  private uT = uniform(0);
-  constructor() {
-    // A broad, soft diamond with long trailing tips: a manta of light.
-    const s = new THREE.Shape();
-    s.moveTo(0, 1.6);
-    s.bezierCurveTo(1.2, 1.2, 3.4, 0.2, 4.2, -0.6);
-    s.bezierCurveTo(2.6, -0.4, 1.0, -0.9, 0.25, -1.5);
-    s.lineTo(0, -4.5);
-    s.lineTo(-0.25, -1.5);
-    s.bezierCurveTo(-1.0, -0.9, -2.6, -0.4, -4.2, -0.6);
-    s.bezierCurveTo(-3.4, 0.2, -1.2, 1.2, 0, 1.6);
-    const geo = new THREE.ShapeGeometry(s, 24);
-    geo.rotateX(-Math.PI / 2);
-    const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: false });
-    {
-      const uT = this.uT, P = positionLocal;
-      const lift = sin(uT.mul(1.1).add(abs(P.x).mul(0.5))).mul(abs(P.x)).mul(0.35) // slow wing strokes
-        .add(sin(uT.mul(1.1).sub(P.z.mul(0.6))).mul(0.25).mul(step(P.z, -1.4))); // the tail follows
-      mat.positionNode = P.add(vec3(0, lift, 0));
-      const vP = varying(positionGeometry);
-      const edge = smoothstep(3.6, 4.2, abs(vP.x)).add(smoothstep(-3.5, -4.4, vP.z).mul(0.5));
-      const body = exp(vP.x.mul(vP.x).mul(-0.6)).mul(0.5);
-      const lines = smoothstep(0.92, 1, sin(vP.x.mul(6).add(vP.z.mul(2))).mul(0.5).add(0.5)).mul(0.35);
-      mat.colorNode = vec4(vec3(0.7, 0.85, 1.0).mul(body.mul(0.18).add(0.02).add(lines.mul(0.12)).add(edge.mul(0.9))), 1);
-    }
-    for (let i = 0; i < 3; i++) {
-      const m = new THREE.Mesh(geo, mat);
-      m.frustumCulled = false;
-      m.scale.setScalar(1.6 + i * 0.5);
-      this.group.add(m);
-      this.items.push({ mesh: m, r: 60 + i * 45, h: 34 + i * 12, speed: 0.05 - i * 0.008, phase: i * 2.1 });
-    }
-  }
-  update(f: LifeFrame): void {
-    this.uT.value = f.reduced ? f.t * 0.4 : f.t;
-    for (const it of this.items) {
-      const a = f.t * it.speed + it.phase;
-      const x = f.player.x * 0.6 + Math.cos(a) * it.r, z = f.player.z * 0.6 + Math.sin(a) * it.r;
-      it.mesh.position.set(x, it.h + Math.sin(f.t * 0.2 + it.phase) * 4, z);
-      it.mesh.rotation.y = Math.PI - a; // nose along the circle
-    }
-  }
-}

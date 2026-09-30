@@ -1,6 +1,6 @@
 /* The Inward Journey — an open world of night and light.
    Wander anywhere. The land answers as you pass: grass brightens along your path, flowers
-   bloom and chime, lanterns kindle, butterflies follow, gliders drift overhead, and the old
+   bloom and chime, lanterns kindle, and the old
    forms (beam, veil, garden, throne, arch, rings) stand as landmarks to wander toward.
    Narration plays in the background the whole time, one recording after another.
    States: intro (title over the night water) → play → rest (after Leave) → play … */
@@ -24,7 +24,7 @@ import { Wanderer } from "./player/wanderer";
 import { Clouds } from "./world/atmosphere";
 import { buildMandala, etchedStone, etchUniforms, vibeUniforms } from "./world/etching";
 import { Landmarks } from "./world/landmarks";
-import { Butterflies, Flowers, Gliders, Lanterns, LightGrass, Sparks, type LifeFrame } from "./world/life";
+import { Flowers, Lanterns, LightGrass, Sparks, type LifeFrame } from "./world/life";
 import { Motes } from "./world/motes";
 import { Creation, creationUniforms, Spirits } from "./world/creation";
 import { Beings } from "./world/beings";
@@ -259,8 +259,6 @@ const flowers = new Flowers(sparks, audio);
 const lanterns = new Lanterns(sparks);
 const blooms = new RisingFlowers();
 const wilds = new Wilds();
-const butterflies = new Butterflies(flowers);
-const gliders = new Gliders();
 const landmarks = new Landmarks(scene, audio, wanderer);
 // The archetypes themselves, each at home in its landmark.
 const beings = new Beings(landmarks.list, sparks);
@@ -280,7 +278,7 @@ const presences = new Presences();
 scene.add(presences.group);
 // the entities' figures are left out: one walked beside the wanderer through every narration
 // (Samuel: "remove that annoying chasing character")
-scene.add(sparks.points, grass.mesh, flowers.mesh, blooms.mesh, wilds.group, lanterns.points, butterflies.points, gliders.group);
+scene.add(sparks.points, grass.mesh, flowers.mesh, blooms.mesh, wilds.group, lanterns.points);
 // The whole creation: trees and their roots, rocks, crystals, spirits, and the light through them.
 creationUniforms.uFogC.value.copy(FOG_COLOR);
 creationUniforms.uFogD.value = FOG.density * 0.9;
@@ -992,7 +990,7 @@ function genesisFrame(dt: number): void {
   post.starVis.value *= k; // the moon's rays
   follow.lift = genesis.active ? g.lift : 0;
   const lit = !g.lightsHidden;
-  vessels.group.visible = lanterns.points.visible = butterflies.points.visible = gliders.group.visible = lit;
+  vessels.group.visible = lanterns.points.visible = lit;
   if (!genesis.active) audio.duck(false);
 }
 player.onLand = () => {
@@ -2372,9 +2370,7 @@ function update(dt: number): void {
     blooms.update(life);
     wilds.update(life);
     lanterns.update(life);
-    butterflies.update(life);
   }
-  if (world) gliders.update(life);
   if (world) forest.update(player.pos);
   if (world) creation.update(life, (innerHeight * dpr) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
   if (world) spirits.update(life, camera);
