@@ -131,6 +131,18 @@ export function runShot(ctx: ShotCtx): void {
     base = [px, heightAt(px, pz), pz];
     view = { eye: [0, 25, 0], look: [pk.x - px, pk.h * 0.45, pk.z - pz] };
     ctx.player.pos.set(px, heightAt(px, pz), pz);
+  } else if (/^peakc-\d$/.test(id) || /^peaka-\d$/.test(id)) {
+    // a massif close by (flying at its shoulder, peakc) or from above (peaka)
+    const pk = PEAKS[Number(id.slice(6))] ?? PEAKS[0];
+    const d = Math.hypot(pk.x, pk.z), ux = -pk.x / d, uz = -pk.z / d;
+    const above = id.startsWith("peaka");
+    const off = above ? pk.r * 0.9 : pk.r * 0.75;
+    const px = pk.x + ux * off, pz = pk.z + uz * off;
+    const gy = heightAt(px, pz);
+    const top = heightAt(pk.x, pk.z);
+    base = [px, Math.max(gy, 0) + (above ? top - gy + 90 : 40), pz];
+    view = above ? { eye: [0, 0, 0], look: [pk.x - px, top - base[1], pk.z - pz] } : { eye: [0, 0, 0], look: [pk.x - px, top * 0.7 - base[1], pk.z - pz] };
+    ctx.player.pos.set(base[0], base[1], base[2]);
   } else if (/^ruin-\d$/.test(id)) {
     // under the water, standing on the floor before a ruin
     const r = RUIN_SITES[Number(id.slice(5))] ?? RUIN_SITES[0];
