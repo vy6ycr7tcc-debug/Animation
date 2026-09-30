@@ -314,6 +314,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
   const R = 11;
   const HOME = { x: 0, z: -8.5, heading: 0 };
   let callFloor: ((x: number, z: number) => number) | null = null;
+  let stonesFloor: ((x: number, z: number) => number) | null = null;
   return [
     {
       id: "lobby",
@@ -370,11 +371,25 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
       title: "The radiance",
       make: async (scene, nar, wh) => (await import("./radiance")).createRadianceScene(scene, nar, wh) as Room,
       start: { x: 0, z: 9, heading: Math.PI },
-      exits: [{ x: 0, z: -16.6, r: 1.8, to: 0, at: HOME }], // the practices are still to come: home for now
+      exits: [{ x: 0, z: -16.6, r: 1.8, to: 4 }], // on to the ancient practices
       confine: (p) => {
         const d = Math.hypot(p.x, p.z), lim = Math.abs(p.x) < 1.6 && p.z < 0 ? 17 : 15.6;
         if (d > lim) (p.x *= lim / d), (p.z *= lim / d);
       },
+      ownAir: true,
+    },
+    {
+      id: "stones",
+      title: "Stones and crystals",
+      make: async (scene, nar, wh) => {
+        const mod = await import("./stones");
+        stonesFloor = mod.stonesFloor;
+        return mod.createStonesScene(scene, nar, wh) as Room;
+      },
+      floor: (x, z) => (stonesFloor ? stonesFloor(x, z) : 0),
+      start: { x: 0, z: 0, heading: Math.PI },
+      exits: [{ x: 8, z: -34.3, r: 1.8, to: 0, at: HOME }], // the next chamber is still to come: home for now
+      confine: box(-9, 14, -35, 6),
       ownAir: true,
     },
   ];
