@@ -16,7 +16,7 @@ import * as THREE from "three/webgpu";
 import { T, gpuUniforms } from "../../gpu/tsl";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
 import { colliders, DENSITY_HALL, platformRise } from "../../world/terrain";
-import { landStone, stoneBlock } from "../../world/stoneworks";
+import { contactShade, doorSpill, landStone, stoneBlock } from "../../world/stoneworks";
 import type { SceneModule } from "../lessonKit";
 import { box, type Hall, type Room, type Stage } from "../journey";
 import { inward, keepAlpha, lamps, merge, ringWall, roughBlock } from "./roomKit";
@@ -107,9 +107,18 @@ export class DensityMonument implements Hall {
       }
       ribs.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 20, 0.32, 6, false));
     }
-    const hallMesh = new THREE.Mesh(merge([...hall, cornice, band, dome, lanternCap, ...posts, jambL, jambR, lintel, ...ribs]), landStone("sandstone_blocks_08", base + TOP, 2.6, [1, 1, 1], {}));
+    const hallMesh = new THREE.Mesh(merge([...hall, cornice, band, dome, lanternCap, ...posts, jambL, jambR, lintel, ...ribs]), landStone("sandstone_blocks_08", base + TOP, 2.6, [1, 1, 1], { trim: { base: base + TOP, top: base + TOP + HALL_H } }));
     hallMesh.castShadow = hallMesh.receiveShadow = true;
     this.world.add(hallMesh);
+    // grounded: shadow where the drum meets the platform and the platform the ground; the door's
+    // warm light spilling out over the steps
+    const shadeHall = contactShade({ r: HALL_R + 0.7 }, 2.4, 0.5);
+    shadeHall.position.y = TOP + 0.02;
+    const shadeBase = contactShade({ r: 22 }, 3.2, 0.45);
+    shadeBase.position.y = 0.03;
+    const spill = doorSpill(4.4, 9);
+    spill.position.set(0, TOP + 0.03, HALL_R + 0.9);
+    this.world.add(shadeHall, shadeBase, spill);
     // warm light within the door, and the lantern's glow
     {
       const g = new THREE.PlaneGeometry(4.6, 8.4);
@@ -200,7 +209,7 @@ function lobby(scene: THREE.Scene, seen: () => Set<string>): Room {
   const dome = inward(new THREE.SphereGeometry(R, 72, 20, 0, Math.PI * 2, 0.2, Math.PI / 2 - 0.2));
   dome.translate(0, H, 0);
   walls.push(dome);
-  const wallM = landStone("sandstone_blocks_08", 0, 2.6, [0.92, 0.88, 0.84], {});
+  const wallM = landStone("sandstone_blocks_08", 0, 2.6, [0.92, 0.88, 0.84], { trim: { base: 0, top: H } });
   const wallMesh = add(new THREE.Mesh(merge(walls), wallM));
   wallMesh.receiveShadow = true;
   // beyond the dome's eye, the night: a small field of stars

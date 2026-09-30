@@ -13,10 +13,11 @@
    under it a cluster of quartz on a plinth; seven small lights along the walls, one for each room,
    dim until walked. Ahead a door into the night (the call); behind, the way you came in. */
 import * as THREE from "three/webgpu";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { T, gpuUniforms, vnoise } from "../../gpu/tsl";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
 import { colliders, ADEPT_HALL } from "../../world/terrain";
-import { landStone, stoneBlock } from "../../world/stoneworks";
+import { contactShade, doorSpill, landStone, stoneBlock } from "../../world/stoneworks";
 import { columnGeometry } from "../../world/temple";
 import { crystalMaterial, prismGeometry } from "../../world/creation";
 import type { SceneModule } from "../lessonKit";
@@ -90,9 +91,43 @@ export class AdeptMonument implements Hall {
       corners.push(new THREE.Vector3(x, 5.1, z));
       colliders.push({ ...this.toWorld(x, z), r: 2.9, top: base + 4.2 });
     }
-    const mesh = new THREE.Mesh(merge(stone), landStone("sandstone_blocks_05", base, 3.0, [0.96, 0.93, 0.88], {}));
+    const mesh = new THREE.Mesh(merge(stone), landStone("sandstone_blocks_05", base, 3.0, [0.96, 0.93, 0.88], { trim: { base, every: TIER } }));
     mesh.castShadow = mesh.receiveShadow = true;
     this.world.add(mesh);
+    // grounded: shadow round the tower's foot and each terrace's, the door's warm light on the ground
+    for (let k = 0; k < 3; k++) {
+      const sh = contactShade({ w: BASE - k * 10, d: BASE - k * 10 }, k === 0 ? 3.4 : 1.8, k === 0 ? 0.5 : 0.4);
+      sh.position.y = k * TIER + (k === 0 ? 0.03 : -0.08);
+      this.world.add(sh);
+    }
+    const spill = doorSpill(4.4, 10);
+    spill.position.set(0, 0.04, BASE / 2 + 0.4);
+    this.world.add(spill);
+    // lit slits in each terrace's faces: a place lived in, warm light deep in the stone
+    {
+      const slits: THREE.BufferGeometry[] = [];
+      for (let k = 0; k < 3; k++) {
+        const w = BASE - k * 10, n = 4 - k, y = k * TIER + TIER * 0.5;
+        for (let f = 0; f < 4; f++) {
+          const a = (f * Math.PI) / 2;
+          for (let i = 0; i < n; i++) {
+            const x = (i - (n - 1) / 2) * (w / (n + 0.6));
+            if (f === 0 && k === 0 && Math.abs(x) < 5) continue; // the door
+            if (f === 0 && k > 0 && Math.abs(x) < 3.4) continue; // the stair
+            const g = new THREE.PlaneGeometry(0.5, 2.1);
+            g.translate(x, y, (w / 2) * 0.985 + 0.06);
+            g.applyMatrix4(new THREE.Matrix4().makeRotationY(a));
+            slits.push(g);
+          }
+        }
+      }
+      const g = mergeGeometries(slits)!; // keeps the uvs (merge() drops them)
+      const m = new THREE.MeshBasicNodeMaterial({ fog: true });
+      const u = T.uv();
+      const glow = smoothstep(0.5, 0.1, T.abs(u.x.sub(0.5))).mul(smoothstep(0, 0.4, u.y)).mul(0.5).add(0.04);
+      m.colorNode = vec4(vec3(1, 0.62, 0.3).mul(glow), 1);
+      this.world.add(new THREE.Mesh(g, m));
+    }
     // the crystal at the crown
     const q = quartz(2.4, 13, 0.15, 0.25);
     q.position.set(0, 3 * TIER + 1, 0);
@@ -204,7 +239,7 @@ function lobby(scene: THREE.Scene, seen: () => Set<string>): Room {
   const pl = new THREE.CylinderGeometry(1.5, 1.8, 0.9, 6);
   pl.translate(0, 0.45, 0);
   walls.push(pl);
-  const wallM = landStone("sandstone_blocks_08", 0, 2.6, [0.92, 0.88, 0.82], {});
+  const wallM = landStone("sandstone_blocks_08", 0, 2.6, [0.92, 0.88, 0.82], { trim: { base: 0, top: H } });
   const wallMesh = add(new THREE.Mesh(merge(walls), wallM));
   wallMesh.castShadow = wallMesh.receiveShadow = true;
   // papyrus columns, two rows of three each side of the way through
