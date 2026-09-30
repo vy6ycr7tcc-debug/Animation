@@ -14,7 +14,7 @@ import * as THREE from "three/webgpu";
 import { LessonScene } from "../lessonKit";
 import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
 import { T, hash2, vnoise } from "../../gpu/tsl";
-import { landStone } from "../../world/stoneworks";
+import { landStone, stoneBlock } from "../../world/stoneworks";
 import { GlassFolk } from "../glassFolk";
 import { quartz } from "./monument";
 import { applyAir, boulderGeometry, damp, keepAlpha, merge, pointCloud, roomClock, scannedGround, seeded, skyDome, touch, type Air, roomPos } from "../densities/roomKit";
@@ -134,7 +134,7 @@ export function createStonesScene(scene: THREE.Scene, narration: LessonCtx["narr
     {
       const pl = new THREE.CylinderGeometry(1.5, 1.8, 1.2, 8);
       pl.translate(PLINTH.x, stonesFloor(PLINTH.x, PLINTH.z) + 0.6, PLINTH.z);
-      const pm = landStone("sandstone_blocks_05", 0, 1.6);
+      const pm = landStone("sandstone_blocks_05", 0, 1.6, [1, 1, 1], {});
       g.add(new THREE.Mesh(pl, pm));
       ours.push(pl, pm);
       const cry = quartz(0.7, 4.2, 0.1, 0.3);
@@ -226,7 +226,7 @@ export function createStonesScene(scene: THREE.Scene, narration: LessonCtx["narr
         parts.push(b);
         lights.push(new THREE.Vector3(s.x, y + 1.25, s.z));
       });
-      const pm = landStone("sandstone_blocks_05", 0, 1.2);
+      const pm = landStone("sandstone_blocks_05", 0, 1.2, [1, 1, 1], {});
       const pmesh = new THREE.Mesh(merge(parts), pm);
       g.add(pmesh);
       ours.push(pm, pmesh.geometry);
@@ -277,11 +277,11 @@ export function createStonesScene(scene: THREE.Scene, narration: LessonCtx["narr
       const parts: THREE.BufferGeometry[] = [];
       const y = stonesFloor(STONES_DOOR.x, STONES_DOOR.z);
       for (const dx of [-2.1, 2.1]) {
-        const b = new THREE.BoxGeometry(1.1, 5.6, 1.1);
+        const b = stoneBlock(1.1, 5.6, 1.1);
         b.translate(STONES_DOOR.x + dx, y + 2.8, STONES_DOOR.z);
         parts.push(b);
       }
-      const l = new THREE.BoxGeometry(5.6, 1, 1.3);
+      const l = stoneBlock(5.6, 1, 1.3);
       l.translate(STONES_DOOR.x, y + 6.1, STONES_DOOR.z);
       parts.push(l);
       const m = landStone("sandstone_cracks", 0, 1.8, [0.7, 0.68, 0.7]);

@@ -16,7 +16,7 @@ import * as THREE from "three/webgpu";
 import { T, gpuUniforms } from "../../gpu/tsl";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
 import { colliders, DENSITY_HALL, platformRise } from "../../world/terrain";
-import { landStone } from "../../world/stoneworks";
+import { landStone, stoneBlock } from "../../world/stoneworks";
 import type { SceneModule } from "../lessonKit";
 import { box, type Hall, type Room, type Stage } from "../journey";
 import { inward, keepAlpha, lamps, merge, ringWall, roughBlock } from "./roomKit";
@@ -49,7 +49,7 @@ export class DensityMonument implements Hall {
       g.translate(0, 0.225 + i * 0.45 - (i === 0 ? 0.3 : 0), 0);
       steps.push(g);
     });
-    const plinth = new THREE.Mesh(merge(steps), landStone("sandstone_blocks_05", base, 3.2, [0.95, 0.92, 0.88]));
+    const plinth = new THREE.Mesh(merge(steps), landStone("sandstone_blocks_05", base, 3.2, [0.95, 0.92, 0.88], {}));
     plinth.receiveShadow = true;
     this.world.add(plinth);
     // eight great stones, rising round the ring as an octave rises; none on the door's axis
@@ -81,22 +81,22 @@ export class DensityMonument implements Hall {
     const posts: THREE.BufferGeometry[] = [];
     for (let k = 0; k < 8; k++) {
       const a = (k / 8) * Math.PI * 2;
-      const g = new THREE.BoxGeometry(0.35, 2.2, 0.35);
+      const g = stoneBlock(0.35, 2.2, 0.35);
       g.translate(Math.sin(a) * 1.55, TOP + HALL_H + 0.5 + HALL_R + 0.4 + 0.9, Math.cos(a) * 1.55);
       posts.push(g);
     }
     // the door: two great jambs and a lintel standing proud of the wall
-    const jambL = new THREE.BoxGeometry(1.4, 8.4, 2.2);
+    const jambL = stoneBlock(1.4, 8.4, 2.2);
     jambL.translate(-3.0, TOP + 4.2, HALL_R + 0.2);
     const jambR = jambL.clone();
     jambR.translate(6.0, 0, 0);
-    const lintel = new THREE.BoxGeometry(7.8, 1.5, 2.5);
+    const lintel = stoneBlock(7.8, 1.5, 2.5);
     lintel.translate(0, TOP + 8.4 + 0.75, HALL_R + 0.25);
     // pilasters down the drum and ribs up the dome, eight of each, so its form reads at night
     const ribs: THREE.BufferGeometry[] = [];
     for (let k = 0; k < 8; k++) {
       const th = Math.PI / 8 + (k * Math.PI) / 4;
-      const pil = new THREE.BoxGeometry(1.0, HALL_H, 0.5);
+      const pil = stoneBlock(1.0, HALL_H, 0.5);
       pil.translate(0, TOP + HALL_H / 2, HALL_R + 0.45);
       pil.applyMatrix4(new THREE.Matrix4().makeRotationY(th));
       ribs.push(pil);
@@ -107,7 +107,7 @@ export class DensityMonument implements Hall {
       }
       ribs.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 20, 0.32, 6, false));
     }
-    const hallMesh = new THREE.Mesh(merge([...hall, cornice, band, dome, lanternCap, ...posts, jambL, jambR, lintel, ...ribs]), landStone("sandstone_blocks_08", base + TOP, 2.6));
+    const hallMesh = new THREE.Mesh(merge([...hall, cornice, band, dome, lanternCap, ...posts, jambL, jambR, lintel, ...ribs]), landStone("sandstone_blocks_08", base + TOP, 2.6, [1, 1, 1], {}));
     hallMesh.castShadow = hallMesh.receiveShadow = true;
     this.world.add(hallMesh);
     // warm light within the door, and the lantern's glow
@@ -177,20 +177,20 @@ function lobby(scene: THREE.Scene, seen: () => Set<string>): Room {
   // the floor: a round of paving
   const floorG = new THREE.CircleGeometry(R + 0.8, 72);
   floorG.rotateX(-Math.PI / 2);
-  const floorM = landStone("red_sandstone_pavement", 0, 3.2, [0.95, 0.9, 0.86]);
+  const floorM = landStone("red_sandstone_pavement", 0, 3.2, [0.95, 0.9, 0.86], { flag: 1.2 });
   add(new THREE.Mesh(floorG, floorM)).receiveShadow = true;
   // the walls (the two doors left open), their doorframes, a band, and the dome open to the stars
   const walls = ringWall(R, H, 1.2, 16, [0, 8]);
   for (const z of [R, -R]) {
     for (const x of [-2.9, 2.9]) {
-      const j = new THREE.BoxGeometry(1.3, 7.4, 1.9);
+      const j = stoneBlock(1.3, 7.4, 1.9);
       j.translate(x, 3.7, z * 0.985);
       walls.push(j);
     }
-    const l = new THREE.BoxGeometry(7.2, 1.3, 2.1);
+    const l = stoneBlock(7.2, 1.3, 2.1);
     l.translate(0, 8.05, z * 0.985);
     walls.push(l);
-    const over = new THREE.BoxGeometry(5.2, H - 8.7, 1.2);
+    const over = stoneBlock(5.2, H - 8.7, 1.2);
     over.translate(0, 8.7 + (H - 8.7) / 2, z);
     walls.push(over);
   }
@@ -200,7 +200,7 @@ function lobby(scene: THREE.Scene, seen: () => Set<string>): Room {
   const dome = inward(new THREE.SphereGeometry(R, 72, 20, 0, Math.PI * 2, 0.2, Math.PI / 2 - 0.2));
   dome.translate(0, H, 0);
   walls.push(dome);
-  const wallM = landStone("sandstone_blocks_08", 0, 2.6, [0.92, 0.88, 0.84]);
+  const wallM = landStone("sandstone_blocks_08", 0, 2.6, [0.92, 0.88, 0.84], {});
   const wallMesh = add(new THREE.Mesh(merge(walls), wallM));
   wallMesh.receiveShadow = true;
   // beyond the dome's eye, the night: a small field of stars

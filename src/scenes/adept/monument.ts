@@ -16,7 +16,7 @@ import * as THREE from "three/webgpu";
 import { T, gpuUniforms, vnoise } from "../../gpu/tsl";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
 import { colliders, ADEPT_HALL } from "../../world/terrain";
-import { landStone } from "../../world/stoneworks";
+import { landStone, stoneBlock } from "../../world/stoneworks";
 import { columnGeometry } from "../../world/temple";
 import { crystalMaterial, prismGeometry } from "../../world/creation";
 import type { SceneModule } from "../lessonKit";
@@ -63,7 +63,7 @@ export class AdeptMonument implements Hall {
       const t = new THREE.CylinderGeometry((w / 2) * Math.SQRT2 * 0.97, (w / 2) * Math.SQRT2, TIER, 4, 1);
       t.rotateY(Math.PI / 4);
       add(t, 0, k * TIER + TIER / 2 - 0.4, 0);
-      add(new THREE.BoxGeometry(w * 0.99 + 0.6, 0.6, w * 0.99 + 0.6), 0, (k + 1) * TIER - 0.4, 0);
+      add(stoneBlock(w * 0.99 + 0.6, 0.6, w * 0.99 + 0.6), 0, (k + 1) * TIER - 0.4, 0);
     }
     // the stair up the middle of the face, from the first terrace to the crown
     for (let k = 1; k < 3; k++) {
@@ -71,26 +71,26 @@ export class AdeptMonument implements Hall {
       const n = 13;
       for (let i = 0; i < n; i++) {
         const f = (i + 1) / n;
-        add(new THREE.BoxGeometry(4.6, TIER * f, (z0 - z1) / n + 0.02), 0, (k - 1) * TIER + (TIER * f) / 2 + 0.2, z0 - ((z0 - z1) * (i + 0.5)) / n);
+        add(stoneBlock(4.6, TIER * f, (z0 - z1) / n + 0.02), 0, (k - 1) * TIER + (TIER * f) / 2 + 0.2, z0 - ((z0 - z1) * (i + 0.5)) / n);
       }
     }
     // the door in the foot: jambs and a lintel standing proud, a deep reveal
-    add(new THREE.BoxGeometry(1.5, 7.2, 2.2), -3.0, 3.6, BASE / 2 + 0.6);
-    add(new THREE.BoxGeometry(1.5, 7.2, 2.2), 3.0, 3.6, BASE / 2 + 0.6);
-    add(new THREE.BoxGeometry(8.2, 1.5, 2.5), 0, 7.95, BASE / 2 + 0.7);
+    add(stoneBlock(1.5, 7.2, 2.2), -3.0, 3.6, BASE / 2 + 0.6);
+    add(stoneBlock(1.5, 7.2, 2.2), 3.0, 3.6, BASE / 2 + 0.6);
+    add(stoneBlock(8.2, 1.5, 2.5), 0, 7.95, BASE / 2 + 0.7);
     // the crown's plinth
     add(new THREE.CylinderGeometry(3.6, 4.2, 1.4, 6), 0, 3 * TIER + 0.3, 0);
     // four corner shrines: a stepped plinth each
     const corners: THREE.Vector3[] = [];
     for (const [sx, sz] of [[-1, 1], [1, 1], [1, -1], [-1, -1]]) {
       const x = sx * (BASE / 2 + 7), z = sz * (BASE / 2 + 7);
-      add(new THREE.BoxGeometry(5, 1.2, 5), x, 0.2, z);
-      add(new THREE.BoxGeometry(3.4, 1.2, 3.4), x, 1.4, z);
-      add(new THREE.BoxGeometry(1.6, 2.2, 1.6), x, 3.1, z);
+      add(stoneBlock(5, 1.2, 5), x, 0.2, z);
+      add(stoneBlock(3.4, 1.2, 3.4), x, 1.4, z);
+      add(stoneBlock(1.6, 2.2, 1.6), x, 3.1, z);
       corners.push(new THREE.Vector3(x, 5.1, z));
       colliders.push({ ...this.toWorld(x, z), r: 2.9, top: base + 4.2 });
     }
-    const mesh = new THREE.Mesh(merge(stone), landStone("sandstone_blocks_05", base, 3.0, [0.96, 0.93, 0.88]));
+    const mesh = new THREE.Mesh(merge(stone), landStone("sandstone_blocks_05", base, 3.0, [0.96, 0.93, 0.88], {}));
     mesh.castShadow = mesh.receiveShadow = true;
     this.world.add(mesh);
     // the crystal at the crown
@@ -165,12 +165,12 @@ function lobby(scene: THREE.Scene, seen: () => Set<string>): Room {
   const add = <M extends THREE.Object3D>(o: M) => (group.add(o), o);
   const floorG = new THREE.PlaneGeometry(W + 2, W + 2);
   floorG.rotateX(-Math.PI / 2);
-  const floorM = landStone("red_sandstone_pavement", 0, 3.0, [0.95, 0.92, 0.88]);
+  const floorM = landStone("red_sandstone_pavement", 0, 3.0, [0.95, 0.92, 0.88], { flag: 1.2 });
   add(new THREE.Mesh(floorG, floorM)).receiveShadow = true;
   // walls, doors left open; a flat roof with a square opening over the crystal
   const walls: THREE.BufferGeometry[] = [];
   const wall = (w: number, x: number, z: number, rot: number) => {
-    const g = new THREE.BoxGeometry(w, H, 1.2);
+    const g = stoneBlock(w, H, 1.2);
     g.translate(0, H / 2, 0);
     g.applyMatrix4(new THREE.Matrix4().makeRotationY(rot).setPosition(x, 0, z));
     walls.push(g);
@@ -179,15 +179,15 @@ function lobby(scene: THREE.Scene, seen: () => Set<string>): Room {
   for (const z of [half, -half]) {
     wall(side, -(gap + side / 2), z, 0);
     wall(side, gap + side / 2, z, 0);
-    const over = new THREE.BoxGeometry(gap * 2, H - 7.2, 1.2);
+    const over = stoneBlock(gap * 2, H - 7.2, 1.2);
     over.translate(0, 7.2 + (H - 7.2) / 2, z);
     walls.push(over);
     for (const x of [-gap - 0.5, gap + 0.5]) {
-      const j = new THREE.BoxGeometry(1.1, 7.2, 1.7);
+      const j = stoneBlock(1.1, 7.2, 1.7);
       j.translate(x, 3.6, z);
       walls.push(j);
     }
-    const l = new THREE.BoxGeometry(gap * 2 + 2.2, 1.1, 1.8);
+    const l = stoneBlock(gap * 2 + 2.2, 1.1, 1.8);
     l.translate(0, 7.75, z);
     walls.push(l);
   }
@@ -196,7 +196,7 @@ function lobby(scene: THREE.Scene, seen: () => Set<string>): Room {
   // the roof: four slabs round a square opening
   const o = 3.2;
   for (const [w, d, x, z] of [[W + 2, half - o + 1, 0, (half + o) / 2], [W + 2, half - o + 1, 0, -(half + o) / 2], [half - o + 1, o * 2, (half + o) / 2, 0], [half - o + 1, o * 2, -(half + o) / 2, 0]] as const) {
-    const g = new THREE.BoxGeometry(w, 0.9, d);
+    const g = stoneBlock(w, 0.9, d);
     g.translate(x, H + 0.45, z);
     walls.push(g);
   }
@@ -204,7 +204,7 @@ function lobby(scene: THREE.Scene, seen: () => Set<string>): Room {
   const pl = new THREE.CylinderGeometry(1.5, 1.8, 0.9, 6);
   pl.translate(0, 0.45, 0);
   walls.push(pl);
-  const wallM = landStone("sandstone_blocks_08", 0, 2.6, [0.92, 0.88, 0.82]);
+  const wallM = landStone("sandstone_blocks_08", 0, 2.6, [0.92, 0.88, 0.82], {});
   const wallMesh = add(new THREE.Mesh(merge(walls), wallM));
   wallMesh.castShadow = wallMesh.receiveShadow = true;
   // papyrus columns, two rows of three each side of the way through

@@ -7,6 +7,7 @@ import * as THREE from "three/webgpu";
 import { T, fogUniforms, gpuUniforms, gradeUniforms, softPoints, spriteCloud, vnoise, type N, type SpriteCloud } from "../../gpu/tsl";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { fbm } from "../../world/terrain";
+import { stoneBlock } from "../../world/stoneworks";
 import { surface, type SurfaceName } from "../../world/textures";
 
 const { vec3, vec4, mix, smoothstep, length, exp, max, positionLocal, normalize, uniform } = T;
@@ -239,7 +240,7 @@ export function ringWall(r: number, h: number, thick: number, n: number, gaps: n
   for (let k = 0; k < n; k++) {
     if (gaps.includes(k)) continue;
     const th = (k / n) * Math.PI * 2;
-    const g = new THREE.BoxGeometry(2 * r * Math.sin(Math.PI / n) + 0.08, h, thick);
+    const g = stoneBlock(2 * r * Math.sin(Math.PI / n) + 0.08, h, thick, k);
     g.translate(0, h / 2, 0);
     g.applyMatrix4(new THREE.Matrix4().makeRotationY(th).setPosition(Math.sin(th) * r, 0, Math.cos(th) * r));
     out.push(g);

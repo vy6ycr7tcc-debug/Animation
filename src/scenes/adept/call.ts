@@ -14,7 +14,7 @@ import { LessonScene } from "../lessonKit";
 import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
 import { T, hash2, vnoise, type N } from "../../gpu/tsl";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
-import { landStone } from "../../world/stoneworks";
+import { landStone, stoneBlock } from "../../world/stoneworks";
 import { applyAir, damp, keepAlpha, merge, pointCloud, roomClock, scannedGround, seeded, skyDome, touch, type Air, roomPos } from "../densities/roomKit";
 
 const { abs, cos, exp, float, floor, fract, length, max, mix, normalize, positionWorld, pow, sin, smoothstep, step, uniform, uv, vec2, vec3, vec4 } = T;
@@ -137,7 +137,7 @@ export function createCallScene(scene: THREE.Scene, narration: LessonCtx["narrat
       const win: number[] = [];
       for (let i = 0; i < 70; i++) {
         const x = (R() - 0.5) * 360, z = TOWN_Z + R() * 90, w = 8 + R() * 16, d = 8 + R() * 14, h = 6 + R() * R() * 34;
-        const b = new THREE.BoxGeometry(w, h, d);
+        const b = stoneBlock(w, h, d);
         b.translate(x, h / 2 - 1.5, z);
         blocks.push(b);
         for (let k = 0, n = Math.round(h / 3); k < n; k++)
@@ -256,16 +256,16 @@ export function createCallScene(scene: THREE.Scene, narration: LessonCtx["narrat
       const parts: THREE.BufferGeometry[] = [];
       const add = (geo: THREE.BufferGeometry, x: number, y: number, z: number) => (geo.translate(x, y, z), parts.push(geo));
       const top = callFloor(0, CALL_DOOR.z);
-      for (let k = 0; k < 3; k++) add(new THREE.BoxGeometry(5.4 - k * 0.3, 0.3, 1.1), 0, callFloor(0, -36.5 - k * 1.1) + 0.15 * 0 + 0.15, -36.5 - k * 1.1);
-      add(new THREE.BoxGeometry(1.4, 7.2, 1.5), -2.7, top + 3.6, CALL_DOOR.z);
-      add(new THREE.BoxGeometry(1.4, 7.2, 1.5), 2.7, top + 3.6, CALL_DOOR.z);
-      add(new THREE.BoxGeometry(7.4, 1.3, 1.9), 0, top + 7.85, CALL_DOOR.z);
+      for (let k = 0; k < 3; k++) add(stoneBlock(5.4 - k * 0.3, 0.3, 1.1), 0, callFloor(0, -36.5 - k * 1.1) + 0.15 * 0 + 0.15, -36.5 - k * 1.1);
+      add(stoneBlock(1.4, 7.2, 1.5), -2.7, top + 3.6, CALL_DOOR.z);
+      add(stoneBlock(1.4, 7.2, 1.5), 2.7, top + 3.6, CALL_DOOR.z);
+      add(stoneBlock(7.4, 1.3, 1.9), 0, top + 7.85, CALL_DOOR.z);
       // the basin, beside the steps
       add(new THREE.CylinderGeometry(0.75, 0.55, 0.9, 24), 3.6, callFloor(3.6, -36) + 0.45, -36);
       // the flame's bowl, the other side
       add(new THREE.CylinderGeometry(0.35, 0.18, 1.1, 16), -3.6, callFloor(-3.6, -36) + 0.55, -36);
       for (const p of parts) for (const k of Object.keys(p.attributes)) if (k !== "position" && k !== "normal") p.deleteAttribute(k);
-      const m = landStone("sandstone_blocks_08", 0, 2.2, [0.86, 0.84, 0.82]);
+      const m = landStone("sandstone_blocks_08", 0, 2.2, [0.86, 0.84, 0.82], {});
       for (const p of parts) {
         const mesh = new THREE.Mesh(p, m);
         mesh.castShadow = mesh.receiveShadow = true;

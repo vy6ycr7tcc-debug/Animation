@@ -17,7 +17,7 @@ import { LessonScene } from "../lessonKit";
 import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
 import { T, vnoise } from "../../gpu/tsl";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
-import { landStone } from "../../world/stoneworks";
+import { landStone, stoneBlock } from "../../world/stoneworks";
 import { GlassFolk, type FolkSpec } from "../glassFolk";
 import { applyAir, damp, keepAlpha, merge, pointCloud, roomClock, touch, type Air, roomPos } from "../densities/roomKit";
 
@@ -66,7 +66,7 @@ export function createDisciplinesScene(scene: THREE.Scene, narration: LessonCtx[
     const g = ctx.group;
     const stone: THREE.BufferGeometry[] = [];
     const box = (w: number, h: number, d: number, x: number, y: number, z: number) => {
-      const b = new THREE.BoxGeometry(w, h, d);
+      const b = stoneBlock(w, h, d);
       b.translate(x, y, z);
       stone.push(b);
     };
@@ -98,7 +98,7 @@ export function createDisciplinesScene(scene: THREE.Scene, narration: LessonCtx[
     box(2.4, 0.12, 1.2, -1.6, 0.95, -6.5);
     for (const [x, z] of [[-2.6, -6], [-0.6, -6], [-2.6, -7], [-0.6, -7]]) box(0.1, 0.9, 0.1, x, 0.45, z);
     box(0.9, 0.9, 1.6, 3.9, 0.45, -8.6);
-    const m = landStone("sandstone_blocks_08", 0, 2.2, [1.28, 1.22, 1.14]);
+    const m = landStone("sandstone_blocks_08", 0, 2.2, [1.28, 1.22, 1.14], {});
     const mesh = new THREE.Mesh(merge(stone), m);
     mesh.castShadow = mesh.receiveShadow = true;
     g.add(mesh);
@@ -191,7 +191,7 @@ export function createDisciplinesScene(scene: THREE.Scene, narration: LessonCtx[
         lights.push(p);
       }
       // the queue's strip light: cold, fluorescent
-      const sg = new THREE.BoxGeometry(0.12, 0.06, 5.2);
+      const sg = stoneBlock(0.12, 0.06, 5.2);
       sg.translate(-3.2, 3.6, -20);
       const sm = new THREE.MeshBasicNodeMaterial({ fog: false });
       sm.colorNode = vec4(vec3(0.85, 0.95, 1).mul(uQueue.mul(1.4).add(0.05)), 1);

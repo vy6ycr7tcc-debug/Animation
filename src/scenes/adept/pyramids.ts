@@ -16,7 +16,7 @@ import { LessonScene } from "../lessonKit";
 import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
 import { T, vnoise, type N } from "../../gpu/tsl";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
-import { landStone } from "../../world/stoneworks";
+import { landStone, stoneBlock } from "../../world/stoneworks";
 import { GlassFolk } from "../glassFolk";
 import { applyAir, damp, merge, pointCloud, roomClock, scannedGround, seeded, skyDome, touch, type Air, roomPos } from "../densities/roomKit";
 
@@ -129,7 +129,7 @@ export function createPyramidsScene(scene: THREE.Scene, narration: LessonCtx["na
       const geo = new THREE.ConeGeometry(PYR_HALF * Math.SQRT2, PYR_H, 4, 12);
       geo.rotateY(Math.PI / 4);
       geo.translate(PYR.x, PYR_H / 2, PYR.z);
-      const m = landStone("sandstone_blocks_05", 0, 4, [1.02, 0.94, 0.84]);
+      const m = landStone("sandstone_blocks_05", 0, 4, [1.02, 0.94, 0.84], {});
       const heart = new THREE.Vector3(PYR.x, PYR_H * 0.38, PYR.z);
       const d = length(roomPos.sub(vec3(heart.x, heart.y, heart.z)));
       m.emissiveNode = vec3(1, 0.62, 0.28).mul(exp(d.mul(d).mul(-0.0011))).mul(uChamber).mul(2.0);
@@ -201,11 +201,11 @@ export function createPyramidsScene(scene: THREE.Scene, narration: LessonCtx["na
         if (i === 0) {
           // a stepped pyramid with a shrine on top
           for (let k = 0; k < 5; k++) {
-            const b = new THREE.BoxGeometry(40 - k * 7, 5, 40 - k * 7);
+            const b = stoneBlock(40 - k * 7, 5, 40 - k * 7);
             b.translate(0, 2.5 + k * 5, 0);
             parts.push(b);
           }
-          const s = new THREE.BoxGeometry(6, 5, 6);
+          const s = stoneBlock(6, 5, 6);
           s.translate(0, 27.5, 0);
           parts.push(s);
         } else if (i === 1) {
@@ -214,7 +214,7 @@ export function createPyramidsScene(scene: THREE.Scene, narration: LessonCtx["na
           drum.translate(0, 2, 0);
           const dome = new THREE.SphereGeometry(13, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2);
           dome.translate(0, 4, 0);
-          const h = new THREE.BoxGeometry(4, 3, 4);
+          const h = stoneBlock(4, 3, 4);
           h.translate(0, 18.5, 0);
           const sp = new THREE.ConeGeometry(1.8, 12, 12);
           sp.translate(0, 26, 0);
@@ -228,11 +228,11 @@ export function createPyramidsScene(scene: THREE.Scene, narration: LessonCtx["na
           // a circle of standing stones with lintels
           for (let k = 0; k < 14; k++) {
             const b = Math.PI * 2 * (k / 14);
-            const s = new THREE.BoxGeometry(2.2, 8, 1.3);
+            const s = stoneBlock(2.2, 8, 1.3);
             s.applyMatrix4(new THREE.Matrix4().makeRotationY(-b).setPosition(Math.cos(b) * 15, 4, Math.sin(b) * 15));
             parts.push(s);
             if (k % 2 === 0) {
-              const l = new THREE.BoxGeometry(7.5, 1.2, 1.4);
+              const l = stoneBlock(7.5, 1.2, 1.4);
               l.applyMatrix4(new THREE.Matrix4().makeRotationY(-b - Math.PI / 14 + Math.PI / 2).setPosition(Math.cos(b + Math.PI / 14) * 15, 8.6, Math.sin(b + Math.PI / 14) * 15));
               parts.push(l);
             }
@@ -261,7 +261,7 @@ export function createPyramidsScene(scene: THREE.Scene, narration: LessonCtx["na
           g.add(drawn(sp, [1, 0.82, 0.5], k.mul(1.4), 1.6));
         }
       });
-      const fm = landStone("sandstone_blocks_05", 0, 4, [0.95, 0.86, 0.78]);
+      const fm = landStone("sandstone_blocks_05", 0, 4, [0.95, 0.86, 0.78], {});
       const fmesh = new THREE.Mesh(merge(forms), fm);
       g.add(fmesh);
       ours.push(fm, fmesh.geometry);
@@ -285,14 +285,14 @@ export function createPyramidsScene(scene: THREE.Scene, narration: LessonCtx["na
       const parts: THREE.BufferGeometry[] = [];
       const y = dunesFloor(PYR_DOOR.x, PYR_DOOR.z);
       for (const dx of [-2, 2]) {
-        const b = new THREE.BoxGeometry(1, 5.4, 1.1);
+        const b = stoneBlock(1, 5.4, 1.1);
         b.translate(PYR_DOOR.x + dx, y + 2.7, PYR_DOOR.z);
         parts.push(b);
       }
-      const l = new THREE.BoxGeometry(5.4, 1, 1.3);
+      const l = stoneBlock(5.4, 1, 1.3);
       l.translate(PYR_DOOR.x, y + 5.9, PYR_DOOR.z);
       parts.push(l);
-      const m = landStone("sandstone_blocks_05", 0, 1.8);
+      const m = landStone("sandstone_blocks_05", 0, 1.8, [1, 1, 1], {});
       const mesh = new THREE.Mesh(merge(parts), m);
       mesh.castShadow = true;
       g.add(mesh);

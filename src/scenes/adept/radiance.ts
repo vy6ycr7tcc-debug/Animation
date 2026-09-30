@@ -16,7 +16,7 @@ import * as THREE from "three/webgpu";
 import { LessonScene } from "../lessonKit";
 import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
 import { T, vnoise } from "../../gpu/tsl";
-import { landStone } from "../../world/stoneworks";
+import { landStone, stoneBlock } from "../../world/stoneworks";
 import { GlassFolk } from "../glassFolk";
 import { applyAir, cloudSheet, damp, keepAlpha, merge, pointCloud, roomClock, roughBlock, seeded, skyDome, touch, type Air, roomPos } from "../densities/roomKit";
 
@@ -114,14 +114,14 @@ export function createRadianceScene(scene: THREE.Scene, narration: LessonCtx["na
       const parts: THREE.BufferGeometry[] = [top, rock, basin];
       // the door: two jambs and a lintel at the far edge
       for (const x of [-2.3, 2.3]) {
-        const j = new THREE.BoxGeometry(1.1, 6.4, 1.2);
+        const j = stoneBlock(1.1, 6.4, 1.2);
         j.translate(x, 3.2, RAD_DOOR.z + 0.6);
         parts.push(j);
       }
-      const l = new THREE.BoxGeometry(6, 1.1, 1.4);
+      const l = stoneBlock(6, 1.1, 1.4);
       l.translate(0, 6.95, RAD_DOOR.z + 0.6);
       parts.push(l);
-      const m = landStone("red_sandstone_pavement", 0, 3.4, [1.08, 0.98, 0.92]);
+      const m = landStone("red_sandstone_pavement", 0, 3.4, [1.08, 0.98, 0.92], { flag: 1.2 });
       const mesh = new THREE.Mesh(merge(parts), m);
       mesh.castShadow = mesh.receiveShadow = true;
       g.add(mesh);
