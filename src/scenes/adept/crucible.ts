@@ -19,7 +19,7 @@ import { LessonScene } from "../lessonKit";
 import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
 import { T, vnoise, type N } from "../../gpu/tsl";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
-import { landStone } from "../../world/stoneworks";
+import { landStone, stoneBlock } from "../../world/stoneworks";
 import { GlassFolk } from "../glassFolk";
 import { applyAir, damp, inward, keepAlpha, merge, pointCloud, ringWall, roomClock, seeded, touch, type Air, roomPos } from "../densities/roomKit";
 
@@ -74,16 +74,16 @@ export function createCrucibleScene(scene: THREE.Scene, narration: LessonCtx["na
       const floorG = new THREE.CircleGeometry(TOWER_R + 0.5, 72);
       floorG.rotateX(-Math.PI / 2);
       floorG.translate(C.x, 0, C.z);
-      const floorM = landStone("red_sandstone_pavement", 0, 3, [1, 0.8, 0.66]);
+      const floorM = landStone("red_sandstone_pavement", 0, 3, [1, 0.8, 0.66], { flag: 1.2 });
       const fl = new THREE.Mesh(floorG, floorM);
       fl.receiveShadow = true;
       g.add(fl);
       const parts = ringWall(TOWER_R + 0.6, TOWER_H, 1.2, 28, [14]); // the door at −z left open
-      const over = new THREE.BoxGeometry(3.2, TOWER_H - 7, 1.2);
+      const over = stoneBlock(3.2, TOWER_H - 7, 1.2);
       over.translate(0, 7 + (TOWER_H - 7) / 2, -TOWER_R - 0.6);
       parts.push(over);
       for (const x of [-2.1, 2.1]) {
-        const j = new THREE.BoxGeometry(1.1, 7, 1.8);
+        const j = stoneBlock(1.1, 7, 1.8);
         j.translate(x, 3.5, -TOWER_R - 0.5);
         parts.push(j);
       }
@@ -106,7 +106,7 @@ export function createCrucibleScene(scene: THREE.Scene, narration: LessonCtx["na
         parts.push(under);
       }
       for (const p of parts) p.translate(C.x, 0, C.z);
-      const wallM = landStone("sandstone_blocks_08", 0, 2.6, [0.78, 0.66, 0.58]);
+      const wallM = landStone("sandstone_blocks_08", 0, 2.6, [0.78, 0.66, 0.58], {});
       const wall = new THREE.Mesh(merge(parts), wallM);
       wall.receiveShadow = wall.castShadow = true;
       wall.material.side = THREE.DoubleSide;

@@ -15,7 +15,7 @@ import { LessonScene } from "../lessonKit";
 import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
 import { T, hash2 } from "../../gpu/tsl";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
-import { landStone } from "../../world/stoneworks";
+import { landStone, stoneBlock } from "../../world/stoneworks";
 import { GlassFolk, type FolkSpec } from "../glassFolk";
 import { applyAir, boulderGeometry, damp, keepAlpha, merge, pointCloud, roomClock, scannedGround, seeded, skyDome, touch, type Air } from "../densities/roomKit";
 
@@ -251,11 +251,11 @@ export function createOthersScene(scene: THREE.Scene, narration: LessonCtx["narr
       const parts: THREE.BufferGeometry[] = [];
       const y = hillFloor(OTHERS_DOOR.x, OTHERS_DOOR.z);
       for (const dx of [-2, 2]) {
-        const b = new THREE.BoxGeometry(1, 5, 1);
+        const b = stoneBlock(1, 5, 1);
         b.translate(OTHERS_DOOR.x + dx, y + 2.5, OTHERS_DOOR.z);
         parts.push(b);
       }
-      const l = new THREE.BoxGeometry(5.2, 0.9, 1.2);
+      const l = stoneBlock(5.2, 0.9, 1.2);
       l.translate(OTHERS_DOOR.x, y + 5.4, OTHERS_DOOR.z);
       parts.push(l);
       const m = landStone("sandstone_cracks", 0, 1.8, [0.7, 0.7, 0.75]);

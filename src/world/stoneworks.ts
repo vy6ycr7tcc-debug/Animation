@@ -8,6 +8,7 @@
    two courses with a worn step, and a ring of rough standing stones about it, one fallen. */
 import * as THREE from "three/webgpu";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { T, type N } from "../gpu/tsl";
 import { scan, type ScanName } from "./temple";
 
@@ -16,7 +17,17 @@ const { abs, float, mix, smoothstep, vec3 } = T;
 /** The scan laid in the world from all three sides, with its occlusion, relief and roughness, and
     the weather of the open air. `base`: the world height of the ground it stands on (the foot
     darkens with soil and damp above it). */
-export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number, number, number] = [1, 1, 1]): THREE.MeshStandardNodeMaterial {
+/** Cut masonry laid over the scan (for built walls and floors, not boulders or standing stones):
+    `course` is a wall course's height and `block` a block's length, in metres; floors are laid
+    as flagstones `flag` metres across. Each block has its own tone and roughness, its arrises a
+    little worn, the mortar recessed; each flagstone lies at its own very slight tilt, so a
+    flat floor catches the light stone by stone. */
+export interface Masonry {
+  course?: number;
+  block?: number;
+  flag?: number;
+}
+export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number, number, number] = [1, 1, 1], masonry?: Masonry): THREE.MeshStandardNodeMaterial {
   const m = new THREE.MeshStandardNodeMaterial({ metalness: 0, roughness: 0.9 });
   const S = scan(set);
   const pw = T.positionWorld, n = T.normalWorldGeometry;
@@ -35,14 +46,73 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
   const foot = smoothstep(0.9, 0.0, pw.y.sub(base)).mul(0.55);
   const streak = smoothstep(0.6, 0.85, nz(vec3(pw.x.mul(3.1), pw.y.mul(0.2), pw.z.mul(3.1)))).mul(float(1).sub(up)).mul(0.3);
   c = c.mul(float(1).sub(foot)).mul(float(1).sub(streak));
-  m.colorNode = T.vec4(c, 1);
-  m.roughnessNode = T.clamp(arm.g.add(lichen.mul(0.2)), 0.6, 1);
+  let rough: N = T.clamp(arm.g.add(lichen.mul(0.2)), 0.6, 1);
   // relief from the scan's normal map, turned to each side
   const nm = (t: THREE.Texture) => [T.texture(t, pw.zy.div(tile)), T.texture(t, pw.xz.div(tile)), T.texture(t, pw.xy.div(tile))].map((x: N) => x.xy.mul(2).sub(1));
   const [nx, ny, nzz] = nm(S.nor);
-  const dn = vec3(0, nx.y, nx.x).mul(w.x).add(vec3(ny.x, 0, ny.y).mul(w.y)).add(vec3(nzz.x, nzz.y, 0).mul(w.z));
-  m.normalNode = T.normalize(T.normalView.add(T.cameraViewMatrix.mul(T.vec4(dn.mul(0.9), 0)).xyz));
+  let dn: N = vec3(0, nx.y, nx.x).mul(w.x).add(vec3(ny.x, 0, ny.y).mul(w.y)).add(vec3(nzz.x, nzz.y, 0).mul(w.z)).mul(0.9);
+  if (masonry) {
+    const course = masonry.course ?? 0.85, block = masonry.block ?? 1.5, flag = masonry.flag ?? 1.1;
+    const h = (v: N) => T.fract(T.sin(T.dot(v, T.vec2(12.9898, 78.233))).mul(43758.5453));
+    const mortar = 0.035;
+    const wall = float(1).sub(smoothstep(0.55, 0.8, abs(n.y)));
+    // walls: courses along the face's own horizontal, each course staggered
+    const xFace = w.x.greaterThan(w.z);
+    const along = T.select(xFace, pw.z, pw.x);
+    const row = T.floor(pw.y.div(course));
+    const u = along.div(block).add(row.mul(0.5)).add(h(T.vec2(row, 3.7)).mul(0.35));
+    const cellW = T.floor(u);
+    const fu = T.fract(u), fv = T.fract(pw.y.div(course));
+    const du = T.min(fu, float(1).sub(fu)).mul(block), dv = T.min(fv, float(1).sub(fv)).mul(course);
+    // floors: flagstones in staggered rows, two widths
+    const frow = T.floor(pw.z.div(flag));
+    const fwid = mix(float(flag * 1.1), float(flag * 1.7), h(T.vec2(frow, 9.1)));
+    const fu2 = pw.x.div(fwid).add(h(T.vec2(frow, 1.3)));
+    const cellF = T.floor(fu2);
+    const ffu = T.fract(fu2), ffv = T.fract(pw.z.div(flag));
+    const du2 = T.min(ffu, float(1).sub(ffu)).mul(fwid), dv2 = T.min(ffv, float(1).sub(ffv)).mul(flag);
+    const e = mix(T.min(du2, dv2), T.min(du, dv), wall);
+    const id = mix(h(T.vec2(cellF, frow).add(17.3)), h(T.vec2(cellW, row)), wall);
+    const joint = smoothstep(mortar, mortar * 0.35, e);
+    const arris = smoothstep(0.1, mortar, e); // the worn edge of each stone
+    const tone = mix(float(0.84), float(1.12), id);
+    c = c.mul(tone).mul(mix(float(1), float(0.42), joint)).mul(float(1).sub(arris.mul(0.12)));
+    rough = T.clamp(rough.add(id.sub(0.5).mul(0.12)).add(joint.mul(0.1)), 0.55, 1);
+    // the mortar lies deeper: the stone's face turns away from it toward each joint
+    const sU = T.sign(T.select(wall.greaterThan(0.5), fu, ffu).sub(0.5)), sV = T.sign(T.select(wall.greaterThan(0.5), fv, ffv).sub(0.5));
+    const kU = smoothstep(0.08, 0.0, T.select(wall.greaterThan(0.5), du, du2)).mul(0.5), kV = smoothstep(0.08, 0.0, T.select(wall.greaterThan(0.5), dv, dv2)).mul(0.5);
+    const hAxis = T.select(xFace, vec3(0, 0, 1), vec3(1, 0, 0));
+    const wallBend = hAxis.mul(sU.mul(kU)).add(vec3(0, 1, 0).mul(sV.mul(kV)));
+    // each flagstone at its own slight tilt, so the floor never reads as one flat sheet
+    const tilt = vec3(h(T.vec2(cellF, frow)).sub(0.5), 0, h(T.vec2(frow, cellF).add(4.2)).sub(0.5)).mul(0.12);
+    const floorBend = vec3(sU.mul(kU), 0, sV.mul(kV)).add(tilt);
+    dn = dn.add(mix(floorBend, wallBend, wall));
+  }
+  m.colorNode = T.vec4(c, 1);
+  m.roughnessNode = rough;
+  m.normalNode = T.normalize(T.normalView.add(T.cameraViewMatrix.mul(T.vec4(dn, 0)).xyz));
   return m;
+}
+
+/** A cut stone block: a box with its edges rounded and its faces a little chipped and uneven, so
+    no building reads as a stack of perfect boxes. */
+export function stoneBlock(w: number, h: number, d: number, seed = 1): THREE.BufferGeometry {
+  const r = Math.min(0.12, Math.min(w, h, d) * 0.08);
+  const g = new RoundedBoxGeometry(w, h, d, 2, r);
+  const p = g.attributes.position as THREE.BufferAttribute;
+  const hash = (x: number, y: number, z: number) => {
+    const s = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719 + seed * 4.1) * 43758.5453;
+    return s - Math.floor(s);
+  };
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    // chips near the corners, a slow unevenness over the faces
+    const corner = Math.min(1, (Math.abs(x) / (w / 2)) * (Math.abs(y) / (h / 2)) + (Math.abs(y) / (h / 2)) * (Math.abs(z) / (d / 2)) + (Math.abs(x) / (w / 2)) * (Math.abs(z) / (d / 2)));
+    const k = 1 - corner * hash(Math.round(x * 20), Math.round(y * 20), Math.round(z * 20)) * 0.035 + Math.sin(x * 1.7 + z * 1.3 + y * 0.9 + seed) * 0.006;
+    p.setXYZ(i, x * k, y * k, z * k);
+  }
+  g.computeVertexNormals();
+  return g;
 }
 
 function rng(seed: number): () => number {
