@@ -430,17 +430,10 @@ export function densityStages(seen: () => Set<string>): Stage[] {
       id: "room5",
       title: "The fifth density",
       make: mk(() => import("./room_5"), "createDensity5Scene"),
-      centreOnSeat: true, // drawn round its own seat out in the world: brought here
-      track: "audio/densities/density_5.mp3", // its seat names none yet
-      start: { x: 0, z: 0, heading: 0 },
-      exits: [{ x: 0, z: 22, r: 2.2, to: 7 }],
-      confine: box(-16, 16, -6, 24),
-      air: {
-        color: new THREE.Color(0.01, 0.014, 0.03),
-        glow: new THREE.Color(0.05, 0.08, 0.14),
-        glowDir: new THREE.Vector3(0, 1, 1),
-        density: 0.006,
-      },
+      start: { x: 0, z: 0, heading: Math.PI },
+      exits: [{ x: 0, z: -32.3, r: 2.2, to: 7 }], // beyond the seeker, the way on
+      confine: box(-22, 22, -34, 6),
+      ownAir: true,
     },
     {
       id: "room6",

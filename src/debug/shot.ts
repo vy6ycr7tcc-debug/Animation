@@ -111,7 +111,7 @@ const JOURNEY_VIEWS: Record<number, { eye: XYZ; look: XYZ }> = {
   3: ROOM_VIEWS["density-2"],
   4: { eye: [0, 2.2, 8], look: [0, 2, -14] },
   5: ROOM_VIEWS["density-4"],
-  6: { eye: [0, 2.5, -5], look: [0, 3, 12] },
+  6: { eye: [3.5, 1.6, -3], look: [0, 9, -16] },
   7: ROOM_VIEWS["density-6"],
   8: { eye: [0, 1.8, 3], look: [0, 1.4, -60] },
 };
