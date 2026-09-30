@@ -456,17 +456,9 @@ export function densityStages(seen: () => Set<string>): Stage[] {
       title: "The seventh density",
       make: mk(() => import("./room_7"), "createDensity7", [new THREE.Vector3(0, 0, 0), 0]),
       start: { x: 0, z: -1, heading: Math.PI },
-      exits: [{ x: 0, z: -117, r: 3, to: 0, at: LOBBY_BACK, mark: true }], // home to the lobby
-      confine: box(-3.6, 3.6, -119.5, 3),
-      air: {
-        color: new THREE.Color(0.3, 0.28, 0.24),
-        glow: new THREE.Color(0.5, 0.45, 0.36),
-        glowDir: new THREE.Vector3(0, 0.2, -1),
-        density: 0.012,
-        shadow: new THREE.Color(0.02, 0.018, 0.012),
-        sat: 0.95,
-        contrast: 1,
-      },
+      exits: [{ x: 0, z: -52, r: 2.6, to: 0, at: LOBBY_BACK }], // the ring of gold far ahead: home to the lobby
+      confine: box(-40, 40, -54, 20),
+      ownAir: true,
     },
   ];
 }

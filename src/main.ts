@@ -1570,6 +1570,7 @@ function journeyHost(hall: Hall): JourneyHost {
       audio.setTemple(on, false);
     },
     outside: () => hall.outside(),
+    presence: (k) => (wanderer.presence = k),
   };
 }
 const halls: { hall: Hall; journey: Journey; lit: number }[] = [];

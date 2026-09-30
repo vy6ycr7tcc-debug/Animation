@@ -18,7 +18,8 @@ export const JOURNEY_ORIGIN = new THREE.Vector3(22000, 0, 0);
 /** Is (x, z) inside the journeys' place apart? */
 export const inJourney = (x: number): boolean => x > 20500 && x < 26000;
 
-export type Room = SceneModule & { loaded?: Promise<void> };
+/** A room may say how present the visitor's body is (Room 7 lets it thin toward light). */
+export type Room = SceneModule & { loaded?: Promise<void>; presence?: () => number };
 export interface Spot { x: number; z: number; heading: number }
 export interface Exit {
   x: number;
@@ -83,6 +84,8 @@ export interface JourneyHost {
   apart(on: boolean): void;
   /** Where "out" leads, back in the world. */
   outside(): { x: number; y: number; z: number; heading: number };
+  /** The visitor's body: how present it is (1 fully). */
+  presence?(k: number): void;
 }
 
 const wait = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms));
@@ -239,6 +242,7 @@ export class Journey {
     this.marks = [];
     this.room = null;
     roomOrigin.value.set(0, 0, 0);
+    this.host.presence?.(1);
   }
 
   private async build(i: number, at?: Spot): Promise<void> {
@@ -283,6 +287,7 @@ export class Journey {
     const r = this.room, s = this.stage;
     if (!r || !s) return true;
     r.update(dt);
+    this.host.presence?.(r.presence ? r.presence() : 1);
     // rooms without air of their own keep this one (the others set theirs in their update)
     if (this.airNow) applyAir(this.airNow);
     if (this.crossing) return true;
