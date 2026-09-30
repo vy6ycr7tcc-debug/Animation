@@ -18,7 +18,7 @@ import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
 import { colliders, DENSITY_HALL, platformRise } from "../../world/terrain";
 import { landStone } from "../../world/stoneworks";
 import type { SceneModule } from "../lessonKit";
-import { box, type Room, type Stage } from "../journey";
+import { box, type Hall, type Room, type Stage } from "../journey";
 import { inward, keepAlpha, lamps, merge, ringWall, roughBlock } from "./roomKit";
 
 const { float, length, mix, smoothstep, vec3, vec4 } = T;
@@ -28,8 +28,9 @@ export const DENSITY_COLORS = [0xfff4e0, 0xe0473a, 0xef8a34, 0xf2cf4a, 0x5fcf72,
 const HALL_R = 10, HALL_H = 12, RING_R = 16, TOP = 1.35;
 
 /** The monument's front door in the world. */
-export class DensityMonument {
+export class DensityMonument implements Hall {
   readonly world = new THREE.Group();
+  readonly label = "The monument of the densities";
   /** The door's centre in the world, and the heading that walks out of it. */
   readonly door: THREE.Vector3;
   readonly face = DENSITY_HALL.face;

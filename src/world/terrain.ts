@@ -299,6 +299,9 @@ PADS.push({ x: MONUMENT.x, z: MONUMENT.z, h: MONUMENT.y, outer: MONUMENT.r * 2.2
 /** The monument of the densities (scenes/densities/monument.ts): a round of eight standing stones
     about a domed hall, on a stepped platform, its door toward the shore. */
 export const DENSITY_HALL = monumentSite(2.3, 200, 520, 30);
+/** The adept's school (scenes/adept/monument.ts): a stepped tower of three terraces crowned
+    with a crystal, a small shrine at each corner, its door toward the shore. */
+export const ADEPT_HALL = monumentSite(-1.9, 220, 560, 34);
 /** The stepped platform's rise at distance `d` from a monument's centre (three steps of 0.45 m). */
 export const platformRise = (d: number): number => (d < 19.6 ? 1.35 : d < 20.8 ? 0.9 : d < 22 ? 0.45 : 0);
 
