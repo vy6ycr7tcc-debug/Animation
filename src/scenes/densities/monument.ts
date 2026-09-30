@@ -414,8 +414,9 @@ export function densityStages(seen: () => Set<string>): Stage[] {
       title: "The third density",
       make: mk(() => import("./room_3"), "createRoom3Scene"),
       start: { x: 0, z: 3.4, heading: Math.PI },
-      exits: [{ x: 0, z: -15, r: 2.2, to: 5 }],
-      confine: box(-8, 8, -17, 7),
+      exits: [{ x: 0, z: -32, r: 2.2, to: 5 }], // the white door at the seam's end
+      confine: box(-26, 26, -35, 8),
+      ownAir: true,
     },
     {
       id: "room4",

@@ -99,6 +99,9 @@ export interface ShotCtx {
 const ROOM_VIEWS: Record<string, { eye: XYZ; look: XYZ }> = {
   "density-1": { eye: [1.5, 2.2, 7], look: [-3, 5, -40] },
   "density-2": { eye: [1.5, 2.0, 7], look: [2, 4, -30] },
+  "density-3": { eye: [0, 2.0, 7], look: [0, 2.4, -20] },
+  "density-3L": { eye: [-1, 2.2, -3], look: [-5.2, 1.2, -11] },
+  "density-3R": { eye: [1.5, 2.4, -4], look: [5.6, 2.2, -13.5] },
   "density-4": { eye: [2.5, 2.0, -1], look: [-1, 2.2, -18] },
   "density-6": { eye: [0, 1.8, 10], look: [0, 2, -18] },
 };
@@ -109,7 +112,7 @@ const JOURNEY_VIEWS: Record<number, { eye: XYZ; look: XYZ }> = {
   1: { eye: [0, 2.4, 6], look: [0, 3, -12] },
   2: ROOM_VIEWS["density-1"],
   3: ROOM_VIEWS["density-2"],
-  4: { eye: [0, 2.2, 8], look: [0, 2, -14] },
+  4: ROOM_VIEWS["density-3"],
   5: ROOM_VIEWS["density-4"],
   6: { eye: [3.5, 1.6, -3], look: [0, 9, -16] },
   7: ROOM_VIEWS["density-6"],
@@ -137,7 +140,7 @@ export function runShot(ctx: ShotCtx): void {
   const shot = getShot();
   if (!shot) return;
   const { id, t } = shot;
-  const dm = /^density-(\d)$/.exec(id);
+  const dm = /^density-(\d)[LR]?$/.exec(id);
   if (dm && ctx.room) {
     // a density room: built alone, seated (so its beats up to T apply), then lived for a while
     // so its eased moods settle where T puts them
