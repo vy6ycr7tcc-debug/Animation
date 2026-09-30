@@ -59,6 +59,8 @@ import { RisingFlowers } from "./world/blooms";
 import { Wilds } from "./world/wilds";
 import { initTourScenes, tourPlaces, type TourScenes } from "./scenes/integration";
 import { bodyForms } from "./world/forms";
+import { glyphsLoaded } from "./world/glyphs";
+import { Duat } from "./world/duat";
 
 import { downloadAssets, requestPersistentStorage, checkAssetUpdates } from "./core/offline";
 
@@ -594,19 +596,6 @@ function closeCards(): void {
   cardsEl.hidden = true;
 }
 $("#cards-offer").addEventListener("click", openCards);
-// out of the temple: through the door, or by this word near it, or from the menu
-const leaveTemple = (): void => {
-  setMenu(false);
-  if (temple.inside) crossTemple(false);
-  else if (depths.inside) crossDeep(false);
-  else if (pyramid.isInside) crossPyr(false);
-};
-// on the touch itself (a phone sends no click while the other thumb holds the stick)
-$("#temple-leave").addEventListener("pointerdown", (e) => {
-  e.preventDefault();
-  leaveTemple();
-});
-$("#menu-temple-leave").addEventListener("click", leaveTemple);
 $("#cards-close").addEventListener("click", closeCards);
 $("#cards-prev").addEventListener("click", () => setCard(cardIndex - 1));
 $("#cards-next").addEventListener("click", () => setCard(cardIndex + 1));
@@ -839,9 +828,6 @@ function templeFrame(dt: number): void {
     if (player.flying) player.flying = false; // no flight in the temple: you walk here
     riteFrame(dt);
     $("#cards-offer").hidden = temple.cardsOpen || !temple.nearCards(player.pos) || crossing || shrineAt >= 0 || !!trite || tourScenes.tour.active;
-    $("#temple-leave").hidden = crossing || !temple.nearDoor(player.pos);
-    $("#temple-leave").textContent = $("#menu-temple-leave").textContent = "Leave the temple";
-    $("#menu-temple-leave").hidden = false;
     // the air inside: warm, dim, a little dust in the light
     fogUniforms.color.value.setRGB(0.09, 0.065, 0.045);
     fogUniforms.glow.value.setRGB(0.3, 0.22, 0.15);
@@ -859,8 +845,6 @@ function templeFrame(dt: number): void {
   if (trite) endTempleRite(false);
   if (shrineAt >= 0) (shrineAt = -1), (shrineEl.hidden = true);
   if (depths.inside || pyramid.isInside) return; // the deep archive and the pyramid keep their own
-  $("#temple-leave").hidden = true;
-  $("#menu-temple-leave").hidden = true;
   const d = player.pos.distanceTo(temple.gateAt);
   if (!toldGate && d < 30) {
     toldGate = true;
@@ -1631,7 +1615,7 @@ function enterDuatCrossing(): void {
     player.vel.set(0, 0, 0);
     follow.snapTo(player.pos);
     pyramid.duatActive = true;
-    whisper("The hidden door opens onto the Duat — a river of gold beneath a deep blue night.", 11000);
+    whisper("The Duat", 5000);
     window.setTimeout(() => {
       fadeEl.classList.remove("on");
       crossing = false;
@@ -1656,7 +1640,6 @@ function exitDuatWalkBack(): void {
     player.vel.set(0, 0, 0);
     follow.snapTo(player.pos);
     pyramid.duatActive = false;
-    whisper("You turn back; the pyramid keeps its silence and its gold.", 7000);
     window.setTimeout(() => {
       fadeEl.classList.remove("on");
       crossing = false;
@@ -1682,7 +1665,7 @@ function exitDuatDawn(): void {
     player.vel.set(0, 0, 0);
     follow.snapTo(player.pos);
     pyramid.duatActive = false;
-    whisper("At the apex, dawn: the sun is reborn, gold over the deep blue world.", 9000);
+    whisper("Dawn", 5000);
     window.setTimeout(() => {
       fadeEl.classList.remove("on");
       crossing = false;
@@ -1743,7 +1726,7 @@ function pyramidFrame(dt: number): void {
     return;
   }
   // inside: the rooms are close, so the camera stays near
-  if (follow.dist > 3.6) follow.dist = 3.6;
+  if (!pyramid.duatActive && follow.dist > 3.6) follow.dist = 3.6;
   if (pyramid.confine(player.pos) && !crossing) crossPyr(false);
   if (player.flying) player.flying = false;
   const ch = pyramid.chamber(player.pos);
@@ -1751,14 +1734,18 @@ function pyramidFrame(dt: number): void {
   if (ch === "queen") tellPyr("queen", "The Queen's Chamber: the place of initiation, and of resurrection. Stand at its centre and be still.");
   if (ch === "gallery") tellPyr("gallery", "Light is drawn in at the base, and spirals upward toward the apex.");
   if (ch === "king") tellPyr("king", "The King's Chamber: the place of healing, where the spiral is strongest. Stand by the coffer and be still.");
-  const leave = $("#temple-leave");
-  leave.hidden = crossing || ch !== "entry" || player.pos.z - pyramid.entry().z > 6;
-  leave.textContent = $("#menu-temple-leave").textContent = "Leave the pyramid";
-  $("#menu-temple-leave").hidden = false;
-  fogUniforms.color.value.setRGB(0.06, 0.045, 0.03);
-  fogUniforms.density.value = 0.012;
-  gradeUniforms.shadow.value.setRGB(0.015, 0.008, 0.0);
-  gradeUniforms.high.value.setRGB(1.05, 0.98, 0.9);
+  if (pyramid.duatActive) {
+    // the Duat's own night air: deep blue, thin, the lamps warm against it
+    fogUniforms.color.value.setRGB(0.012, 0.016, 0.034);
+    fogUniforms.density.value = 0.0065;
+    gradeUniforms.shadow.value.setRGB(0.0, 0.006, 0.02);
+    gradeUniforms.high.value.setRGB(1.04, 0.97, 0.9);
+  } else {
+    fogUniforms.color.value.setRGB(0.06, 0.045, 0.03);
+    fogUniforms.density.value = 0.012;
+    gradeUniforms.shadow.value.setRGB(0.015, 0.008, 0.0);
+    gradeUniforms.high.value.setRGB(1.05, 0.98, 0.9);
+  }
   gradeUniforms.sat.value = 1.05;
   gradeUniforms.contrast.value = 1.12;
   post.starVis.value = 0;
@@ -1830,10 +1817,6 @@ function deepFrame(dt: number, wt: number, inWater: boolean): void {
   if (depths.inside) {
     if (!player.swimming) player.placeUnder();
     if (depths.confine(player.pos) && !crossing) crossDeep(false);
-    const near = depths.nearExit(player.pos) && !crossing;
-    $("#temple-leave").hidden = !near;
-    $("#temple-leave").textContent = $("#menu-temple-leave").textContent = "Return to the lake";
-    $("#menu-temple-leave").hidden = false;
     // the still water of the grotto: clear, blue-dark, a little warm light from the centre
     fogUniforms.color.value.setRGB(0.02, 0.04, 0.06);
     fogUniforms.density.value = 0.01;
@@ -2550,12 +2533,16 @@ renderer
     shadersReady = true;
     quality.hold(3);
     endLoading();
-    if (shot?.id === "duat") {
+    if (shot?.id.startsWith("duat")) {
       duatVentured = false;
       crossing = false;
       setPyr(true);
-      const e = pyramid.duatEntryPoint();
-      const h = duatPathHeading();
+      // duat-<k>: stand at hour k, having come through its gate; its story at t
+      const k = Number(shot.id.slice(5)) || 0;
+      Duat.clockOverride = shot.t;
+      const e = k ? DUAT_ORIGIN.clone().add(pyramid.PATH[k]).lerp(DUAT_ORIGIN.clone().add(pyramid.PATH[k - 1]), 0.25) : pyramid.duatEntryPoint();
+      if (k) e.y = pyramid.floorAt(e.x, e.z);
+      const h = k ? Math.atan2(-(pyramid.PATH[k].x - pyramid.PATH[k - 1].x), -(pyramid.PATH[k].z - pyramid.PATH[k - 1].z)) : duatPathHeading();
       player.pos.set(e.x, e.y, e.z);
       player.heading = h;
       follow.yaw = h;
@@ -2586,6 +2573,7 @@ renderer
         terrain,
         setInside,
         ready: bodyForms(),
+        settle: glyphsLoaded,
         genesisAt: (tt) => {
           beginGenesis();
           genesis.t = Math.max(0, tt - 1 / 60); // the one update that follows brings it to tt

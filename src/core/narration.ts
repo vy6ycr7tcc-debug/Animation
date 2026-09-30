@@ -45,7 +45,7 @@ export class Narration {
   onEnd: ((id: string) => void) | null = null;
   private raw = new Map<string, Promise<ArrayBuffer | null>>();
   private decoded = new Map<string, Promise<AudioBuffer | null>>();
-  private playing: { id: string; src: AudioBufferSourceNode; gain: GainNode; start: number; scale: number } | null = null;
+  private playing: { id: string; src: AudioBufferSourceNode; gain: GainNode; start: number; scale: number; from: number } | null = null;
   private cueIndex = -1;
   /** Bumped by every play and stop: a track still loading when another is asked for never starts. */
   private token = 0;
@@ -103,10 +103,11 @@ export class Narration {
     const p = this.playing;
     const ctx = this.audio.ctx;
     if (!p || !ctx) return 0;
-    return Math.max(0, (ctx.currentTime - p.start) / p.scale);
+    return p.from + Math.max(0, (ctx.currentTime - p.start) / p.scale);
   }
 
-  async play(id: string): Promise<void> {
+  /** Play a track, or only its part from `from` to `to` seconds (track time), fading at the end. */
+  async play(id: string, from = 0, to = Infinity): Promise<void> {
     const track = TRACKS[id];
     if (!track) return;
     // Debug still-frame hook: no audio at all — the scene still sees the track as current.
@@ -136,8 +137,14 @@ export class Narration {
     gain.gain.setValueAtTime(0, at);
     gain.gain.linearRampToValueAtTime(1, at + 0.4);
     src.connect(gain).connect(this.audio.voice);
-    src.start(at);
-    this.playing = { id, src, gain, start: at, scale };
+    const off = Math.max(0, Math.min(buf.duration - 0.05, from * scale));
+    const dur = Number.isFinite(to) ? Math.max(0.5, (to - from) * scale) : undefined;
+    if (dur !== undefined) {
+      gain.gain.setValueAtTime(1, at + Math.max(0.4, dur - 0.5));
+      gain.gain.linearRampToValueAtTime(0, at + dur);
+      src.start(at, off, dur);
+    } else src.start(at, off);
+    this.playing = { id, src, gain, start: at, scale, from: off / scale };
     this.cueIndex = -1;
     this.audio.duck(true);
     src.onended = () => {
@@ -196,7 +203,7 @@ export class Narration {
     const p = this.playing;
     const ctx = this.audio.ctx;
     if (!p || !ctx) return;
-    const t = (ctx.currentTime - p.start) / p.scale;
+    const t = p.from + (ctx.currentTime - p.start) / p.scale;
     const cues = TRACKS[p.id].cues;
     let k = -1;
     for (let i = 0; i < cues.length; i++) if (cues[i].t <= t + 0.05) k = i;
