@@ -4,7 +4,7 @@
 import { SITES } from "../scenes/sites";
 import { DUAT_ORIGIN } from "../world/pyramid";
 import { RUIN_SITES } from "../world/depths";
-import { LANDMARK_SITES, PEAKS, PYRAMID, heightAt } from "../world/terrain";
+import { LANDMARK_SITES, PEAKS, PYRAMID, SPAWN, heightAt } from "../world/terrain";
 
 export interface Shot {
   id: string;
@@ -143,6 +143,12 @@ export function runShot(ctx: ShotCtx): void {
     base = [px, Math.max(gy, 0) + (above ? top - gy + 90 : 40), pz];
     view = above ? { eye: [0, 0, 0], look: [pk.x - px, top - base[1], pk.z - pz] } : { eye: [0, 0, 0], look: [pk.x - px, top * 0.7 - base[1], pk.z - pz] };
     ctx.player.pos.set(base[0], base[1], base[2]);
+  } else if (id === "meadow") {
+    // the open land near the start, at eye height, looking inland
+    const px = SPAWN.x + 30, pz = SPAWN.z - 30;
+    base = [px, heightAt(px, pz), pz];
+    view = { eye: [0, 1.7, 0], look: [40, 0.5, -60] };
+    ctx.player.pos.set(px, heightAt(px, pz), pz);
   } else if (/^ruin-\d$/.test(id)) {
     // under the water, standing on the floor before a ruin
     const r = RUIN_SITES[Number(id.slice(5))] ?? RUIN_SITES[0];

@@ -1093,6 +1093,7 @@ export async function loadBeingModel(path: string): Promise<BeingModel | null> {
 export class Beings {
   group = new THREE.Group();
   list: Being[] = [];
+  private propGroups: THREE.Group[] = [];
   /** Called the first time the wanderer comes near a being. */
   onMeet: ((spec: Spec) => void) | null = null;
   private tmp = new THREE.Vector3();
@@ -1104,12 +1105,15 @@ export class Beings {
       const st = stations[i];
       if (!st) return;
       const b = new Being({ ...spec, under: LANDMARK_KINDS[i] === "deep" }, st, !!opts.flat);
-      const before = this.group.children.length;
-      buildProps(b, this.group, stone);
-      buildMoreProps(b, this.group, stone);
+      // its card's objects in a group of their own, drawn only when near (22 beings' objects were
+      // hundreds of draws, wherever you were)
+      const props = new THREE.Group();
+      buildProps(b, props, stone);
+      buildMoreProps(b, props, stone);
       // the card's objects are in its drawing: the modelled ones rest
-      if (opts.flat) for (const c of this.group.children.slice(before)) c.visible = false;
-      this.group.add(b.root);
+      if (opts.flat) props.visible = false;
+      this.propGroups.push(props);
+      this.group.add(props, b.root);
       this.list.push(b);
     });
   }
@@ -1164,6 +1168,7 @@ export class Beings {
     const order = this.list.map((b, i) => [i, b.distanceTo(player)] as const).sort((a, b) => a[1] - b[1]);
     const shown = new Set(order.filter(([, d], k) => k < 2 && d < 90).map(([i]) => i));
     this.list.forEach((b, i) => {
+      if (!this.opts.flat) this.propGroups[i].visible = b.distanceTo(player) < 160;
       b.update(dt, t, player, reduced, shown.has(i));
       if (!b.met && b.distanceTo(player) < (b.spec.under ? 9 : 7)) {
         b.met = true;
