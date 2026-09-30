@@ -121,6 +121,7 @@ const ADEPT_VIEWS: Record<number, { eye: XYZ; look: XYZ }> = {
   1: { eye: [1.2, 2.2, 5], look: [0, 3.5, -40] },
   2: { eye: [2.5, 3.4, 3.8], look: [0, 4.5, -12] },
   3: { eye: [3.5, 2.6, 12], look: [0, 2, -16] },
+  4: { eye: [3, 2.4, 5], look: [-7, 3, -30] },
 };
 
 /** Render one still frame of the requested scene at T seconds, then never again. */
@@ -315,6 +316,11 @@ function finish(ctx: ShotCtx, id: string, t: number, base: XYZ, view: { eye: XYZ
   if (loading) loading.style.display = "none"; // endLoading's prompt must not cover the frame
   const title = document.getElementById("title");
   if (title) title.style.display = "none";
+  // a warm-up frame first: a light or material that is new this frame may not be in the shaders
+  // until they are rebuilt (seen with a room's own lights); nothing moves between the two draws
   ctx.draw();
-  (window as unknown as { __shotReady?: boolean }).__shotReady = true;
+  window.setTimeout(() => {
+    ctx.draw();
+    (window as unknown as { __shotReady?: boolean }).__shotReady = true;
+  }, 400);
 }
