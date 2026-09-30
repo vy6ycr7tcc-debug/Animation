@@ -8,7 +8,7 @@
 import * as THREE from "three/webgpu";
 import type { AudioEngine } from "../core/audio";
 import { softPoints, spriteCloud, T, viewDepth, withFog, type N, type SpriteCloud } from "../gpu/tsl";
-import { fbm, groundKind, heightAt, WATER_Y } from "./terrain";
+import { fbm, groundKind, heightAt, LANDMARK_SITES, WATER_Y } from "./terrain";
 
 export interface LifeFrame {
   t: number;
@@ -188,6 +188,8 @@ export class LightGrass {
       const x = (i + R()) * TILE, z = (j + R()) * TILE;
       const h = heightAt(x, z);
       if (h < WATER_Y + 0.25) continue;
+      // no grass on the homes' stone floors (stoneworks.ts: paving to 4.7 m)
+      if (LANDMARK_SITES.some(([lx, lz]) => Math.hypot(x - lx, z - lz) < 5)) continue;
       const m = groundKind(x, z, h).meadow;
       if (R() > m * 1.6 + 0.08) continue;
       // drifts of tall grass, waist to head high, that part around you as you wade through

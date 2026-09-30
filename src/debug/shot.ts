@@ -3,7 +3,7 @@
    the `shot` query param is present — normal play is untouched. */
 import { SITES } from "../scenes/sites";
 import { DUAT_ORIGIN } from "../world/pyramid";
-import { PYRAMID, heightAt } from "../world/terrain";
+import { LANDMARK_SITES, PYRAMID, heightAt } from "../world/terrain";
 
 export interface Shot {
   id: string;
@@ -120,6 +120,12 @@ export function runShot(ctx: ShotCtx): void {
       : { eye: [0, 4, -40], look: [0, 3.5, -56] };
     ctx.setInside(true);
     ctx.player.pos.set(base[0] + view.eye[0], base[1], base[2] + view.eye[2] - 2);
+  } else if (/^home-\d+$/.test(id)) {
+    // an archetype's home in the open world, from a little way off
+    const [hx, hz] = LANDMARK_SITES[Number(id.slice(5))] ?? LANDMARK_SITES[0];
+    base = [hx, heightAt(hx, hz), hz];
+    view = { eye: [7, 3.2, 9], look: [0, 1.2, 0] };
+    ctx.player.pos.set(hx + 5, heightAt(hx + 5, hz + 7), hz + 7);
   } else if (id === "genesis") {
     if (!ctx.genesisAt) return;
     base = ctx.genesisAt(t);
