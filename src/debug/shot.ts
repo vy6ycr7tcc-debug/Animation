@@ -272,9 +272,9 @@ export function runShot(ctx: ShotCtx): void {
     base = [site.x, heightAt(site.x, site.z), site.z]; // real ground, not the guessed site.y
     view = v;
     if (VISION_LESSONS.has(id)) {
-      // over the seated wanderer's shoulder, toward the vision 6.5 m ahead of the seat
+      // where the seated one's view comes to rest: behind the seat, toward the stage ahead
       const fx = -Math.sin(site.heading), fz = -Math.cos(site.heading);
-      view = { eye: [-fx * 4.2, 2.5, -fz * 4.2], look: [fx * 6.5, 2.2, fz * 6.5] };
+      view = { eye: [-fx * 7, 2.8, -fz * 7], look: [fx * 10, 5, fz * 10] };
     }
     if (id === "tree") {
       if (ctx.tour.gotoTree) ctx.tour.gotoTree(); // teleports the player and rests at the tree

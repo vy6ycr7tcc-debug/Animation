@@ -200,6 +200,7 @@ renderer.info.autoReset = false;
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(58, 1, 0.15, 6000);
+scene.userData.camera = camera; // what the lessons measure their distance from
 const FOG_COLOR = FOG.color;
 scene.fogNode = ijFogNode(); // height fog with moonlit in-scattering, for every standard material
 

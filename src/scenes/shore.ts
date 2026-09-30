@@ -1,108 +1,199 @@
-/* The shore lesson: L03 "The Untying" (forgiveness), told as a vision of light standing at the
-   water's edge (scenes/visionLesson.ts). Its moments follow the telling: a rope held between two
-   hands with a knot pulled tight; the knot close; a figure bent under what it carries, then bound
-   in cords; two figures face to face (the fear that wears another's face); the wheel of the
-   unforgiven action turning, and still; a figure curled on a stone (the first untying is your own
-   name); hands opening; a river taking a leaf; a storm spent over the sea; many small knots; a
-   figure walking on; the hands open and the rope gone slack; the space between the palms; the
-   road; a figure standing open. */
+/* The shore lesson: L03 "The Untying" (forgiveness), enacted (scenes/enacted.ts). Before the seat,
+   two colossal open hands of light stand up out of the sand, and between them a great rope of three
+   twisted strands, tied in the middle in a knot pulled tight and glowing like a held grievance.
+
+   It follows the telling. The knot glows as the narration looks at what it is made of; the rope
+   sags with the weight of holding it; cords wind round the knot (a room you never leave). A heavy
+   stone wheel rises behind and turns, the unforgiven action going round, and slows, and stops the
+   moment you stop pushing it. Release belongs to the hands: the fingers open. Then the untying
+   itself, slow and large: the loop loosens and widens, the strands fray and slip free, the knot
+   runs out of the rope, the way a river lets a leaf go. Small knots along it loosen in their turn.
+   The rope goes slack between open hands, falls, and its fibres rise away into the sky. */
 import * as THREE from "three/webgpu";
 import type { Narration } from "../core/narration";
-import { combine, rock, rope, ropeBetween, river, road, shift, storm, wheel, FORM_H, type Rand } from "../world/forms";
-import { bird, boundHand, cupped, eye, fist, footsteps, hand, offeredHand, spiral } from "../world/symbols";
+import { T } from "../gpu/tsl";
+import { rng } from "../world/forms";
+import { landStone } from "../world/stoneworks";
 import type { SceneModule } from "./lessonKit";
 import { SITES } from "./sites";
-import { visionLesson } from "./visionLesson";
-import { EMBER, GOLD, PALE, PEARL, ROSE, type Maker } from "./visionStage";
+import { cloud, enactedLesson, env, handVolume, type Stage, type StageCtx } from "./enacted";
 
-/** Two hands, a rope between them (slack 0: the knot pulled tight; 1: loose, the hands open). */
-function handsWithRope(n: number, R: Rand, slack: number): Float32Array {
-  const y = FORM_H * 0.5, gap = 1.6;
-  const one = (x: number, flip: boolean) => (m: number) => {
-    const h = slack > 0.5 ? hand(m, R, 1, y, 0.75) : fist(m, R);
-    for (let i = 0; i < h.length; i += 3) {
-      if (slack <= 0.5) h[i + 1] += y - FORM_H * 0.5; // the fist at the rope's height
-      h[i] = (flip ? -h[i] : h[i]) * 0.8 + x;
-    }
-    return h;
+const { abs, cos, exp, float, fract, mix, sin, smoothstep, uniform, vec3, vec4 } = T;
+
+const Y0 = 4.4; // the rope's height
+const W = 3.5; // half its span, palm to palm
+const HAND_X = 4.0;
+
+function stage(ctx: StageCtx): Stage {
+  const g = new THREE.Group();
+  const t = ctx.clock;
+  const R = rng(3303);
+  const u = {
+    on: uniform(0),
+    tight: uniform(1),
+    loose: uniform(0),
+    fray: uniform(0),
+    sag: uniform(0.1),
+    drop: uniform(0),
+    rise: uniform(0),
+    heat: uniform(0.4),
+    bind: uniform(0),
+    small: uniform(0),
+    open: uniform(0.2),
   };
-  return combine(n, [
-    [one(-gap, false), 0.32],
-    [one(gap, true), 0.32],
-    [(m) => ropeBetween(m, R, new THREE.Vector3(-gap + 0.3, y, 0), new THREE.Vector3(gap - 0.3, y, 0), slack), 0.36],
-  ]);
+  const ours: { dispose(): void }[] = [];
+
+  /* ---------------- the rope: three strands twisted round one line, the knot in its middle ---------------- */
+  {
+    const n = 14000;
+    const P = cloud(n, 0.085, { aK: 4 });
+    for (let i = 0; i < n; i++) {
+      P.a.aK.set([R(), Math.floor(R() * 3), R(), R()], i * 4);
+    }
+    P.dirty();
+    const K = P.c.nodes.aK;
+    const s = K.x, ply = K.y, r1 = K.z, r2 = K.w;
+    // the knot: a loop the rope makes round itself, passing over and under
+    const span = float(0.1).add(u.loose.mul(0.1));
+    const q = s.sub(0.5).div(span);
+    const w = exp(q.mul(q).mul(-1));
+    const th = q.mul(2.7);
+    const loopR = float(1.25).add(u.loose.mul(1.3)).mul(u.tight);
+    let cx = mix(float(-W), float(W), s).sub(sin(th).mul(loopR).mul(0.85).mul(w));
+    let cy = float(Y0).add(float(1).sub(cos(th)).mul(loopR).mul(0.62).mul(w));
+    let cz = sin(th.mul(0.5)).mul(loopR).mul(1.1).mul(w);
+    // small knots along it, for the small grievances of an ordinary day
+    const fs = fract(s.mul(7)), qs = fs.sub(0.5).div(0.06);
+    const ws = exp(qs.mul(qs).mul(-1)).mul(float(1).sub(w)).mul(u.small);
+    cx = cx.sub(sin(qs.mul(2.6)).mul(0.26).mul(ws));
+    cy = cy.add(float(1).sub(cos(qs.mul(2.6))).mul(0.18).mul(ws));
+    // the weight of holding it; slack at the end
+    cy = cy.sub(sin(s.mul(Math.PI)).mul(u.sag.mul(2.6)));
+    // three strands twisted about the line; where the knot loosens they fray apart
+    const phi = s.mul(95).add(ply.mul(2.094));
+    const rr = float(0.13).add(r1.mul(0.07)).add(u.fray.mul(w).mul(r1).mul(0.9)).add(u.drop.mul(r1).mul(0.5));
+    let p = vec3(cx, cy.add(cos(phi).mul(rr)), cz.add(sin(phi).mul(rr)));
+    // released, it falls; then its fibres rise away like birds
+    const fall = u.drop.mul(float(3.2).add(r2.mul(1.6)));
+    p = p.add(vec3(sin(r2.mul(40)).mul(u.drop).mul(0.8), fall.negate(), 0));
+    const lift = u.rise.mul(r2.mul(0.8).add(0.2));
+    p = p.add(vec3(sin(t.mul(0.6).add(r1.mul(30))).mul(lift).mul(2.5), lift.mul(float(9).add(r1.mul(16))), lift.mul(-6).mul(r2)));
+    P.m.positionNode = p;
+    const knotHeat = w.mul(u.heat);
+    const col = mix(vec3(1.0, 0.8, 0.52), vec3(1.0, 0.45, 0.2), knotHeat.min(1));
+    const pulse = sin(t.mul(1.3)).mul(0.25).add(0.75);
+    const bright = float(0.55).add(knotHeat.mul(pulse).mul(1.4)).mul(float(1).sub(u.rise.mul(r2).mul(0.9)));
+    P.m.colorNode = vec4(col.mul(P.round).mul(bright).mul(u.on).mul(0.55), 1);
+    g.add(P.c.sprite);
+    ours.push(P.m);
+  }
+
+  /* ---------------- the cords: winding round the knot, drawing tighter ---------------- */
+  {
+    const n = 3000;
+    const C = cloud(n, 0.05, { aK: 4 });
+    for (let i = 0; i < n; i++) C.a.aK.set([R(), R(), R(), R()], i * 4);
+    C.dirty();
+    const K = C.c.nodes.aK;
+    const a = K.x.mul(Math.PI * 2 * 9).add(t.mul(0.3));
+    const x = K.x.sub(0.5).mul(3.2);
+    const rad = mix(float(1.6), float(0.95), u.bind).add(K.y.mul(0.06));
+    C.m.positionNode = vec3(x, float(Y0).add(0.5).add(cos(a).mul(rad)), sin(a).mul(rad));
+    C.m.colorNode = vec4(vec3(1, 0.5, 0.26).mul(C.round).mul(u.bind).mul(u.on).mul(smoothstep(1.6, 1.0, abs(x))).mul(0.55), 1);
+    g.add(C.c.sprite);
+    ours.push(C.m);
+  }
+
+  /* ---------------- the two colossal hands, fingers opening as the telling reaches release ---------------- */
+  for (const side of [-1, 1]) {
+    const n = 7000;
+    const H = cloud(n, 0.085, { aB: 3, aK: 4 });
+    const closed = handVolume(n, 71, 0.2, 2.25);
+    const open = handVolume(n, 71, 1, 2.25);
+    for (let i = 0; i < n; i++) {
+      H.a.position.set([closed[i * 3] * side, closed[i * 3 + 1], closed[i * 3 + 2]], i * 3);
+      H.a.aB.set([open[i * 3] * side, open[i * 3 + 1], open[i * 3 + 2]], i * 3);
+      H.a.aK.set([R(), R(), R(), R()], i * 4);
+    }
+    H.dirty();
+    const K = H.c.nodes.aK;
+    const pos = mix(H.c.nodes.position, H.c.nodes.aB, u.open);
+    const breath = sin(t.mul(0.5).add(side)).mul(0.03).add(1);
+    H.m.positionNode = pos.mul(breath).add(vec3(sin(t.mul(0.4).add(K.x.mul(30))).mul(0.02), 0, 0));
+    const tw = sin(t.mul(float(0.7).add(K.y)).add(K.z.mul(40))).mul(0.25).add(0.75);
+    H.m.colorNode = vec4(mix(vec3(1, 0.86, 0.62), vec3(0.8, 0.86, 1), K.w.mul(0.4)).mul(H.round).mul(tw).mul(u.on).mul(0.42), 1);
+    const hg = new THREE.Group();
+    hg.add(H.c.sprite);
+    // standing up out of the sand, palm toward you, the rope's end at the palm
+    hg.position.set(HAND_X * side, Y0 - 1.6, 0.2);
+    hg.rotation.set(0, -side * 0.5, -side * 0.18);
+    g.add(hg);
+    ours.push(H.m);
+  }
+
+  /* ---------------- the wheel of the unforgiven action: heavy stone, turning, slowing, still ---------------- */
+  const wheel = new THREE.Group();
+  const uWheel = { show: 0, spin: 0, a: 0 };
+  {
+    // a millstone: a great disc of stone, a thick rounded rim, an axle through its heart
+    const parts: THREE.BufferGeometry[] = [];
+    const disc = new THREE.CylinderGeometry(3.4, 3.4, 1.0, 72, 1);
+    disc.rotateX(Math.PI / 2);
+    parts.push(disc);
+    const rim = new THREE.TorusGeometry(3.4, 0.5, 12, 72);
+    parts.push(rim);
+    const hub = new THREE.CylinderGeometry(0.62, 0.62, 1.5, 28);
+    hub.rotateX(Math.PI / 2);
+    parts.push(hub);
+    const m = landStone("sandstone_cracks", -99, 1.6, [0.2, 0.19, 0.19]);
+    for (const geo of parts) {
+      const mesh = new THREE.Mesh(geo, m);
+      mesh.castShadow = true;
+      wheel.add(mesh);
+      ours.push(geo);
+    }
+    ours.push(m);
+    wheel.position.set(0, 11.6, -7);
+    g.add(wheel);
+    const light = new THREE.PointLight(0xffc890, 0, 22, 2);
+    light.position.set(0, 9, 1);
+    g.add(light);
+    (wheel.userData as { light: THREE.PointLight }).light = light;
+  }
+
+  return {
+    group: g,
+    update(dt, tt, on) {
+      // waiting: the rope and its knot, faint; seated, the telling runs
+      u.on.value = 0.35 + 0.65 * on;
+      const T0 = tt;
+      u.heat.value = env(T0, [[0, 0.45], [42, 1.2], [83, 0.9], [144, 0.55], [241, 1.1], [344, 0.6], [470, 0.3], [560, 0]]);
+      u.sag.value = env(T0, [[0, 0.1], [83, 0.1], [100, 0.4], [344, 0.4], [386, 0.18], [560, 0.2], [585, 1]]);
+      u.bind.value = env(T0, [[0, 0], [110, 0], [128, 1], [290, 0.8], [344, 0]]);
+      u.open.value = env(T0, [[0, 0.15], [344, 0.15], [372, 0.6], [560, 0.6], [585, 1]]);
+      // the untying: slow, and large
+      u.loose.value = env(T0, [[0, 0], [386, 0], [470, 1]]);
+      u.tight.value = env(T0, [[0, 1], [440, 1], [560, 0]]);
+      u.fray.value = env(T0, [[0, 0], [420, 0], [500, 1], [600, 0.35]]);
+      u.small.value = env(T0, [[0, 0], [455, 0], [470, 1], [510, 1], [527, 0]]);
+      u.drop.value = env(T0, [[0, 0], [590, 0], [626, 1]]);
+      u.rise.value = env(T0, [[0, 0], [628, 0], [660, 1]]);
+      // the wheel rises and turns; it slows; it stops the moment you stop pushing it; it sinks
+      uWheel.show = env(T0, [[0, 0], [236, 0], [248, 1], [330, 1], [362, 0]]);
+      uWheel.spin = env(T0, [[0, 0.9], [262, 0.9], [286, 0]]);
+      uWheel.a += dt * uWheel.spin * (on > 0.5 ? 1 : 0);
+      wheel.visible = uWheel.show > 0.01;
+      wheel.scale.setScalar(Math.max(0.001, uWheel.show));
+      wheel.position.y = 11.6 - (1 - uWheel.show) * 6;
+      wheel.rotation.z = uWheel.a;
+      (wheel.userData as { light: THREE.PointLight }).light.intensity = 70 * uWheel.show;
+    },
+    dispose() {
+      for (const o of ours) o.dispose();
+    },
+  };
 }
 
-// the telling in symbols, one at a time (the owner: "an open hand… don't focus on the character")
-const forms: Record<string, Maker> = {
-  // the rope between the hands, the knot pulled tight
-  rope: (n, R) => handsWithRope(n, R, 0),
-  // the knot, close: the middle of the rope, larger
-  knot: (n, R) => shift(rope(n, R, 1.9, 0, 0), 0, 2.3, 0, 1.6),
-  // what holding it has cost: a stone carried in an open hand
-  burden: (n, R) => combine(n, [[(m) => offeredHand(m, R, 0, FORM_H * 0.32), 0.6], [(m) => rock(m, R, 0.9, 0.6, 0.8, FORM_H * 0.36), 0.4]]),
-  // bound in cords
-  bound: (n, R) => boundHand(n, R),
-  // the fear that wears someone else's face: an eye and its reflection
-  mirror: (n, R) => combine(n, [
-    [(m) => eye(m, R, 1, FORM_H * 0.72), 0.42],
-    [(m) => shift(eye(m, R, 1, 0), 0, FORM_H * 0.28, 0), 0.42],
-    [(m) => combine(m, [[(k) => rope(k, R, 1.6, FORM_H * 0.5, 0), 1]]), 0.16],
-  ]),
-  // the wheel of the unforgiven action (turning or still: the key says)
-  wheel: (n, R) => wheel(n, R),
-  // the knot tied closest to the skin: winding inward
-  curled: (n, R) => spiral(n, R, 3.2),
-  // hands opening, a small light on the palm
-  open: (n, R) => offeredHand(n, R, 0.28),
-  // a river takes the leaf
-  river: (n, R) => river(n, R),
-  storm: (n, R) => storm(n, R, 0),
-  spent: (n, R) => storm(n, R, 1),
-  // the small knots of an ordinary day
-  small: (n, R) => combine(n, Array.from({ length: 7 }, (_, k) => [(m: number) => {
-    const a = (k / 7) * Math.PI * 2;
-    return shift(rope(m, R, 0.5, 0, 0), Math.cos(a) * 1.8, 1.4 + Math.sin(k * 2.3) * 0.9 + (k % 2) * 0.6, Math.sin(a) * 0.9, 0.9);
-  }, 1 / 7] as [(m: number) => Float32Array, number])),
-  // setting down the rope and walking on
-  walk: (n, R) => combine(n, [[(m) => footsteps(m, R), 0.75], [(m) => shift(rope(m, R, 0.9, 0, 0.9), -1.2, 0.15, 1.6), 0.25]]),
-  // the hands open, the rope slack between them
-  slack: (n, R) => handsWithRope(n, R, 1),
-  // the space between the palms
-  space: (n, R) => cupped(n, R, 0.04),
-  road: (n, R) => road(n, R),
-  // free: a bird
-  free: (n, R) => bird(n, R, FORM_H * 0.6, 0.3),
-};
-
 export function createShoreScene(scene: THREE.Scene, narration: Narration, whisper: (t: string, ms?: number) => void): SceneModule {
-  return visionLesson(scene, narration, whisper, {
-    id: "shore",
-    trackId: "L03",
-    site: SITES.shore,
-    seedNum: 303,
-    forms,
-    keys: [
-      { t: 1, form: "rope", tint: GOLD, dur: 6 }, // take a piece of rope in your hands
-      { t: 42, form: "knot", tint: EMBER }, // what the knot is made of
-      { t: 83, form: "burden", tint: GOLD }, // the knot is in your hands now; what holding it has cost
-      { t: 110, form: "bound", tint: EMBER }, // resentment: a room you never leave
-      { t: 144, form: "knot", tint: PALE }, // look closer at the knot itself
-      { t: 164, form: "mirror", tint: PALE }, // a fear, now wearing someone else's face
-      { t: 223, form: "rope", tint: GOLD }, // the only hands in this scene are yours
-      { t: 241, form: "wheel", tint: EMBER, spin: 0.6, axis: "z" }, // it keeps turning
-      { t: 286, form: "wheel", tint: PALE, dur: 3 }, // the wheel stops the moment you stop pushing it
-      { t: 291, form: "curled", tint: ROSE }, // who have you refused to forgive most fiercely
-      { t: 344, form: "open", tint: GOLD }, // release belongs to the hands
-      { t: 386, form: "river", tint: PALE }, // the way a river lets a leaf go
-      { t: 441, form: "storm", tint: PALE, dur: 3 }, // a storm spent over the sea
-      { t: 447, form: "spent", tint: PALE, dur: 7 },
-      { t: 455, form: "small", tint: GOLD, spin: 0.08 }, // begin small
-      { t: 527, form: "walk", tint: PALE }, // set down the rope and still walk away
-      { t: 560, form: "slack", tint: GOLD }, // open your hands; feel the rope go slack
-      { t: 576, form: "space", tint: PEARL }, // the space between your palms
-      { t: 624, form: "road", tint: PALE }, // set those down, gently, beside the road
-      { t: 631, form: "free", tint: PEARL }, // what would be possible
-    ],
-  });
+  return enactedLesson(scene, narration, whisper, { id: "shore", trackId: "L03", site: SITES.shore, reach: 10, make: stage });
 }
