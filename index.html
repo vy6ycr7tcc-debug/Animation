@@ -151,25 +151,33 @@
 <button id="menu-btn" type="button" aria-label="Settings" aria-expanded="false" aria-controls="menu" hidden><span></span></button>
 <div id="menu" role="dialog" aria-label="Settings" hidden>
   <div class="menu-scroll">
-    <div class="offline-section" style="margin-bottom: 12px;">
-      <button id="offline-btn" type="button" class="primary-btn">Download for offline play</button>
-      <div id="offline-progress" hidden>
-        <div id="offline-bar" style="width: 0%; height: 4px; background: #c3b586; margin-top: 4px; transition: width 0.2s;"></div>
-        <p id="offline-text" class="note" style="margin-top: 4px;">0%</p>
-      </div>
+    <div class="menu-go">
+      <button id="map-open" type="button"><span class="ico" aria-hidden="true">◎</span>Map</button>
+      <button id="guide-open" type="button"><span class="ico" aria-hidden="true">✧</span>Guide</button>
+      <button id="autofly" type="button" aria-pressed="false"><span class="ico" aria-hidden="true">∞</span>Autofly</button>
     </div>
-    <label for="vol">Volume</label>
-    <input id="vol" type="range" min="0" max="1" step="0.05" value="0.8">
-    <label class="check"><input id="voice" type="checkbox" checked> Narration</label>
-    <label class="check"><input id="awake" type="checkbox" checked> Keep the screen awake</label>
-    <label class="check"><input id="reduced" type="checkbox"> Reduce motion</label>
-    <label class="check"><input id="freefly" type="checkbox"> Free flight: fly where you look</label>
-    <button id="map-open" type="button">Map</button>
-    <button id="guide-open" type="button">Guide</button>
-    <button id="autofly" type="button" aria-pressed="false">Autofly</button>
-    <button id="about-open" type="button">About</button>
-    <button id="leave" type="button">Leave</button>
-    <button id="restart" type="button">Begin again</button>
+    <div class="menu-sec">
+      <label for="vol">Volume</label>
+      <input id="vol" type="range" min="0" max="1" step="0.05" value="0.8">
+      <label class="check"><input id="voice" type="checkbox" checked> Narration</label>
+    </div>
+    <div class="menu-sec">
+      <label class="check"><input id="freefly" type="checkbox"> Free flight: fly where you look</label>
+      <label class="check"><input id="awake" type="checkbox" checked> Keep the screen awake</label>
+      <label class="check"><input id="reduced" type="checkbox"> Reduce motion</label>
+    </div>
+    <div class="menu-sec">
+      <button id="offline-btn" type="button" class="menu-row">Download for offline play</button>
+      <div id="offline-progress" hidden>
+        <div id="offline-bar"></div>
+        <p id="offline-text" class="note">0%</p>
+      </div>
+      <button id="about-open" type="button" class="menu-row">About</button>
+    </div>
+    <div class="menu-foot">
+      <button id="leave" type="button">Leave</button>
+      <button id="restart" type="button">Begin again</button>
+    </div>
     <p class="note">Leave keeps your place on this device.</p>
   </div>
 </div>
