@@ -20,7 +20,7 @@ import { landStone, stoneBlock } from "../../world/stoneworks";
 import { GlassFolk } from "../glassFolk";
 import { applyAir, damp, merge, pointCloud, roomClock, scannedGround, seeded, skyDome, touch, type Air, roomPos } from "../densities/roomKit";
 
-const { exp, float, length, max, mix, pow, smoothstep, uniform, vec3, vec4 } = T;
+const { exp, float, fract, length, max, mix, pow, sin, smoothstep, uniform, vec3, vec4 } = T;
 
 /** Room frame: start at the origin facing −z; the great pyramid far ahead. */
 const PYR = new THREE.Vector3(0, 0, -170);
@@ -138,6 +138,33 @@ export function createPyramidsScene(scene: THREE.Scene, narration: LessonCtx["na
       g.add(mesh);
       ours.push(geo, m);
     }
+    const t = clock.u;
+    // the King's Chamber as an intensifier: light drawn in from all round the pyramid, spiralling
+    // up and inward to its heart, where it gathers into a core that burns brighter the longer it holds
+    {
+      const heart = new THREE.Vector3(PYR.x, PYR_H * 0.38, PYR.z);
+      const n = 3200;
+      const sp = pointCloud(n, 0.35);
+      for (let i = 0; i < n; i++) sp.k.set([Math.random(), Math.random(), Math.random(), Math.random()], i * 4);
+      touch(sp.cloud);
+      const K = sp.cloud.nodes.aK;
+      const f = fract(K.x.add(t.mul(0.05)));
+      const a = K.y.mul(6.283).add(f.mul(9));
+      const r = float(PYR_HALF * 1.6).mul(float(1).sub(f)).mul(K.z.mul(0.4).add(0.8));
+      const y = mix(float(1), float(heart.y), pow(f, 0.7));
+      sp.material.positionNode = vec3(float(heart.x).add(T.cos(a).mul(r)), y, float(heart.z).add(sin(a).mul(r)));
+      sp.material.colorNode = vec4(vec3(1, 0.72, 0.38).mul(sp.round).mul(smoothstep(0, 0.1, f)).mul(f.mul(1.5).add(0.3)).mul(uChamber).mul(0.55), 1);
+      sp.material.depthTest = false; // seen through the stone, as the heart's light is
+      g.add(sp.cloud.sprite);
+      ours.push(sp.material);
+      const core = pointCloud(1, 16);
+      core.pos.set([heart.x, heart.y, heart.z]);
+      touch(core.cloud);
+      core.material.colorNode = vec4(vec3(1, 0.78, 0.45).mul(core.round).mul(uChamber).mul(sin(t.mul(1.2)).mul(0.2).add(0.9)).mul(0.9), 1);
+      core.material.depthTest = false;
+      g.add(core.cloud.sprite);
+      ours.push(core.material);
+    }
     // the portable chamber: a small pyramid of light round the figure
     {
       const pg = new THREE.ConeGeometry(1.9 * Math.SQRT2, 3.4, 4, 1);
@@ -151,12 +178,12 @@ export function createPyramidsScene(scene: THREE.Scene, narration: LessonCtx["na
       const pairs: number[] = [];
       for (let i = 0; i < 22; i++) {
         const a = -0.9 + (i / 21) * 1.8, r = 26;
-        const cx = Math.sin(a) * r, cz = -40 - Math.cos(a) * r * 0.4, cy = 9 + Math.sin((i / 21) * Math.PI) * 5;
-        const w = 0.9, h = 1.5, ux = Math.cos(a), uz = Math.sin(a) * 0.4;
+        const cx = Math.sin(a) * r * 1.5, cz = -40 - Math.cos(a) * r * 0.4, cy = 12 + Math.sin((i / 21) * Math.PI) * 8;
+        const w = 1.7, h = 2.8, ux = Math.cos(a), uz = Math.sin(a) * 0.4;
         const c = [[-w, -h], [w, -h], [w, h], [-w, h]].map(([x, y]) => [cx + x * ux * 0.7, cy + y * 0.7, cz + x * uz * 0.7]);
         for (let k = 0; k < 4; k++) pairs.push(...c[k], ...c[(k + 1) % 4]);
       }
-      g.add(drawn(pairs, [1, 0.8, 0.45], uCards, 0.9));
+      g.add(drawn(pairs, [1, 0.8, 0.45], uCards, 1.5));
       // the star map: constellation lines across the western sky
       const sp: number[] = [];
       let prev: THREE.Vector3 | null = null;

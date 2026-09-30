@@ -19,7 +19,7 @@ import { GlassFolk } from "../glassFolk";
 import { quartz } from "./monument";
 import { applyAir, boulderGeometry, damp, keepAlpha, merge, pointCloud, roomClock, scannedGround, seeded, skyDome, touch, type Air, roomPos } from "../densities/roomKit";
 
-const { exp, float, floor, length, max, mix, normalize, positionWorld, pow, sin, smoothstep, step, uniform, uv, vec2, vec3, vec4 } = T;
+const { exp, float, floor, fract, length, max, mix, normalize, positionWorld, pow, sin, smoothstep, step, uniform, uv, vec2, vec3, vec4 } = T;
 
 /** Room frame: start at the origin facing −z; the sea to the left (x < −9); the island far off. */
 const SUN = new THREE.Vector3(-1, 0.04, -0.35).normalize();
@@ -165,10 +165,43 @@ export function createStonesScene(scene: THREE.Scene, narration: LessonCtx["narr
         light.intensity = 15 + 300 * (uHeal.value + uGrasp.value) + 25 * uCry.value;
       });
     }
+    // the crystal as an instrument, amplifying: a fine stream of the holder's own light flows from
+    // the hands into the stone, and out of the stone the same light comes magnified, a great fan of
+    // it over the beach and the water, in the colour of what the hand brings ("what it sings is you")
+    {
+      const top = new THREE.Vector3(PLINTH.x, stonesFloor(PLINTH.x, PLINTH.z) + 3.4, PLINTH.z);
+      const hands = new THREE.Vector3(-4.2, stonesFloor(-4.5, -6) + 1.2, -6.4);
+      const amp = uHeal.add(uGrasp).add(uSing.mul(0.6)).min(1.3);
+      const col = mix(mix(vec3(0.75, 0.85, 1), vec3(1, 0.8, 0.42), uHeal), vec3(1, 0.2, 0.08), uGrasp);
+      const n = 400;
+      const inS = pointCloud(n, 0.08);
+      for (let i = 0; i < n; i++) inS.k.set([R(), R(), R(), R()], i * 4);
+      touch(inS.cloud);
+      const K = inS.cloud.nodes.aK;
+      const f = fract(K.x.add(t.mul(0.3)));
+      inS.material.positionNode = mix(vec3(hands.x, hands.y, hands.z), vec3(top.x, top.y - 1.4, top.z), f).add(vec3(0, sin(f.mul(Math.PI)).mul(0.6), sin(K.y.mul(20).add(f.mul(8))).mul(0.12)));
+      inS.material.colorNode = vec4(col.mul(inS.round).mul(sin(f.mul(Math.PI))).mul(amp).mul(0.9), 1);
+      g.add(inS.cloud.sprite);
+      ours.push(inS.material);
+      const m = 2600;
+      const outS = pointCloud(m, 0.32);
+      for (let i = 0; i < m; i++) outS.k.set([R(), R(), R(), R()], i * 4);
+      touch(outS.cloud);
+      const OK = outS.cloud.nodes.aK;
+      const of = fract(OK.x.add(t.mul(0.07)));
+      // out toward the water, widening: magnified
+      const spread = OK.y.sub(0.5).mul(1.6);
+      const dir = T.normalize(vec3(T.sin(spread).mul(-1), OK.z.mul(0.35).add(0.05), T.cos(spread).mul(-1)));
+      outS.material.positionNode = vec3(top.x, top.y, top.z).add(dir.mul(of.mul(46)));
+      outS.material.colorNode = vec4(col.mul(outS.round).mul(smoothstep(0, 0.05, of)).mul(float(1).sub(of)).mul(amp).mul(2.4), 1);
+      g.add(outS.cloud.sprite);
+      ours.push(outS.material);
+    }
     // the island across the water: a temple of learning with great crystals, rising out of the haze,
     // and in the end sinking as the sea closes over it
     const isle = new THREE.Group();
     isle.position.copy(ISLAND);
+    isle.scale.setScalar(1.6); // grand at its height
     g.add(isle);
     {
       const parts: THREE.BufferGeometry[] = [];
@@ -211,7 +244,7 @@ export function createStonesScene(scene: THREE.Scene, narration: LessonCtx["narr
       ours.push(lm);
       tickers.push(() => {
         isle.visible = uIsle.value > 0.01 && uSink.value < 0.999;
-        isle.position.y = ISLAND.y - 60 * (1 - uIsle.value) - 62 * uSink.value;
+        isle.position.y = ISLAND.y - 96 * (1 - uIsle.value) - 100 * uSink.value;
       });
     }
     // the pattern repeating: four small plinths along the beach, each with its stone
