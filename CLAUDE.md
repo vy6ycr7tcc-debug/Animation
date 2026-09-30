@@ -374,6 +374,10 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - The map (`ui/map.ts`): names are placed most important first and only where they overlap nothing; the places below are tabs (Places · Mind · Body · Spirit · Deep), one group at a time; heading "Where would you like to go?".
   - ⋮ (`index.html` `#menu`): three tiles (Map, Guide, Autofly), then sound, how you move, offline and About, and at the foot Leave and Begin again; the panel is as tall as its contents.
   - HUD: the half-moon player is smaller (scale 0.78) and quieter while nothing plays; the round button 64 px.
+- 2026-09-30: the owner (screenshot in the temple tour): the game didn't fill the screen (a dark band at the foot); "the temple should be a walk thru and the scene being talked about should be illuminated and focus should be there, you can then tap on next or exit the tour but the tour should be controlling the view and the character". Supersedes "a guide, not a ride" above.
+  - The tour walks for you (`scenes/templeTour.ts`): Next sets the wanderer walking the aisle to the next standing place (the light goes ahead), it turns to the shrine, the view comes round behind and draws in (4.4 m, low), and the part is spoken. The stick, the round button and the context word are hidden while it runs (`body.touring`), taps don't set course; ‹ back, ✕ ends it and gives the stick back.
+  - Focus (`Temple.setFocus`): a warm soft-edged spot from above the standing place onto the being; the hall's hemisphere, sun and oculus light dim to 45%, the braziers to 60%.
+  - Full screen: the canvas is sized by CSS (100vw × 100lvh) and its drawing size read from it (`renderer.setSize(w, h, false)`), re-measured when iOS settles (visualViewport, orientation, 0.5 s and 2 s after launch): on the Home Screen `innerHeight` came up short.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.
