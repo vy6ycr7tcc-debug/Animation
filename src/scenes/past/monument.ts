@@ -15,6 +15,7 @@ import * as THREE from "three/webgpu";
 import { T, gpuUniforms, vnoise } from "../../gpu/tsl";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
 import { colliders, PAST_HALL } from "../../world/terrain";
+import { contactShade, doorSpill } from "../../world/stoneworks";
 import type { SceneModule } from "../lessonKit";
 import { box, disc, type Hall, type Room, type Stage } from "../journey";
 import { inward, keepAlpha, lamps, merge } from "../densities/roomKit";
@@ -186,13 +187,22 @@ export class PastMonument implements Hall {
       stela.push(new THREE.Vector3(x, 0.9 + 4.2, z));
       colliders.push({ ...this.toWorld(x, z), r: 1.0, top: base + 4.4 });
     }
-    const wallMesh = new THREE.Mesh(merge(walls), marble(2.8, { course: 0.72, block: 1.4, flag: 1.2 }));
+    const wallMesh = new THREE.Mesh(merge(walls), marble(2.8, { course: 0.72, block: 1.4, flag: 1.2, trim: { base: base + 1.3, top: base + 11.6 } }));
     const colMesh = new THREE.Mesh(merge(cols), marble(1.8));
     const trimMesh = new THREE.Mesh(merge(trim), gold(0.1));
     for (const m of [wallMesh, colMesh, trimMesh]) {
       m.castShadow = m.receiveShadow = true;
       this.world.add(m);
     }
+    // grounded: shadow round the platform's foot, round the cella and under the peristyle; the
+    // door's cool light out over the stylobate
+    const shadeBase = contactShade({ r: 24 }, 3.2, 0.45);
+    shadeBase.position.y = 0.03;
+    const shadeCella = contactShade({ r: 8.45 }, 2.2, 0.45);
+    shadeCella.position.y = 1.32;
+    const spill = doorSpill(3.2, 6, new THREE.Color(0.7, 0.85, 1), 0.28);
+    spill.position.set(0, 1.33, 8.5);
+    this.world.add(shadeBase, shadeCella, spill);
     // the water in its ring
     {
       const g = new THREE.RingGeometry(16.05, 18.15, 96, 1);
@@ -302,7 +312,7 @@ function lobby(scene: THREE.Scene, seen: () => Set<string>): Room {
     c.translate(0, 0.25, 0);
     walls.push(c);
   }
-  const wallMesh = add(new THREE.Mesh(merge(walls), marble(2.6, { course: 0.7, block: 1.3 })));
+  const wallMesh = add(new THREE.Mesh(merge(walls), marble(2.6, { course: 0.7, block: 1.3, trim: { base: 0, top: H } })));
   const colMesh = add(new THREE.Mesh(merge(cols), marble(1.7)));
   const trimMesh = add(new THREE.Mesh(merge(trim), gold(0.1)));
   for (const m of [wallMesh, colMesh, trimMesh]) m.castShadow = m.receiveShadow = true;
