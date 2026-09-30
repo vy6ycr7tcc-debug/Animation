@@ -135,13 +135,13 @@ export function createCallScene(scene: THREE.Scene, narration: LessonCtx["narrat
     {
       const blocks: THREE.BufferGeometry[] = [];
       const win: number[] = [];
-      for (let i = 0; i < 70; i++) {
-        const x = (R() - 0.5) * 360, z = TOWN_Z + R() * 90, w = 8 + R() * 16, d = 8 + R() * 14, h = 6 + R() * R() * 34;
+      for (let i = 0; i < 110; i++) {
+        const x = (R() - 0.5) * 420, z = TOWN_Z + R() * 90, w = 8 + R() * 16, d = 8 + R() * 14, h = 6 + R() * R() * 34;
         const b = stoneBlock(w, h, d);
         b.translate(x, h / 2 - 1.5, z);
         blocks.push(b);
         for (let k = 0, n = Math.round(h / 3); k < n; k++)
-          for (let j = 0; j < 4; j++) if (R() < 0.3) win.push(x + (j / 3 - 0.5) * w * 0.8, 1.5 + k * 3, z - d / 2 - 0.2, R());
+          for (let j = 0; j < 4; j++) if (R() < 0.55) win.push(x + (j / 3 - 0.5) * w * 0.8, 1.5 + k * 3, z - d / 2 - 0.2, Math.min(0.98, Math.max(0.02, (x + 210) / 420 * 0.85 + R() * 0.15)));
       }
       const bm = new THREE.MeshBasicNodeMaterial({ fog: true });
       bm.colorNode = vec4(0.006, 0.007, 0.012, 1);
@@ -150,7 +150,7 @@ export function createCallScene(scene: THREE.Scene, narration: LessonCtx["narrat
       ours.push(town);
       ours.push(bm);
       const n = win.length / 4;
-      const w = pointCloud(n, 0.9);
+      const w = pointCloud(n, 1.5);
       for (let i = 0; i < n; i++) {
         w.pos.set([win[i * 4], win[i * 4 + 1], win[i * 4 + 2]], i * 3);
         w.k.set([win[i * 4 + 3], R(), R(), 0], i * 4);
@@ -160,7 +160,7 @@ export function createCallScene(scene: THREE.Scene, narration: LessonCtx["narrat
       // each window has its own hour: when the town "sleeps" below it, it goes out
       const on = smoothstep(0.0, 0.08, uTown.sub(K.x));
       const sq = smoothstep(0.5, 0.35, max(abs(T.pointUV.x.sub(0.5)), abs(T.pointUV.y.sub(0.5))));
-      w.material.colorNode = vec4(mix(vec3(1, 0.72, 0.4), vec3(0.95, 0.85, 0.6), K.y).mul(sq).mul(on).mul(0.55), 1);
+      w.material.colorNode = vec4(mix(vec3(1, 0.72, 0.4), vec3(0.95, 0.85, 0.6), K.y).mul(sq).mul(on).mul(0.9), 1);
       g.add(w.cloud.sprite);
       ours.push(w.material);
     }
@@ -196,23 +196,39 @@ export function createCallScene(scene: THREE.Scene, narration: LessonCtx["narrat
       }
       const geo = ribbonGeometry(pairs);
       // the shoot shows only as high as it has grown
-      const m = ribbonMaterial(vec3(1, 0.82, 0.45).mul(smoothstep(0.02, 0.0, T.positionGeometry.y.div(2.4).sub(uSprout))).mul(1.2), 0.9);
+      const m = ribbonMaterial(vec3(1, 0.82, 0.45).mul(smoothstep(0.02, 0.0, T.positionGeometry.y.div(2.4).sub(uSprout))).mul(1.4), 2.6);
       shoot = new THREE.Mesh(geo, m);
       shoot.position.copy(SEED);
+      shoot.scale.setScalar(3.2);
       g.add(shoot);
       ours.push(geo, m);
-      // the seed: a soft point that splits in two as the shoot begins
-      const s = pointCloud(2, 0.34);
-      s.pos.set([0, 0, 0, 0, 0, 0]);
-      s.k.set([0, 0, 0, 0, 1, 0, 0, 0]);
-      touch(s.cloud);
-      const K = s.cloud.nodes.aK;
-      const apart = smoothstep(0, 0.2, uSprout).mul(0.13);
-      s.material.positionNode = vec3(K.x.mul(2).sub(1).mul(apart), float(0.12), 0);
-      s.material.colorNode = vec4(vec3(1, 0.9, 0.7).mul(s.round).mul(0.9), 1);
-      s.cloud.sprite.position.copy(SEED);
-      g.add(s.cloud.sprite);
-      ours.push(s.material);
+      // the seed: a great husk of light, two halves; as the shoot begins they crack apart with
+      // weight, a seam of gold opening between them, and fall open to either side
+      {
+        const n = 3000;
+        const sd = pointCloud(n, 0.07);
+        for (let i = 0; i < n; i++) {
+          // a point on an egg-shaped husk (a little flattened), and which half it belongs to
+          const u2 = R() * 2 - 1, a2 = R() * Math.PI * 2, rr = Math.sqrt(1 - u2 * u2);
+          const x = Math.cos(a2) * rr, y = u2, z = Math.sin(a2) * rr;
+          sd.pos.set([x * 0.75, (y * 1.1 + 1.1) * 0.9, z * 0.75], i * 3);
+          sd.k.set([x < 0 ? -1 : 1, R(), R(), Math.abs(x)], i * 4);
+        }
+        touch(sd.cloud);
+        const K = sd.cloud.nodes.aK, B = sd.cloud.nodes.position;
+        const crack = smoothstep(0, 0.35, uSprout);
+        const open = K.x.mul(crack.mul(0.9));
+        // each half swings open about its base
+        const ang = K.x.mul(crack.mul(0.7));
+        const px = B.x.mul(T.cos(ang)).add(B.y.mul(T.sin(ang))).add(open);
+        const py = B.y.mul(T.cos(ang)).sub(B.x.mul(T.sin(ang)).mul(0.2));
+        sd.material.positionNode = vec3(px, py, B.z);
+        const seam = smoothstep(0.25, 0.0, K.w).mul(crack);
+        sd.material.colorNode = vec4(mix(vec3(0.95, 0.82, 0.6), vec3(1, 0.7, 0.3), seam).mul(sd.round).mul(float(0.55).add(seam.mul(1.5))), 1);
+        sd.cloud.sprite.position.copy(SEED);
+        g.add(sd.cloud.sprite);
+        ours.push(sd.material);
+      }
       // the stone it rests on
       const st = new THREE.CylinderGeometry(0.55, 0.65, 0.22, 20);
       st.translate(SEED.x, 0.02, SEED.z);
@@ -316,6 +332,53 @@ export function createCallScene(scene: THREE.Scene, narration: LessonCtx["narrat
       dm.colorNode = vec4(mix(vec3(0.004, 0.005, 0.012), vec3(1, 0.42, 0.12), heat.mul(uFire)), 1);
       g.add(new THREE.Mesh(dg, dm));
       ours.push(dg, dm);
+    }
+
+    // the lens's work, visible: beams of starlight coming down from all the sky, bending at the
+    // lens and converging on one burning point above the shoot
+    {
+      const focus = new THREE.Vector3(SEED.x, 7.4, SEED.z);
+      const pairs: number[] = [];
+      const B = 36;
+      for (let k = 0; k < B; k++) {
+        const a = (k / B) * Math.PI * 2 + R() * 0.1;
+        const top = new THREE.Vector3(SEED.x + Math.cos(a) * (18 + R() * 16), 60 + R() * 30, SEED.z + Math.sin(a) * (18 + R() * 16));
+        const rim = new THREE.Vector3(SEED.x + Math.cos(a) * 2.9, 11, SEED.z + Math.sin(a) * 2.9);
+        pairs.push(top.x, top.y, top.z, rim.x, rim.y, rim.z, rim.x, rim.y, rim.z, focus.x, focus.y, focus.z);
+      }
+      const geo = ribbonGeometry(pairs);
+      const y = T.positionGeometry.y;
+      const flow = pow(fract(y.mul(0.06).add(t.mul(0.35))), 6);
+      const bm = keepAlpha(ribbonMaterial(vec3(0.8, 0.88, 1).mul(float(0.25).add(flow.mul(1.4))).mul(uLens).mul(0.7), 1.1));
+      g.add(new THREE.Mesh(geo, bm));
+      ours.push(geo, bm);
+      const pt = pointCloud(1, 1.6);
+      pt.pos.set([focus.x, focus.y, focus.z]);
+      touch(pt.cloud);
+      pt.material.colorNode = vec4(vec3(1, 0.92, 0.75).mul(pt.round).mul(uLens).mul(sin(t.mul(3.1)).mul(0.1).add(1)), 1);
+      g.add(pt.cloud.sprite);
+      ours.push(pt.material);
+    }
+    // the basin brims, and overflows: light spilling over its rim and running down the stone
+    {
+      const n = 600;
+      const o = pointCloud(n, 0.09);
+      for (let i = 0; i < n; i++) o.k.set([R(), R(), R(), R()], i * 4);
+      touch(o.cloud);
+      const K = o.cloud.nodes.aK;
+      const f = fract(K.x.add(t.mul(0.28)));
+      const a = K.y.mul(Math.PI * 2);
+      const r = float(0.7).add(f.mul(0.5)).add(K.z.mul(0.3));
+      const top = callFloor(3.6, -36) + 0.9;
+      const yy = float(top).sub(f.mul(f).mul(1.4));
+      o.material.positionNode = vec3(float(3.6).add(T.cos(a).mul(r)), T.max(yy, float(top - 0.9)), float(-36).add(sin(a).mul(r)));
+      o.material.colorNode = vec4(vec3(0.75, 0.88, 1).mul(o.round).mul(smoothstep(0.7, 1.0, uBasin)).mul(float(1).sub(f.mul(0.6))).mul(0.9), 1);
+      g.add(o.cloud.sprite);
+      ours.push(o.material);
+      const bl = new THREE.PointLight(0xbfd8ff, 0, 8, 2);
+      bl.position.set(3.6, top + 0.6, -36);
+      g.add(bl);
+      tickers.push(() => (bl.intensity = 40 * uBasin.value));
     }
 
     tickers.push((dt: number) => {
