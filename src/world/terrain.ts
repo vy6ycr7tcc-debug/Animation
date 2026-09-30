@@ -222,6 +222,41 @@ export const MONUMENT = (() => {
   return { x: best.x, z: best.z, y: Math.max(1.8, best.h), r: 12 };
 })();
 
+/** The great monuments' grounds (the densities, the adept, past choices, the visions): each on
+    broad dry level ground `r0`–`r1` m from the shore, looked for first toward `bearing`
+    (radians, x = sin, z = cos), clear of the homes, the pyramid, the vision and one another. */
+export interface MonumentSite { x: number; z: number; y: number; r: number; face: number }
+const MONUMENT_SITES: MonumentSite[] = [];
+export function monumentSite(bearing: number, r0: number, r1: number, flat: number): MonumentSite {
+  let best = { x: SPAWN.x + Math.sin(bearing) * r0, z: SPAWN.z + Math.cos(bearing) * r0, h: 4 }, bestScore = -Infinity;
+  for (let r = r0; r <= r1; r += 16)
+    for (let k = -8; k <= 8; k++) {
+      const a = bearing + k * 0.16, x = SPAWN.x + Math.sin(a) * r, z = SPAWN.z + Math.cos(a) * r;
+      const h = rawHeight(x, z);
+      if (h < 2.5 || h > 20) continue;
+      if (LANDMARK_SITES.some(([lx, lz]) => Math.hypot(x - lx, z - lz) < flat + 60)) continue;
+      if (Math.hypot(x - PYRAMID.x, z - PYRAMID.z) < PYRAMID.half * 2 + flat) continue;
+      if (Math.hypot(x - MONUMENT.x, z - MONUMENT.z) < flat + 50) continue;
+      if (MONUMENT_SITES.some((m) => Math.hypot(x - m.x, z - m.z) < m.r + flat + 60)) continue;
+      let rough = 0;
+      for (let j = 0; j < 10; j++) {
+        const b = (j / 10) * Math.PI * 2;
+        for (const rr of [flat * 0.5, flat]) rough = Math.max(rough, Math.abs(rawHeight(x + Math.cos(b) * rr, z + Math.sin(b) * rr) - h));
+      }
+      const score = -rough * 2 - Math.abs(k) * 0.6 - (r - r0) * 0.01;
+      if (score > bestScore) {
+        bestScore = score;
+        best = { x, z, h };
+      }
+    }
+  // its door faces home, toward the shore where you wake
+  const site = { x: best.x, z: best.z, y: Math.max(2.5, best.h), r: flat, face: Math.atan2(SPAWN.x - best.x, SPAWN.z - best.z) };
+  MONUMENT_SITES.push(site);
+  PADS.push({ x: site.x, z: site.z, h: site.y, outer: flat * 1.9, inner: flat * 1.2 });
+  KEEP_CLEAR.push({ x: site.x, z: site.z, r: flat * 1.35 });
+  return site;
+}
+
 /** Places the growing things keep clear of (the pyramid's plaza, the vision's ground). */
 export const KEEP_CLEAR: { x: number; z: number; r: number }[] = [
   { x: PYRAMID.x, z: PYRAMID.z, r: PYRAMID.half * 1.5 },
@@ -261,6 +296,11 @@ const PADS = LANDMARK_SITES.map(([x, z], i) => {
 // the pyramid's plaza, levelled
 PADS.push({ x: PYRAMID.x, z: PYRAMID.z, h: PYRAMID.y, outer: PYRAMID.half * 2.1, inner: PYRAMID.half * 1.45 });
 PADS.push({ x: MONUMENT.x, z: MONUMENT.z, h: MONUMENT.y, outer: MONUMENT.r * 2.2, inner: MONUMENT.r * 1.3 });
+/** The monument of the densities (scenes/densities/monument.ts): a round of eight standing stones
+    about a domed hall, on a stepped platform, its door toward the shore. */
+export const DENSITY_HALL = monumentSite(2.3, 200, 520, 30);
+/** The stepped platform's rise at distance `d` from a monument's centre (three steps of 0.45 m). */
+export const platformRise = (d: number): number => (d < 19.6 ? 1.35 : d < 20.8 ? 0.9 : d < 22 ? 0.45 : 0);
 
 /** Ground height at (x, z). Below WATER_Y means water. */
 /** A place apart, beyond the world's edge (the temple): its own floor. */
@@ -282,7 +322,9 @@ export function standAt(x: number, z: number): number {
   const h = heightAt(x, z);
   if (x > 20000) return h;
   const m = Math.max(Math.abs(x - PYRAMID.x), Math.abs(z - PYRAMID.z));
-  return m < PYRAMID.half ? Math.max(h, PYRAMID.y + PYRAMID.height * (1 - m / PYRAMID.half)) : h;
+  if (m < PYRAMID.half) return Math.max(h, PYRAMID.y + PYRAMID.height * (1 - m / PYRAMID.half));
+  const dm = Math.hypot(x - DENSITY_HALL.x, z - DENSITY_HALL.z);
+  return dm < 22 ? Math.max(h, DENSITY_HALL.y + platformRise(dm)) : h;
 }
 
 /** Caves in the steep hillsides (Samuel: "caves"): where the ground climbs sharply, away from

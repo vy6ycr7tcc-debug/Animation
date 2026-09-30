@@ -26,7 +26,7 @@ const SUN = new THREE.Vector3(0.42, 0.2, -1).normalize();
 const PORTAL = new THREE.Vector3(0, 0, -46);
 
 /** The meadow: long gentle swells, the path along the middle nearly level. */
-function meadowHeight(x: number, z: number): number {
+export function meadowHeight(x: number, z: number): number {
   const swell = (fbm(x * 0.018 + 4, z * 0.018 - 9) - 0.5) * 6 + (fbm(x * 0.07, z * 0.07 + 3) - 0.5) * 0.9;
   return swell * (0.25 + 0.75 * sm(3, 12, Math.abs(x))) + Math.max(0, Math.abs(x) - 30) * 0.12;
 }

@@ -155,6 +155,16 @@ body.loading #title h1, body.loading #title p { animation-play-state: paused; }
   z-index: 10;
 }
 #menu-btn[hidden] { display: none; }
+/* in a monument's room: its recording again from the beginning */
+#hear-again {
+  position: fixed; top: calc(10px + env(safe-area-inset-top, 0px)); left: calc(10px + env(safe-area-inset-left, 0px));
+  min-height: 44px; padding: 0 16px; border-radius: 22px; z-index: 12;
+  font: 500 14px/44px var(--font, system-ui); letter-spacing: 0.03em; color: var(--pearl);
+  background: rgba(10, 9, 22, 0.42); border: 1px solid rgba(255, 236, 200, 0.22);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); opacity: 0.8;
+}
+#hear-again[hidden] { display: none; }
+#hear-again:active { background: rgba(255, 236, 200, 0.18); }
 #menu-btn span { width: 6px; height: 6px; border-radius: 50%; background: var(--pearl); box-shadow: 0 -10px 0 var(--pearl), 0 10px 0 var(--pearl); }
 #menu {
   position: fixed;
@@ -633,7 +643,7 @@ body.tv-mode #problem {
 
 /* calm: nothing touched for a while, or autofly: the controls and the half-moon fade away (an
    animation, not a transition: the stick sets its own inline transition while it moves) */
-body.calm #joy, body.calm #act, body.calm #ctx, body.calm #menu-btn, body.calm #tp-mini {
+body.calm #joy, body.calm #act, body.calm #ctx, body.calm #menu-btn, body.calm #tp-mini, body.calm #hear-again {
   animation: calm-out 1.4s ease forwards;
 }
 @keyframes calm-out { to { opacity: 0; } }

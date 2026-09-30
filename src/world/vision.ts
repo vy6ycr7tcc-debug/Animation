@@ -118,7 +118,8 @@ function crystal(n: number, R: () => number): Shape {
   const parts: THREE.BufferGeometry[] = [];
   const P = rng(7);
   for (let k = 0; k < 9; k++) {
-    const g = prismGeometry().toNonIndexed();
+    const p0 = prismGeometry();
+    const g = p0.index ? p0.toNonIndexed() : p0;
     const a = k * 2.4, tilt = k === 0 ? 0 : 0.3 + P() * 0.45, len = k === 0 ? 1 : 0.45 + P() * 0.4;
     g.scale(0.9, len * 5.5, 0.9);
     g.rotateZ(-Math.cos(a) * tilt);

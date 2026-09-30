@@ -74,7 +74,7 @@ function ringBlock(a0: number, a1: number, r0: number, r1: number, y0: number, y
     const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
     if (y > y1 - 0.01) p.setY(i, y - wear * Math.min(1, Math.max(0, (Math.hypot(x, z) - r0) / (r1 - r0))));
   }
-  return g.toNonIndexed();
+  return g.index ? g.toNonIndexed() : g;
 }
 
 /** A rough standing stone: a tapered slab, its faces broken by noise, leaning a little. */
