@@ -320,6 +320,7 @@ export function createStonesScene(scene: THREE.Scene, narration: LessonCtx["narr
     seatPos,
     seatHeading: 0,
     build,
+    authoredSecs: 300, // beats written against the script's length; they follow the recording
     beats: [
       // "Frozen light. That is what a crystal is"
       { t: 32, apply: () => ((goal.cry = 0.7), (goal.dusk = 0.4)) },

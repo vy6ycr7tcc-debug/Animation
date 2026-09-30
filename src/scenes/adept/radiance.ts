@@ -292,6 +292,7 @@ export function createRadianceScene(scene: THREE.Scene, narration: LessonCtx["na
     seatPos,
     seatHeading: 0,
     build,
+    authoredSecs: 300, // beats written against the script's length; they follow the recording
     beats: [
       { t: 2, apply: () => (goal.dawn = 0.5) },
       // "Transparent, without the performance of personality"

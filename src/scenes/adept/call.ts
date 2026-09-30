@@ -341,6 +341,7 @@ export function createCallScene(scene: THREE.Scene, narration: LessonCtx["narrat
     seatPos,
     seatHeading: 0,
     build,
+    authoredSecs: 300, // beats written against the script's length; they follow the recording
     beats: [
       // "The questions arrive the way weather arrives… They find you at three in the morning"
       { t: 14, apply: () => (goal.ask = 1) },

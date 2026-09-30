@@ -251,6 +251,7 @@ export function createDensityRoom6Scene(
     seatPos,
     seatHeading: heading,
     build,
+    authoredSecs: 300, // beats written against the script's length; they follow the recording
     beats: [
       // "Picture the room… countless orbs of light… They drift toward one another": the return begins
       { t: 42, apply: () => (goal.conv = 0.35) },

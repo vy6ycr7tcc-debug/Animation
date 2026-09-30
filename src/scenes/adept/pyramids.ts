@@ -335,6 +335,7 @@ export function createPyramidsScene(scene: THREE.Scene, narration: LessonCtx["na
     seatPos,
     seatHeading: 0,
     build,
+    authoredSecs: 300, // beats written against the script's length; they follow the recording
     beats: [
       { t: 3, apply: () => (goal.rise = 0.5) },
       // "Enter it, the teaching says, and whatever you carry in gets louder"

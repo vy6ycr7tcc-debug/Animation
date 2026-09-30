@@ -160,8 +160,8 @@ export function createDensity7(
       uBright.value = 0.62 + 0.38 * (1 - Math.exp(-time / 160));
       air.color.setRGB(1.15, 1.0, 0.76).multiplyScalar(0.8 + 0.3 * (1 - Math.exp(-time / 160)));
       // "So step through the gateway… Return to the monument": the way home brightens
-      const nt = narration.time();
-      if (!sat && nt > 230) (sat = true), (ringGoal = 1);
+      const pr = narration.progress();
+      if (!sat && pr && pr.t / pr.total > 0.77) (sat = true), (ringGoal = 1);
       uRing.value = damp(uRing.value, ringGoal, 0.3, d);
     },
     /** Almost invisible before perfect light: the longer you remain, the less of you is there. */

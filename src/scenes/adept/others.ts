@@ -304,6 +304,7 @@ export function createOthersScene(scene: THREE.Scene, narration: LessonCtx["narr
     seatPos,
     seatHeading: 0,
     build,
+    authoredSecs: 320, // beats written against the script's length; they follow the recording
     beats: [
       // "the universe is populated the way a forest is populated, mostly out of sight"
       { t: 40, apply: () => (goal.worlds = 1) },

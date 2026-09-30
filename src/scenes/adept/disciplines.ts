@@ -285,6 +285,7 @@ export function createDisciplinesScene(scene: THREE.Scene, narration: LessonCtx[
     seatPos,
     seatHeading: 0,
     build,
+    authoredSecs: 310, // beats written against the script's length; they follow the recording
     beats: [
       // "Know yourself. Accept yourself. Become the Creator."
       { t: 40, apply: () => (goal.lamps = 1) },
