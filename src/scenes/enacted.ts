@@ -122,6 +122,10 @@ function handVolume(n: number, seedN: number, open: number, s: number): Float32A
   return out;
 }
 
+/** How dark a lesson asks the world to be (0 none, 1 truly dark), applied after the world's moods
+    each frame (main.ts): the desert's lantern means nothing unless the night around it is dark. */
+export const lessonDark = { k: 0 };
+
 const DRAW_WITHIN = 190;
 
 export function enactedLesson(scene: THREE.Scene, narration: Narration, whisper: (t: string, ms?: number) => void, cfg: EnactedCfg): SceneModule & { loaded?: Promise<void> } {
