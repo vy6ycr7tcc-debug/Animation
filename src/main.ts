@@ -78,6 +78,22 @@ registerSW({
 
 declare const __BUILD__: string;
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
+/** How far the loading has come (0..1), shown under the seed as a thin bar and a number, so it
+    never looks stuck; it only ever moves forward. The bar is a transform, which the compositor
+    draws even while the page is busy building the world. */
+let bootShown = 0;
+/** `creep`: seconds over which the bar keeps easing on toward `f` by itself (the long shader
+    compile gives no word of its progress, but the bar must never sit still). */
+function bootProgress(f: number, label = "Building the world", creep = 0.6): void {
+  bootShown = Math.max(bootShown, Math.min(1, f));
+  const bar = document.querySelector<HTMLElement>("#boot-bar i"), pct = document.querySelector("#boot-pct");
+  if (bar) {
+    bar.style.transitionDuration = `${creep}s`;
+    bar.style.transform = `scaleX(${bootShown.toFixed(3)})`;
+  }
+  if (pct) pct.textContent = creep > 1 ? label : `${label} · ${Math.round(bootShown * 100)}%`;
+}
+bootProgress(0.12);
 checkAssetUpdates();
 
 /** If anything fails on the phone, say so quietly on screen (for a screenshot), instead of the
@@ -1019,9 +1035,8 @@ function begin(e?: Event): void {
   awake.want();
   // ask the phone to keep the saved journey safe (granted quietly, most readily on the Home Screen)
   void navigator.storage?.persist?.().catch(() => false);
-  // Straight into the world (the owner: always the water first, never a map or settings): coming
-  // back, where you were; the first time, the opening words in the dark, then the shore. The map
-  // is in the menu.
+  // Straight into the world (the owner: always the water first, never a map, settings or words
+  // before it): coming back, where you were; the first time, the shore. The map is in the menu.
   if (saved) {
     const x = saved.pos[0], z = saved.pos[2];
     const all = places();
@@ -1029,7 +1044,7 @@ function begin(e?: Event): void {
     arrive({ place: near, x, z, heading: saved.heading ?? 0 }, true);
   } else {
     const shore = places()[0];
-    startOpening(() => arrive({ place: shore, ...shore.start }, true));
+    arrive({ place: shore, ...shore.start }, true);
   }
 }
 
@@ -2095,8 +2110,7 @@ addEventListener("keydown", (e) => {
   }
   if (S.mode === "intro" && (e.key === "Enter" || e.key === " ")) {
     e.preventDefault();
-    if (opening === "playing") finishOpening();
-    else begin();
+    begin();
   }
 });
 const vol = $<HTMLInputElement>("#vol");
@@ -2530,6 +2544,7 @@ function frame(now: number): void {
   frameDraws = renderer.info.render.drawCalls;
 }
 // WebGPU starts asynchronously (it asks the browser for the GPU); the world is built meanwhile.
+bootProgress(0.55, "Waking the light");
 renderer
   .init()
   .then(() => {
@@ -2551,6 +2566,8 @@ renderer
     // nothing reflects the sky's picture (blurred, its stars and nebulae became blobs over the land)
     post.start();
     if (!shot) requestAnimationFrame(frame);
+    bootProgress(0.65, "Preparing the light");
+    requestAnimationFrame(() => bootProgress(0.96, "Preparing the light", 16));
     return renderer.compileAsync(scene, camera);
   })
   .catch((e) => {
@@ -2616,30 +2633,12 @@ renderer
       });
   });
 
-/* The opening (Samuel: "an animation at the start… with an explanation of what this world is…
-   it should start in the dark, and should narrate…"). While the world loads, the seed of light
-   turns in the dark; when it is ready the dark lifts onto the night water and the title: "Touch
-   the water to begin", always the first thing (the owner). The first time, that touch brings
-   the dark back: his words come out of it one phrase at a time as the seed grows, spoken
-   (`audio/opening/1–8.mp3`, Piper), then two plain lines on what this world is, and the dark
-   lifts onto the shore. Skip at any time. */
-const OPENING = [
-  "From the stillness of the heart,",
-  "in the within of noise and the silence,",
-  "the soul seeks to rediscover itself,",
-  "experiencing creation,",
-  "and the creator,",
-  "all there is.",
-];
-const OPENING_AFTER = [
-  "This is a world of night and light to wander, with nothing to win and nowhere you must be.",
-  "Touch what calls you. Rest where it is quiet. Listen.",
-];
+/* Loading, then the title (the owner: "remove the weird quote… go straight to the main page, also
+   add the loading progress so we know it's not stuck"). While the world loads, the seed turns in
+   the dark over a thin bar of how far it has come; when it is ready the dark lifts onto the night
+   water and the title, "Touch the water to begin". No words before it. */
 let loadingEnded = false;
-let opening: "loading" | "playing" | "done" = "loading";
-const openingTimers: number[] = [];
-let openingVoice: { stop(fade?: number): void } | null = null;
-let afterOpening: (() => void) | null = null;
+let opening: "loading" | "done" = "loading";
 if (isTv) {
   loadingEnded = true;
   opening = "done";
@@ -2654,74 +2653,14 @@ if (isTv) {
 function endLoading(): void {
   if (loadingEnded) return;
   loadingEnded = true;
-  const wait = Math.max(0, 2500 - performance.now());
+  bootProgress(1, "Ready");
+  const wait = Math.max(0, 1200 - performance.now());
   window.setTimeout(() => {
     opening = "done";
-    const el = $("#loading");
-    el.classList.add("dawn", "done");
+    $("#loading").classList.add("dawn", "done");
     document.body.classList.remove("loading");
+    window.setTimeout(() => $("#loading")?.remove(), 4500);
   }, wait);
-}
-function openingLine(text: string, after = false): void {
-  const line = $("#loading-line");
-  line.classList.remove("on");
-  openingTimers.push(window.setTimeout(() => {
-    line.textContent = text;
-    line.classList.toggle("after", after);
-    line.classList.add("on");
-  }, line.textContent ? 1300 : 0));
-}
-/** Speak line `n` (1–8) of the opening, unless the voices rest. */
-function openingSpeak(n: number): void {
-  if (!playlist.on) return;
-  void audio.clip(`audio/opening/${n}.mp3`).then((buf) => {
-    if (!buf || opening !== "playing") return;
-    openingVoice?.stop(0.4);
-    openingVoice = audio.playClip(buf, 0.9);
-  });
-}
-/** The first journey's opening: the dark returns, the words, then `then` (the shore). */
-function startOpening(then: () => void): void {
-  opening = "playing";
-  afterOpening = then;
-  const el = $("#loading");
-  el.classList.remove("dawn", "done", "ready");
-  el.classList.add("opening");
-  $("#loading-line").textContent = "";
-  $("#loading-line").classList.remove("on");
-  const skip = $("#opening-skip");
-  skip.hidden = false;
-  skip.addEventListener("click", (e) => {
-    e.stopPropagation();
-    finishOpening();
-  }, { once: true });
-  const t0 = 2200, per = 4200;
-  OPENING.forEach((line, i) => openingTimers.push(window.setTimeout(() => {
-    openingLine(line);
-    openingSpeak(i + 1);
-  }, t0 + i * per)));
-  const t1 = t0 + OPENING.length * per + 1200;
-  OPENING_AFTER.forEach((line, i) => openingTimers.push(window.setTimeout(() => {
-    openingLine(line, true);
-    openingSpeak(OPENING.length + i + 1);
-  }, t1 + i * 7500)));
-  openingTimers.push(window.setTimeout(finishOpening, t1 + OPENING_AFTER.length * 7500 + 1500));
-}
-/** The dark lifts onto the shore. */
-function finishOpening(): void {
-  if (opening !== "playing") return;
-  opening = "done";
-  for (const t of openingTimers) clearTimeout(t);
-  openingVoice?.stop(1.2);
-  openingVoice = null;
-  $("#opening-skip").hidden = true;
-  const el = $("#loading");
-  $("#loading-line").classList.remove("on");
-  audio.bell(440, 0.03, 7);
-  // the world is built under the dark, then it lifts
-  afterOpening?.();
-  afterOpening = null;
-  window.setTimeout(() => el.classList.add("dawn", "done"), 300);
 }
 
 Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision, tourScenes } });

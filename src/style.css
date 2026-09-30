@@ -66,17 +66,6 @@ button:focus-visible, input:focus-visible { outline: 1px solid var(--gold); outl
 }
 #loading.done { opacity: 0; pointer-events: none; }
 #loading.dawn { transition-duration: 4s; }
-/* the opening: the seed grows slowly out of the dark as the words come */
-#loading .seed { transition: transform 36s ease-out, filter 6s; }
-#loading.opening .seed { transform: scale(1.7); filter: drop-shadow(0 0 6px rgba(255, 220, 160, 0.35)); }
-#loading.opening .seed .heart { fill: #fff6e0; }
-#loading.opening #loading-line { font-size: clamp(19px, 3vw, 24px); color: var(--pearl); max-width: 22em; }
-#loading #loading-line.after { font-size: clamp(15px, 2.2vw, 18px); color: var(--dim); }
-#opening-skip {
-  position: fixed; right: calc(18px + env(safe-area-inset-right, 0px)); bottom: calc(18px + env(safe-area-inset-bottom, 0px));
-  padding: 8px 16px; min-height: 40px; font-style: italic; color: var(--dim); opacity: 0.7;
-}
-#opening-skip[hidden] { display: none; }
 /* While the game boots, the page's own thread is busy for seconds (the code, the world, the
    shaders), so anything it has to animate stands still. The seed is therefore drawn whole, and
    all the movement is transforms the compositor runs by itself: the seed turning, and a thin
@@ -93,22 +82,23 @@ button:focus-visible, input:focus-visible { outline: 1px solid var(--gold); outl
 #loading .seed .hex { stroke: #a9c4e8; stroke-opacity: 0.5; }
 #loading .seed .petal { stroke-opacity: 0.75; }
 #loading .seed .heart { fill: #fff3d6; }
-#loading.opening .seed .heart { animation: seed-breathe 5s ease-in-out infinite; transform-origin: 0 0; }
 #loading .boot-ring {
   position: absolute; inset: -16%; border-radius: 50%;
   border: 1.5px solid rgba(226, 191, 126, 0.12); border-top-color: rgba(255, 226, 170, 0.9);
   animation: boot-spin 1.3s linear infinite; will-change: transform; transition: opacity 1.2s ease;
 }
-#loading.done .boot-ring, #loading.opening .boot-ring { opacity: 0; }
+#loading.done .boot-ring { opacity: 0; }
 @keyframes boot-spin { to { transform: rotate(360deg); } }
-#loading-line {
-  margin: 0; max-width: 26em; min-height: 3em;
-  font-style: italic; font-size: clamp(16px, 2.4vw, 19px); line-height: 1.55; color: var(--dim);
-  opacity: 0; transition: opacity 1.4s ease; text-wrap: balance;
-}
-#loading-line.on { opacity: 1; }
+#loading .seed .heart { animation: seed-breathe 5s ease-in-out infinite; transform-origin: 0 0; }
 body.loading #title h1, body.loading #title p { animation-play-state: paused; }
 @keyframes seed-turn { to { transform: rotate(360deg); } }
+/* how far the loading has come: a hairline of gold filling (a transform: it moves while the page
+   is busy), and the number beneath */
+#boot-progress { display: flex; flex-direction: column; align-items: center; gap: 10px; width: min(56vw, 220px); transition: opacity 0.8s; }
+#boot-bar { width: 100%; height: 2px; border-radius: 1px; background: rgba(226, 191, 126, 0.16); overflow: hidden; }
+#boot-bar i { display: block; height: 100%; background: var(--gold); transform: scaleX(0.02); transform-origin: left; transition: transform 0.6s cubic-bezier(0.2, 0.6, 0.3, 1); box-shadow: 0 0 6px rgba(255, 215, 150, 0.6); }
+#boot-pct { margin: 0; font-size: 13px; font-style: italic; letter-spacing: 0.04em; color: var(--dim); font-variant-numeric: tabular-nums; }
+#loading.done #boot-progress { opacity: 0; }
 @keyframes seed-breathe { 0%, 100% { opacity: 0.55; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.25); } }
 @media (prefers-reduced-motion: reduce) {
   #loading .seed-wrap { animation: none; }
