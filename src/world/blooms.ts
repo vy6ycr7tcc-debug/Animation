@@ -178,8 +178,8 @@ export class RisingFlowers {
     // in the meadows, in drifts: some stretches thick with them, others bare
     const drift = THREE.MathUtils.smoothstep(fbm(x * 0.012 - 41, z * 0.012 + 17), 0.42, 0.62);
     const clear = Math.hypot(x - SPAWN.x, z - SPAWN.z) > 6 && LANDMARK_SITES.every(([lx, lz]) => Math.hypot(x - lx, z - lz) > 13) && !keptClear(x, z, 2);
-    if (clear && h > WATER_Y + 0.4 && h < 40 && k.meadow > 0.3 && hash(i, j, 3) < 0.12 + drift * 0.5) {
-      const n = 3 + Math.floor(hash(i, j, 4) * 5);
+    if (clear && h > WATER_Y + 0.4 && h < 40 && k.meadow > 0.3 && hash(i, j, 3) < 0.04 + drift * 0.16) {
+      const n = 2 + Math.floor(hash(i, j, 4) * 3);
       const hue = Math.floor(hash(i, j, 5) * 4) / 4 + 0.01;
       const plants: Plant[] = [];
       for (let q = 0; q < n; q++) {

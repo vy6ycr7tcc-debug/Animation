@@ -88,8 +88,8 @@ export class Sparks {
 
 /* ---------------------------------------------------------------- grass of light */
 const TILE = 16;
-const BLADES_PER_TILE = 360;
-const GRASS_RING = 3; // 7 × 7 tiles around the wanderer
+const BLADES_PER_TILE = 110; // sparse tufts: the ground's own texture carries the land (lighter on the phone)
+const GRASS_RING = 2; // 5 × 5 tiles around the wanderer
 const TRAIL = 20;
 
 export class LightGrass {
@@ -158,7 +158,7 @@ export class LightGrass {
       return min(g, 1.5);
     })());
     const camD = length(w.sub(cameraPosition));
-    const fadeV = varying(float(1).sub(smoothstep(32, 50, length(aBase.xz.sub(cameraPosition.xz)))).mul(smoothstep(1.2, 4, camD))); // never a blade in your face
+    const fadeV = varying(float(1).sub(smoothstep(22, 34, length(aBase.xz.sub(cameraPosition.xz)))).mul(smoothstep(1.2, 4, camD))); // never a blade in your face
     const wV = varying(w), vTall = varying(tallK);
     const vY = tuv().y;
     mat.colorNode = Fn(() => {
@@ -192,7 +192,7 @@ export class LightGrass {
       if (R() > m * 1.6 + 0.08) continue;
       // drifts of tall grass, waist to head high, that part around you as you wade through
       const drift = Math.min(1, Math.max(0, (fbm(x * 0.011 + 57, z * 0.011 - 21) - 0.52) / 0.12));
-      const tall = (0.3 + R() * 0.3) * (1 + drift * drift * 3.2);
+      const tall = (0.3 + R() * 0.3) * (1 + drift * drift * 0.6); // no more head-high drifts: a light, low meadow
       for (let b = 0; b < 5; b++) {
         const a = R() * 6.28, r = R() * 0.12;
         out.push(x + Math.cos(a) * r, h, z + Math.sin(a) * r, tall * (0.7 + R() * 0.5), R() * Math.PI, R() * 6.28);
@@ -320,7 +320,7 @@ export class Flowers {
     const key = `${i},${j}`;
     if (this.known.has(key)) return this.known.get(key)!;
     let f: Flower | null = null;
-    if (cellHash(i, j, 1) < 0.62) {
+    if (cellHash(i, j, 1) < 0.2) { // a few, here and there (fewer is lighter, and each one counts)
       const x = (i + 0.2 + cellHash(i, j, 2) * 0.6) * CELL, z = (j + 0.2 + cellHash(i, j, 3) * 0.6) * CELL;
       const h = heightAt(x, z);
       const k = groundKind(x, z, h);
