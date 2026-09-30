@@ -7,9 +7,9 @@
    - tap the round button to jump, and tap again in the air to take off; hold it to take off
      and rise; flying, a tap is a wingbeat; let go to glide down;
    - one small word appears only when it helps: "Land" in the air, "Dive" on the water,
-     "Surface" under it;
-   - in the water, the round button's tap dives (at the surface) or strokes (under it), and
-     holding it rises. */
+     "Floor" under it (down to the lake floor), "Surface" going down or on the floor;
+   - in the water the round button means up: at the surface a tap dives (hold flies out), under
+     it a tap lifts a little and holding rises; a double tap on the orb goes down to the floor. */
 
 export class Input {
   move = { x: 0, y: 0 };

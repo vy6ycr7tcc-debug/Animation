@@ -18,8 +18,8 @@ const AIR_GLIDE = 7.0; // running off an edge, or holding jump in the air
 const SWIM = 2.6;
 const SWIM_FAST = 4.5; // the thumb at the edge
 const UNDER = 3.0; // swimming under the water
-const STROKE = 6.0; // the burst of one stroke
 const SINK = 1.5; // drifting down under the water when you let go, to land on the floor
+const DESCEND = 4.5; // going down to the floor (double tap on the orb, or the "Floor" word)
 const SEABED_WALK = 2.0; // walking on the lake floor, slowed by the water
 const SEABED_RUN = 3.6;
 const FLY = 6.0;
@@ -81,6 +81,8 @@ export class Controller {
   private surfacing = false;
   private plunge = 0; // a dolphin dive in progress: seconds left
   private holdWater = 0;
+  /** Going down to the lake floor, steadily, until the feet touch it. */
+  sinking = false;
   /** How long rise has been held: the climb gathers speed the longer you hold it. */
   private climbHeld = 0;
   speed = 0;
@@ -95,7 +97,8 @@ export class Controller {
     if (this.flying) this.landing = true;
   }
 
-  /** In the water, the round button's tap: at the surface a dive, under it a stroke. */
+  /** In the water the round button means up: at the surface a tap dives (hold flies out),
+      under the water a tap lifts you a little (hold rises), on the floor it lifts you off. */
   stroke(): void {
     if (!this.swimming) return;
     if (this.depth < 0.5) {
@@ -103,7 +106,24 @@ export class Controller {
       this.surfacing = false;
       return;
     }
-    this.burst = Math.min(STROKE * 1.4, this.burst + STROKE);
+    this.sinking = false;
+    this.seabed = false;
+    this.swimVel.y = Math.max(this.swimVel.y, 0) + 2.2;
+    this.burst = 0;
+  }
+  /** Down to the lake floor, steadily; there the body forms and you walk (the owner's double tap
+      on the orb). Again while going down, or on the floor, it rises back to the surface. */
+  descend(): void {
+    if (!this.swimming) return;
+    if (this.seabed || this.sinking) {
+      this.sinking = false;
+      this.seabed = false;
+      this.surfacing = true;
+      return;
+    }
+    this.sinking = true;
+    this.surfacing = false;
+    if (this.depth < 0.5) this.plunge = 0.5;
   }
   /** The "Dive" word: the same dive as a tap at the surface. */
   dive(): void {
@@ -351,7 +371,8 @@ export class Controller {
     this.target = null;
     // on the floor: stand and walk on it, until the button lifts you off (as flight lands and takes off)
     const floor = heightAt(this.pos.x, this.pos.z);
-    if (this.pos.y <= floor + 0.3 && !input.hold && !this.surfacing && this.plunge <= 0 && this.burst < 0.5) {
+    if (this.pos.y <= floor + 0.3 && !input.hold && !this.surfacing && this.plunge <= 0 && this.swimVel.y <= 0.05) {
+      this.sinking = false;
       this.walkSeabed(dt, input, camYaw, floor);
       return;
     }
@@ -369,7 +390,11 @@ export class Controller {
         const along = this.swimVel.lengthSq() > 0.04 ? this.swimVel.clone().normalize() : new THREE.Vector3(fx * cp, -sp, fz * cp);
         want.addScaledVector(along, this.burst);
       }
-      if (input.hold) want.y += 2.6;
+      if (input.hold) (want.y += 2.6), (this.sinking = false);
+      if (this.sinking) {
+        // straight down, steered a little by the stick, slowing as the floor comes near
+        want.set(want.x * 0.5, -Math.min(DESCEND, 0.8 + (this.pos.y - floor) * 0.6), want.z * 0.5);
+      }
       if (input.down) want.y -= 2.6;
       // let go of everything and you sink gently toward the floor, as flight glides down:
       // going deeper takes no effort at all
@@ -378,7 +403,7 @@ export class Controller {
         want.y = Math.max(want.y, 3.2);
         if (input.down) this.surfacing = false;
       }
-      this.swimVel.lerp(want, Math.min(1, dt * (mag > 0.05 || this.burst > 0.1 || input.hold || input.down || this.surfacing ? 2.4 : 1.4)));
+      this.swimVel.lerp(want, Math.min(1, dt * (mag > 0.05 || this.burst > 0.1 || input.hold || input.down || this.surfacing || this.sinking ? 2.4 : 1.4)));
     }
     this.burst *= Math.exp(-dt * 1.6);
 
@@ -396,6 +421,7 @@ export class Controller {
     // coming up: rest at the surface, or, rising fast, leap clear of it (hold on to fly)
     if (this.pos.y >= SWIM_FEET && this.plunge <= 0) {
       this.surfacing = false;
+      this.sinking = false;
       if (this.swimVel.y > 2.4 && input.hold) {
         this.swimming = false;
         this.grounded = false;
