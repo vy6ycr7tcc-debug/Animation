@@ -16,14 +16,14 @@ function hash(i: number, j: number, s: number): number {
   return v - Math.floor(v);
 }
 
-interface Animal {
+export interface Animal {
   obj: THREE.Object3D;
   mixer: THREE.AnimationMixer;
   action: THREE.AnimationAction;
 }
 
 /** Load a model and its motion; make `n` copies of it in light of the given colours. */
-async function herdOf(path: string, n: number, height: number, tints: THREE.Color[], faceZ: 1 | -1): Promise<Animal[]> {
+export async function herdOf(path: string, n: number, height: number, tints: THREE.Color[], faceZ: 1 | -1): Promise<Animal[]> {
   const bytes = await loadBytes(path);
   if (!bytes) return [];
   const gltf = await new GLTFLoader().parseAsync(bytes, "");

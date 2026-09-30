@@ -6,6 +6,7 @@
 import * as THREE from "three/webgpu";
 import { T, fogUniforms, gradeUniforms, softPoints, spriteCloud, vnoise, type N, type SpriteCloud } from "../../gpu/tsl";
 import { fbm } from "../../world/terrain";
+import { surface, type SurfaceName } from "../../world/textures";
 
 const { vec3, vec4, mix, smoothstep, length, exp, max, positionLocal, normalize, uniform } = T;
 
@@ -165,4 +166,27 @@ export function cloudSheet(size: number, height: number, t: N, color: (q: N, cov
   mesh.renderOrder = -5;
   mesh.frustumCulled = false;
   return { mesh, dispose: () => (geo.dispose(), m.dispose()) };
+}
+
+/** Real texture on a room's ground: a Poly Haven scan laid in metres from above (`tile` metres a
+    repeat), at two scales so no repeat reads as a grid; its colour kept mostly as light and shade
+    (`hue` of its own colour, the rest the ground's own tint), its occlusion darkening every
+    pebble and crack, and its relief turned into the surface (fading with distance so far ground
+    doesn't shimmer). Returns the colour to multiply into the ground, and the normal to use. */
+export function scannedGround(set: SurfaceName, tile: number, opts: { hue?: number; relief?: number; bright?: number } = {}): { color: N; normal: N } {
+  const s = surface(set);
+  const P = T.positionWorld;
+  const u1 = P.xz.div(tile), u2 = P.xz.div(tile * 2.618).add(T.vec2(0.37, 0.71));
+  const d = T.texture(s.diff, u1).rgb.mul(0.6).add(T.texture(s.diff, u2).rgb.mul(0.4));
+  const ao = T.texture(s.arm, u1).r.mul(0.6).add(T.texture(s.arm, u2).r.mul(0.4));
+  const lum = T.dot(d, T.vec3(0.3, 0.5, 0.2));
+  const col = mix(T.vec3(lum), d, opts.hue ?? 0.35).mul(opts.bright ?? 2.2).mul(mix(T.float(0.45), T.float(1.05), ao));
+  const camD = length(T.cameraPosition.sub(P));
+  const near = T.float(1).sub(smoothstep(20, 90, camD));
+  const n1 = T.texture(s.nor, u1).xy.mul(2).sub(1), n2 = T.texture(s.nor, u2).xy.mul(2).sub(1);
+  const n = n1.mul(0.6).add(n2.mul(0.4)).mul(near).mul(opts.relief ?? 1.4);
+  const dW = T.vec3(n.x, 0, n.y.negate());
+  const normal = normalize(T.normalView.add(T.cameraViewMatrix.mul(T.vec4(dW, 0)).xyz));
+  // far off, the scan's average, so the ground keeps its tone when the detail has faded
+  return { color: mix(T.vec3(0.9), col, T.float(1).sub(smoothstep(120, 260, camD))), normal };
 }

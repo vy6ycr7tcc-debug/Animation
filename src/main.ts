@@ -2613,10 +2613,12 @@ renderer
           // the density rooms are factory modules (not yet in the journey): built here alone
           const mods: Record<number, () => Promise<Record<string, unknown>>> = {
             1: () => import("./scenes/densities/room_1"),
+            2: () => import("./scenes/densities/room_2"),
           };
           const mod = await (mods[n] ?? mods[1])();
           const make = mod[`createDensityRoom${n}Scene`] as (s: THREE.Scene, nar: typeof narration, w: typeof whisper) => { onSit(): void; update(dt: number): void };
           const lesson = make(scene, narration, whisper);
+          await (lesson as { loaded?: Promise<void> }).loaded;
           additiveKeepsAlpha(scene);
           for (const o of scene.children) if (!(o as THREE.Light).isLight && o.name !== `lesson:density_${n}` && o !== camera) o.visible = false;
           return lesson;

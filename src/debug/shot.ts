@@ -118,7 +118,7 @@ export function runShot(ctx: ShotCtx): void {
     ctx.narration.debugTime = t;
     void room(Number(dm[1])).then((lesson) => {
       lesson.onSit();
-      for (let k = 0, n = Math.min(2400, Math.max(200, Math.round(t / 0.05))); k < n; k++) lesson.update(0.05);
+      for (let k = 0, n = Math.min(7200, Math.max(200, Math.round(t / 0.05))); k < n; k++) lesson.update(0.05);
       ctx.S.mode = "play";
       ctx.follow.startFollowing(true);
       ctx.follow.follow = 1;
