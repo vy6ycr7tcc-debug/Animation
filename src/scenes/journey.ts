@@ -12,7 +12,7 @@ import * as THREE from "three/webgpu";
 import type { SceneModule } from "./lessonKit";
 import type { Narration } from "../core/narration";
 import { T, gpuUniforms, gradeUniforms } from "../gpu/tsl";
-import { applyAir, keepAlpha, type Air } from "./densities/roomKit";
+import { applyAir, keepAlpha, roomOrigin, type Air } from "./densities/roomKit";
 
 export const JOURNEY_ORIGIN = new THREE.Vector3(22000, 0, 0);
 /** Is (x, z) inside the journeys' place apart? */
@@ -238,6 +238,7 @@ export class Journey {
     this.objs = [];
     this.marks = [];
     this.room = null;
+    roomOrigin.value.set(0, 0, 0);
   }
 
   private async build(i: number, at?: Spot): Promise<void> {
@@ -249,6 +250,7 @@ export class Journey {
     if (s.centreOnSeat && room.seatPos) shift.sub(room.seatPos);
     this.objs = h.scene.children.filter((o) => !before.has(o));
     for (const o of this.objs) o.position.add(shift);
+    roomOrigin.value.copy(shift); // the rooms' shading reads its points in the room's own frame
     for (const e of s.exits) {
       if (!e.mark) continue;
       const t = threshold();

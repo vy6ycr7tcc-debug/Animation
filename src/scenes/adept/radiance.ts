@@ -18,7 +18,7 @@ import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
 import { T, vnoise } from "../../gpu/tsl";
 import { landStone } from "../../world/stoneworks";
 import { GlassFolk } from "../glassFolk";
-import { applyAir, cloudSheet, damp, keepAlpha, merge, pointCloud, roomClock, roughBlock, seeded, skyDome, touch, type Air } from "../densities/roomKit";
+import { applyAir, cloudSheet, damp, keepAlpha, merge, pointCloud, roomClock, roughBlock, seeded, skyDome, touch, type Air, roomPos } from "../densities/roomKit";
 
 const { abs, exp, float, fract, length, max, mix, normalize, positionWorld, pow, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
 
@@ -84,7 +84,7 @@ export function createRadianceScene(scene: THREE.Scene, narration: LessonCtx["na
     // the sea of cloud below the terrace, rings of healing spreading over it
     {
       const clouds = cloudSheet(2400, -26, t, (_q, cover) => {
-        const P = positionWorld;
+        const P = roomPos;
         const toSun = smoothstep(-0.2, 1, normalize(P.xz).dot(vec2(SUN.x, SUN.z)));
         const base = mix(vec3(0.62, 0.55, 0.6), vec3(1, 0.78, 0.6), toSun.mul(0.7)).mul(mix(float(0.5), float(1), uDawn));
         const r = length(P.xz);

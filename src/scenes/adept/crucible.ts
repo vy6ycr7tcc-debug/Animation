@@ -21,9 +21,9 @@ import { T, vnoise, type N } from "../../gpu/tsl";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
 import { landStone } from "../../world/stoneworks";
 import { GlassFolk } from "../glassFolk";
-import { applyAir, damp, inward, keepAlpha, merge, pointCloud, ringWall, roomClock, seeded, touch, type Air } from "../densities/roomKit";
+import { applyAir, damp, inward, keepAlpha, merge, pointCloud, ringWall, roomClock, seeded, touch, type Air, roomPos } from "../densities/roomKit";
 
-const { abs, exp, float, fract, length, mix, positionWorld, pow, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
+const { abs, exp, float, fract, length, mix, pow, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
 
 /** Room frame: you start at z 4.5 facing −z; the tower's centre (and the crucible) at z −6. */
 export const CRU_C = new THREE.Vector3(0, 0, -6);
@@ -182,7 +182,7 @@ export function createCrucibleScene(scene: THREE.Scene, narration: LessonCtx["na
       mg.rotateX(-Math.PI / 2);
       mg.translate(C.x, 1.18, C.z);
       const mm = new THREE.MeshStandardNodeMaterial({ roughness: 0.25, metalness: 0.9 });
-      const p = positionWorld.xz.mul(1.3);
+      const p = roomPos.xz.mul(1.3);
       const churn = vnoise(p.add(vec2(t.mul(0.35), t.mul(-0.22)))).mul(0.6).add(vnoise(p.mul(2.7).sub(vec2(t.mul(0.5), 0))).mul(0.4));
       const crust = smoothstep(0.55, 0.75, churn).mul(float(1).sub(uCool));
       const heat = mix(vec3(0.9, 0.2, 0.02), vec3(1, 0.55, 0.12), pow(churn, 1.5)).mul(float(1).sub(crust.mul(0.8))).mul(uForge).mul(sin(t.mul(0.6)).mul(0.1).add(0.9));

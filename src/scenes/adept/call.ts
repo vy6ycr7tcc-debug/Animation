@@ -15,7 +15,7 @@ import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
 import { T, hash2, vnoise, type N } from "../../gpu/tsl";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
 import { landStone } from "../../world/stoneworks";
-import { applyAir, damp, keepAlpha, merge, pointCloud, roomClock, scannedGround, seeded, skyDome, touch, type Air } from "../densities/roomKit";
+import { applyAir, damp, keepAlpha, merge, pointCloud, roomClock, scannedGround, seeded, skyDome, touch, type Air, roomPos } from "../densities/roomKit";
 
 const { abs, cos, exp, float, floor, fract, length, max, mix, normalize, positionWorld, pow, sin, smoothstep, step, uniform, uv, vec2, vec3, vec4 } = T;
 
@@ -107,7 +107,7 @@ export function createCallScene(scene: THREE.Scene, narration: LessonCtx["narrat
       const geo = new THREE.PlaneGeometry(900, 900, 1, 1);
       geo.rotateX(-Math.PI / 2);
       const m = new THREE.MeshBasicNodeMaterial({ fog: true });
-      const P = positionWorld;
+      const P = roomPos;
       const view = normalize(P.sub(T.cameraPosition));
       const refl = vec3(view.x, view.y.negate(), view.z);
       const fres = pow(float(1).sub(max(view.y.negate(), 0)), 5).mul(0.9).add(0.05);
