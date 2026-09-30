@@ -320,6 +320,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
   return [
     {
       id: "lobby",
+      focus: [[0, 3, -10]],
       title: "",
       make: async (scene) => lobby(scene, seen),
       start: { x: 0, z: 9, heading: Math.PI },
@@ -344,6 +345,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
     },
     {
       id: "call",
+      focus: [[0, 3.5, -40]],
       title: "The call",
       make: async (scene, nar, wh) => {
         const mod = await import("./call");
@@ -358,6 +360,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
     },
     {
       id: "crucible",
+      focus: [[0, 4.5, -12]],
       title: "The crucible",
       make: async (scene, nar, wh) => (await import("./crucible")).createCrucibleScene(scene, nar, wh) as Room,
       start: { x: 0, z: 4.5, heading: Math.PI },
@@ -370,6 +373,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
     },
     {
       id: "radiance",
+      focus: [[0, 2, -16]],
       title: "The radiance",
       make: async (scene, nar, wh) => (await import("./radiance")).createRadianceScene(scene, nar, wh) as Room,
       start: { x: 0, z: 9, heading: Math.PI },
@@ -382,6 +386,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
     },
     {
       id: "stones",
+      focus: [[-7, 3, -30]],
       title: "Stones and crystals",
       make: async (scene, nar, wh) => {
         const mod = await import("./stones");
@@ -396,6 +401,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
     },
     {
       id: "pyramids",
+      focus: [[-2, 12, -60]],
       title: "Pyramids, temples and geometry",
       make: async (scene, nar, wh) => {
         const mod = await import("./pyramids");
@@ -410,6 +416,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
     },
     {
       id: "disciplines",
+      focus: [[-1, 1.4, -9]],
       title: "The daily disciplines",
       make: async (scene, nar, wh) => (await import("./disciplines")).createDisciplinesScene(scene, nar, wh) as Room,
       start: { x: 0, z: -1.5, heading: Math.PI },
@@ -424,6 +431,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
     },
     {
       id: "others",
+      focus: [[0, 6, -30]],
       title: "The others",
       make: async (scene, nar, wh) => {
         const mod = await import("./others");
