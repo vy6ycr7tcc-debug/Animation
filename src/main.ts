@@ -325,10 +325,13 @@ for (const o of [grass.mesh, blooms.mesh, ...creation.noReflect]) o.layers.set(N
 let dpr = 1;
 const quality: AdaptiveQuality = new AdaptiveQuality(applyTier);
 function resize(): void {
-  const w = innerWidth, h = innerHeight;
+  // the canvas is sized by CSS to the whole screen (on the Home Screen iOS may report a window
+  // height short of it, which left a dark band at the foot); its drawing size follows the canvas
+  const el = renderer.domElement;
+  const w = el.clientWidth || innerWidth, h = el.clientHeight || innerHeight;
   dpr = quality.dpr;
   renderer.setPixelRatio(dpr);
-  renderer.setSize(w, h);
+  renderer.setSize(w, h, false);
   // the lakes' mirror: half the drawing buffer (its long side stays above 1024 on a phone)
   water.mirror.reflector.resolutionScale = Math.max(0.5, Math.min(1, 1100 / (Math.max(w, h) * dpr)));
   camera.aspect = w / h;
@@ -356,6 +359,10 @@ function applyTier(t: Tier, i: number = quality.tier): void {
 }
 applyTier(quality.current);
 addEventListener("resize", resize);
+// iOS settles the screen's size a moment after launch and on turning: measure again then
+visualViewport?.addEventListener("resize", resize);
+addEventListener("orientationchange", () => window.setTimeout(resize, 300));
+for (const ms of [500, 2000]) window.setTimeout(resize, ms);
 
 /* ============ SAVE ============ */
 const saved = load();
@@ -2307,7 +2314,7 @@ function update(dt: number): void {
   if (S.mode === "play") {
     if (wanderer.gesture !== "none" && Math.hypot(input.move.x, input.move.y) > 0.2 && wanderer.gesture === "sit") wanderer.setGesture("none");
     if (autofly.active && !isTv && (Math.hypot(input.move.x, input.move.y) > 0.25 || input.hold)) setAutofly(false); // the thumb takes over
-    if (genesis.active || temple.cardsOpen) player.update(dt, { x: 0, y: 0, glide: false, run: 0, hold: false, down: false, pitch: follow.pitch }, follow.yaw);
+    if (genesis.active || temple.cardsOpen || tourScenes.tour.active) player.update(dt, { x: 0, y: 0, glide: false, run: 0, hold: false, down: false, pitch: follow.pitch }, follow.yaw);
     else if (autofly.active) {
       const r = autofly.update(dt, player.pos);
       Object.assign(player, { heading: r.heading, speed: r.speed, vy: r.vy, flying: true, landing: false, grounded: false, swimming: false, gliding: false, pose: "fly", target: null });
@@ -2717,4 +2724,4 @@ function finishOpening(): void {
   window.setTimeout(() => el.classList.add("dawn", "done"), 300);
 }
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision, tourScenes } });

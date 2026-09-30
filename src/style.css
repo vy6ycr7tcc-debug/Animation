@@ -17,9 +17,11 @@ html, body {
   background: var(--night); color: var(--pearl); font-family: var(--serif);
   -webkit-text-size-adjust: 100%;
 }
-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+canvas { position: fixed; left: 0; top: 0; width: 100%; height: 100%; display: block; }
+/* the game's canvas and the touch surface cover the whole screen, under the home indicator too */
+#gl, #surface { width: 100vw; height: 100vh; height: 100lvh; }
 #surface {
-  position: fixed; inset: 0;
+  position: fixed; left: 0; top: 0;
   touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
 }
 button { font: inherit; color: var(--pearl); background: transparent; border: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -409,6 +411,9 @@ body.loading #title h1, body.loading #title p { animation-play-state: paused; }
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); animation: rise 1.2s ease;
 }
 #tour-panel[hidden] { display: none; }
+/* the tour walks for you: the stick and the round button rest, and the panel sits low */
+body.touring #joy, body.touring #act, body.touring #ctx { display: none; }
+body.touring #tour-panel, body.touring #tour-choice { bottom: calc(22px + env(safe-area-inset-bottom, 0px)); }
 #tour-panel .mid { flex: 1; min-width: 0; text-align: center; }
 #tour-panel .title { margin: 0; font-size: 16px; color: var(--gold); letter-spacing: 0.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #tour-panel .hint { margin: 1px 0 0; font-size: 12px; font-style: italic; color: var(--dim); }

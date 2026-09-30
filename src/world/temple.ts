@@ -418,6 +418,8 @@ export class Temple {
   private firePits: THREE.Vector3[] = [];
   private dust!: { pos: THREE.InstancedBufferAttribute; base: Float32Array };
   private flames: { light: THREE.PointLight; sprite: THREE.Sprite; base: number; phase: number }[] = [];
+  /** The tour's focus: the shrine spoken about lit by a warm spot, the hall dimmed round it. */
+  private focus = { i: -1, k: 0, spot: null as THREE.SpotLight | null, hall: [] as { l: THREE.Light; base: number }[] };
   private shafts: THREE.MeshBasicNodeMaterial[] = [];
   private uT = uniform(0);
   private local = new THREE.Vector3();
@@ -831,6 +833,18 @@ export class Temple {
     return { numeral: s.numeral, name: s.name, tint: new THREE.Color(...s.beings.list[0].spec.tint) };
   }
 
+  /** Light shrine `i` for the tour (−1: none): a warm spot on its being, the hall dimmed round it. */
+  setFocus(i: number): void {
+    this.focus.i = i;
+    const sp = this.focus.spot, b = this.shrines[i]?.beings.list[0];
+    if (!sp || !b) return;
+    const at = b.root.getWorldPosition(new THREE.Vector3()).sub(TEMPLE_ORIGIN);
+    const st = this.spots[i];
+    // from above the standing place, a little behind it, down onto the being's chest
+    sp.position.set(st.x + (st.x - at.x) * 0.4, 7.5, st.z + (st.z - at.z) * 0.4);
+    sp.target.position.set(at.x, at.y + 1.6, at.z);
+  }
+
   /** The being of shrine `i` begins or ends its rite. */
   setRite(i: number, on: boolean): void {
     const b = this.shrines[i]?.beings.list[0];
@@ -1074,6 +1088,7 @@ export class Temple {
     // the stone's own warm bounce, dim; the sky's light from the clerestory and the opening above
     const hemi = new THREE.HemisphereLight(0xb09678, 0x3a2818, 0.8);
     this.group.add(hemi);
+    this.focus.hall.push({ l: hemi, base: hemi.intensity });
     const sun = new THREE.DirectionalLight(0xffdca0, 3.8);
     sun.position.set(-18, 40, 10);
     sun.target.position.set(0, 0, -10);
@@ -1088,6 +1103,11 @@ export class Temple {
     sc.far = 120;
     sun.shadow.bias = -0.0006;
     this.group.add(sun, sun.target);
+    this.focus.hall.push({ l: sun, base: sun.intensity });
+    // the tour's spot: soft-edged, warm, from above and in front of the shrine it lights
+    const spot = new THREE.SpotLight(0xffe2b0, 0, 16, 0.36, 0.75, 1.2);
+    this.group.add(spot, spot.target);
+    this.focus.spot = spot;
     // braziers: fire in bronze bowls, down the aisle and at the gateway
     const fire = new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
     const r = length(uv().sub(0.5)).mul(2);
@@ -1130,6 +1150,7 @@ export class Temple {
     const top = new THREE.PointLight(0xfff0d0, 22, 26, 1.4);
     top.position.set(CENTRE.x, 11, CENTRE.z);
     this.group.add(top);
+    this.focus.hall.push({ l: top, base: top.intensity });
 
     // shafts of light: soft, slanting down from the clerestory's gaps, and straight down onto the dais
     // Shafts of light: soft volumes, not flat planes. Each is an open tube of light, brightest
@@ -1314,6 +1335,12 @@ export class Temple {
   update(t: number, dt: number, player: THREE.Vector3, reduced: boolean): void {
     this.uT.value = t;
     if (!this.inside) return;
+    {
+      const f = this.focus;
+      f.k += ((f.i >= 0 ? 1 : 0) - f.k) * Math.min(1, dt * 1.2);
+      for (const h of f.hall) h.l.intensity = h.base * (1 - 0.55 * f.k);
+      if (f.spot) f.spot.intensity = 50 * f.k;
+    }
     // the dust drifts, slowly turning in the still air
     {
       const a = this.dust.pos.array as Float32Array, b = this.dust.base;
@@ -1328,7 +1355,7 @@ export class Temple {
     }
     for (const f of this.flames) {
       const k = reduced ? 1 : 0.85 + 0.1 * Math.sin(t * 11 + f.phase) + 0.06 * Math.sin(t * 23 + f.phase * 2);
-      f.light.intensity = f.base * k;
+      f.light.intensity = f.base * k * (1 - 0.4 * this.focus.k);
     }
     this.updateStage(t, dt, player, reduced);
     this.updateLamps(t, dt, reduced);

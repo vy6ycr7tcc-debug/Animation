@@ -1,11 +1,12 @@
-/* The temple tour: a guide, not a ride. You walk as you like; a small light goes ahead to the next
-   shrine and waits there, turning slowly. Come to it and the archetype wakes into its rite (its own
-   movement opening fully, its card's objects coming alive; player/gestures.ts) while its part of
-   the temple's narration (TEMPLE, 26 marks) is spoken; then "Next" sends the light on. "‹" goes
-   back, a tap on the light walks you to it, ✕ ends the tour and leaves you in the temple. The
-   order is the narration's: the door, the Mind down the left wall, the Body down the right, the
-   Spirit round the sanctuary, and the Choice at the back; after it, rest at the tree of life or
-   stay. Nothing is drawn for the tour but its light: the temple and its beings are the tour. */
+/* The temple tour: a walk-through the tour leads (the owner: "the tour should be controlling the
+   view and the character"). A small light goes ahead; the wanderer walks after it along the aisle
+   to the next shrine, turns to face it, and the view comes round behind to frame it. There the
+   shrine is lit (a warm spot on the being, the hall dimming round it; `Temple.setFocus`), the
+   archetype wakes into its rite (player/gestures.ts), and its part of the temple's narration
+   (TEMPLE, 26 marks) is spoken. "Next ›" walks on, "‹" goes back, ✕ ends the tour and gives you
+   the stick again. The order is the narration's: the door, the Mind down the left wall, the Body
+   down the right, the Spirit round the sanctuary, and the Choice at the back; after it, rest at
+   the tree of life or stay. */
 import * as THREE from "three/webgpu";
 import type { Narration } from "../core/narration";
 import { TEMPLE_ORIGIN } from "../world/temple";
@@ -23,6 +24,8 @@ export interface TourHooks {
 export interface TempleLike {
   standFor(i: number): { x: number; z: number; heading: number };
   setRite(i: number, on: boolean): void;
+  /** Light shrine `i` for the tour (−1: none). */
+  setFocus?(i: number): void;
   entry(): { x: number; z: number; heading: number };
   floorAt(x: number, z: number): number;
 }
@@ -35,6 +38,7 @@ export interface PlayerLike {
 export interface FollowLike {
   yaw: number;
   pitch: number;
+  dist?: number;
   snapTo(p: THREE.Vector3): void;
 }
 export interface CueDef {
@@ -178,21 +182,16 @@ export class TempleTour implements SceneModule {
   private nextBtn: HTMLButtonElement;
   private choice: HTMLDivElement;
   private goal = new THREE.Vector2();
-  private readonly raycaster = new THREE.Raycaster();
   private readonly dir = new THREE.Vector2();
-
-  private readonly onPointerDown = (ev: PointerEvent): void => {
-    if (!this.active || !this.camera || !this.light.visible) return;
-    if ((ev.target as HTMLElement | null)?.closest?.("#tour-panel, #tour-choice")) return;
-    const x = (ev.clientX / innerWidth) * 2 - 1, y = -(ev.clientY / innerHeight) * 2 + 1;
-    this.tapCheck(x, y, this.camera);
-  };
+  /** The wanderer's own way to the stop (world x, z), walked one point after another. */
+  private walk: THREE.Vector2[] = [];
+  private view = { dist: 7, pitch: 0.36 };
 
   constructor(
     scene: THREE.Scene,
     private narration: Narration,
     private player: PlayerLike,
-    _follow: FollowLike,
+    private follow: FollowLike,
     _hooks: TourHooks,
     private temple: TempleLike,
   ) {
@@ -252,13 +251,14 @@ export class TempleTour implements SceneModule {
     act(end, () => this.exit());
     act(rest, () => this.choose("rest"));
     act(stay, () => this.choose("stay"));
-    window.addEventListener("pointerdown", this.onPointerDown);
   }
 
   /* ---------- lifecycle ---------- */
   enter(): void {
     if (this.active) return;
     this.active = true;
+    this.view = { dist: this.follow.dist ?? 7, pitch: this.follow.pitch };
+    document.body.classList.add("touring");
     this.stops = buildStops(this.temple);
     this.lifeT = 0;
     this.choice.hidden = true;
@@ -283,6 +283,11 @@ export class TempleTour implements SceneModule {
     if (!this.active) return;
     this.active = false;
     this.player.target = null;
+    this.walk = [];
+    this.temple.setFocus?.(-1);
+    document.body.classList.remove("touring");
+    if (this.follow.dist !== undefined) this.follow.dist = this.view.dist;
+    this.follow.pitch = this.view.pitch;
     if (this.narration.current === TRACK_ID) this.narration.stop(1.5);
     this.light.visible = this.halo.visible = false;
     this.panel.hidden = true;
@@ -300,6 +305,11 @@ export class TempleTour implements SceneModule {
     const s = this.stops[k], O = TEMPLE_ORIGIN;
     this.goal.set(s.x - O.x, s.z - O.z);
     this.path = route(this.lightAt, this.waitPoint(s));
+    this.temple.setFocus?.(-1);
+    // the wanderer's way: the same aisle, from where it stands to the standing place
+    const from = new THREE.Vector2(this.player.pos.x - O.x, this.player.pos.z - O.z);
+    this.walk = there ? [] : route(from, this.goal).map((p) => new THREE.Vector2(p.x + O.x, p.y + O.z));
+    this.player.target = null;
     if (there || k === 0) this.arrive();
     this.refresh();
   }
@@ -320,7 +330,9 @@ export class TempleTour implements SceneModule {
     this.phase = "speaking";
     this.spoke = 0;
     this.player.target = null;
+    this.walk = [];
     this.rite(s.shrine);
+    this.temple.setFocus?.(s.shrine);
     void this.narration.play(TRACK_ID, s.from, s.to);
     this.refresh();
   }
@@ -335,7 +347,7 @@ export class TempleTour implements SceneModule {
   private refresh(): void {
     const s = this.stops[this.index];
     this.titleEl.textContent = s.title;
-    this.hintEl.textContent = this.phase === "leading" ? "Follow the light, or tap it to walk there" : this.phase === "speaking" ? "Listen, and look around" : this.index === this.stops.length - 1 ? "The end of the tour" : "Next when you are ready";
+    this.hintEl.textContent = this.phase === "leading" ? "Walking there…" : this.phase === "speaking" ? "Listen" : this.index === this.stops.length - 1 ? "The end of the tour" : "Next when you are ready";
     this.prevBtn.disabled = this.index === 0;
     this.nextBtn.textContent = this.index === this.stops.length - 1 ? "Finish ›" : "Next ›";
     this.nextBtn.classList.toggle("ready", this.phase === "done");
@@ -368,9 +380,28 @@ export class TempleTour implements SceneModule {
     this.lightMat.opacity = fade * breathe * (0.55 + 0.45 * lead);
     this.haloMat.opacity = fade * breathe * 0.18 * lead;
 
-    // arriving: come within reach of the standing place
+    // the wanderer walks its way, point after point, and arrives at the standing place
     const px = this.player.pos.x - O.x, pz = this.player.pos.z - O.z;
-    if (this.phase === "leading" && Math.hypot(px - this.goal.x, pz - this.goal.y) < ARRIVE_R) this.arrive();
+    if (this.phase === "leading") {
+      while (this.walk.length && Math.hypot(this.player.pos.x - this.walk[0].x, this.player.pos.z - this.walk[0].y) < 0.7) this.walk.shift();
+      if (this.walk.length) this.player.target = this.walk[0].clone();
+      if (!this.walk.length && Math.hypot(px - this.goal.x, pz - this.goal.y) < ARRIVE_R * 0.5) this.arrive();
+      else if (!this.walk.length) this.player.target = new THREE.Vector2(this.goal.x + O.x, this.goal.y + O.z);
+    }
+    // the view: behind the wanderer while it walks; at a shrine it comes round and draws a
+    // little closer, framing the archetype over the wanderer's shoulder
+    const at = this.phase !== "leading" && s.shrine >= 0;
+    if (at) {
+      let dh = s.heading - this.player.heading;
+      dh = Math.atan2(Math.sin(dh), Math.cos(dh));
+      this.player.heading += dh * Math.min(1, step * 3);
+    }
+    const yawGoal = at ? s.heading : this.player.heading;
+    let dy = yawGoal - this.follow.yaw;
+    dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+    this.follow.yaw += dy * Math.min(1, step * (at ? 1.4 : 2));
+    this.follow.pitch += ((at ? 0.14 : 0.3) - this.follow.pitch) * Math.min(1, step * 1.5);
+    if (this.follow.dist !== undefined) this.follow.dist += ((at ? 4.4 : 6) - this.follow.dist) * Math.min(1, step * 1.5);
     // its part spoken (or no voice to speak it): the light asks for Next
     if (this.phase === "speaking") {
       this.spoke += step;
@@ -395,17 +426,9 @@ export class TempleTour implements SceneModule {
     if (key === "rest") this.onRest?.();
   }
 
-  /** A tap on the light walks you to where it waits. */
-  tapCheck(ndcX: number, ndcY: number, camera: THREE.Camera): void {
-    if (!this.active || !this.light.visible) return;
-    this.raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
-    if (this.raycaster.ray.distanceToPoint(this.light.position) > 0.9) return;
-    const s = this.stops[this.index];
-    this.player.target = new THREE.Vector2(s.x, s.z);
-  }
-
+  /** The tour walks for you: the stick rests while it runs. */
   holdsMovement(): boolean {
-    return false;
+    return this.active;
   }
   nearSeat(): boolean {
     return false;
@@ -422,6 +445,5 @@ export class TempleTour implements SceneModule {
     this.haloMat.dispose();
     this.panel.remove();
     this.choice.remove();
-    window.removeEventListener("pointerdown", this.onPointerDown);
   }
 }
