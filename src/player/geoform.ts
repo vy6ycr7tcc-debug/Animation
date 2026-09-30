@@ -33,7 +33,7 @@ export class GeoForm {
 
   constructor() {
     // the core: an icosahedron, one facet per face (non-indexed, so each facet is flat)
-    const g = new THREE.IcosahedronGeometry(1, 1).toNonIndexed();
+    const g = new THREE.IcosahedronGeometry(1, 1); // already one vertex per corner of each face
     g.computeVertexNormals();
     const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false });
     const P = positionGeometry, t = this.uT;

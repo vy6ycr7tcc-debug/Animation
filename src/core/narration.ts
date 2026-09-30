@@ -29,6 +29,13 @@ export const TRACKS: Record<string, Track> = Object.fromEntries(
   (catalogue.tracks as Track[]).map((t) => [t.id, t]),
 );
 
+/** The monuments' rooms name their recordings by path ("audio/densities/density_1.mp3"), not
+    by catalogue id: such a track plays as it is, with no cues (there are no subtitles anyway). */
+function trackFor(id: string): Track | undefined {
+  if (TRACKS[id] || !/^audio\/.+\.mp3$/.test(id)) return TRACKS[id];
+  return (TRACKS[id] = { id, title: "", voice: "female", file: id, duration: 0, trigger: "", cues: [] });
+}
+
 /**
  * Samuel prefers the female voice. Tracks recorded in the male voice play from their re-voiced
  * copy in audio/female/ (made with narration/revoice-female.sh); until that copy exists, they
@@ -58,8 +65,9 @@ export class Narration {
   /** Start downloading tracks ahead of need (they are small). */
   preload(ids: string[]): void {
     for (const id of ids) {
-      if (this.raw.has(id) || !TRACKS[id]) continue;
-      this.raw.set(id, loadBytes(fileFor(TRACKS[id])));
+      const t = trackFor(id);
+      if (this.raw.has(id) || !t) continue;
+      this.raw.set(id, loadBytes(fileFor(t)));
     }
   }
 
@@ -108,7 +116,7 @@ export class Narration {
 
   /** Play a track, or only its part from `from` to `to` seconds (track time), fading at the end. */
   async play(id: string, from = 0, to = Infinity): Promise<void> {
-    const track = TRACKS[id];
+    const track = trackFor(id);
     if (!track) return;
     // Debug still-frame hook: no audio at all — the scene still sees the track as current.
     if (this.debugTime !== null) {

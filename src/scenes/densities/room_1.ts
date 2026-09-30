@@ -33,7 +33,7 @@ const PORTAL = new THREE.Vector3(0, 0, -44);
 const SHORE_X = -18; // the sand runs down into the sea west of here
 
 /** The black sand: low dunes, the path kept smooth, falling away into the sea on the left. */
-function sandHeight(x: number, z: number): number {
+export function sandHeight(x: number, z: number): number {
   const dunes = (fbm(x * 0.028 + 3, z * 0.028 - 7) - 0.5) * 3.4 + (fbm(x * 0.11 - 5, z * 0.11 + 2) - 0.5) * 0.7;
   const path = sm(3, 9, Math.abs(x)); // the path down the middle stays level
   const shore = sm(SHORE_X + 4, SHORE_X - 16, x) * 5.5;

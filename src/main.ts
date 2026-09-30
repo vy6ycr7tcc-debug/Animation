@@ -49,6 +49,8 @@ import { Touch } from "./world/touch";
 import { Depths, RUIN_NAMES, RUIN_SITES } from "./world/depths";
 import { Pyramid, DUAT_ORIGIN } from "./world/pyramid";
 import { Vision } from "./world/vision";
+import { Journey, inJourney } from "./scenes/journey";
+import { DensityMonument, densityStages } from "./scenes/densities/monument";
 import { cloudUniforms } from "./world/atmosphere";
 import { NO_MIRROR_LAYER, Water } from "./world/water";
 import { FOG } from "./world/fog";
@@ -284,7 +286,7 @@ const temple = new Temple(sparks, {
   },
 });
 scene.add(temple.group, temple.gate);
-floorHook.fn = (x, z) => (x > 45000 ? pyramid.floorAt(x, z) : x > 35000 ? depths.floorAt() : temple.floorAt(x, z));
+floorHook.fn = (x, z) => (inJourney(x) ? journey.floorAt(x, z) : x > 45000 ? pyramid.floorAt(x, z) : x > 35000 ? depths.floorAt() : temple.floorAt(x, z));
 void beings.load("models/wanderer.glb").then((m) => m && temple.attach(m));
 // the voices of the archive, present while they speak
 const presences = new Presences();
@@ -405,8 +407,8 @@ function persist(): void {
   if (S.mode === "intro" || resetting) return;
   const d: SaveData = {
     v: 1,
-    pos: temple.inside ? templeReturnPos() : depths.inside ? deepReturnPos() : pyramid.isInside ? [pyramid.outside().x, heightAt(pyramid.outside().x, pyramid.outside().z), pyramid.outside().z] : [player.pos.x, player.pos.y, player.pos.z],
-    heading: pyramid.isInside ? 0 : temple.inside ? temple.outside().heading : depths.inside ? depths.outside(deepMouth ?? depths.mouths[0].site).heading : player.heading,
+    pos: journey.inside ? ((o) => [o.x, o.y, o.z] as [number, number, number])(densityHall.outside()) : temple.inside ? templeReturnPos() : depths.inside ? deepReturnPos() : pyramid.isInside ? [pyramid.outside().x, heightAt(pyramid.outside().x, pyramid.outside().z), pyramid.outside().z] : [player.pos.x, player.pos.y, player.pos.z],
+    heading: journey.inside ? densityHall.face : pyramid.isInside ? 0 : temple.inside ? temple.outside().heading : depths.inside ? depths.outside(deepMouth ?? depths.mouths[0].site).heading : player.heading,
     heard: [],
     visited: [],
     settings: { volume: audio.volume, reduced: S.reducedPref, subtitles: narration.subtitlesOn, voices: playlist.on, awake: awake.on },
@@ -1071,6 +1073,10 @@ function places(): Place[] {
     { numeral: "", label: "The temple", group: "Shore", x: temple.gateAt.x, z: temple.gateAt.z, narration: "J01", start: { ...temple.outside(), heading: temple.gateHeading } },
     { numeral: "", label: "The vision of creation", group: "Shore" as const, x: vision.group.position.x, z: vision.group.position.z, narration: "J01", start: { x: vision.group.position.x + 11, z: vision.group.position.z + 11, heading: Math.atan2(11, 11) } },
     { numeral: "", label: "The pyramid", group: "Shore" as const, x: pyramid.door.x, z: pyramid.door.z, narration: "J01", start: { x: pyramid.door.x, z: pyramid.door.z - 14, heading: Math.PI } },
+    (() => {
+      const o = densityHall.outside(), f = densityHall.face;
+      return { numeral: "", label: "The monument of the densities", group: "Shore" as const, x: densityHall.door.x, z: densityHall.door.z, narration: "J01", start: { x: o.x + Math.sin(f) * 22, z: o.z + Math.cos(f) * 22, heading: f + Math.PI } };
+    })(),
     // beneath the water: the sunken ruins, and the cave that leads to the deep archive (you wake
     // on the water above; dive, and swim down to them)
     ...RUIN_SITES.map((r) => {
@@ -1118,6 +1124,7 @@ function arriveNow(c: Choice, first: boolean): void {
   if (temple.inside) setInside(false);
   if (depths.inside) setDeep(false);
   if (pyramid.isInside) setPyr(false);
+  journey.leaveNow();
   standUp();
   player.pos.set(c.x, Math.max(heightAt(c.x, c.z), WATER_Y - 1), c.z);
   player.vel.set(0, 0, 0);
@@ -1523,6 +1530,67 @@ function crossDeep(inside: boolean): void {
    King's Chamber (healing: light through you in seven colours). All said here is paraphrase. */
 const pyramid = new Pyramid();
 scene.add(pyramid.world, pyramid.inside);
+
+/* The monument of the densities (scenes/densities/monument.ts): through its door, a lobby, then
+   the beginning and the seven densities one room after another, each crossing pitch black, each
+   room's recording beginning as you arrive, and home to the lobby (scenes/journey.ts). */
+const densityHall = new DensityMonument();
+scene.add(densityHall.world);
+const journey: Journey = new Journey("densities", densityStages(() => journey.seen), {
+  scene,
+  narration,
+  whisper,
+  keep: (o) => o === wanderer.root || o === wanderer.fx || o === camera || (o as THREE.Light).isLight,
+  place: (x, y, z, heading) => {
+    player.pos.set(x, y, z);
+    player.heading = heading;
+    follow.yaw = heading;
+    follow.pitch = 0.18;
+    Object.assign(player, { flying: false, landing: false, grounded: true, swimming: false, vy: 0, target: null });
+    player.vel.set(0, 0, 0);
+    follow.snapTo(player.pos);
+    if (!journey.inside) terrain.update(x, z, true);
+    quality.hold(3);
+  },
+  fade: (on) => fadeEl.classList.toggle("on", on),
+  busy,
+  settle: async () => {
+    additiveKeepsAlpha(scene);
+    // never wait on it for long: whatever isn't ready compiles on its first draw instead
+    await Promise.race([renderer.compileAsync(scene, camera).catch(() => undefined), new Promise((r) => window.setTimeout(r, 4000))]);
+  },
+  apart: (on) => {
+    if (on) {
+      if (autofly.active) setAutofly(false);
+      standUp();
+    }
+    audio.setTemple(on, false);
+  },
+  outside: () => densityHall.outside(),
+});
+const hearAgain = $("#hear-again") as HTMLButtonElement;
+hearAgain.addEventListener("pointerdown", (e) => {
+  e.stopPropagation();
+  journey.replay();
+  audio.bell(528, 0.05, 3);
+});
+let lit = -1;
+/** Each frame: the monument's door, and within, the journey. */
+function journeyFrame(dt: number): void {
+  if (journey.inside) {
+    if (player.flying) player.flying = false; // you walk here
+    journey.update(dt, player.pos);
+    post.starVis.value = 0;
+    post.raysOn.value = 0;
+  } else if (S.mode === "play" && !crossing && !journey.crossing && !autofly.active && !genesis.active && sitting.phase !== "seated" && densityHall.atDoor(player.pos)) {
+    void journey.enter();
+  }
+  if (journey.seen.size !== lit) {
+    lit = journey.seen.size;
+    densityHall.light(journey.seen);
+  }
+  hearAgain.hidden = !(journey.inside && journey.hasVoice && !journey.crossing && S.mode === "play");
+}
 // the vision of creation (world/vision.ts): creation as one flowing body of light, on the ground
 // near the shore, in a loop: atom, stone, crystal, molecule, plant, animal, primate, human, the
 // many as one, unity, a point, and the burst that begins it again
@@ -1570,7 +1638,7 @@ function calmFrame(): void {
 
 /** In a place apart (the temple, the deep archive, the pyramid): the open world rests. */
 function apart(): boolean {
-  return temple.inside || depths.inside || pyramid.isInside;
+  return temple.inside || depths.inside || pyramid.isInside || journey.inside;
 }
 let pyrHidden: [THREE.Object3D, boolean][] = [];
 const toldPyr = new Set<string>();
@@ -2477,6 +2545,7 @@ function update(dt: number): void {
   if (!apart()) moods.update(player.pos, dt);
   templeFrame(dt);
   pyramidFrame(dt);
+  journeyFrame(dt);
   busyFrame();
   calmFrame();
   if (!apart()) {
@@ -2609,6 +2678,10 @@ renderer
     }
     if (shot)
       runShot({
+        journey: async (i: number, tt: number) => {
+          await journey.jump(i);
+          for (let k = 0, n = Math.min(7200, Math.max(40, Math.round(tt / 0.05))); k < n; k++) journey.room?.update(0.05);
+        },
         room: async (n: number) => {
           // the density rooms are factory modules (not yet in the journey): built here alone
           const mods: Record<number, () => Promise<Record<string, unknown>>> = {
@@ -2679,4 +2752,4 @@ function endLoading(): void {
   }, wait);
 }
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision, tourScenes } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision, tourScenes, journey, densityHall } });

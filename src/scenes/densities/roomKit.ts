@@ -4,11 +4,13 @@
    `additiveKeepsAlpha` does this at start-up, before any room exists). Rooms 0/3/5/7 are not
    touched by this file. */
 import * as THREE from "three/webgpu";
-import { T, fogUniforms, gradeUniforms, softPoints, spriteCloud, vnoise, type N, type SpriteCloud } from "../../gpu/tsl";
+import { T, fogUniforms, gpuUniforms, gradeUniforms, softPoints, spriteCloud, vnoise, type N, type SpriteCloud } from "../../gpu/tsl";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { fbm } from "../../world/terrain";
 import { surface, type SurfaceName } from "../../world/textures";
 
 const { vec3, vec4, mix, smoothstep, length, exp, max, positionLocal, normalize, uniform } = T;
+
 
 /** A repeatable random stream. */
 export function seeded(seed: number): () => number {
@@ -190,3 +192,68 @@ export function scannedGround(set: SurfaceName, tile: number, opts: { hue?: numb
   // far off, the scan's average, so the ground keeps its tone when the detail has faded
   return { color: mix(T.vec3(0.9), col, T.float(1).sub(smoothstep(120, 260, camD))), normal };
 }
+
+/* ---- built things the monuments share: rough stone, walls, lamps ---- */
+
+/** A rough stone: a tapered block, its faces broken by noise (no clean primitive). */
+export function roughBlock(w: number, h: number, d: number, taper: number, seed: number): THREE.BufferGeometry {
+  const g = new THREE.BoxGeometry(w, h, d, 3, Math.max(4, Math.round(h / 1.2)), 2);
+  g.translate(0, h / 2, 0);
+  const p = g.attributes.position as THREE.BufferAttribute;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const k = 1 - taper * (y / h);
+    const n = fbm(x * 0.9 + seed * 3.1 + y * 0.13, z * 0.9 + y * 0.31 - seed) - 0.5;
+    p.setXYZ(i, x * k * (1 + n * 0.26), y + (y > h - 0.01 ? n * 0.8 : 0), z * k * (1 + n * 0.22));
+  }
+  g.computeVertexNormals();
+  return g;
+}
+/** Turn a closed shape inside out: its inner faces become its front, lit from within. */
+export function inward(g: THREE.BufferGeometry): THREE.BufferGeometry {
+  const idx = g.index!;
+  for (let i = 0; i < idx.count; i += 3) {
+    const b = idx.getX(i + 1);
+    idx.setX(i + 1, idx.getX(i + 2));
+    idx.setX(i + 2, b);
+  }
+  const n = g.attributes.normal as THREE.BufferAttribute;
+  for (let i = 0; i < n.count; i++) n.setXYZ(i, -n.getX(i), -n.getY(i), -n.getZ(i));
+  return g;
+}
+export const merge = (list: THREE.BufferGeometry[]) => {
+  for (const g of list) for (const k of Object.keys(g.attributes)) if (k !== "position" && k !== "normal") g.deleteAttribute(k);
+  return mergeGeometries(list.map((g) => (g.index ? g.toNonIndexed() : g)))!;
+};
+/** A ring wall of `n` blocks, leaving out those whose centre angle is in `gaps` (θ = 0 is +z). */
+export function ringWall(r: number, h: number, thick: number, n: number, gaps: number[]): THREE.BufferGeometry[] {
+  const out: THREE.BufferGeometry[] = [];
+  for (let k = 0; k < n; k++) {
+    if (gaps.includes(k)) continue;
+    const th = (k / n) * Math.PI * 2;
+    const g = new THREE.BoxGeometry(2 * r * Math.sin(Math.PI / n) + 0.08, h, thick);
+    g.translate(0, h / 2, 0);
+    g.applyMatrix4(new THREE.Matrix4().makeRotationY(th).setPosition(Math.sin(th) * r, 0, Math.cos(th) * r));
+    out.push(g);
+  }
+  return out;
+}
+/** A small soft light for each colour at the given points (contained: no spreading glow). */
+export function lamps(points: THREE.Vector3[], colors: THREE.Color[], size: number, k: number[]) {
+  const pc = pointCloud(points.length, size);
+  const col = new Float32Array(points.length * 3);
+  points.forEach((p, i) => {
+    pc.pos.set([p.x, p.y, p.z], i * 3);
+    pc.k.set([k[i] ?? 1, i / points.length, 0, 0], i * 4);
+    col.set([colors[i].r, colors[i].g, colors[i].b], i * 3);
+  });
+  touch(pc.cloud);
+  const K = pc.cloud.nodes.aK;
+  const colAttr = new THREE.InstancedBufferAttribute(col, 3);
+  pc.cloud.sprite.geometry.setAttribute("aCol", colAttr);
+  const C = T.instancedBufferAttribute(colAttr);
+  const breathe = T.sin(gpuUniforms.time.mul(0.7).add(K.y.mul(6.28))).mul(0.12).add(0.88);
+  pc.material.colorNode = vec4(C.mul(pc.round).mul(K.x).mul(breathe), 1);
+  return pc;
+}
+
