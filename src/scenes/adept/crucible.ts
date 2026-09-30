@@ -60,10 +60,10 @@ export function createCrucibleScene(scene: THREE.Scene, narration: LessonCtx["na
   // the traveler and the shadow
   const folk = new GlassFolk([
     { x: 1.7, z: CRU_C.z + 3.2, face: -Math.PI / 2 - 0.3, act: "idle", tint: new THREE.Color(1, 0.88, 0.66) },
-    { x: -TOWER_R + 1.2, z: CRU_C.z + 3.2, face: Math.PI / 2, act: "walk", tint: new THREE.Color(0.32, 0.2, 0.5), glow: { inner: 0.1, edge: 0.7, body: 0.5 } },
+    { x: -TOWER_R + 1.2, z: CRU_C.z + 3.2, face: Math.PI / 2, act: "walk", tint: new THREE.Color(0.32, 0.2, 0.5), glow: { inner: 0.1, edge: 0.7, body: 0.5 }, scale: 2.3 },
   ], 91);
-  const shadowFrom = new THREE.Vector3(-TOWER_R + 1.2, 0, CRU_C.z + 3.2), shadowTo = new THREE.Vector3(-1.5, 0, CRU_C.z + 3.2);
-  let shadowK = 0, shadowGo = false;
+  const shadowFrom = new THREE.Vector3(-TOWER_R + 1.2, 0, CRU_C.z + 3.2), shadowTo = new THREE.Vector3(-2.2, 0, CRU_C.z + 4.4);
+  let shadowK = 0, shadowGo = false, welcomed = false;
   const warmTint = new THREE.Color(0.95, 0.62, 0.72);
 
   const build = (ctx: LessonCtx) => {
@@ -276,6 +276,60 @@ export function createCrucibleScene(scene: THREE.Scene, narration: LessonCtx["na
       ours.push(m, dg, dm);
     }
     g.add(folk.group);
+    // the monster's presence: dark smoke curling off it as it comes, which warms to embers when
+    // it is welcomed; and the welcome itself, the emotional climax: light opening between the two
+    // (a warm pool spreading over the floor in slow rings, a stream of light from the traveler
+    // into the dark figure)
+    const shadowAt = uniform(shadowFrom.clone());
+    const travelerAt = new THREE.Vector3(1.7, 0, CRU_C.z + 3.2);
+    {
+      const n = 1600;
+      const sm = pointCloud(n, 0.55);
+      for (let i = 0; i < n; i++) sm.k.set([R(), R(), R(), R()], i * 4);
+      touch(sm.cloud);
+      const K = sm.cloud.nodes.aK;
+      const life = fract(K.x.add(clock.u.mul(float(0.05).add(K.y.mul(0.05)))));
+      const a = K.z.mul(6.283).add(life.mul(2));
+      const r = float(0.5).add(life.mul(1.8)).mul(K.w.add(0.4));
+      sm.material.positionNode = shadowAt.add(vec3(T.cos(a).mul(r), float(0.3).add(life.mul(5.5)).add(K.w.mul(1.5)), sin(a).mul(r)));
+      sm.material.blending = THREE.NormalBlending;
+      const col = mix(vec3(0.05, 0.02, 0.08), vec3(1, 0.5, 0.28), uHeart.mul(K.y.mul(0.8)));
+      sm.material.colorNode = vec4(col, sm.round.mul(smoothstep(0, 0.15, life)).mul(float(1).sub(life)).mul(float(0.5).sub(uHeart.mul(0.25))));
+      g.add(sm.cloud.sprite);
+      ours.push(sm.material);
+      tickers.push(() => (sm.cloud.sprite.visible = shadowGo));
+      // the light opening: rings of warmth spreading over the floor from between them
+      const rg = new THREE.PlaneGeometry(22, 22);
+      rg.rotateX(-Math.PI / 2);
+      const rm = keepAlpha(new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, fog: false }));
+      const q = uv().sub(0.5).mul(22);
+      const rr = length(q);
+      let rings: N = float(0);
+      for (let k = 0; k < 3; k++) {
+        const front = fract(clock.u.mul(0.08).add(k / 3)).mul(10);
+        rings = rings.add(exp(rr.sub(front).mul(rr.sub(front)).mul(-3)).mul(smoothstep(10, 3, front)));
+      }
+      const pool = exp(rr.mul(rr).mul(-0.08));
+      rm.colorNode = vec4(vec3(1, 0.72, 0.42).mul(rings.mul(0.35).add(pool.mul(0.5))).mul(uHeart), 1);
+      const ring = new THREE.Mesh(rg, rm);
+      ring.position.set((travelerAt.x + shadowTo.x) / 2, 0.05, CRU_C.z + 3.2);
+      g.add(ring);
+      ours.push(rg, rm);
+      const st = pointCloud(500, 0.12);
+      for (let i = 0; i < 500; i++) st.k.set([R(), R(), R(), R()], i * 4);
+      touch(st.cloud);
+      const SK = st.cloud.nodes.aK;
+      const f = fract(SK.x.add(clock.u.mul(0.22)));
+      const from = vec3(travelerAt.x, 1.3, travelerAt.z), to = vec3(shadowTo.x, 2.9, shadowTo.z);
+      st.material.positionNode = mix(from, to, f).add(vec3(0, sin(f.mul(Math.PI)).mul(0.8), sin(SK.y.mul(30).add(f.mul(9))).mul(0.25)));
+      st.material.colorNode = vec4(vec3(1, 0.8, 0.5).mul(st.round).mul(sin(f.mul(Math.PI))).mul(uHeart).mul(1.2), 1);
+      g.add(st.cloud.sprite);
+      ours.push(st.material);
+      const wl = new THREE.PointLight(0xffb070, 0, 16, 2);
+      wl.position.set(ring.position.x, 2.2, ring.position.z);
+      g.add(wl);
+      tickers.push(() => (wl.intensity = 260 * uHeart.value));
+    }
 
     tickers.push((dt: number) => {
       const d = Math.min(0.05, Math.max(0, dt));
@@ -300,10 +354,12 @@ export function createCrucibleScene(scene: THREE.Scene, narration: LessonCtx["na
           if (shadowK >= 1) shadow.act("idle");
         }
         shadow.root.position.lerpVectors(shadowFrom, shadowTo, shadowK);
+        shadowAt.value.copy(shadow.root.position);
         shadow.root.visible = shadowGo;
         // welcomed, its darkness warms (but it stays itself)
         shadow.mat.emissive.setRGB(0.32, 0.2, 0.5).lerp(warmTint, uHeart.value * 0.55);
       }
+      if (light && uHeart.value > 0.5 && !welcomed) (welcomed = true), light.act("reach", 0.6);
       if (light) light.root.rotation.y = shadowGo ? -Math.PI / 2 : -Math.PI / 2 - 0.3 + Math.sin(clock.u.value * 0.2) * 0.1;
       folk.update(d);
     });
