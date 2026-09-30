@@ -29,6 +29,13 @@ export class FollowCamera {
   gaze: THREE.Vector3 | null = null;
   private gazeAt = new THREE.Vector3();
   private gazeHeld = false;
+  /** The gravity point: while a narration shows an animation, its centre. The view composes
+      toward it (the wanderer in the foreground, the animation ahead); `frameHold` says how
+      firmly (lower while a finger is on the screen, so it never fights the hand). */
+  frame: THREE.Vector3 | null = null;
+  frameHold = 1;
+  private frameK = 0;
+  private frameAt = new THREE.Vector3();
 
   constructor(public cam: THREE.PerspectiveCamera) {}
 
@@ -108,6 +115,15 @@ export class FollowCamera {
       const s = THREE.MathUtils.smoothstep(this.seatK, 0, 1);
       this.cam.position.lerp(side, s);
       look.lerp(low, s);
+    }
+    // the gravity point: turn the look from the wanderer toward the animation, keeping both in view
+    const fGoal = this.frame ? this.frameHold : 0;
+    this.frameK += (fGoal - this.frameK) * Math.min(1, dt * (fGoal > this.frameK ? 0.8 : 3));
+    if (this.frame) this.frameAt.copy(this.frame);
+    if (this.frameK > 0.001 && this.seatK < 0.5) {
+      const cp = this.cam.position, d = look.distanceTo(cp);
+      const toT = look.clone().sub(cp).normalize(), toG = this.frameAt.clone().sub(cp).normalize();
+      look.copy(cp).addScaledVector(toT.lerp(toG, THREE.MathUtils.smoothstep(this.frameK, 0, 1) * 0.62).normalize(), d);
     }
     if (this.inward > 0.001) {
       const eye = new THREE.Vector3(player.x, player.y + 1.6, player.z);

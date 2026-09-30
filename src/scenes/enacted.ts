@@ -43,6 +43,8 @@ export interface EnactedCfg {
   site: SiteDef;
   /** How far before the seat the stage's foot stands (m). */
   reach: number;
+  /** The stage's centre's height over its foot (the gravity point; default 6 m). */
+  centreY?: number;
   make(ctx: StageCtx): Stage;
 }
 
@@ -128,7 +130,7 @@ export const lessonDark = { k: 0 };
 
 const DRAW_WITHIN = 190;
 
-export function enactedLesson(scene: THREE.Scene, narration: Narration, whisper: (t: string, ms?: number) => void, cfg: EnactedCfg): SceneModule & { loaded?: Promise<void> } {
+export function enactedLesson(scene: THREE.Scene, narration: Narration, whisper: (t: string, ms?: number) => void, cfg: EnactedCfg): SceneModule & { loaded?: Promise<void>; focus: THREE.Vector3 } {
   const { site } = cfg;
   const seatPos = new THREE.Vector3(site.x, heightAt(site.x, site.z), site.z);
   const sx = site.x - Math.sin(site.heading) * cfg.reach, sz = site.z - Math.cos(site.heading) * cfg.reach;
@@ -173,5 +175,5 @@ export function enactedLesson(scene: THREE.Scene, narration: Narration, whisper:
     stage?.dispose();
     baseDispose();
   };
-  return Object.assign(lesson, { loaded: (stage as Stage | null)?.loaded });
+  return Object.assign(lesson, { loaded: (stage as Stage | null)?.loaded, focus: at.clone().setY(at.y + (cfg.centreY ?? 6)) });
 }
