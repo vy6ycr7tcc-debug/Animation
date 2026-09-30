@@ -414,6 +414,7 @@ export function createDensityRoom2Scene(
     seatPos,
     seatHeading: heading,
     build,
+    authoredSecs: 300, // beats written against the script's length; they follow the recording
     beats: [
       // "This is the density you enter when you walk into a forest": the morning deepens
       { t: 37, apply: () => (goal.light = 0.9) },

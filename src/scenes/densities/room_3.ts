@@ -461,6 +461,7 @@ export function createRoom3Scene(
     seatPos: seat.clone(),
     seatHeading: 0,
     build,
+    authoredSecs: 300, // beats written against the script's length; they follow the recording
     beats: [
       // "you must understand the veil… a veil of forgetting was drawn": the haze gathers
       { t: 29, apply: () => Object.assign(goal, { veil: 1.3, sto: 0.25, sts: 0.25 }) },

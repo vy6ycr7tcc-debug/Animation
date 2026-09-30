@@ -315,6 +315,7 @@ export function createCrucibleScene(scene: THREE.Scene, narration: LessonCtx["na
     seatPos,
     seatHeading: 0,
     build,
+    authoredSecs: 320, // beats written against the script's length; they follow the recording
     beats: [
       // "Imagine a tower of seven chambers": the body, desire, power, the heart, the voice, seeing, knowing
       { t: 22, apply: () => (goal.rings = 1) },

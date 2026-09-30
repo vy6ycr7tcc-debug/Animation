@@ -30,6 +30,9 @@ export interface LessonOpts {
   id: string; trackId: string;
   seatPos: THREE.Vector3; seatHeading: number; seatRadius?: number;
   build: (ctx: LessonCtx) => void; beats: Beat[]; onEnd?: () => void;
+  /** The track length the beats were written against (from the script, before the recording
+      existed): beats then follow the real recording in proportion. */
+  authoredSecs?: number;
 }
 
 const DEFAULT_SEAT_RADIUS = 3;
@@ -118,7 +121,9 @@ export class LessonScene implements SceneModule {
 
     if (this.seated) {
       const beats = this.opts.beats;
-      while (this.beatIndex < beats.length && beats[this.beatIndex].t <= this.uT.value) {
+      const pr = this.opts.authoredSecs ? this.narration.progress() : null;
+      const k = pr && this.opts.authoredSecs ? pr.total / this.opts.authoredSecs : 1;
+      while (this.beatIndex < beats.length && beats[this.beatIndex].t * k <= this.uT.value) {
         beats[this.beatIndex].apply(this.ctx);
         this.beatIndex++;
       }

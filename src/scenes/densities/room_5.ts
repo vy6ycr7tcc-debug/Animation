@@ -254,6 +254,7 @@ export function createDensity5Scene(scene: THREE.Scene, narration: Narration, wh
     seatPos,
     seatHeading: Math.PI,
     build,
+    authoredSecs: 300, // beats written against the script's length; they follow the recording
     beats,
   });
   const baseUpdate = lesson.update.bind(lesson);

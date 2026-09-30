@@ -381,6 +381,7 @@ export function createDensityRoom4Scene(
     seatPos,
     seatHeading: heading,
     build,
+    authoredSecs: 320, // beats written against the script's length; they follow the recording
     beats: [
       // "In the fourth density, minds are interconnected": the threads wake
       { t: 38, apply: () => (goal.threads = 0.8) },

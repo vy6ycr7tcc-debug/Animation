@@ -466,6 +466,7 @@ export function createDensityRoom1Scene(
     seatPos,
     seatHeading: heading,
     build,
+    authoredSecs: 300, // beats written against the script's length; they follow the recording
     beats: [
       // "Imagine consciousness at its very beginning… a spark resting inside matter": the sparks wake
       { t: 38, apply: () => (goal.spark = 1) },
