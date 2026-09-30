@@ -358,10 +358,22 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
       title: "The crucible",
       make: async (scene, nar, wh) => (await import("./crucible")).createCrucibleScene(scene, nar, wh) as Room,
       start: { x: 0, z: 4.5, heading: Math.PI },
-      exits: [{ x: 0, z: -18.4, r: 1.8, to: 0, at: HOME }], // the next station is still to come: home for now
+      exits: [{ x: 0, z: -18.4, r: 1.8, to: 3, dark: 1.5 }], // out of the fire, into the dawn
       confine: (p) => {
         const dx = p.x, dz = p.z + 6, d = Math.hypot(dx, dz), lim = Math.abs(p.x) < 1.5 && p.z < -6 ? 12.8 : 10.4;
         if (d > lim) (p.x = (dx / d) * lim), (p.z = -6 + (dz / d) * lim);
+      },
+      ownAir: true,
+    },
+    {
+      id: "radiance",
+      title: "The radiance",
+      make: async (scene, nar, wh) => (await import("./radiance")).createRadianceScene(scene, nar, wh) as Room,
+      start: { x: 0, z: 9, heading: Math.PI },
+      exits: [{ x: 0, z: -16.6, r: 1.8, to: 0, at: HOME }], // the practices are still to come: home for now
+      confine: (p) => {
+        const d = Math.hypot(p.x, p.z), lim = Math.abs(p.x) < 1.6 && p.z < 0 ? 17 : 15.6;
+        if (d > lim) (p.x *= lim / d), (p.z *= lim / d);
       },
       ownAir: true,
     },
