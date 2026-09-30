@@ -402,12 +402,13 @@ export class Duat {
     const d = T.normalize(T.positionLocal);
     const el = T.clamp(d.y, -0.2, 1);
     const base = mix(vec3(0.02, 0.025, 0.06), vec3(0.002, 0.003, 0.012), smoothstep(0, 0.7, el));
-    const cell = T.floor(d.mul(220));
+    const g = d.mul(520), cell = T.floor(g);
     const h = fract(sin(T.dot(cell, vec3(12.9898, 78.233, 37.719))).mul(43758.5453));
-    const star = T.step(0.992, h).mul(fract(h.mul(97)).mul(0.8).add(0.2));
+    const round = smoothstep(0.32, 0.0, T.length(fract(g).sub(0.5)));
+    const star = T.step(0.985, h).mul(fract(h.mul(97)).mul(0.8).add(0.2)).mul(round);
     // Nut's body: an arch of light and stars from east to west
     const band = exp(d.z.mul(d.z).mul(-18)).mul(smoothstep(0.05, 0.4, el));
-    const bandStars = T.step(0.975, h).mul(band);
+    const bandStars = T.step(0.955, h).mul(band).mul(round);
     const dawnGlow = exp(T.length(d.xz.sub(vec2(-0.3, -0.9))).mul(-3)).mul(smoothstep(0.35, -0.05, el)).mul(0.25);
     m.colorNode = vec4(base.add(vec3(0.5, 0.45, 0.6).mul(band.mul(0.06))).add(vec3(1, 0.95, 0.85).mul(star.add(bandStars).mul(0.9))).add(vec3(1, 0.6, 0.35).mul(dawnGlow)), 1);
     const dome = new THREE.Mesh(new THREE.SphereGeometry(170, 48, 24), m);
@@ -566,11 +567,14 @@ export class Duat {
       const lintel = new THREE.BoxGeometry(6.8, 1.0, 1.6).toNonIndexed();
       lintel.translate(0, 5.6, 0);
       parts.push(lintel);
-      for (const q of parts) {
-        q.deleteAttribute("uv");
-        if (q.index) q.setIndex(null);
-      }
-      const mesh = new THREE.Mesh(mergeGeometries(parts.map((q) => q.toNonIndexed()))!, stone);
+      // faceted, as cut stone is: each face its own normal
+      const cut = parts.map((q) => {
+        const f = q.index ? q.toNonIndexed() : q;
+        f.deleteAttribute("uv");
+        f.computeVertexNormals();
+        return f;
+      });
+      const mesh = new THREE.Mesh(mergeGeometries(cut)!, stone);
       mesh.castShadow = mesh.receiveShadow = true;
       gate.add(mesh);
       // carved in light: the winged sun on the lintel (both faces), the hour's emblem on the posts

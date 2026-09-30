@@ -1726,7 +1726,7 @@ function pyramidFrame(dt: number): void {
     return;
   }
   // inside: the rooms are close, so the camera stays near
-  if (follow.dist > 3.6) follow.dist = 3.6;
+  if (!pyramid.duatActive && follow.dist > 3.6) follow.dist = 3.6;
   if (pyramid.confine(player.pos) && !crossing) crossPyr(false);
   if (player.flying) player.flying = false;
   const ch = pyramid.chamber(player.pos);
@@ -1734,10 +1734,18 @@ function pyramidFrame(dt: number): void {
   if (ch === "queen") tellPyr("queen", "The Queen's Chamber: the place of initiation, and of resurrection. Stand at its centre and be still.");
   if (ch === "gallery") tellPyr("gallery", "Light is drawn in at the base, and spirals upward toward the apex.");
   if (ch === "king") tellPyr("king", "The King's Chamber: the place of healing, where the spiral is strongest. Stand by the coffer and be still.");
-  fogUniforms.color.value.setRGB(0.06, 0.045, 0.03);
-  fogUniforms.density.value = 0.012;
-  gradeUniforms.shadow.value.setRGB(0.015, 0.008, 0.0);
-  gradeUniforms.high.value.setRGB(1.05, 0.98, 0.9);
+  if (pyramid.duatActive) {
+    // the Duat's own night air: deep blue, thin, the lamps warm against it
+    fogUniforms.color.value.setRGB(0.012, 0.016, 0.034);
+    fogUniforms.density.value = 0.0065;
+    gradeUniforms.shadow.value.setRGB(0.0, 0.006, 0.02);
+    gradeUniforms.high.value.setRGB(1.04, 0.97, 0.9);
+  } else {
+    fogUniforms.color.value.setRGB(0.06, 0.045, 0.03);
+    fogUniforms.density.value = 0.012;
+    gradeUniforms.shadow.value.setRGB(0.015, 0.008, 0.0);
+    gradeUniforms.high.value.setRGB(1.05, 0.98, 0.9);
+  }
   gradeUniforms.sat.value = 1.05;
   gradeUniforms.contrast.value = 1.12;
   post.starVis.value = 0;
