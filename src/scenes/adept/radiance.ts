@@ -18,6 +18,7 @@ import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
 import { T, vnoise } from "../../gpu/tsl";
 import { landStone, stoneBlock } from "../../world/stoneworks";
 import { GlassFolk } from "../glassFolk";
+import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
 import { applyAir, cloudSheet, damp, keepAlpha, merge, pointCloud, roomClock, roughBlock, seeded, skyDome, touch, type Air, roomPos } from "../densities/roomKit";
 
 const { abs, exp, float, fract, length, max, mix, normalize, positionWorld, pow, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
@@ -45,6 +46,8 @@ export function createRadianceScene(scene: THREE.Scene, narration: LessonCtx["na
   const uSend = uniform(-1); // the light sent away (0 … 1 along its way; <0 not yet)
   const goal = { dawn: 0.25, clear: 0, joy: 0, heal: 0, fork: 0, answer: 0, legs: 0, rivers: 0, sun: 0 };
   let sending = false;
+  const uVow = uniform(0); // the vow: light going out in every direction (0 … 1)
+  let vowAt = -1, stood = false;
   const air: Air = {
     color: new THREE.Color(0.11, 0.09, 0.12),
     glow: new THREE.Color(0.75, 0.48, 0.3),
@@ -152,8 +155,8 @@ export function createRadianceScene(scene: THREE.Scene, narration: LessonCtx["na
     }
     // joy overflowing: motes spilling from the servant's heart, drifting out over the terrace
     {
-      const n = 500;
-      const s = pointCloud(n, 0.12);
+      const n = 2200;
+      const s = pointCloud(n, 0.16);
       for (let i = 0; i < n; i++) {
         s.pos.set([0, 0, 0], i * 3);
         s.k.set([R(), R(), R(), R()], i * 4);
@@ -162,22 +165,22 @@ export function createRadianceScene(scene: THREE.Scene, narration: LessonCtx["na
       const K = s.cloud.nodes.aK;
       const life = fract(K.x.add(t.mul(float(0.03).add(K.y.mul(0.03)))));
       const a = K.z.mul(6.283);
-      const r = life.mul(float(6).add(K.w.mul(14)));
+      const r = life.mul(float(8).add(K.w.mul(22)));
       s.material.positionNode = vec3(T.cos(a).mul(r), sin(life.mul(3).add(K.w.mul(9))).mul(0.4).add(life.mul(2.5)), T.sin(a).mul(r));
-      s.material.colorNode = vec4(vec3(1, 0.88, 0.62).mul(s.round).mul(smoothstep(0, 0.05, life)).mul(float(1).sub(life)).mul(uJoy).mul(0.8), 1);
+      s.material.colorNode = vec4(vec3(1, 0.88, 0.62).mul(s.round).mul(smoothstep(0, 0.05, life)).mul(float(1).sub(life)).mul(uJoy).mul(1.1), 1);
       s.cloud.sprite.position.set(1.3, 1.1, 0.4);
       g.add(s.cloud.sprite);
       ours.push(s.material);
     }
     // the tuning fork: slow rings of light through the air, out to the horizon
     {
-      const geo = new THREE.RingGeometry(0.97, 1, 128, 1);
+      const geo = new THREE.RingGeometry(0.94, 1, 160, 1);
       geo.rotateX(-Math.PI / 2);
       const rings: THREE.Mesh[] = [];
       for (let k = 0; k < 3; k++) {
         const m = keepAlpha(new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide }));
         const ph = fract(t.mul(0.045).add(k / 3));
-        m.colorNode = vec4(vec3(1, 0.92, 0.78).mul(smoothstep(0, 0.1, ph)).mul(float(1).sub(ph)).mul(uFork).mul(0.45), 1);
+        m.colorNode = vec4(vec3(1, 0.92, 0.78).mul(smoothstep(0, 0.1, ph)).mul(float(1).sub(ph)).mul(uFork).mul(0.9), 1);
         const ring = new THREE.Mesh(geo, m);
         ring.position.y = 1.2;
         g.add(ring);
@@ -219,20 +222,62 @@ export function createRadianceScene(scene: THREE.Scene, narration: LessonCtx["na
     // power, love, wisdom: three pillars of light round the terrace
     {
       const cols = [new THREE.Vector3(1, 0.8, 0.4), new THREE.Vector3(1, 0.55, 0.65), new THREE.Vector3(0.5, 0.7, 1)];
-      const geo = new THREE.CylinderGeometry(0.5, 0.5, 26, 24, 1, true);
-      geo.translate(0, 13, 0);
+      const geo = new THREE.CylinderGeometry(1.3, 1.5, 70, 24, 1, true);
+      geo.translate(0, 35, 0);
       cols.forEach((c, i) => {
         const a = (i / 3) * Math.PI * 2 + Math.PI / 3;
         const m = keepAlpha(new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide }));
-        const y = T.positionGeometry.y.div(26);
+        const y = T.positionGeometry.y.div(70);
         const edge = pow(float(1).sub(abs(T.dot(normalize(T.normalWorld), normalize(T.cameraPosition.sub(positionWorld))))), 1.5);
-        m.colorNode = vec4(vec3(c.x, c.y, c.z).mul(edge.mul(0.5).add(0.15)).mul(smoothstep(0, 0.1, y)).mul(smoothstep(1, 0.4, y)).mul(uLegs).mul(0.5), 1);
+        m.colorNode = vec4(vec3(c.x, c.y, c.z).mul(edge.mul(0.5).add(0.15)).mul(smoothstep(0, 0.1, y)).mul(smoothstep(1, 0.5, y)).mul(uLegs).mul(0.9).mul(sin(t.mul(0.5).add(y.mul(6)).sub(i)).mul(0.15).add(0.85)), 1);
         const pillar = new THREE.Mesh(geo, m);
-        pillar.position.set(Math.sin(a) * 10.5, 0, Math.cos(a) * 10.5);
+        pillar.position.set(Math.sin(a) * 14, -2, Math.cos(a) * 14);
         g.add(pillar);
         ours.push(m);
       });
       ours.push(geo);
+    }
+    // the tuning fork itself: monumental, two tines of light rising behind the servant, ringing
+    // (they quiver apart and together) as its rings go out over the cloud-sea
+    {
+      const pairs: number[] = [];
+      const N = 40;
+      const H = 16, Wd = 1.6, stem = 5;
+      for (let i = 0; i < N; i++) {
+        const f0 = i / N, f1 = (i + 1) / N;
+        pairs.push(0, f0 * stem, 0, 0, f1 * stem, 0);
+        for (const sgn of [-1, 1]) {
+          const bend = (f: number) => Math.min(1, f * 6);
+          pairs.push(sgn * Wd * bend(f0), stem + f0 * H, 0, sgn * Wd * bend(f1), stem + f1 * H, 0);
+        }
+      }
+      const geo = ribbonGeometry(pairs);
+      const P = T.positionGeometry;
+      // the tines quiver: displaced sideways, more toward their tips, at a hum you can see
+      const k = smoothstep(stem, stem + H, P.y);
+      const quiver = sin(t.mul(22)).mul(0.18).mul(k).mul(uFork);
+      const m = keepAlpha(ribbonMaterial(vec3(1, 0.9, 0.7).mul(float(0.5).add(uFork.mul(0.9))).mul(float(0.3).add(uClear.mul(0.4)).add(uFork.mul(0.6))), 3.2));
+      m.positionNode = vec3(P.x.add(T.sign(P.x).mul(quiver)), P.y, P.z);
+      const fork = new THREE.Mesh(geo, m);
+      fork.position.set(-4.5, 0, -9);
+      fork.frustumCulled = false;
+      g.add(fork);
+      ours.push(geo, m);
+    }
+    // the vow: the one seated stands, and light goes out from it in every direction
+    {
+      const n = 3000;
+      const s = pointCloud(n, 0.14);
+      for (let i = 0; i < n; i++) s.k.set([R(), R(), R(), R()], i * 4);
+      touch(s.cloud);
+      const K = s.cloud.nodes.aK;
+      const th = K.x.mul(6.283), ph = T.acos(K.y.mul(2).sub(1));
+      const dir = vec3(sin(ph).mul(T.cos(th)), T.cos(ph).abs().mul(0.8).add(0.1), sin(ph).mul(sin(th)));
+      const out = uVow.mul(float(40).add(K.z.mul(80)));
+      s.material.positionNode = vec3(1.3, 1.4, 0.4).add(dir.mul(out));
+      s.material.colorNode = vec4(vec3(1, 0.9, 0.7).mul(s.round).mul(smoothstep(0, 0.03, uVow)).mul(float(1).sub(uVow.mul(0.8))).mul(1.2), 1);
+      g.add(s.cloud.sprite);
+      ours.push(s.material);
     }
     // the light sent away over the clouds
     {
@@ -268,6 +313,11 @@ export function createRadianceScene(scene: THREE.Scene, narration: LessonCtx["na
       uLegs.value = damp(uLegs.value, goal.legs, 0.25, d);
       uRivers.value = damp(uRivers.value, goal.rivers, 0.12, d);
       uSun.value = damp(uSun.value, goal.sun, 0.1, d);
+      if (vowAt >= 0) {
+        vowAt += d;
+        uVow.value = Math.min(1, vowAt / 14);
+        if (!stood && folk.bodies[0]) (stood = true), folk.bodies[0].act("idle", 0.6);
+      }
       if (sending) uSend.value = Math.min(1.01, uSend.value + d / 24);
       air.glow.setRGB(0.5 + 0.35 * uDawn.value, 0.32 + 0.22 * uDawn.value, 0.22 + 0.1 * uDawn.value);
       const [servant, future] = folk.bodies;
@@ -308,7 +358,7 @@ export function createRadianceScene(scene: THREE.Scene, narration: LessonCtx["na
       // "Service finds the servant the way rivers find the sea."
       { t: 214, apply: () => ((goal.rivers = 1), (goal.fork = 0.5)) },
       // "I desire to know in order to serve."
-      { t: 232, apply: () => ((goal.sun = 1), (goal.dawn = 1)) },
+      { t: 232, apply: () => ((goal.sun = 1), (goal.dawn = 1), (vowAt = 0)) },
       // "the deeper self… is yourself at a different stage… Your future, reaching back"
       { t: 250, apply: () => (futureGo = true) },
       // "the radiance… is already on its way to them"

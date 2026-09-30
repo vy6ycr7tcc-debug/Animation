@@ -72,9 +72,10 @@ export function createOthersScene(scene: THREE.Scene, narration: LessonCtx["narr
         extra: (d, c) => {
           const sc = floor(d.mul(300));
           const h = hash2(sc.xy.add(sc.z.mul(7.1)));
-          const star = step(0.994, h).mul(sin(t.mul(0.9).add(hash2(sc.xz).mul(40))).mul(0.3).add(0.7)).mul(smoothstep(0.0, 0.2, d.y));
-          const band = exp(T.abs(d.x.mul(0.6).sub(d.z.mul(0.5)).add(d.y.mul(0.3))).mul(-8)).mul(0.05);
-          return c.add(vec3(0.9, 0.92, 1).mul(star)).add(vec3(0.3, 0.32, 0.45).mul(band));
+          const star = step(0.986, h).mul(sin(t.mul(0.9).add(hash2(sc.xz).mul(40))).mul(0.3).add(0.7)).mul(smoothstep(0.0, 0.2, d.y));
+          const band = exp(T.abs(d.x.mul(0.6).sub(d.z.mul(0.5)).add(d.y.mul(0.3))).mul(-6)).mul(0.16).mul(T.mx_noise_float(d.mul(9)).mul(0.5).add(0.6));
+          const fine = step(0.97, hash2(floor(d.mul(900)).xy.add(floor(d.mul(900)).z))).mul(band.mul(8).add(0.15)).mul(0.5);
+          return c.add(vec3(0.9, 0.92, 1).mul(star)).add(vec3(0.3, 0.32, 0.45).mul(band)).add(vec3(0.85, 0.88, 1).mul(fine));
         },
       });
       g.add(sky.mesh);
@@ -144,35 +145,35 @@ export function createOthersScene(scene: THREE.Scene, narration: LessonCtx["narr
       ours.push(sg, m);
       const hm = keepAlpha(new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false, fog: false }));
       const r = length(uv().sub(0.5)).mul(2);
-      hm.colorNode = vec4(vec3(1, 0.7, 0.6).mul(exp(r.mul(r).mul(-5))).mul(smoothstep(1, 0.6, r)).mul(uVenus).mul(0.18), 1);
+      hm.colorNode = vec4(vec3(1, 0.7, 0.6).mul(exp(r.mul(r).mul(-5))).mul(smoothstep(1, 0.6, r)).mul(uVenus).mul(0.3), 1);
       const halo = new THREE.Sprite(hm);
       halo.scale.setScalar(260);
       g.add(halo);
       ours.push(hm);
       tickers.push(() => {
         const rise = uVenus.value;
-        const dir = VENUS.clone().setY(VENUS.y - 0.12 + 0.12 * rise).normalize();
+        const dir = VENUS.clone().setY(VENUS.y - 0.14 + 0.3 * rise).normalize();
         venus.position.copy(dir).multiplyScalar(780);
         halo.position.copy(venus.position).multiplyScalar(1.01);
       });
     }
     // the twenty-two cards turning in a ring over the hill, then drifting outward, given away
     const cards = new THREE.Group();
-    cards.position.set(CROWN.x, CROWN.y + 6.5, CROWN.z);
+    cards.position.set(CROWN.x, CROWN.y + 9, CROWN.z);
     g.add(cards);
     {
       const pairs: number[] = [];
       for (let i = 0; i < 22; i++) {
-        const a = (i / 22) * Math.PI * 2, r = 7;
+        const a = (i / 22) * Math.PI * 2, r = 15;
         const cx = Math.sin(a) * r, cz = Math.cos(a) * r, ux = Math.cos(a), uz = -Math.sin(a);
-        const c = [[-0.5, -0.8], [0.5, -0.8], [0.5, 0.8], [-0.5, 0.8]].map(([x, y]) => [cx + x * ux, y + Math.sin(i * 1.3) * 0.3, cz + x * uz]);
+        const c = [[-1.3, -2.1], [1.3, -2.1], [1.3, 2.1], [-1.3, 2.1]].map(([x, y]) => [cx + x * ux, y + Math.sin(i * 1.3) * 0.8, cz + x * uz]);
         for (let k = 0; k < 4; k++) pairs.push(...c[k], ...c[(k + 1) % 4]);
         // an inner frame, as the cards' own borders
-        const d = [[-0.4, -0.68], [0.4, -0.68], [0.4, 0.68], [-0.4, 0.68]].map(([x, y]) => [cx + x * ux, y + Math.sin(i * 1.3) * 0.3, cz + x * uz]);
+        const d = [[-1.05, -1.8], [1.05, -1.8], [1.05, 1.8], [-1.05, 1.8]].map(([x, y]) => [cx + x * ux, y + Math.sin(i * 1.3) * 0.8, cz + x * uz]);
         for (let k = 0; k < 4; k++) pairs.push(...d[k], ...d[(k + 1) % 4]);
       }
       const geo = ribbonGeometry(pairs);
-      const m = ribbonMaterial(vec3(1, 0.82, 0.5).mul(uCards), 0.8);
+      const m = ribbonMaterial(vec3(1, 0.82, 0.5).mul(uCards), 1.4);
       cards.add(new THREE.Mesh(geo, m));
       ours.push(geo, m);
     }
@@ -180,12 +181,13 @@ export function createOthersScene(scene: THREE.Scene, narration: LessonCtx["narr
     {
       const m = keepAlpha(new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false, fog: false }));
       const r = length(uv().sub(0.5)).mul(2);
-      const breath = sin(t.mul(0.55)).mul(0.25).add(0.75);
-      m.colorNode = vec4(vec3(1, 0.93, 0.85).mul(exp(r.mul(r).mul(-4))).mul(smoothstep(1, 0.6, r)).mul(uChoir).mul(breath).mul(0.45), 1);
+      const breath = sin(t.mul(0.55)).mul(0.45).add(0.55);
+      m.colorNode = vec4(vec3(1, 0.93, 0.85).mul(exp(r.mul(r).mul(-4))).mul(smoothstep(1, 0.6, r)).mul(uChoir).mul(breath).mul(0.95), 1);
       const s = new THREE.Sprite(m);
       s.position.set(CROWN.x, CROWN.y + 3.2, CROWN.z);
-      s.scale.setScalar(3.6);
+      s.scale.setScalar(9);
       g.add(s);
+      tickers.push(() => s.scale.setScalar(7 + 3.5 * Math.sin(clock.u.value * 0.55)));
       ours.push(m);
     }
     // the hidden order: fine arcs woven across the sky
@@ -227,17 +229,17 @@ export function createOthersScene(scene: THREE.Scene, narration: LessonCtx["narr
     // the company of stars: every star joined to its neighbours
     {
       const pts: THREE.Vector3[] = [];
-      for (let i = 0; i < 180; i++) {
-        const a = R() * Math.PI * 2, e = 0.08 + Math.pow(R(), 0.7) * 1.3, r = 950;
+      for (let i = 0; i < 520; i++) {
+        const a = R() * Math.PI * 2, e = 0.06 + Math.pow(R(), 0.7) * 1.35, r = 950;
         pts.push(new THREE.Vector3(Math.sin(a) * Math.cos(e) * r, Math.sin(e) * r, Math.cos(a) * Math.cos(e) * r));
       }
       const pairs: number[] = [];
       for (let i = 0; i < pts.length; i++) {
-        const near = pts.map((p, j) => [p.distanceTo(pts[i]), j]).sort((a, b) => a[0] - b[0]).slice(1, 3);
+        const near = pts.map((p, j) => [p.distanceTo(pts[i]), j]).sort((a, b) => a[0] - b[0]).slice(1, 4);
         for (const [, j] of near) if (j > i) pairs.push(...pts[i].toArray(), ...pts[j].toArray());
       }
       const geo = ribbonGeometry(pairs);
-      const m = ribbonMaterial(vec3(0.8, 0.86, 1).mul(uCompany).mul(0.45), 0.6);
+      const m = ribbonMaterial(vec3(0.8, 0.86, 1).mul(uCompany).mul(0.8), 1.0);
       g.add(new THREE.Mesh(geo, m));
       const S = pointCloud(pts.length, 3.4);
       pts.forEach((p, i) => S.pos.set(p.toArray(), i * 3));
