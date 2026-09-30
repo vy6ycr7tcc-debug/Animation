@@ -1,0 +1,76 @@
+/* The archetypes as glowing carvings (Samuel: "make them flat… like a glowing carving… take all
+   the tarot cards… almost like you scan them, but then the background is empty… the traces,
+   they are glowy"). Each card's own drawing, traced from his Ra tarot photos by
+   tools/build-card-glyphs.py (the line in the luminance channel, a soft glow round it in alpha),
+   stands upright where its being stands: gold line warming into the archetype's colour, a halo
+   of that colour about it, breathing, a slow band of light rising through it; brighter as you
+   come near and in its rite; drawn in from the ground up the first time you meet it. */
+import * as THREE from "three/webgpu";
+import { T } from "../gpu/tsl";
+
+const { exp, float, fract, mix, smoothstep, sin, texture, uniform, uv, vec3, vec4 } = T;
+
+/** The card's proportion (the traced area, width to height). */
+export const GLYPH_ASPECT = 480 / 840;
+
+const cache = new Map<string, THREE.Texture>();
+const loader = new THREE.TextureLoader();
+/** The traced card for a numeral, loaded once and shared. */
+function glyphTexture(numeral: string): THREE.Texture {
+  let t = cache.get(numeral);
+  if (!t) {
+    t = loader.load(`textures/cards/${numeral}.png`);
+    t.colorSpace = THREE.NoColorSpace;
+    t.anisotropy = 4;
+    cache.set(numeral, t);
+  }
+  return t;
+}
+
+export interface Glyph {
+  mesh: THREE.Mesh;
+  /** Near (0..1), its rite (0..1), the greeting's flash (0..1), drawn in (0..1), time. */
+  u: { wake: { value: number }; rite: { value: number }; greet: { value: number }; drawn: { value: number }; t: { value: number } };
+  /** Load its drawing (the first time it is near). */
+  load(): void;
+}
+
+/** A glowing carving of card `numeral`, `height` metres tall, its foot at y = 0, facing +z. */
+export function makeGlyph(numeral: string, tint: THREE.Color, height: number): Glyph {
+  const u = { wake: uniform(0), rite: uniform(0), greet: uniform(0), drawn: uniform(0), t: uniform(0) };
+  const blank = new THREE.DataTexture(new Uint8Array(4), 1, 1);
+  blank.needsUpdate = true;
+  const tex = texture(blank);
+  const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
+  const s = tex.sample(uv());
+  const line = s.r, halo = s.a;
+  const v = uv().y;
+  // drawn in from the foot upward, the edge of the drawing bright as it comes
+  const front = u.drawn.mul(1.1);
+  const drawnK = smoothstep(v.sub(0.04), v, front);
+  const rim = exp(v.sub(front).mul(v.sub(front)).mul(-900)).mul(2).mul(u.drawn.lessThan(1).select(1, 0)).mul(u.drawn.greaterThan(0).select(1, 0));
+  const drawing = drawnK.add(rim);
+  // a slow band of light rising through it, quicker in its rite
+  const bandY = fract(u.t.mul(mix(float(0.05), float(0.14), u.rite)));
+  const band = exp(v.sub(bandY).mul(v.sub(bandY)).mul(-60)).mul(0.5);
+  const breathe = sin(u.t.mul(0.55)).mul(0.08).add(0.92);
+  const k = float(0.4).add(u.wake.mul(0.45)).add(u.rite.mul(0.45)).add(u.greet.mul(0.6)).mul(breathe).add(band);
+  const c = vec3(tint.r, tint.g, tint.b);
+  const gold = vec3(1.0, 0.8, 0.5);
+  const col = mix(gold, c, 0.45).mul(line).mul(0.95).add(c.mul(halo).mul(0.16));
+  mat.colorNode = vec4(col.mul(k).mul(drawing), 1);
+  const w = height * GLYPH_ASPECT;
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, height).translate(0, height / 2, 0), mat);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 4;
+  let loaded = false;
+  return {
+    mesh,
+    u,
+    load() {
+      if (loaded) return;
+      loaded = true;
+      tex.value = glyphTexture(numeral);
+    },
+  };
+}

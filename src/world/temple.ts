@@ -722,7 +722,7 @@ export class Temple {
       const stations: Station[] = [];
       stations[i] = { center: new THREE.Vector3(0, 0, 0) } as unknown as Station;
       const beings = new Beings(stations, sparks);
-      for (const b of beings.list) b.spec.under = false;
+      for (const b of beings.list) (b.spec.under = false), (b.turns = false);
       // each stood off-centre in its landmark (the Magician 1.9 m aside, into the niche's wall):
       // in its shrine it stands in the middle, as on its card (its height is kept: XII hangs)
       const [ox, , oz] = beings.list[0].spec.at;
@@ -1012,7 +1012,7 @@ export class Temple {
       const stations: Station[] = [];
       stations[i] = { center: new THREE.Vector3(0, 0, 0) } as unknown as Station;
       const beings = new Beings(stations, this.sparks);
-      for (const b of beings.list) b.spec.under = false;
+      for (const b of beings.list) (b.spec.under = false), (b.turns = false);
       if (this.model) beings.attach(this.model);
       pivot.add(beings.group);
       pivot.position.set(0, 0.3, -0.2);
@@ -1038,14 +1038,14 @@ export class Temple {
     this.stage.visible = this.cardsOpen && this.cardShown >= 0 && !this.quietStage;
     for (const m of this.centreShaft) m.visible = !this.cardsOpen; // it fell straight through the card
     if (!this.stage.visible) return;
-    this.stage.rotation.y = reduced ? 0 : Math.sin(t * 0.25) * 0.38;
+    this.stage.rotation.y = reduced ? 0 : Math.sin(t * 0.25) * 0.1;
     this.cardK = Math.min(1, this.cardK + dt / 0.8);
     const ease = (k: number) => k * k * (3 - 2 * k);
     const cur = this.cardBeings.get(this.cardShown);
     if (cur) {
       const k = ease(this.cardK);
       const off = this.cardOffset.get(this.cardShown)!;
-      const sc = 1.3 * (0.4 + 0.6 * k);
+      const sc = 1.1 * (0.4 + 0.6 * k);
       cur.pivot.scale.setScalar(sc);
       cur.pivot.position.set(-off.x * sc, 0.3 - off.y * sc - (1 - k) * 0.6, -0.2 - off.z * sc);
       cur.pivot.worldToLocal(this.local.copy(player));
@@ -1064,7 +1064,7 @@ export class Temple {
         this.cardPrev = null;
       } else {
         const k = ease(this.cardPrevK);
-        this.cardPrev.scale.setScalar(1.3 * (0.4 + 0.6 * k));
+        this.cardPrev.scale.setScalar(1.1 * (0.4 + 0.6 * k));
         this.cardPrev.position.y += dt * 1.5;
       }
     }
@@ -1332,33 +1332,12 @@ export class Temple {
     }
     this.updateStage(t, dt, player, reduced);
     this.updateLamps(t, dt, reduced);
-    this.shrines.forEach((s, i) => {
+    this.shrines.forEach((s) => {
       s.beings.group.worldToLocal(this.local.copy(player));
       const wasMet = s.beings.list[0]?.met;
       s.beings.update(t, dt, this.local, reduced);
       if (!wasMet && s.beings.list[0]?.met) this.hooks.onMeet(s.numeral, s.name);
-      if (i >= 14) this.gatherObjects(s, i, player, dt);
     });
-  }
-
-  /** In the sanctuary the eight stand close in one room, and their cards' objects (a tower, a
-      bolt, a star, a sun, a moon…) hung all over it at once. Each being's objects gather in only as
-      you come to it, and in its rite, and leave the room quiet otherwise. */
-  private gathered = new Map<number, number>();
-  private gatherObjects(s: { beings: Beings }, i: number, player: THREE.Vector3, dt: number): void {
-    const b = s.beings.list[0];
-    if (!b) return;
-    const sp = this.spots[i];
-    const d = Math.hypot(player.x - TEMPLE_ORIGIN.x - sp.x, player.z - TEMPLE_ORIGIN.z - sp.z);
-    const want = b.rite > 0 || d < 4.5 ? 1 : 0;
-    let k = this.gathered.get(i) ?? 0;
-    k += (want - k) * Math.min(1, dt * (want ? 1.2 : 0.8));
-    this.gathered.set(i, k);
-    const e = k * k * (3 - 2 * k);
-    b.props.scale.setScalar(Math.max(1e-3, e));
-    b.props.visible = e > 0.01;
-    // what the card sets about the figure in the room itself (its ground, its sky) comes with it
-    for (const c of s.beings.group.children) if (c !== b.root) c.visible = e > 0.01;
   }
 
   /** Arriving again: each greets you again. */
