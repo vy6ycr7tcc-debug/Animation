@@ -316,6 +316,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
   let callFloor: ((x: number, z: number) => number) | null = null;
   let stonesFloor: ((x: number, z: number) => number) | null = null;
   let dunes: ((x: number, z: number) => number) | null = null;
+  let hill: ((x: number, z: number) => number) | null = null;
   return [
     {
       id: "lobby",
@@ -403,8 +404,36 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
       },
       floor: (x, z) => (dunes ? dunes(x, z) : 0),
       start: { x: 0, z: 0, heading: Math.PI },
-      exits: [{ x: 11, z: -30.3, r: 1.8, to: 0, at: HOME }], // the next chamber is still to come: home for now
+      exits: [{ x: 11, z: -30.3, r: 1.8, to: 6 }],
       confine: box(-16, 16, -34, 6),
+      ownAir: true,
+    },
+    {
+      id: "disciplines",
+      title: "The daily disciplines",
+      make: async (scene, nar, wh) => (await import("./disciplines")).createDisciplinesScene(scene, nar, wh) as Room,
+      start: { x: 0, z: -1.5, heading: Math.PI },
+      exits: [{ x: 0, z: -32.2, r: 1.8, to: 7 }],
+      confine: (p) => {
+        if (p.z > -12) p.x = Math.max(-4.6, Math.min(4.6, p.x));
+        else p.x = Math.max(-8.3, Math.min(8.3, p.x));
+        if (p.z > -12.6 && p.z < -11.8) p.x = Math.max(-1.6, Math.min(1.6, p.x));
+        p.z = Math.max(-32.6, Math.min(-0.8, p.z));
+      },
+      ownAir: true,
+    },
+    {
+      id: "others",
+      title: "The others",
+      make: async (scene, nar, wh) => {
+        const mod = await import("./others");
+        hill = mod.hillFloor;
+        return mod.createOthersScene(scene, nar, wh) as Room;
+      },
+      floor: (x, z) => (hill ? hill(x, z) : 0),
+      start: { x: 0, z: 4, heading: Math.PI },
+      exits: [{ x: 0, z: -24.3, r: 1.8, to: 0, at: HOME }], // home to the school
+      confine: box(-24, 24, -25, 14),
       ownAir: true,
     },
   ];
