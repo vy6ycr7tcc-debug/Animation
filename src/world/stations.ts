@@ -16,7 +16,8 @@ const n2 = (p: N): N => {
   const i = floor(p), f0 = fract(p), f = f0.mul(f0).mul(float(3).sub(f0.mul(2)));
   return mix(mix(h2(i), h2(i.add(vec2(1, 0))), f.x), mix(h2(i.add(vec2(0, 1))), h2(i.add(vec2(1, 1))), f.x), f.y);
 };
-import { heightAt, LANDMARK_KINDS, LANDMARK_SITES, type SiteKind, WATER_Y } from "./terrain";
+import { colliders, heightAt, LANDMARK_KINDS, LANDMARK_SITES, type SiteKind, WATER_Y } from "./terrain";
+import { homePlatform } from "./stoneworks";
 
 export interface StationData {
   n: number;
@@ -106,11 +107,11 @@ export abstract class Station {
     this.center = new THREE.Vector3(x, heightAt(x, z), z);
     this.group.position.copy(this.center);
 
-    // Floor: a low disc of etched stone, and a halo of light around it.
-    const floor = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.5, 0.6, 64), this.stone);
-    floor.position.y = -0.18;
-    floor.receiveShadow = true;
+    // Floor: a round platform of fitted stone blocks and a ring of standing stones (stoneworks.ts),
+    // and a halo of light around it.
+    const { mesh: floor, stones } = homePlatform(data.n, this.center.y);
     this.group.add(floor);
+    for (const st of stones) colliders.push({ x: x + st.x, z: z + st.z, r: st.r, top: this.center.y + 2.5 });
     this.floorGlow = glowMat(GOLD, 0.0);
     const glowRing = new THREE.Mesh(new THREE.RingGeometry(4.25, 5.4, 64).rotateX(-Math.PI / 2), this.floorGlow);
     glowRing.position.y = 0.13;

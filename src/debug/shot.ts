@@ -3,7 +3,8 @@
    the `shot` query param is present — normal play is untouched. */
 import { SITES } from "../scenes/sites";
 import { DUAT_ORIGIN } from "../world/pyramid";
-import { PYRAMID, heightAt } from "../world/terrain";
+import { RUIN_SITES } from "../world/depths";
+import { LANDMARK_SITES, PYRAMID, heightAt } from "../world/terrain";
 
 export interface Shot {
   id: string;
@@ -84,6 +85,8 @@ export interface ShotCtx {
   draw(): void;
   /** Settles when what the frame needs has loaded (the recorded figure the visions pose). */
   ready?: Promise<unknown>;
+  /** After the first update: settles when what it asked for has arrived (the carvings). */
+  settle?(): Promise<unknown>;
 }
 
 /** Render one still frame of the requested scene at T seconds, then never again. */
@@ -112,10 +115,36 @@ export function runShot(ctx: ShotCtx): void {
     view = { eye: [0, 9, 24], look: [0, 5, -44] };
     ctx.setInside(true); // crossTemple's delays are skipped on purpose
     ctx.tour.beginTour(); // narration.play: muted
+  } else if (id === "temple-sanctuary" || id === "temple-hall" || id === "temple-choice") {
+    // the temple empty of the tour: the sanctuary from its gateway, the hall from the door, the Choice's platform
+    base = TEMPLE_ORIGIN;
+    view = id === "temple-sanctuary" ? { eye: [0, 3.4, -29], look: [0, 2.6, -50] }
+      : id === "temple-hall" ? { eye: [0, 3.2, 30], look: [0, 3, 0] }
+      : { eye: [0, 4, -40], look: [0, 3.5, -56] };
+    ctx.setInside(true);
+    ctx.player.pos.set(base[0] + view.eye[0], base[1], base[2] + view.eye[2] - 2);
+  } else if (/^ruin-\d$/.test(id)) {
+    // under the water, standing on the floor before a ruin
+    const r = RUIN_SITES[Number(id.slice(5))] ?? RUIN_SITES[0];
+    const px = r.x + 9, pz = r.z + 9;
+    base = [px, heightAt(px, pz), pz];
+    view = { eye: [4, 2.2, 5], look: [-9, 2.5, -9] };
+    ctx.player.pos.set(px, heightAt(px, pz), pz);
+  } else if (/^home-\d+$/.test(id)) {
+    // an archetype's home in the open world, from a little way off
+    const [hx, hz] = LANDMARK_SITES[Number(id.slice(5))] ?? LANDMARK_SITES[0];
+    base = [hx, heightAt(hx, hz), hz];
+    view = { eye: [7, 3.2, 9], look: [0, 1.2, 0] };
+    ctx.player.pos.set(hx + 5, heightAt(hx + 5, hz + 7), hz + 7);
   } else if (id === "genesis") {
     if (!ctx.genesisAt) return;
     base = ctx.genesisAt(t);
     view = VIEWS.genesis;
+  } else if (/^duat-\d$/.test(id)) {
+    // over the shoulder of the wanderer standing at hour k (main.ts places it), toward the vision
+    const p = ctx.player.pos, fx = -Math.sin(ctx.player.heading), fz = -Math.cos(ctx.player.heading);
+    base = [p.x, p.y, p.z];
+    view = { eye: [-fx * 5, 3, -fz * 5], look: [fx * 6, 2.2, fz * 6] };
   } else if (id === "pyramid" || id === "duat") {
     // camera only: main.ts pre-positions the player before runShot is called
     const o = id === "pyramid" ? PYRAMID : DUAT_ORIGIN;
@@ -151,6 +180,18 @@ export function runShot(ctx: ShotCtx): void {
   ctx.terrain.update(base[0], base[2], true);
 
   // one update with the override in place: beats up to T apply, and uT reads T
+  ctx.update(1 / 60);
+  ctx.S.t = t;
+  ctx.S.wt = t;
+  if (ctx.settle) {
+    const { settle, ...rest } = ctx;
+    void settle().then(() => finish(rest, id, t, base, view));
+    return;
+  }
+  finish(ctx, id, t, base, view);
+}
+
+function finish(ctx: ShotCtx, id: string, t: number, base: XYZ, view: { eye: XYZ; look: XYZ }): void {
   ctx.update(1 / 60);
   ctx.S.t = t;
   ctx.S.wt = t;

@@ -8,7 +8,8 @@
    wounds and all; a hand laid on the chest; the tree, and the spirit still painting. */
 import type * as THREE from "three/webgpu";
 import type { Narration } from "../core/narration";
-import { book, combine, offering, rain, shift, sphere, sprout, sun, tree, turnY, FORM_H, type Rand } from "../world/forms";
+import { book, combine, heart, rain, shift, sphere, sprout, sun, tree, FORM_H, type Rand } from "../world/forms";
+import { hand, offeredHand } from "../world/symbols";
 import type { SceneModule } from "./lessonKit";
 import { SITES } from "./sites";
 import { visionLesson } from "./visionLesson";
@@ -39,28 +40,28 @@ const forms: Record<string, Maker> = {
   green: (n, R) => combine(n, [[(m) => tree(m, R, SEED), 0.55], [(m) => crown(m, R), 0.45]]),
   dry: (n, R) => combine(n, [[(m) => tree(m, R, SEED), 0.82], [(m) => fallen(m, R), 0.18]]),
   // it speaks in flesh what we have not said aloud
-  body: (n, R, b) => b && combine(n, [[(m) => b.figure(m, R, "Idle_Loop", 1.4, [["DEF-spine.001", 0.2], ["DEF-neck", 0.3]], FORM_H * 0.8), 0.78], [(m) => sphere(m, R, 0.3, FORM_H * 0.52, 0.2), 0.22]]),
+  body: (n, R) => combine(n, [[(m) => heart(m, R, 1.1), 0.7], [(m) => sphere(m, R, 0.3, FORM_H * 0.5, 0.2), 0.3]]),
   // through the notches the spirit of the tree comes out
   spirit: (n, R) => combine(n, [[(m) => tree(m, R, SEED), 0.72], [(m) => sphere(m, R, 0.45, FORM_H * 0.45, 0.35), 0.1], [(m) => shift(sphere(m, R, 0.35, 0, 0.3), 0.9, FORM_H * 0.6, 0.6), 0.18]]),
   // the mind turns it into a project of measurements
   ledger: (n, R) => shift(book(n, R), 0, 0.9, 0, 1.2),
   // the spirit waters, asking nothing, keeping no score
-  water: (n, R, b) => b && combine(n, [
-    [(m) => shift(tree(m, R, SEED, FORM_H * 0.9), 0.9, 0, -0.4), 0.52],
-    [(m) => shift(turnY(offering(m, R, b, 0), Math.PI / 2.4), -1.4, 0, 0.3, 0.8), 0.33],
-    [(m) => shift(rain(m, R), -0.2, -1.2, 0.2, 0.35), 0.15],
+  water: (n, R) => combine(n, [
+    [(m) => shift(tree(m, R, SEED, FORM_H * 0.9), 0.9, 0, -0.4), 0.55],
+    [(m) => shift(offeredHand(m, R, 0), -1.4, 0.6, 0.3, 0.7), 0.3],
+    [(m) => shift(rain(m, R), -0.9, -0.8, 0.3, 0.35), 0.15],
   ]),
   // new growth rises in a new shape; the broken branches stay
   growth: (n, R) => combine(n, [[(m) => tree(m, R, SEED), 0.58], [(m) => shift(sprout(m, R, 1.3), 1.4, 0, 0.8), 0.14], [(m) => shift(sprout(m, R, 1.0), -1.2, 0, 1.0), 0.12], [(m) => crown(m, R), 0.16]]),
   // bare in the dark; every morning the light returns
   morning: (n, R) => combine(n, [[(m) => tree(m, R, SEED), 0.7], [(m) => shift(sun(m, R, 0), 2.2, FORM_H * 0.95, -1.5, 0.45), 0.3]]),
   // the spirit steps back and paints the tree, broken branches and all
-  paint: (n, R, b) => b && combine(n, [
-    [(m) => shift(tree(m, R, SEED, FORM_H * 0.9), 1.0, 0, -0.6), 0.55],
-    [(m) => shift(turnY(b.figure(m, R, "Spell_Simple_Idle_Loop", 0.6, [], FORM_H * 0.62), Math.PI / 2.2), -1.6, 0, 0.6), 0.45],
+  paint: (n, R) => combine(n, [
+    [(m) => shift(tree(m, R, SEED, FORM_H * 0.9), 1.0, 0, -0.6), 0.6],
+    [(m) => shift(hand(m, R, 0.7, 0, 0.7), -1.7, FORM_H * 0.45, 0.6), 0.4],
   ]),
   // a hand laid on the chest
-  chest: (n, R, b) => b && combine(n, [[(m) => b.figure(m, R, "Idle_Loop", 2.2, [], FORM_H * 0.8), 0.76], [(m) => sphere(m, R, 0.4, FORM_H * 0.53, 0.35), 0.24]]),
+  chest: (n, R) => combine(n, [[(m) => heart(m, R, 1.2), 0.55], [(m) => shift(hand(m, R, 1, 0, 0.8), 0, FORM_H * 0.5, 0.5), 0.45]]),
 };
 
 export function createTreeStationScene(scene: THREE.Scene, narration: Narration, whisper: (t: string, ms?: number) => void): SceneModule {

@@ -8,48 +8,39 @@
    flame; the road of small places; a candle set down in the middle of the room, left to shine. */
 import type * as THREE from "three/webgpu";
 import type { Narration } from "../core/narration";
-import { book, bowl, candle, combine, flame, fountain, heart, offering, rain, river, road, rock, shift, sun, tree, turnY, well, FORM_H } from "../world/forms";
+import { book, candle, combine, fountain, heart, rain, river, road, rock, shift, sun, tree, well, FORM_H } from "../world/forms";
+import { doorway, flames, hand, offeredHand, raisedHand, steamingBowl, fist } from "../world/symbols";
 import type { SceneModule } from "./lessonKit";
 import { SITES } from "./sites";
 import { visionLesson } from "./visionLesson";
 import { EMBER, GOLD, PALE, PEARL, ROSE, type Maker } from "./visionStage";
 
-const BOWED: [string, number][] = [["DEF-spine.001", 0.28], ["DEF-spine.003", 0.22], ["DEF-neck", 0.35]];
-
+// the telling in symbols, one at a time
 const forms: Record<string, Maker> = {
-  // rain on the road, someone standing at its side
-  rain: (n, R, b) => b && combine(n, [[(m) => rain(m, R), 0.45], [(m) => shift(road(m, R), 0, 0, 0, 0.5), 0.2], [(m) => shift(b.figure(m, R, "Idle_Loop", 0.9, BOWED, FORM_H * 0.62), 1.1, 0, 0.3), 0.35]]),
-  // offering a seat, a hand held out
-  offer: (n, R, b) => b && offering(n, R, b, 0.0, "Interact", 0.9),
+  // rain on the road
+  rain: (n, R) => combine(n, [[(m) => rain(m, R), 0.6], [(m) => shift(road(m, R), 0, 0, 0, 0.5), 0.4]]),
+  // offering a seat: a doorway, lit, open to them
+  offer: (n, R) => doorway(n, R, 1),
   heart: (n, R) => heart(n, R, 1.1),
   // the ledger, open at night
   ledger: (n, R) => shift(book(n, R), 0, 0.9, 0, 1.2),
   // soup brought to a neighbour
-  soup: (n, R, b) => b && combine(n, [[(m) => b.figure(m, R, "Spell_Simple_Idle_Loop", 1.4, [], FORM_H * 0.8), 0.72], [(m) => shift(bowl(m, R, 0), 0, 2.05, 0.75, 0.55), 0.28]]),
+  soup: (n, R) => steamingBowl(n, R),
   sun: (n, R) => sun(n, R),
-  // help offered and waved away: one turns toward, one away
-  refused: (n, R, b) => b && combine(n, [
-    [(m) => shift(turnY(offering(m, R, b, 0.18), Math.PI / 2), -1.1, 0, 0), 0.52],
-    [(m) => shift(turnY(b.figure(m, R, "Idle_Loop", 2.0, [], FORM_H * 0.72), Math.PI * 0.85), 1.2, 0, -0.3), 0.48],
-  ]),
+  // help offered and waved away: an open hand, and a hand raised against it
+  refused: (n, R) => combine(n, [[(m) => shift(offeredHand(m, R, 0.18), -1.1, 0, 0, 0.8), 0.5], [(m) => shift(raisedHand(m, R), 1.2, -0.4, 0, 0.8), 0.5]]),
   // a river does not stop flowing because one stone refuses to get wet
   river: (n, R) => combine(n, [[(m) => river(m, R), 0.82], [(m) => shift(rock(m, R, 0.5, 0.35, 0.45), 0.4, 1.5, -0.1), 0.18]]),
   // the open hand
-  open: (n, R, b) => b && offering(n, R, b, 0.35),
+  open: (n, R) => hand(n, R, 1, FORM_H * 0.5, 1.2),
   // the tree whose shade falls on strangers
   tree: (n, R) => tree(n, R, 0.44),
-  // something in you flinches
-  flinch: (n, R, b) => b && b.figure(n, R, "Idle_Loop", 0.3, [["DEF-spine.001", 0.4], ["DEF-spine.003", 0.3], ["DEF-neck", 0.45], ["DEF-upper_arm.L", 0.6], ["DEF-upper_arm.R", 0.6]], FORM_H * 0.66),
+  // something in you flinches: the hand closes
+  flinch: (n, R) => fist(n, R),
   well: (n, R) => well(n, R),
   fountain: (n, R) => fountain(n, R),
-  // the ones you would sit up all night for, round a flame
-  circle: (n, R, b) => b && combine(n, [
-    ...Array.from({ length: 4 }, (_, k): [(m: number) => Float32Array, number] => [(m) => {
-      const a = (k / 4) * Math.PI * 2 + 0.4;
-      return shift(turnY(b.figure(m, R, "Sitting_Idle_Loop", 0.4 + k, BOWED, FORM_H * 0.42), -a - Math.PI / 2), Math.cos(a) * 1.6, 0, Math.sin(a) * 1.3);
-    }, 0.2]),
-    [(m) => flame(m, R, 0.1, 1.0), 0.2],
-  ]),
+  // the ones you would sit up all night for: small flames together
+  circle: (n, R) => flames(n, R, 5),
   road: (n, R) => road(n, R),
   candle: (n, R) => candle(n, R),
 };

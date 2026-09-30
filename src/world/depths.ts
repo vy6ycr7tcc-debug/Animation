@@ -501,53 +501,52 @@ function buildMouth(site: MouthSite, stone: THREE.Material): { group: THREE.Grou
   const y = Math.max(heightAt(site.x, site.z), heightAt(site.x - Math.cos(site.face) * 1.5, site.z - Math.sin(site.face) * 1.5));
   g.position.set(site.x, y - 0.35, site.z);
   g.rotation.y = -site.face + Math.PI / 2; // local +z points out of the mouth
-  // A Zeffo vault's door (after Jedi: Fallen Order): a frame of three great blocks, and in it a
-  // round door of stone carved in rings, rolled half aside into the hill, so light spills out
-  // through the gap. The way in is through that gap.
-  const blk = (w: number, h: number, d: number, x: number, y0: number, z: number) => {
-    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), stone);
-    b.position.set(x, y0 + h / 2, z);
-    g.add(b);
+  // A cave set into the slope (the owner: "an embedded cave"): a rough arch of rock half buried
+  // among great boulders, a tunnel running into the hill, and far inside a warm light to go toward.
+  const rough = (geo: THREE.BufferGeometry, amp: number, seed: number) => {
+    const p = geo.attributes.position as THREE.BufferAttribute, v = new V();
+    for (let i = 0; i < p.count; i++) {
+      v.fromBufferAttribute(p, i);
+      const n = Math.sin(v.x * 1.7 + seed) * Math.sin(v.y * 1.3 + seed * 2) * Math.sin(v.z * 1.9 + seed * 3);
+      const n2 = Math.sin(v.x * 4.1 + seed * 5) * Math.sin(v.y * 3.7) * Math.sin(v.z * 4.3 + seed);
+      v.addScaledVector(v.clone().normalize(), (n * 0.7 + n2 * 0.3) * amp);
+      p.setXYZ(i, v.x, v.y, v.z);
+    }
+    geo.computeVertexNormals();
+    return geo;
   };
-  blk(2.2, 8.6, 2.6, -4.6, -1.2, -0.6); // the jambs
-  blk(2.2, 8.6, 2.6, 4.6, -1.2, -0.6);
-  blk(11.6, 2.0, 3.0, 0, 7.2, -0.6); // the lintel
-  blk(7.2, 0.6, 3.0, 0, -0.9, -0.6); // the threshold
-  // the round door: a thick disc carved in rings on its face, rolled to one side
-  const disc = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 3.5, 1.0, 48), stone);
-  disc.rotation.x = Math.PI / 2;
-  disc.position.set(3.4, 3.1, -1.2);
-  g.add(disc);
-  for (const [r0, r1] of [[3.0, 3.25], [2.1, 2.3], [1.1, 1.3]] as const) {
-    const ring = new THREE.Mesh(new THREE.RingGeometry(r0, r1, 48), stone);
-    ring.position.set(3.4, 3.1, -0.69);
-    g.add(ring);
-  }
-  // the glyph at its centre: a small round boss
-  const boss = new THREE.Mesh(new THREE.SphereGeometry(0.55, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), stone);
-  boss.rotation.x = Math.PI / 2;
-  boss.position.set(3.4, 3.1, -0.7);
-  g.add(boss);
-  // the hollow behind: a half tube running into the hill, closed at its back
-  const hollow = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.2, 9, 20, 1, true, Math.PI / 2, Math.PI), stone);
-  hollow.rotation.x = Math.PI / 2;
-  hollow.position.set(0, 0, -4.5);
-  (hollow.material as THREE.Material).side = THREE.DoubleSide;
-  g.add(hollow);
-  // the way through: a soft light standing in the opening
+  // the arch: half a ring of rock standing over the way in
+  const arch = new THREE.Mesh(rough(new THREE.TorusGeometry(4.3, 1.6, 12, 30, Math.PI), 0.45, site.x * 0.01), stone);
+  arch.position.set(0, -0.6, 0);
+  g.add(arch);
+  // boulders heaped about it, bedding the arch into the hill
+  const heap: [number, number, number, number][] = [[-5.6, 0.4, -1.2, 2.4], [5.8, 0.2, -1.4, 2.6], [-3.2, 5.0, -1.8, 2.0], [3.4, 5.2, -2.2, 2.3], [0, 6.2, -3.0, 2.6], [-6.4, 3.0, -3.4, 2.2], [6.6, 2.8, -3.6, 2.1]];
+  heap.forEach(([x, y0, z, r], k) => {
+    const bld = new THREE.Mesh(rough(new THREE.IcosahedronGeometry(r, 2), r * 0.18, k * 1.7 + site.z * 0.01), stone);
+    bld.position.set(x, y0, z);
+    bld.scale.set(1, 0.8, 1.1);
+    g.add(bld);
+  });
+  // the tunnel into the hill, its walls rough, open at its mouth
+  const tunnel = new THREE.Mesh(rough(new THREE.CylinderGeometry(3.3, 2.6, 12, 22, 6, true), 0.4, site.x * 0.02 + 1), stone);
+  tunnel.rotation.x = Math.PI / 2;
+  tunnel.position.set(0, 2.2, -6.2);
+  (tunnel.material as THREE.Material).side = THREE.DoubleSide;
+  g.add(tunnel);
+  // far inside, a warm light: the way to the deep archive
   const door = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
   const uT = uniform(0);
   (door as unknown as { timeU: typeof uT }).timeU = uT;
-  const p = uv().sub(vec2(0.5, 0.45)).mul(vec2(2, 1.3)), r = length(p);
-  const edge = smoothstep(1, 0.4, r).mul(smoothstep(0, 0.08, uv().y));
-  const shimmer = sin(r.mul(14).sub(uT.mul(1.3))).mul(0.12).add(0.88);
-  door.colorNode = vec4(mix(vec3(0.35, 0.75, 1.0), vec3(1.0, 0.85, 0.6), smoothstep(0.9, 0.2, r)).mul(edge.mul(shimmer).mul(2.2)), 1);
-  const plane = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 6.8), door);
-  plane.position.set(-1.4, 2.9, -1.7); // in the gap the door has left open
+  const p = uv().sub(0.5).mul(2), r = length(p);
+  const breathe = sin(uT.mul(0.6)).mul(0.12).add(0.88);
+  door.colorNode = vec4(mix(vec3(0.35, 0.7, 0.9), vec3(1.0, 0.85, 0.6), smoothstep(0.8, 0.1, r)).mul(smoothstep(1, 0.1, r).mul(breathe).mul(1.4)), 1);
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(5, 5), door);
+  plane.position.set(0, 2.2, -11);
   plane.renderOrder = 5;
   g.add(plane);
   g.updateMatrixWorld(true);
-  const portal = new V(-1.4, 2.2, -1.7).applyMatrix4(g.matrixWorld);
+  // a few metres into the tunnel, at a walker's height or a swimmer's
+  const portal = new V(0, 1.4, -5).applyMatrix4(g.matrixWorld);
   return { group: g, portal, door };
 }
 
@@ -761,7 +760,7 @@ export class Depths {
 
   /** A cave mouth the wanderer is swimming through, if any. */
   atMouth(p: THREE.Vector3): MouthSite | null {
-    for (const m of this.mouths) if (m.portal.distanceTo(p) < 2.6) return m.site;
+    for (const m of this.mouths) if (m.portal.distanceTo(p) < 3.2) return m.site;
     return null;
   }
 

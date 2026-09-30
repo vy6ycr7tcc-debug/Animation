@@ -1,14 +1,11 @@
-/* The temple tour: one guided walk through the real temple (world/temple.ts) on the narration's own
-   clock (TEMPLE, 26 marks). A small light goes ahead; the wanderer follows it from shrine to shrine
-   and, at each, the archetype itself wakes into its rite (its own movement opening fully, its
-   card's objects coming alive; player/gestures.ts): the Mind down the left wall from the door, then
-   a passage of light across to the Body's first shrine by the door and down the right wall, then
-   through the gateway into the sanctuary, round the Spirit's ring, and to the Choice at the back.
-   Between shrines the walk sways out toward the aisle and back in to the next (a slow S), and round
-   the sanctuary it follows the ring. Where the wanderer is, is a pure function of narration time,
-   so a seek or a stalled track lands on the same stone. The camera stays the wanderer's own.
-   Nothing is drawn for the tour but its guiding light: the temple and its beings are the tour.
-   Tap the light to leave; at the end, rest at the tree of life or stay. */
+/* The temple tour: a guide, not a ride. You walk as you like; a small light goes ahead to the next
+   shrine and waits there, turning slowly. Come to it and the archetype wakes into its rite (its own
+   movement opening fully, its card's objects coming alive; player/gestures.ts) while its part of
+   the temple's narration (TEMPLE, 26 marks) is spoken; then "Next" sends the light on. "‹" goes
+   back, a tap on the light walks you to it, ✕ ends the tour and leaves you in the temple. The
+   order is the narration's: the door, the Mind down the left wall, the Body down the right, the
+   Spirit round the sanctuary, and the Choice at the back; after it, rest at the tree of life or
+   stay. Nothing is drawn for the tour but its light: the temple and its beings are the tour. */
 import * as THREE from "three/webgpu";
 import type { Narration } from "../core/narration";
 import { TEMPLE_ORIGIN } from "../world/temple";
@@ -32,8 +29,7 @@ export interface TempleLike {
 export interface PlayerLike {
   pos: THREE.Vector3;
   heading: number;
-  /** The controller's tap-to-walk target: the tour sets a lead point here while walking so the
-      walk clip plays at a matching pace; the tour's own position write wins each frame. */
+  /** The controller's tap-to-walk target (world x, z). */
   target: THREE.Vector2 | null;
 }
 export interface FollowLike {
@@ -76,100 +72,118 @@ export const CUES: CueDef[] = [
   { t: 612.14, label: "landing" },
 ];
 
-const clamp01 = (x: number) => (Number.isFinite(x) ? (x < 0 ? 0 : x > 1 ? 1 : x) : 0);
 const smooth = (x: number) => {
-  const t = clamp01(x);
+  const t = Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0;
   return t * t * (3 - 2 * t);
 };
-const finite = (x: number, f = 0) => (Number.isFinite(x) ? x : f);
 
-/* ---------------------------------------------------------------- the stations */
-/** The sanctuary's centre (temple frame), around which the Spirit's ring is walked. */
+/** The sanctuary's centre and the gateway into it (temple frame). */
 const CENTRE = new THREE.Vector2(0, -44);
+const GATE_Z = -30;
+const ARRIVE_R = 2.4;
+const LIGHT_SPEED = 3.4;
 
+/* ---------------------------------------------------------------- the stops */
 interface Stop {
-  /** Temple-local ground position and the heading to face while there. */
+  /** The archetype whose shrine this is (0–21), or −1 for the door. */
+  shrine: number;
+  /** Where to stand, world x, z, and the heading that faces the shrine. */
   x: number;
   z: number;
   heading: number;
-  /** The archetype whose shrine this is (0–21), or −1. */
-  shrine: number;
-  /** How the leg INTO this stop is walked. */
-  way: "hall" | "ring" | "passage" | "straight";
-  /** Waypoints on the way in (temple-local x, z), for walking round the columns. */
-  via?: [number, number][];
+  /** Its part of the narration (track seconds). A transition is spoken on arriving at the
+      shrine it leads to (the Body's first, the Spirit's first). */
+  from: number;
+  to: number;
+  title: string;
+}
+
+/** The cue each shrine's part begins at: the Mind's seven follow the opening; the Body's first
+    begins with the passage from the Mind, the Spirit's first with the passage from the Body. */
+function cueFor(shrine: number): number {
+  if (shrine < 7) return shrine + 1;
+  if (shrine < 14) return shrine === 7 ? 8 : shrine + 2;
+  return shrine === 14 ? 16 : shrine + 3;
 }
 
 function buildStops(temple: TempleLike): Stop[] {
-  const O = TEMPLE_ORIGIN;
-  const local = (p: { x: number; z: number; heading: number }, shrine: number, way: Stop["way"], via?: [number, number][]): Stop => ({ x: p.x - O.x, z: p.z - O.z, heading: p.heading, shrine, way, via });
-  const stops: Stop[] = [];
   const door = temple.entry();
-  stops.push(local(door, -1, "straight"));
-  for (let i = 0; i < 7; i++) stops.push(local(temple.standFor(i), i, "hall")); // the Mind, down the left wall
-  // the passage of light: across to the Body's first shrine, by the door on the right
-  const viii = temple.standFor(7);
-  stops.push({ x: viii.x - O.x - 1.2, z: viii.z - O.z + 2.5, heading: Math.PI + 0.4, shrine: -1, way: "passage" });
-  for (let i = 7; i < 14; i++) stops.push(local(temple.standFor(i), i, "hall")); // the Body, down the right wall
-  // through the gateway, round between the columns
-  stops.push({ x: 0, z: -31.5, heading: 0, shrine: -1, way: "straight", via: [[3, -24.6]] });
-  for (let i = 14; i < 21; i++) stops.push(local(temple.standFor(i), i, "ring")); // the Spirit's ring
-  stops.push(local(temple.standFor(21), 21, "ring")); // the Choice
-  const c = temple.standFor(21);
-  stops.push({ x: c.x - O.x, z: c.z - O.z - 1.2, heading: c.heading, shrine: 21, way: "straight" }); // the landing, a step nearer
+  const stops: Stop[] = [{ shrine: -1, x: door.x, z: door.z, heading: door.heading, from: 0, to: CUES[1].t, title: "The temple" }];
+  for (let i = 0; i < 22; i++) {
+    const s = temple.standFor(i), k = cueFor(i);
+    const label = CUES[i === 7 ? 9 : i === 14 ? 17 : k].label.replace(" — ", " · ").replace(" (The Choice)", "");
+    stops.push({ shrine: i, x: s.x, z: s.z, heading: s.heading, from: CUES[k].t, to: i === 21 ? FINALE_T : CUES[cueFor(i + 1)].t, title: i === 21 ? "XXII · The Choice" : label });
+  }
   return stops;
 }
 
-/* ---------------------------------------------------------------- the timing */
-const ARRIVE_LEAD = 2.2; // settle at a station this long before its cue
-const HOLD_MIN = 2.0, HOLD_MAX = 12.0;
-interface Leg {
-  arrive: number;
-  depart: number;
-  travel: number;
-}
-function buildLegs(n: number): Leg[] {
-  const legs: Leg[] = [];
-  for (let i = 0; i < n; i++) legs.push({ arrive: Math.max(0, finite(CUES[i]?.t ?? i * 24) - ARRIVE_LEAD), depart: Infinity, travel: 1 });
-  for (let i = 0; i < n - 1; i++) {
-    const a = legs[i].arrive, b = legs[i + 1].arrive;
-    const gap = Math.max(2.5, b - a);
-    const hold = Math.min(HOLD_MAX, Math.max(HOLD_MIN, gap * 0.42));
-    legs[i].depart = a + Math.min(hold, gap - 1.2);
-    legs[i].travel = Math.max(0.4, b - legs[i].depart);
+/** The light's way from `a` to `b` (temple frame): along the aisle between the columns, through
+    the gateway, and round the altar, never through a column. */
+function route(a: THREE.Vector2, b: THREE.Vector2): THREE.Vector2[] {
+  const pts: THREE.Vector2[] = [];
+  const inHall = (p: THREE.Vector2) => p.y > GATE_Z;
+  const ring = (p: THREE.Vector2) => {
+    const ang = Math.atan2(p.y - CENTRE.y, p.x - CENTRE.x);
+    return new THREE.Vector2(CENTRE.x + Math.cos(ang) * 6.5, CENTRE.y + Math.sin(ang) * 6.5);
+  };
+  if (inHall(a)) pts.push(new THREE.Vector2(0, a.y));
+  else pts.push(ring(a));
+  if (inHall(a) !== inHall(b)) {
+    const inner = new THREE.Vector2(0, GATE_Z - 3), outer = new THREE.Vector2(0, GATE_Z + 2);
+    if (inHall(a)) pts.push(outer, inner);
+    else pts.push(inner, outer);
   }
-  return legs;
+  if (inHall(b)) pts.push(new THREE.Vector2(0, b.y));
+  else {
+    // round the altar the short way
+    const from = pts[pts.length - 1], r = ring(b);
+    let a0 = Math.atan2(from.y - CENTRE.y, from.x - CENTRE.x);
+    const a1 = Math.atan2(r.y - CENTRE.y, r.x - CENTRE.x);
+    if (a1 - a0 > Math.PI) a0 += Math.PI * 2;
+    if (a0 - a1 > Math.PI) a0 -= Math.PI * 2;
+    for (let k = 1; k <= 6; k++) {
+      const ang = a0 + ((a1 - a0) * k) / 6;
+      pts.push(new THREE.Vector2(CENTRE.x + Math.cos(ang) * 6.5, CENTRE.y + Math.sin(ang) * 6.5));
+    }
+  }
+  pts.push(b.clone());
+  return pts;
 }
 
 /* ---------------------------------------------------------------- the tour */
+type Phase = "leading" | "speaking" | "done";
+
 export class TempleTour implements SceneModule {
   readonly id = "tour";
   active = false;
-  onTapOrb: (() => void) | null = null;
   onRest: (() => void) | null = null;
   camera: THREE.Camera | null = null;
-  lastUT = 0;
 
-  private stops: Stop[] | null = null;
-  private legs: Leg[] = [];
-  private light: THREE.Sprite;
-  private lightMat: THREE.SpriteMaterial;
-  private veil: HTMLDivElement;
-  private choice: HTMLDivElement;
-  private choiceShown = false;
-  private released = false;
+  private stops: Stop[] = [];
+  private index = 0;
+  private phase: Phase = "leading";
   private riteOn = -1;
+  private spoke = 0;
   private lifeT = 0;
-  private narrT = 0;
-  private clockT = 0;
-  private stalled = 0;
-  private readonly lead = new THREE.Vector2();
-  private readonly tmp = new THREE.Vector3();
-  private readonly tmp2 = new THREE.Vector3();
+  private path: THREE.Vector2[] = [];
+  private lightAt = new THREE.Vector2();
+  private light: THREE.Sprite;
+  private halo: THREE.Sprite;
+  private lightMat: THREE.SpriteMaterial;
+  private haloMat: THREE.SpriteMaterial;
+  private panel: HTMLDivElement;
+  private titleEl: HTMLElement;
+  private hintEl: HTMLElement;
+  private prevBtn: HTMLButtonElement;
+  private nextBtn: HTMLButtonElement;
+  private choice: HTMLDivElement;
+  private goal = new THREE.Vector2();
   private readonly raycaster = new THREE.Raycaster();
+  private readonly dir = new THREE.Vector2();
 
   private readonly onPointerDown = (ev: PointerEvent): void => {
-    if (!this.active || !this.camera || this.choiceShown) return;
+    if (!this.active || !this.camera || !this.light.visible) return;
+    if ((ev.target as HTMLElement | null)?.closest?.("#tour-panel, #tour-choice")) return;
     const x = (ev.clientX / innerWidth) * 2 - 1, y = -(ev.clientY / innerHeight) * 2 + 1;
     this.tapCheck(x, y, this.camera);
   };
@@ -178,43 +192,66 @@ export class TempleTour implements SceneModule {
     scene: THREE.Scene,
     private narration: Narration,
     private player: PlayerLike,
-    private follow: FollowLike,
+    _follow: FollowLike,
     _hooks: TourHooks,
     private temple: TempleLike,
   ) {
-    // the guiding light: a small soft glow, contained
+    // the guiding light: a small bright core in a soft glow, contained
     const c = document.createElement("canvas");
     c.width = c.height = 64;
     const g = c.getContext("2d")!;
     const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-    grd.addColorStop(0, "rgba(255,244,222,1)");
-    grd.addColorStop(0.18, "rgba(255,214,150,0.55)");
+    grd.addColorStop(0, "rgba(255,246,228,1)");
+    grd.addColorStop(0.2, "rgba(255,214,150,0.55)");
     grd.addColorStop(1, "rgba(255,190,120,0)");
     g.fillStyle = grd;
     g.fillRect(0, 0, 64, 64);
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
-    this.lightMat = new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false, opacity: 0 });
+    const mat = () => new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false, opacity: 0 });
+    this.lightMat = mat();
+    this.haloMat = mat();
     this.light = new THREE.Sprite(this.lightMat);
-    this.light.scale.setScalar(0.7);
-    this.light.visible = false;
-    scene.add(this.light);
-    // the passage of light between the Mind and the Body
-    this.veil = Object.assign(document.createElement("div"), { id: "tour-passage" });
-    document.body.append(this.veil);
+    this.light.scale.setScalar(0.55);
+    this.halo = new THREE.Sprite(this.haloMat);
+    this.halo.scale.setScalar(2.2);
+    this.light.visible = this.halo.visible = false;
+    scene.add(this.light, this.halo);
+
+    // the guide's panel: back, where you are going, next; and ✕ to end the tour
+    const btn = (text: string, cls: string, label: string) => Object.assign(document.createElement("button"), { type: "button", textContent: text, className: cls, ariaLabel: label });
+    this.panel = Object.assign(document.createElement("div"), { id: "tour-panel", hidden: true });
+    this.prevBtn = btn("‹", "step", "Back");
+    this.nextBtn = btn("Next ›", "step next", "Next");
+    const end = btn("✕", "end", "End the tour");
+    const mid = document.createElement("div");
+    mid.className = "mid";
+    this.titleEl = Object.assign(document.createElement("p"), { className: "title" });
+    this.hintEl = Object.assign(document.createElement("p"), { className: "hint" });
+    mid.append(this.titleEl, this.hintEl);
+    this.panel.append(this.prevBtn, mid, this.nextBtn, end);
+    document.body.append(this.panel);
     // the end: rest at the tree, or stay
     this.choice = Object.assign(document.createElement("div"), { id: "tour-choice", hidden: true });
-    const rest = Object.assign(document.createElement("button"), { type: "button", textContent: "Rest at the tree of life" });
-    const stay = Object.assign(document.createElement("button"), { type: "button", textContent: "Stay in the temple" });
-    const act = (fn: () => void) => (e: Event) => {
-      e.preventDefault();
-      fn();
-    };
-    rest.addEventListener("pointerdown", act(() => this.choose("rest")));
-    stay.addEventListener("pointerdown", act(() => this.choose("stay")));
-    for (const b of [rest, stay]) b.addEventListener("click", (e) => (e as MouseEvent).detail === 0 && b.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true })));
+    const rest = btn("Rest at the tree of life", "", "Rest at the tree of life");
+    const stay = btn("Stay in the temple", "", "Stay in the temple");
     this.choice.append(rest, stay);
     document.body.append(this.choice);
+    // on the touch itself (a phone sends no click while the other thumb holds the stick);
+    // a keyboard's Enter or Space still clicks
+    const act = (b: HTMLButtonElement, fn: () => void) => {
+      b.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        fn();
+      });
+      b.addEventListener("click", (e) => (e as MouseEvent).detail === 0 && fn());
+    };
+    act(this.prevBtn, () => this.go(this.index - 1));
+    act(this.nextBtn, () => this.next());
+    act(end, () => this.exit());
+    act(rest, () => this.choose("rest"));
+    act(stay, () => this.choose("stay"));
     window.addEventListener("pointerdown", this.onPointerDown);
   }
 
@@ -222,189 +259,153 @@ export class TempleTour implements SceneModule {
   enter(): void {
     if (this.active) return;
     this.active = true;
-    this.released = false;
-    this.choiceShown = false;
-    this.choice.hidden = true;
     this.stops = buildStops(this.temple);
-    this.legs = buildLegs(this.stops.length);
-    this.lifeT = this.narrT = this.clockT = this.stalled = 0;
-    this.player.target = null;
-    this.light.visible = true;
-    const seedT = finite(this.narration.debugTime ?? 0);
-    this.ride(seedT, 1);
-    void this.narration.play(TRACK_ID);
-    this.follow.yaw = this.player.heading;
-    this.follow.snapTo(this.player.pos);
+    this.lifeT = 0;
+    this.choice.hidden = true;
+    this.panel.hidden = false;
+    this.light.visible = this.halo.visible = true;
+    const O = TEMPLE_ORIGIN;
+    this.lightAt.set(this.player.pos.x - O.x, this.player.pos.z - O.z - 3);
+    // a still frame (?shot) lands on the stop that time belongs to, already there
+    const dt = this.narration.debugTime;
+    if (dt !== null && Number.isFinite(dt)) {
+      const k = Math.max(0, this.stops.findIndex((s) => dt >= s.from && dt < s.to));
+      const s = this.stops[k];
+      this.player.pos.set(s.x, this.temple.floorAt(s.x, s.z), s.z);
+      this.player.heading = s.heading;
+      this.go(k, true);
+      return;
+    }
+    this.go(0);
   }
 
   exit(): void {
     if (!this.active) return;
     this.active = false;
     this.player.target = null;
-    this.narration.stop(1.5);
-    this.light.visible = false;
+    if (this.narration.current === TRACK_ID) this.narration.stop(1.5);
+    this.light.visible = this.halo.visible = false;
+    this.panel.hidden = true;
     this.choice.hidden = true;
-    this.veil.style.opacity = "0";
+    this.rite(-1);
+  }
+
+  /** Send the light to stop `k` (the door is stop 0); `there`: you are there already. */
+  private go(k: number, there = false): void {
+    if (k < 0 || k >= this.stops.length) return;
+    if (this.narration.current === TRACK_ID) this.narration.stop(1.2);
+    this.rite(-1);
+    this.index = k;
+    this.phase = "leading";
+    const s = this.stops[k], O = TEMPLE_ORIGIN;
+    this.goal.set(s.x - O.x, s.z - O.z);
+    this.path = route(this.lightAt, this.waitPoint(s));
+    if (there || k === 0) this.arrive();
+    this.refresh();
+  }
+
+  private next(): void {
+    if (this.index >= this.stops.length - 1) return this.showChoice();
+    this.go(this.index + 1);
+  }
+
+  /** Where the light waits for a stop: a little before the shrine, above the standing place. */
+  private waitPoint(s: Stop): THREE.Vector2 {
+    const O = TEMPLE_ORIGIN;
+    return new THREE.Vector2(s.x - O.x - Math.sin(s.heading) * 1.4, s.z - O.z - Math.cos(s.heading) * 1.4);
+  }
+
+  private arrive(): void {
+    const s = this.stops[this.index];
+    this.phase = "speaking";
+    this.spoke = 0;
+    this.player.target = null;
+    this.rite(s.shrine);
+    void this.narration.play(TRACK_ID, s.from, s.to);
+    this.refresh();
+  }
+
+  private rite(i: number): void {
+    if (i === this.riteOn) return;
     if (this.riteOn >= 0) this.temple.setRite(this.riteOn, false);
-    this.riteOn = -1;
+    if (i >= 0) this.temple.setRite(i, true);
+    this.riteOn = i;
   }
 
-  /** Narration seconds; if the track never moves (a phone that will not start it), a quiet
-      fallback keeps the walk going. */
-  private readClock(dt: number): number {
-    const raw = this.narration.time();
-    const t = Number.isFinite(raw) && raw >= 0 ? raw : this.narrT;
-    if (t > this.narrT + 1e-4) {
-      this.narrT = this.clockT = t;
-      this.stalled = 0;
-    } else if (t < this.narrT - 1 && this.narration.current === TRACK_ID) {
-      this.narrT = this.clockT = t; // a seek backwards
-      this.stalled = 0;
-    } else {
-      this.narrT = t;
-      this.stalled += dt;
-      if (this.stalled > 2.5) this.clockT += dt;
-      else this.clockT = Math.max(this.clockT, t);
-    }
-    return finite(this.clockT);
-  }
-
-  private legIndex(uT: number): number {
-    for (let i = this.legs.length - 1; i >= 0; i--) if (uT >= this.legs[i].arrive) return i;
-    return 0;
-  }
-
-  /** Where the wanderer is at narration second `uT` (temple-local, into `out`), the heading it
-      would face, whether it is walking, and how far through a passage of light it is. */
-  private place(uT: number, out: THREE.Vector3): { heading: number; walking: boolean; passage: number } {
-    const S = this.stops!;
-    const i = this.legIndex(uT), L = this.legs[i], a = S[i];
-    if (!(uT > L.depart) || i >= S.length - 1) {
-      out.set(a.x, 0, a.z);
-      return { heading: a.heading, walking: false, passage: 0 };
-    }
-    const b = S[i + 1];
-    const v = clamp01((uT - L.depart) / L.travel), e = smooth(v);
-    let heading: number;
-    if (b.way === "passage") {
-      // a passage of light: the crossing happens while the light is full
-      const p = e < 0.5 ? a : b;
-      out.set(p.x, 0, p.z);
-      return { heading: e < 0.5 ? a.heading : b.heading, walking: false, passage: Math.sin(v * Math.PI) };
-    }
-    if (b.way === "ring") {
-      // round the sanctuary's centre, radius and angle eased together
-      const ra = Math.hypot(a.x - CENTRE.x, a.z - CENTRE.y), rb = Math.hypot(b.x - CENTRE.x, b.z - CENTRE.y);
-      const aa = Math.atan2(a.z - CENTRE.y, a.x - CENTRE.x);
-      let ab = Math.atan2(b.z - CENTRE.y, b.x - CENTRE.x);
-      if (ab - aa > Math.PI) ab -= Math.PI * 2;
-      if (aa - ab > Math.PI) ab += Math.PI * 2;
-      const ang = aa + (ab - aa) * e, r = ra + (rb - ra) * e + Math.sin(e * Math.PI) * 0.8;
-      out.set(CENTRE.x + Math.cos(ang) * r, 0, CENTRE.y + Math.sin(ang) * r);
-    } else {
-      // along the hall: from shrine to shrine, swaying out toward the aisle between them
-      const pts: [number, number][] = [[a.x, a.z], ...(b.via ?? []), [b.x, b.z]];
-      const seg = e * (pts.length - 1), k = Math.min(pts.length - 2, Math.floor(seg)), f = seg - k;
-      out.set(pts[k][0] + (pts[k + 1][0] - pts[k][0]) * f, 0, pts[k][1] + (pts[k + 1][1] - pts[k][1]) * f);
-      if (b.way === "hall") out.x += -Math.sign(out.x) * Math.sin(e * Math.PI) * 1.6;
-    }
-    // facing the way it walks, turning to the shrine as it arrives
-    const ahead = this.tmp2;
-    this.placeRaw(Math.min(uT + 0.4, L.depart + L.travel), ahead);
-    heading = Math.atan2(-(ahead.x - out.x), -(ahead.z - out.z));
-    if (!Number.isFinite(heading) || Math.hypot(ahead.x - out.x, ahead.z - out.z) < 1e-3) heading = b.heading;
-    const turn = smooth((v - 0.7) / 0.3);
-    const d = Math.atan2(Math.sin(b.heading - heading), Math.cos(b.heading - heading));
-    return { heading: heading + d * turn, walking: true, passage: 0 };
-  }
-
-  /** `place` without the heading (for looking a little ahead). */
-  private placeRaw(uT: number, out: THREE.Vector3): void {
-    const S = this.stops!;
-    const i = this.legIndex(uT), L = this.legs[i], a = S[i];
-    if (!(uT > L.depart) || i >= S.length - 1) return void out.set(a.x, 0, a.z);
-    const b = S[i + 1], e = smooth(clamp01((uT - L.depart) / L.travel));
-    if (b.way === "ring") {
-      const ra = Math.hypot(a.x - CENTRE.x, a.z - CENTRE.y), rb = Math.hypot(b.x - CENTRE.x, b.z - CENTRE.y);
-      const aa = Math.atan2(a.z - CENTRE.y, a.x - CENTRE.x);
-      let ab = Math.atan2(b.z - CENTRE.y, b.x - CENTRE.x);
-      if (ab - aa > Math.PI) ab -= Math.PI * 2;
-      if (aa - ab > Math.PI) ab += Math.PI * 2;
-      const ang = aa + (ab - aa) * e, r = ra + (rb - ra) * e + Math.sin(e * Math.PI) * 0.8;
-      return void out.set(CENTRE.x + Math.cos(ang) * r, 0, CENTRE.y + Math.sin(ang) * r);
-    }
-    const pts: [number, number][] = [[a.x, a.z], ...(b.via ?? []), [b.x, b.z]];
-    const seg = e * (pts.length - 1), k = Math.min(pts.length - 2, Math.floor(seg)), f = seg - k;
-    out.set(pts[k][0] + (pts[k + 1][0] - pts[k][0]) * f, 0, pts[k][1] + (pts[k + 1][1] - pts[k][1]) * f);
-    if (b.way === "hall") out.x += -Math.sign(out.x) * Math.sin(e * Math.PI) * 1.6;
-  }
-
-  /** Put the wanderer where the narration says, walking or standing; wake the shrine it is at. */
-  private ride(uT: number, dt: number): void {
-    const O = TEMPLE_ORIGIN, p = this.tmp;
-    const s = this.place(uT, p);
-    const wx = O.x + p.x, wz = O.z + p.z;
-    this.player.pos.set(wx, this.temple.floorAt(wx, wz), wz);
-    const h = finite(this.player.heading, s.heading), d = Math.atan2(Math.sin(s.heading - h), Math.cos(s.heading - h));
-    this.player.heading = dt >= 1 ? s.heading : h + d * (1 - Math.exp(-3 * Math.max(0, dt)));
-    // the walk clip plays through the controller's tap-walk target, a little ahead
-    if (s.walking) {
-      this.lead.set(wx - Math.sin(this.player.heading) * 0.9, wz - Math.cos(this.player.heading) * 0.9);
-      this.player.target = this.lead;
-    } else this.player.target = null;
-    this.veil.style.opacity = String(s.passage);
-    // the archetype of the station wakes into its rite while you are with it
-    const i = this.legIndex(uT), st = this.stops![i];
-    const want = !s.walking && st.shrine >= 0 ? st.shrine : -1;
-    if (want !== this.riteOn) {
-      if (this.riteOn >= 0) this.temple.setRite(this.riteOn, false);
-      if (want >= 0) this.temple.setRite(want, true);
-      this.riteOn = want;
-    }
-    // the guiding light waits ahead, at the next place
-    const next = this.stops![Math.min(this.stops!.length - 1, i + 1)];
-    const lx = O.x + (s.walking ? next.x : p.x - Math.sin(this.player.heading) * 1.6), lz = O.z + (s.walking ? next.z : p.z - Math.cos(this.player.heading) * 1.6);
-    const target = this.tmp2.set(lx, this.temple.floorAt(lx, lz) + 2.1 + Math.sin(this.lifeT * 1.3) * 0.08, lz);
-    if (dt >= 1) this.light.position.copy(target);
-    else this.light.position.lerp(target, 1 - Math.exp(-1.6 * dt));
+  private refresh(): void {
+    const s = this.stops[this.index];
+    this.titleEl.textContent = s.title;
+    this.hintEl.textContent = this.phase === "leading" ? "Follow the light, or tap it to walk there" : this.phase === "speaking" ? "Listen, and look around" : this.index === this.stops.length - 1 ? "The end of the tour" : "Next when you are ready";
+    this.prevBtn.disabled = this.index === 0;
+    this.nextBtn.textContent = this.index === this.stops.length - 1 ? "Finish ›" : "Next ›";
+    this.nextBtn.classList.toggle("ready", this.phase === "done");
   }
 
   update(dt: number): void {
     if (!this.active) return;
     const step = Number.isFinite(dt) && dt > 0 ? Math.min(dt, 0.05) : 0;
     this.lifeT += step;
-    this.lightMat.opacity = smooth(this.lifeT / 2) * (0.75 + 0.2 * Math.sin(this.lifeT * 1.1));
-    const uT = this.readClock(step);
-    if (!this.released) this.ride(uT, step);
-    if (!this.choiceShown && uT >= FINALE_T) this.showChoice();
-    this.lastUT = uT;
+    const O = TEMPLE_ORIGIN, s = this.stops[this.index];
+    // the light travels its way, slowing into the last metres, then waits, turning slowly
+    let moving = false;
+    if (this.path.length) {
+      const target = this.path[0], d = this.lightAt.distanceTo(target);
+      const v = LIGHT_SPEED * (this.path.length === 1 ? Math.min(1, 0.3 + d / 2.5) : 1) * step;
+      if (d <= v || d < 1e-3) {
+        this.lightAt.copy(target);
+        this.path.shift();
+      } else this.lightAt.addScaledVector(this.dir.subVectors(target, this.lightAt).normalize(), v);
+      moving = true;
+    }
+    const lx = O.x + this.lightAt.x + (moving ? 0 : Math.cos(this.lifeT * 0.7) * 0.35), lz = O.z + this.lightAt.y + (moving ? 0 : Math.sin(this.lifeT * 0.7) * 0.35);
+    const ly = this.temple.floorAt(lx, lz) + 2.2 + Math.sin(this.lifeT * 1.3) * 0.1;
+    this.light.position.set(lx, ly, lz);
+    this.halo.position.copy(this.light.position);
+    const fade = smooth(this.lifeT / 1.5);
+    const breathe = 0.8 + 0.2 * Math.sin(this.lifeT * 1.1);
+    // brighter while it leads (it asks to be followed), quiet while a shrine speaks
+    const lead = this.phase === "leading" ? 1 : this.phase === "done" ? 0.8 : 0.45;
+    this.lightMat.opacity = fade * breathe * (0.55 + 0.45 * lead);
+    this.haloMat.opacity = fade * breathe * 0.18 * lead;
+
+    // arriving: come within reach of the standing place
+    const px = this.player.pos.x - O.x, pz = this.player.pos.z - O.z;
+    if (this.phase === "leading" && Math.hypot(px - this.goal.x, pz - this.goal.y) < ARRIVE_R) this.arrive();
+    // its part spoken (or no voice to speak it): the light asks for Next
+    if (this.phase === "speaking") {
+      this.spoke += step;
+      const t = this.narration.time();
+      const ended = this.narration.debugTime === null && this.spoke > 1.5 && (this.narration.current !== TRACK_ID || t >= s.to - 0.15);
+      if (ended) {
+        this.phase = "done";
+        this.refresh();
+      }
+    }
   }
 
   private showChoice(): void {
-    this.choiceShown = true;
+    this.panel.hidden = true;
     this.choice.hidden = false;
+    this.rite(-1);
   }
 
   /** The end: rest at the tree of life, or stay in the temple and walk freely. */
   choose(key: "rest" | "stay"): void {
-    this.choice.hidden = true;
-    this.released = true;
-    this.player.target = null;
-    if (this.riteOn >= 0) this.temple.setRite(this.riteOn, false);
-    this.riteOn = -1;
-    this.light.visible = false;
+    this.exit();
     if (key === "rest") this.onRest?.();
   }
 
+  /** A tap on the light walks you to where it waits. */
   tapCheck(ndcX: number, ndcY: number, camera: THREE.Camera): void {
-    if (!this.active || this.choiceShown || !this.light.visible) return;
+    if (!this.active || !this.light.visible) return;
     this.raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
-    // a generous reach round the small light
-    if (this.raycaster.ray.distanceToPoint(this.light.position) < 0.7) this.onTapOrb?.();
+    if (this.raycaster.ray.distanceToPoint(this.light.position) > 0.9) return;
+    const s = this.stops[this.index];
+    this.player.target = new THREE.Vector2(s.x, s.z);
   }
 
   holdsMovement(): boolean {
-    return this.active && !this.released;
+    return false;
   }
   nearSeat(): boolean {
     return false;
@@ -415,9 +416,11 @@ export class TempleTour implements SceneModule {
   dispose(): void {
     this.exit();
     this.light.removeFromParent();
+    this.halo.removeFromParent();
     this.lightMat.map?.dispose();
     this.lightMat.dispose();
-    this.veil.remove();
+    this.haloMat.dispose();
+    this.panel.remove();
     this.choice.remove();
     window.removeEventListener("pointerdown", this.onPointerDown);
   }

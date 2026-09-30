@@ -19,6 +19,8 @@
    away; nobody has to wait anywhere. Nothing is religious iconography: the forms are light,
    circles and lines. */
 import * as THREE from "three/webgpu";
+import { makeGlyph, type Glyph } from "./glyphs";
+import { Figure, figureBind } from "./figures";
 import { T, worldPoints } from "../gpu/tsl";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
@@ -130,6 +132,8 @@ function haloTexture(): THREE.Texture {
   return t;
 }
 const HALO = haloTexture();
+/** How tall a carving stands (m): a little above a person, as a stele would. */
+const GLYPH_H = 3.4;
 function sprite(color: THREE.Color, size: number): THREE.Sprite {
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: HALO, color, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
   s.scale.setScalar(size);
@@ -181,9 +185,16 @@ class Being {
   /** Posed at least once (a being never updated would stand in its bind pose). */
   private posed = false;
   private moment: Moment = { t: 0, wake: 0, rite: 0, rt: 0, other: null, reduced: false };
+  /** The being as its card's own drawing, a glowing carving (glyphs.ts); the figure is not drawn. */
+  glyph: Glyph | null = null;
+  /** Turns toward you as you come near (a carving set in a shrine's wall stays as it is set). */
+  turns = true;
+  /** In the open world: the card's character in thousands of points of light (figures.ts). */
+  figure: Figure | null = null;
+  private figureTick = 0;
   private otherW = new THREE.Vector3();
 
-  constructor(public spec: Spec, public station: Station) {
+  constructor(public spec: Spec, public station: Station, flat = false) {
     this.U.uTint.value.set(...spec.tint);
     this.skin = lightBodyMaterial(new THREE.Color(...spec.tint).multiplyScalar(0.9));
     const [x, y, z] = spec.at;
@@ -200,6 +211,16 @@ class Being {
     this.ring = new THREE.Mesh(new THREE.RingGeometry(0.95, 1.0, 72).rotateX(-Math.PI / 2), this.ringMat);
     this.ring.position.y = 0.04;
     this.root.add(this.ring);
+    if (flat) {
+      // its foot on the ground (the root may stand raised, as the Hanged Man's does), facing out
+      this.glyph = makeGlyph(spec.numeral, new THREE.Color(...spec.tint), GLYPH_H);
+      this.glyph.mesh.position.y = -spec.at[1] + 0.05;
+      this.glyph.mesh.rotation.y = Math.PI;
+      this.root.add(this.glyph.mesh);
+      this.props.visible = false;
+      this.halo.position.y = GLYPH_H * 0.55 - spec.at[1];
+      this.halo.scale.setScalar(4.2);
+    }
   }
 
   attach(model: THREE.Object3D, clips: THREE.AnimationClip[], scale: number): void {
@@ -235,6 +256,12 @@ class Being {
     }
     // each being breathes at its own pace
     this.mixer.update(Math.random() * 3);
+    // the card's character in points of light, riding the skeleton; the glass body is not drawn
+    const bind = figureBind(this.spec.numeral, this.spec.tint, m);
+    if (bind) {
+      this.figure = new Figure(bind, m, this.root, this.spec.tint);
+      for (const mesh of this.meshes) mesh.visible = false;
+    }
   }
 
   bonePos(name: string, out: THREE.Vector3, along = 0): THREE.Vector3 {
@@ -258,7 +285,16 @@ class Being {
     this.wake += ((near ? 1 : 0) - this.wake) * Math.min(1, dt * (near ? 1.2 : 0.3));
     this.greetT += dt;
     const d0 = this.distanceTo(player);
-    for (const m of this.meshes) m.visible = d0 < 90;
+    for (const m of this.meshes) m.visible = !this.figure && d0 < 90;
+    if (this.figure) {
+      this.figure.cloud.sprite.visible = d0 < 160;
+      // held still while out of the nearest two: its motes still gather and turn, a few times a second
+      if (!show && d0 < 160 && (this.figureTick += dt) > 0.2) {
+        this.root.updateMatrixWorld(true);
+        this.figure.update(this.figureTick, t, d0 < 45, 0.85 + this.wake * 0.3, reduced);
+        this.figureTick = 0;
+      }
+    }
     this.U.uT.value = reduced ? t * 0.4 : t;
     this.U.uForm.value = Math.min(1, this.U.uForm.value + dt / 2);
     const breathe = reduced ? 0 : Math.sin(t * 0.55 + this.spec.at[0]);
@@ -272,7 +308,7 @@ class Being {
 
     // It turns toward you as you come near; seated ones only a little.
     const want = near ? Math.atan2(-(player.x - this.root.position.x), -(player.z - this.root.position.z)) : this.baseYaw;
-    const limit = this.spec.pose === "sit" || this.spec.hang ? 0.3 : 1.1;
+    const limit = !this.turns ? 0 : this.glyph ? 1.3 : this.spec.pose === "sit" || this.spec.hang ? 0.3 : 1.1;
     let off = Math.atan2(Math.sin(want - this.baseYaw), Math.cos(want - this.baseYaw));
     off = Math.max(-limit, Math.min(limit, off));
     const target = this.baseYaw + off;
@@ -283,6 +319,16 @@ class Being {
     this.riteT = this.rite > 0 ? this.riteT + dt : 0;
     this.U.uPulse.value += this.riteK * 0.35;
     this.halo.material.opacity += this.riteK * 0.2;
+    if (this.glyph) {
+      const g = this.glyph;
+      if (d0 < 160) g.load();
+      g.mesh.visible = d0 < 260;
+      g.u.t.value = reduced ? t * 0.3 : t;
+      g.u.wake.value = this.wake;
+      g.u.rite.value = this.riteK;
+      g.u.greet.value = greet;
+      this.halo.material.opacity *= 0.35;
+    }
     this.skin.emissiveIntensity = this.U.uPulse.value * Math.min(1, this.U.uForm.value);
     tickLightBody(this.skin, t);
     // the Hanged Man turns like a slow pendulum, and in the rite is still
@@ -319,6 +365,8 @@ class Being {
       this.bonePos(h.bone, h.obj.position, h.along);
       h.obj.position.y += h.lift;
     }
+    // the character follows its skeleton, gathered as you come near, brighter when it greets you and in its rite
+    this.figure?.update(dt, t, d0 < 45, 0.85 + this.wake * 0.3 + this.riteK * 0.4 + greet * 0.5, reduced);
   }
 
   greet(): void {
@@ -1049,14 +1097,18 @@ export class Beings {
   onMeet: ((spec: Spec) => void) | null = null;
   private tmp = new THREE.Vector3();
 
-  constructor(stations: Station[], private sparks: Sparks) {
+  /** `flat`: its archetypes as their cards' glowing carvings (the temple), else as characters. */
+  constructor(stations: Station[], private sparks: Sparks, private opts: { flat?: boolean } = {}) {
     const stone = etchedStone();
     ARCHETYPES.forEach((spec, i) => {
       const st = stations[i];
       if (!st) return;
-      const b = new Being({ ...spec, under: LANDMARK_KINDS[i] === "deep" }, st);
+      const b = new Being({ ...spec, under: LANDMARK_KINDS[i] === "deep" }, st, !!opts.flat);
+      const before = this.group.children.length;
       buildProps(b, this.group, stone);
       buildMoreProps(b, this.group, stone);
+      // the card's objects are in its drawing: the modelled ones rest
+      if (opts.flat) for (const c of this.group.children.slice(before)) c.visible = false;
       this.group.add(b.root);
       this.list.push(b);
     });
@@ -1070,6 +1122,7 @@ export class Beings {
   }
 
   attach(m: BeingModel): void {
+    if (this.opts.flat) return; // drawn as carvings: the figure is not needed
     for (const b of this.list) b.attach(m.model, m.clips, m.scale);
   }
 

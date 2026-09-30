@@ -70,8 +70,7 @@ export class VisionStage {
     this.group.rotation.y = opts.face;
     const R = rng(opts.seedNum);
     this.idle = seed(this.n, R);
-    this.build(null);
-    void bodyForms().then((b) => b && this.build(b));
+    void bodyForms().then((b) => (this.body = b));
     const mat = softPoints();
     this.cloud = spriteCloud(this.n, { position: 3, aCol: 3, aSeed: 1 }, mat);
     this.P = this.cloud.attrs.position.array as Float32Array;
@@ -100,16 +99,19 @@ export class VisionStage {
   }
 
   /** Make every form; those of the body once the recorded figure has come. */
-  private build(body: BodyForms | null): void {
-    for (const [name, make] of Object.entries(this.opts.forms)) {
-      if (this.shapes.has(name)) continue;
-      const s = make(this.n, rng(this.opts.seedNum * 31 + name.length * 7 + name.charCodeAt(0)), body);
-      if (s) this.shapes.set(name, s);
-    }
-  }
+  private body: BodyForms | null = null;
 
+  /** A form, made the first time the telling reaches it (making them all at once is heavy). */
   private shape(name: string): Shape {
-    return this.shapes.get(name) ?? this.idle;
+    let s = this.shapes.get(name);
+    if (!s) {
+      const make = this.opts.forms[name];
+      const made = make ? make(this.n, rng(this.opts.seedNum * 31 + name.length * 7 + name.charCodeAt(0)), this.body) : null;
+      if (!made) return this.idle;
+      s = made;
+      this.shapes.set(name, s);
+    }
+    return s;
   }
 
   /** Each frame near it. `t`: narration seconds (while seated). */

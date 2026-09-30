@@ -8,46 +8,36 @@
    road ahead, walkable; the next three steps. */
 import type * as THREE from "three/webgpu";
 import type { Narration } from "../core/narration";
-import { book, combine, heart, lantern, lights, offering, road, rock, shift, sprout, stars, storm, turnY, FORM_H, type BodyForms, type Rand } from "../world/forms";
+import { book, combine, heart, lantern, lights, road, shift, sprout, stars, storm, FORM_H } from "../world/forms";
+import { ear, footsteps, hand, tangle } from "../world/symbols";
 import type { SceneModule } from "./lessonKit";
 import { SITES } from "./sites";
 import { visionLesson } from "./visionLesson";
 import { EMBER, GOLD, PALE, PEARL, ROSE, type Maker } from "./visionStage";
-
-const BOWED: [string, number][] = [["DEF-spine.001", 0.28], ["DEF-spine.003", 0.22], ["DEF-neck", 0.35]];
-
-/** Walking away down the road, a lantern held out ahead. */
-function walker(n: number, R: Rand, b: BodyForms, at = 0.4): Float32Array {
-  return combine(n, [
-    [(m) => shift(turnY(b.figure(m, R, "Walk_Loop", at, [], FORM_H * 0.66), Math.PI), 0, 0, -0.8), 0.62],
-    [(m) => shift(lantern(m, R), 0.55, 0.2, -1.6, 0.55), 0.18],
-    [(m) => road(m, R), 0.2],
-  ]);
-}
 
 const forms: Record<string, Maker> = {
   // the road outside town, after the last streetlight
   road: (n, R) => combine(n, [[(m) => road(m, R), 0.75], [(m) => shift(lantern(m, R), -1.4, 0, 0.6, 0.9), 0.25]]),
   // the mind wants the map unfolded
   map: (n, R) => shift(book(n, R), 0, 0.9, 0, 1.2),
-  walk: (n, R, b) => b && walker(n, R, b),
+  walk: (n, R) => combine(n, [[(m) => footsteps(m, R), 0.6], [(m) => shift(lantern(m, R), 0.4, 0, -2.4, 0.6), 0.4]]),
   weather: (n, R) => storm(n, R, 0),
   // you lift the lantern, and something in you steadies
-  lift: (n, R, b) => b && combine(n, [[(m) => b.figure(m, R, "Spell_Simple_Idle_Loop", 2.0, [], FORM_H * 0.78), 0.78], [(m) => shift(lantern(m, R), 0, 1.3, 0.8, 0.5), 0.22]]),
+  lift: (n, R) => combine(n, [[(m) => hand(m, R, 1, FORM_H * 0.35, 0.8), 0.55], [(m) => shift(lantern(m, R), 0, FORM_H * 0.45, 0, 0.7), 0.45]]),
   // one small kept promise, and then another
   promises: (n, R) => lights(n, R, 3),
   // worry
-  worry: (n, R, b) => b && combine(n, [[(m) => b.figure(m, R, "Sitting_Idle_Loop", 0.4, BOWED, FORM_H * 0.5), 0.82], [(m) => rock(m, R, 0.75, 0.42, 0.6), 0.18]]),
+  worry: (n, R) => tangle(n, R),
   // the night is not empty
   stars: (n, R) => stars(n, R),
   heart: (n, R) => heart(n, R, 1.1),
   ledger: (n, R) => shift(book(n, R), 0, 0.9, 0, 1.2),
   // real trust has no receipt
-  open: (n, R, b) => b && offering(n, R, b, 0),
+  open: (n, R) => hand(n, R, 1, FORM_H * 0.5, 1.2),
   // a quieter signal: listening
-  listen: (n, R, b) => b && combine(n, [[(m) => b.figure(m, R, "Sitting_Idle_Loop", 1.8, [], FORM_H * 0.52), 0.82], [(m) => rock(m, R, 0.75, 0.42, 0.6), 0.18]]),
+  listen: (n, R) => ear(n, R),
   // every step leaves a little light behind
-  row: (n, R, b) => b && combine(n, [[(m) => lights(m, R, 9), 0.5], [(m) => shift(turnY(b.figure(m, R, "Walk_Loop", 0.9, [], FORM_H * 0.5), Math.PI), 0.3, 0.2, -9), 0.5]]),
+  row: (n, R) => combine(n, [[(m) => lights(m, R, 9), 0.55], [(m) => footsteps(m, R, 8), 0.45]]),
   // what you can do is smaller, and it is enough
   seed: (n, R) => shift(sprout(n, R, 1.6), 0, 0, 0, 1.5),
   lantern: (n, R) => shift(lantern(n, R), 0, 0, 0, 1.3),

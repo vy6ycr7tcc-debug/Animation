@@ -20,7 +20,8 @@ import type { Sparks } from "./life";
 import type { Station } from "./stations";
 import { surface } from "./textures";
 import { colliders, heightAt, keptClear, LANDMARK_SITES, SPAWN, WATER_Y, type Collider } from "./terrain";
-import { T, vnoise, worldPoints, type N } from "../gpu/tsl";
+import { gpuUniforms, T, vnoise, worldPoints, type N } from "../gpu/tsl";
+import { ribbonGeometry, ribbonMaterial } from "../gpu/ribbons";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { floatAttributes, loadBytes } from "../core/assets";
@@ -270,21 +271,39 @@ function starTexture(): THREE.CanvasTexture {
 
 /** A numeral carved and gilded on a coloured field, for the lintel over a shrine. */
 function numeralTexture(numeral: string, name: string, tint: THREE.Color): THREE.CanvasTexture {
+  // cut into the stone, not a painted box: a sunk border, the letters incised (a shadowed cut
+  // with a lit lip) and gilded, a thread of the archetype's colour under the name
   const [c, g] = canvas(512, 160);
-  g.fillStyle = "#b99a6d";
+  g.fillStyle = "#a88a62";
   g.fillRect(0, 0, 512, 160);
-  g.fillStyle = `rgb(${Math.round(Math.min(1, tint.r * 0.55) * 255)},${Math.round(Math.min(1, tint.g * 0.55) * 255)},${Math.round(Math.min(1, tint.b * 0.55) * 255)})`;
-  g.fillRect(40, 18, 432, 124);
-  g.strokeStyle = "#d8ae55";
-  g.lineWidth = 4;
-  g.strokeRect(40, 18, 432, 124);
-  g.fillStyle = "#e6c06a";
+  for (let k = 0; k < 900; k++) {
+    g.fillStyle = `rgba(${k % 2 ? "60,44,28" : "220,196,160"},${0.05 + Math.random() * 0.06})`;
+    g.fillRect(Math.random() * 512, Math.random() * 160, 1 + Math.random() * 3, 1 + Math.random() * 2);
+  }
+  const cut = (x: number, y: number, w: number, h: number) => {
+    g.strokeStyle = "rgba(50,34,20,0.7)";
+    g.lineWidth = 3;
+    g.strokeRect(x, y, w, h);
+    g.strokeStyle = "rgba(235,212,170,0.45)";
+    g.lineWidth = 1.5;
+    g.strokeRect(x + 2, y + 2, w, h);
+  };
+  cut(26, 14, 460, 132);
   g.textAlign = "center";
   g.textBaseline = "middle";
-  g.font = "600 64px Georgia, 'Times New Roman', serif";
-  g.fillText(numeral, 256, 66);
-  g.font = "italic 26px Georgia, 'Times New Roman', serif";
-  g.fillText(name, 256, 118);
+  const letters = (text: string, font: string, y: number) => {
+    g.font = font;
+    g.fillStyle = "rgba(235,212,170,0.5)";
+    g.fillText(text, 257.5, y + 1.5);
+    g.fillStyle = "rgba(45,30,16,0.85)";
+    g.fillText(text, 255, y - 1);
+    g.fillStyle = "#c9a256";
+    g.fillText(text, 256, y);
+  };
+  letters(numeral, "600 62px Georgia, 'Times New Roman', serif", 64);
+  letters(name, "italic 26px Georgia, 'Times New Roman', serif", 116);
+  g.fillStyle = `rgb(${Math.round(Math.min(1, tint.r * 0.7) * 255)},${Math.round(Math.min(1, tint.g * 0.7) * 255)},${Math.round(Math.min(1, tint.b * 0.7) * 255)})`;
+  g.fillRect(196, 134, 120, 2);
   return canvasTexture(c, false);
 }
 
@@ -358,6 +377,20 @@ export function columnGeometry(): THREE.BufferGeometry {
 
 /** The columns' unpainted stone (their vertex colour where no band is painted; as stored, linear). */
 const COLUMN_STONE = new THREE.Color(0xc4a272);
+
+/** A column standing between the camera and the wanderer steps out of sight: the whole column
+    (found from its own axis: world position less the form's, as the columns are only moved) thins
+    away in a fine dither, and comes back as the view moves on. Used as a column's `maskNode`. */
+function columnClear(): N {
+  const axis = positionWorld.xz.sub(T.positionGeometry.xz);
+  const a = T.cameraPosition.xz, b = gpuUniforms.player.xz, ab = b.sub(a);
+  const t = dot(axis.sub(a), ab).div(T.max(dot(ab, ab), 1e-3));
+  const d = length(axis.sub(a.add(ab.mul(clamp(t, 0, 1)))));
+  const between = smoothstep(0.0, 0.08, t).mul(smoothstep(1.02, 0.9, t));
+  const hide = smoothstep(2.2, 1.3, d).mul(between).mul(0.9);
+  const dither = T.fract(T.sin(dot(T.screenCoordinate.xy, vec2(12.9898, 78.233))).mul(43758.5453));
+  return float(1).sub(hide).greaterThan(dither);
+}
 
 /* ---------- the temple ---------- */
 
@@ -557,6 +590,7 @@ export class Temple {
     // the columns' faded paint (their vertex colours, against the plain stone's own colour)
     const cm = this.stoneMaterial("sandstone_cracks", 3, 3, 2.2, { tint: T.vertexColor().rgb.div(vec3(COLUMN_STONE.r, COLUMN_STONE.g, COLUMN_STONE.b)) });
     cm.vertexColors = true;
+    cm.maskNode = columnClear();
     const spots: [number, number][] = [];
     for (const z of COL_Z) spots.push([-5.5, z], [5.5, z]);
     const cols = new THREE.InstancedMesh(cg, cm, spots.length);
@@ -687,8 +721,8 @@ export class Temple {
       pivot.scale.setScalar(STATUE_SCALE);
       const stations: Station[] = [];
       stations[i] = { center: new THREE.Vector3(0, 0, 0) } as unknown as Station;
-      const beings = new Beings(stations, sparks);
-      for (const b of beings.list) b.spec.under = false;
+      const beings = new Beings(stations, sparks, { flat: true });
+      for (const b of beings.list) (b.spec.under = false), (b.turns = false);
       // each stood off-centre in its landmark (the Magician 1.9 m aside, into the niche's wall):
       // in its shrine it stands in the middle, as on its card (its height is kept: XII hangs)
       const [ox, , oz] = beings.list[0].spec.at;
@@ -871,34 +905,56 @@ export class Temple {
     this.stage.position.set(CENTRE.x, 2.1, CENTRE.z);
     this.group.add(this.stage);
     const W = 2.7, H = 4.3;
-    // the frame: thin gilded bars, a double border like a card's
-    const gold = new THREE.MeshStandardNodeMaterial({ color: 0xc9a050, roughness: 0.35, metalness: 0.85 });
-    const bars: THREE.BufferGeometry[] = [];
-    for (const inset of [0, 0.16]) {
-      const w = W - inset * 2, h = H - inset * 2, t = inset ? 0.035 : 0.07;
-      for (const [x, y, bw, bh] of [[0, h / 2, w, t], [0, -h / 2, w, t], [-w / 2, 0, t, h], [w / 2, 0, t, h]]) {
-        const b = new THREE.BoxGeometry(bw, bh, t).toNonIndexed();
-        b.translate(x, y + H / 2, -0.9);
-        bars.push(b);
-      }
+    // the card drawn in light, as the world draws its forms: a double border of thin gold light
+    // with curled corners and a small star at the crown, a ground line for the figure, and behind
+    // it only a faint breath of the archetype's colour (the sanctuary shows through)
+    const seg: number[] = [];
+    const line = (pts: [number, number][], z = -0.9) => {
+      for (let k = 0; k < pts.length - 1; k++) seg.push(pts[k][0], pts[k][1], z, pts[k + 1][0], pts[k + 1][1], z);
+    };
+    const arc = (cx: number, cy: number, r: number, a0: number, a1: number, n = 14) =>
+      Array.from({ length: n + 1 }, (_, k) => [cx + Math.cos(a0 + ((a1 - a0) * k) / n) * r, cy + Math.sin(a0 + ((a1 - a0) * k) / n) * r] as [number, number]);
+    for (const inset of [0, 0.14]) {
+      const w = W / 2 - inset, y0 = inset, y1 = H - inset, r = 0.22 - inset * 0.6;
+      // a rounded rectangle, its corners quarter circles
+      line([[-w + r, y0], [w - r, y0]]);
+      line([[-w + r, y1], [w - r, y1]]);
+      line([[-w, y0 + r], [-w, y1 - r]]);
+      line([[w, y0 + r], [w, y1 - r]]);
+      line(arc(w - r, y0 + r, r, -Math.PI / 2, 0, 8));
+      line(arc(-w + r, y0 + r, r, Math.PI, Math.PI * 1.5, 8));
+      line(arc(w - r, y1 - r, r, 0, Math.PI / 2, 8));
+      line(arc(-w + r, y1 - r, r, Math.PI / 2, Math.PI, 8));
     }
-    const frame = new THREE.Mesh(merged(bars), gold);
+    // curls in the corners between the borders
+    for (const [sx, sy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+      const cx = sx * (W / 2 - 0.36), cy = H / 2 + sy * (H / 2 - 0.36);
+      const pts: [number, number][] = [];
+      for (let k = 0; k <= 24; k++) {
+        const u = k / 24, ang = u * Math.PI * 2.2, r = 0.13 * (1 - u * 0.8);
+        pts.push([cx + sx * Math.cos(ang) * r, cy + sy * Math.sin(ang) * r]);
+      }
+      line(pts);
+    }
+    // a small eight-armed star at the crown, and the ground line the figure stands on
+    for (let k = 0; k < 8; k++) {
+      const ang = (k / 8) * Math.PI * 2, r = k % 2 ? 0.07 : 0.16;
+      line([[0, H + 0.02], [Math.cos(ang) * r, H + 0.02 + Math.sin(ang) * r]]);
+    }
+    line([[-W / 2 + 0.45, 0.3], [W / 2 - 0.45, 0.3]]);
+    const frame = new THREE.Mesh(ribbonGeometry(seg), ribbonMaterial(vec3(1.0, 0.78, 0.42).mul(0.9), 0.6));
+    frame.frustumCulled = false;
     this.stage.add(frame);
-    // the veil behind the figure: its colour, deepening toward the edges, a few stars
-    // opaque: the card is a world of its own, the sanctuary behind it hidden
-    const vm = new THREE.MeshBasicNodeMaterial({ side: THREE.DoubleSide, fog: false });
+    const vm = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
     const q = uv().sub(0.5);
-    const glowV = exp(length(q.mul(vec3(1.5, 1.0, 0).xy)).mul(-2.6));
-    const cell = T.floor(uv().mul(vec3(40, 64, 0).xy));
-    const star = T.step(0.975, T.fract(T.sin(T.dot(cell, vec3(12.9898, 78.233, 0).xy)).mul(43758.5)));
-    const night = vec3(0.025, 0.03, 0.07);
-    vm.colorNode = vec4(night.add(this.veilColor.mul(glowV.mul(0.1))).add(vec3(1, 0.95, 0.85).mul(star.mul(0.3))), 1);
-    const veil = new THREE.Mesh(new THREE.PlaneGeometry(W - 0.34, H - 0.34), vm);
+    const glowV = exp(length(q.mul(vec3(2.2, 1.4, 0).xy)).mul(-3.2));
+    vm.colorNode = vec4(this.veilColor.mul(glowV.mul(0.06)), 1);
+    const veil = new THREE.Mesh(new THREE.PlaneGeometry(W - 0.3, H - 0.3), vm);
     veil.position.set(0, H / 2, -0.95);
     this.stage.add(veil);
     // plates for the numeral (above) and the name (below)
     const plate = (y: number, w: number, h: number) => {
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicNodeMaterial({ transparent: true, fog: false }));
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
       m.position.set(0, y, -0.86);
       this.stage.add(m);
       return m;
@@ -955,8 +1011,8 @@ export class Temple {
       const pivot = new THREE.Group();
       const stations: Station[] = [];
       stations[i] = { center: new THREE.Vector3(0, 0, 0) } as unknown as Station;
-      const beings = new Beings(stations, this.sparks);
-      for (const b of beings.list) b.spec.under = false;
+      const beings = new Beings(stations, this.sparks, { flat: true });
+      for (const b of beings.list) (b.spec.under = false), (b.turns = false);
       if (this.model) beings.attach(this.model);
       pivot.add(beings.group);
       pivot.position.set(0, 0.3, -0.2);
@@ -979,17 +1035,17 @@ export class Temple {
   }
 
   private updateStage(t: number, dt: number, player: THREE.Vector3, reduced: boolean): void {
-    this.stage.visible = this.cardShown >= 0 && !this.quietStage;
+    this.stage.visible = this.cardsOpen && this.cardShown >= 0 && !this.quietStage;
     for (const m of this.centreShaft) m.visible = !this.cardsOpen; // it fell straight through the card
     if (!this.stage.visible) return;
-    this.stage.rotation.y = reduced ? 0 : Math.sin(t * 0.25) * 0.38;
+    this.stage.rotation.y = reduced ? 0 : Math.sin(t * 0.25) * 0.1;
     this.cardK = Math.min(1, this.cardK + dt / 0.8);
     const ease = (k: number) => k * k * (3 - 2 * k);
     const cur = this.cardBeings.get(this.cardShown);
     if (cur) {
       const k = ease(this.cardK);
       const off = this.cardOffset.get(this.cardShown)!;
-      const sc = 1.3 * (0.4 + 0.6 * k);
+      const sc = 1.1 * (0.4 + 0.6 * k);
       cur.pivot.scale.setScalar(sc);
       cur.pivot.position.set(-off.x * sc, 0.3 - off.y * sc - (1 - k) * 0.6, -0.2 - off.z * sc);
       cur.pivot.worldToLocal(this.local.copy(player));
@@ -1008,7 +1064,7 @@ export class Temple {
         this.cardPrev = null;
       } else {
         const k = ease(this.cardPrevK);
-        this.cardPrev.scale.setScalar(1.3 * (0.4 + 0.6 * k));
+        this.cardPrev.scale.setScalar(1.1 * (0.4 + 0.6 * k));
         this.cardPrev.position.y += dt * 1.5;
       }
     }
@@ -1276,12 +1332,12 @@ export class Temple {
     }
     this.updateStage(t, dt, player, reduced);
     this.updateLamps(t, dt, reduced);
-    for (const s of this.shrines) {
+    this.shrines.forEach((s) => {
       s.beings.group.worldToLocal(this.local.copy(player));
       const wasMet = s.beings.list[0]?.met;
       s.beings.update(t, dt, this.local, reduced);
       if (!wasMet && s.beings.list[0]?.met) this.hooks.onMeet(s.numeral, s.name);
-    }
+    });
   }
 
   /** Arriving again: each greets you again. */

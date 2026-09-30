@@ -68,8 +68,6 @@ export interface TourScenes {
 const GREET_REACH = 25;
 const LESSON_BACK = 7;
 const TREE_BACK = 8;
-const INVITATION = "The temple opens its doors — walk in, and let the gold remember you.";
-const INVITATION_MS = 4600;
 
 /* ---------- wiring ---------- */
 
@@ -110,7 +108,6 @@ export function initTourScenes(hooks: TourHooks2): TourScenes {
   /** Open the guided tour, but only from inside the gate and only once. */
   const beginTour = (): void => {
     if (tour.active || !hooks.temple.inside) return;
-    hooks.whisper(INVITATION, INVITATION_MS);
     tour.enter();
     hooks.onTourStateChange?.(true);
   };
@@ -133,11 +130,6 @@ export function initTourScenes(hooks: TourHooks2): TourScenes {
   };
 
   tour.camera = hooks.camera;
-  tour.onTapOrb = (): void => {
-    tour.exit();
-    hooks.crossTemple(false);
-    hooks.onTourStateChange?.(false);
-  };
   tour.onRest = (): void => gotoTree();
 
   /* ---------- frame ---------- */

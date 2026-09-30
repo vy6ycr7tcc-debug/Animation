@@ -6,47 +6,55 @@
    name); hands opening; a river taking a leaf; a storm spent over the sea; many small knots; a
    figure walking on; the hands open and the rope gone slack; the space between the palms; the
    road; a figure standing open. */
-import type * as THREE from "three/webgpu";
+import * as THREE from "three/webgpu";
 import type { Narration } from "../core/narration";
-import { combine, helix, offering, rock, rope, ropeBetween, river, road, shift, storm, turnY, wheel, FORM_H, type BodyForms, type Rand } from "../world/forms";
+import { combine, rock, rope, ropeBetween, river, road, shift, storm, wheel, FORM_H, type Rand } from "../world/forms";
+import { bird, boundHand, cupped, eye, fist, footsteps, hand, offeredHand, spiral } from "../world/symbols";
 import type { SceneModule } from "./lessonKit";
 import { SITES } from "./sites";
 import { visionLesson } from "./visionLesson";
 import { EMBER, GOLD, PALE, PEARL, ROSE, type Maker } from "./visionStage";
 
-const OFFER = "Spell_Simple_Idle_Loop";
-// bent under a weight: the spine and neck bowed
-const BOWED: [string, number][] = [["DEF-spine.001", 0.28], ["DEF-spine.003", 0.22], ["DEF-neck", 0.35]];
-
-/** A figure holding out its arms, and a rope between its hands (slack 0: the knot pulled tight). */
-function holdingRope(n: number, R: Rand, b: BodyForms, slack: number, at = 0.8): Float32Array {
-  const f = b.holding(Math.round(n * 0.62), R, OFFER, at, [], FORM_H * 0.8);
-  const out = new Float32Array(n * 3);
-  out.set(f.shape);
-  out.set(ropeBetween(n - f.shape.length / 3, R, f.hl, f.hr, slack), f.shape.length);
-  return out;
+/** Two hands, a rope between them (slack 0: the knot pulled tight; 1: loose, the hands open). */
+function handsWithRope(n: number, R: Rand, slack: number): Float32Array {
+  const y = FORM_H * 0.5, gap = 1.6;
+  const one = (x: number, flip: boolean) => (m: number) => {
+    const h = slack > 0.5 ? hand(m, R, 1, y, 0.75) : fist(m, R);
+    for (let i = 0; i < h.length; i += 3) {
+      if (slack <= 0.5) h[i + 1] += y - FORM_H * 0.5; // the fist at the rope's height
+      h[i] = (flip ? -h[i] : h[i]) * 0.8 + x;
+    }
+    return h;
+  };
+  return combine(n, [
+    [one(-gap, false), 0.32],
+    [one(gap, true), 0.32],
+    [(m) => ropeBetween(m, R, new THREE.Vector3(-gap + 0.3, y, 0), new THREE.Vector3(gap - 0.3, y, 0), slack), 0.36],
+  ]);
 }
 
+// the telling in symbols, one at a time (the owner: "an open hand… don't focus on the character")
 const forms: Record<string, Maker> = {
   // the rope between the hands, the knot pulled tight
-  rope: (n, R, b) => b && holdingRope(n, R, b, 0),
+  rope: (n, R) => handsWithRope(n, R, 0),
   // the knot, close: the middle of the rope, larger
   knot: (n, R) => shift(rope(n, R, 1.9, 0, 0), 0, 2.3, 0, 1.6),
-  // bent under what it carries, the rope coiled at its feet
-  burden: (n, R, b) => b && combine(n, [[(m) => b.figure(m, R, "Idle_Loop", 0.6, BOWED, FORM_H * 0.72), 0.78], [(m) => shift(rope(m, R, 0.9, 0, 0.6), 0, 0.3, 0.6), 0.22]]),
+  // what holding it has cost: a stone carried in an open hand
+  burden: (n, R) => combine(n, [[(m) => offeredHand(m, R, 0, FORM_H * 0.32), 0.6], [(m) => rock(m, R, 0.9, 0.6, 0.8, FORM_H * 0.36), 0.4]]),
   // bound in cords
-  bound: (n, R, b) => b && combine(n, [[(m) => b.figure(m, R, "Idle_Loop", 1.2, BOWED, FORM_H * 0.72), 0.72], [(m) => helix(m, R, 0.55, 0.4, 3.0, 5, 3), 0.28]]),
-  // two facing each other: the fear that wears someone else's face
-  mirror: (n, R, b) => b && combine(n, [
-    [(m) => shift(turnY(b.figure(m, R, "Idle_Loop", 0.4, [], FORM_H * 0.62), Math.PI / 2), -1.1, 0, 0), 0.5],
-    [(m) => shift(turnY(b.figure(m, R, "Idle_Loop", 1.4, [], FORM_H * 0.62), -Math.PI / 2), 1.1, 0, 0), 0.5],
+  bound: (n, R) => boundHand(n, R),
+  // the fear that wears someone else's face: an eye and its reflection
+  mirror: (n, R) => combine(n, [
+    [(m) => eye(m, R, 1, FORM_H * 0.72), 0.42],
+    [(m) => shift(eye(m, R, 1, 0), 0, FORM_H * 0.28, 0), 0.42],
+    [(m) => combine(m, [[(k) => rope(k, R, 1.6, FORM_H * 0.5, 0), 1]]), 0.16],
   ]),
   // the wheel of the unforgiven action (turning or still: the key says)
   wheel: (n, R) => wheel(n, R),
-  // curled on a stone: the knot tied closest to the skin
-  curled: (n, R, b) => b && combine(n, [[(m) => b.figure(m, R, "Sitting_Idle_Loop", 0.5, BOWED, FORM_H * 0.5), 0.8], [(m) => rock(m, R, 0.75, 0.42, 0.6), 0.2]]),
-  // hands opening, a small light between them
-  open: (n, R, b) => b && offering(n, R, b, 0.28),
+  // the knot tied closest to the skin: winding inward
+  curled: (n, R) => spiral(n, R, 3.2),
+  // hands opening, a small light on the palm
+  open: (n, R) => offeredHand(n, R, 0.28),
   // a river takes the leaf
   river: (n, R) => river(n, R),
   storm: (n, R) => storm(n, R, 0),
@@ -57,14 +65,14 @@ const forms: Record<string, Maker> = {
     return shift(rope(m, R, 0.5, 0, 0), Math.cos(a) * 1.8, 1.4 + Math.sin(k * 2.3) * 0.9 + (k % 2) * 0.6, Math.sin(a) * 0.9, 0.9);
   }, 1 / 7] as [(m: number) => Float32Array, number])),
   // setting down the rope and walking on
-  walk: (n, R, b) => b && combine(n, [[(m) => shift(turnY(b.figure(m, R, "Walk_Loop", 0.3, [], FORM_H * 0.62), Math.PI), 0.9, 0, -0.8), 0.8], [(m) => shift(rope(m, R, 0.9, 0, 0.9), -1.2, 0.15, 0.9), 0.2]]),
+  walk: (n, R) => combine(n, [[(m) => footsteps(m, R), 0.75], [(m) => shift(rope(m, R, 0.9, 0, 0.9), -1.2, 0.15, 1.6), 0.25]]),
   // the hands open, the rope slack between them
-  slack: (n, R, b) => b && holdingRope(n, R, b, 1, 1.6),
+  slack: (n, R) => handsWithRope(n, R, 1),
   // the space between the palms
-  space: (n, R, b) => b && offering(n, R, b, 0.7),
+  space: (n, R) => cupped(n, R, 0.04),
   road: (n, R) => road(n, R),
-  // standing, open
-  free: (n, R, b) => b && b.figure(n, R, OFFER, 1.0, [], FORM_H * 0.78),
+  // free: a bird
+  free: (n, R) => bird(n, R, FORM_H * 0.6, 0.3),
 };
 
 export function createShoreScene(scene: THREE.Scene, narration: Narration, whisper: (t: string, ms?: number) => void): SceneModule {
