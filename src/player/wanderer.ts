@@ -312,6 +312,8 @@ export class Wanderer {
   private moment: Moment = { t: 0, wake: 1, rite: 0, rt: 0, other: null, reduced: false };
   touching = { pose: "palms" as TouchPose, contact: new THREE.Vector3(), centre: new THREE.Vector3(), r: 0.3, breath: 0, lean: 0 };
   private form = 0;
+  /** How present the body is (1 fully; a room of pure light may let it thin toward nothing). */
+  presence = 1;
   private flow = 0;
   private landT = 9;
   private tmp = { a: new THREE.Vector3(), b: new THREE.Vector3(), cam: new THREE.Vector3(), off: new THREE.Vector3() };
@@ -490,7 +492,8 @@ export class Wanderer {
     this.halo.material.opacity *= 1 - flameK;
     this.geo.update(dt, this.tmp.a.copy(this.root.position).add(this.tmp.b.set(0, 1.05, 0)), flameK, t, reduced);
     // the body fades into an orb in the water, and forms again on the shore
-    this.skin.opacity = (1 - water) * (1 - flameK) * f;
+    this.skin.opacity = (1 - water) * (1 - flameK) * f * this.presence;
+    this.halo.material.opacity *= this.presence;
     for (const m of this.skinMeshes) m.visible = this.skin.opacity > 0.01;
     tickLightBody(this.skin, t);
     const orbK = THREE.MathUtils.smoothstep(water, 0.2, 1);
