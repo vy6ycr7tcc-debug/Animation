@@ -122,6 +122,7 @@ const ADEPT_VIEWS: Record<number, { eye: XYZ; look: XYZ }> = {
   2: { eye: [2.5, 3.4, 3.8], look: [0, 4.5, -12] },
   3: { eye: [3.5, 2.6, 12], look: [0, 2, -16] },
   4: { eye: [3, 2.4, 5], look: [-7, 3, -30] },
+  5: { eye: [2, 2.4, 6], look: [-2, 12, -60] },
 };
 
 /** Render one still frame of the requested scene at T seconds, then never again. */

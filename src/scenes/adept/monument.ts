@@ -315,6 +315,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
   const HOME = { x: 0, z: -8.5, heading: 0 };
   let callFloor: ((x: number, z: number) => number) | null = null;
   let stonesFloor: ((x: number, z: number) => number) | null = null;
+  let dunes: ((x: number, z: number) => number) | null = null;
   return [
     {
       id: "lobby",
@@ -388,8 +389,22 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
       },
       floor: (x, z) => (stonesFloor ? stonesFloor(x, z) : 0),
       start: { x: 0, z: 0, heading: Math.PI },
-      exits: [{ x: 8, z: -34.3, r: 1.8, to: 0, at: HOME }], // the next chamber is still to come: home for now
+      exits: [{ x: 8, z: -34.3, r: 1.8, to: 5 }],
       confine: box(-9, 14, -35, 6),
+      ownAir: true,
+    },
+    {
+      id: "pyramids",
+      title: "Pyramids, temples and geometry",
+      make: async (scene, nar, wh) => {
+        const mod = await import("./pyramids");
+        dunes = mod.dunesFloor;
+        return mod.createPyramidsScene(scene, nar, wh) as Room;
+      },
+      floor: (x, z) => (dunes ? dunes(x, z) : 0),
+      start: { x: 0, z: 0, heading: Math.PI },
+      exits: [{ x: 11, z: -30.3, r: 1.8, to: 0, at: HOME }], // the next chamber is still to come: home for now
+      confine: box(-16, 16, -34, 6),
       ownAir: true,
     },
   ];
