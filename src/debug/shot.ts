@@ -4,7 +4,7 @@
 import { SITES } from "../scenes/sites";
 import { DUAT_ORIGIN } from "../world/pyramid";
 import { RUIN_SITES } from "../world/depths";
-import { DENSITY_HALL, LANDMARK_SITES, PEAKS, PYRAMID, SPAWN, heightAt } from "../world/terrain";
+import { ADEPT_HALL, DENSITY_HALL, LANDMARK_SITES, PEAKS, PYRAMID, SPAWN, heightAt } from "../world/terrain";
 import { JOURNEY_ORIGIN } from "../scenes/journey";
 
 export interface Shot {
@@ -89,7 +89,7 @@ export interface ShotCtx {
   /** After the first update: settles when what it asked for has arrived (the carvings). */
   settle?(): Promise<unknown>;
   /** Walk into stage `i` of the density journey (no fades), lived for `t` seconds; `journey-<i>`. */
-  journey?(i: number, t: number): Promise<void>;
+  journey?(name: string, i: number, t: number): Promise<void>;
   /** Build density room `n` alone (the open world hidden); `density-<n>` still frames. */
   room?(n: number): Promise<{ onSit(): void; update(dt: number): void }>;
 }
@@ -114,6 +114,11 @@ const JOURNEY_VIEWS: Record<number, { eye: XYZ; look: XYZ }> = {
   6: { eye: [0, 2.5, -5], look: [0, 3, 12] },
   7: ROOM_VIEWS["density-6"],
   8: { eye: [0, 1.8, 3], look: [0, 1.4, -60] },
+};
+/** The adept's stages (0 the lobby, 1 the call, …). */
+const ADEPT_VIEWS: Record<number, { eye: XYZ; look: XYZ }> = {
+  0: { eye: [0, 3.0, 11], look: [0, 3.0, -10] },
+  1: { eye: [1.2, 2.2, 5], look: [0, 3.5, -40] },
 };
 
 /** Render one still frame of the requested scene at T seconds, then never again. */
@@ -147,18 +152,19 @@ export function runShot(ctx: ShotCtx): void {
     return;
   }
 
-  const jm = /^journey-(\d)$/.exec(id);
+  const jm = /^(journey|adept)-(\d)$/.exec(id);
   if (jm && ctx.journey) {
     // the density journey itself: walked into stage k (the real wiring: placed, its air, its seat)
     const { journey, ...rest } = ctx;
     ctx.narration.debugTime = t;
-    const k = Number(jm[1]);
-    void journey(k, t).then(() => {
+    const k = Number(jm[2]), name = jm[1] === "journey" ? "densities" : jm[1];
+    const views = name === "adept" ? ADEPT_VIEWS : JOURNEY_VIEWS;
+    void journey(name, k, t).then(() => {
       ctx.S.mode = "play";
       ctx.follow.startFollowing(true);
       ctx.follow.follow = 1;
       const o = JOURNEY_ORIGIN;
-      finish(rest, id, t, [o.x, o.y, o.z], JOURNEY_VIEWS[k] ?? { eye: [0, 2, 8], look: [0, 3, -30] });
+      finish(rest, id, t, [o.x, o.y, o.z], views[k] ?? { eye: [0, 2, 8], look: [0, 3, -30] });
     });
     return;
   }
@@ -205,12 +211,13 @@ export function runShot(ctx: ShotCtx): void {
     base = [px, Math.max(gy, 0) + (above ? top - gy + 90 : 40), pz];
     view = above ? { eye: [0, 0, 0], look: [pk.x - px, top - base[1], pk.z - pz] } : { eye: [0, 0, 0], look: [pk.x - px, top * 0.7 - base[1], pk.z - pz] };
     ctx.player.pos.set(base[0], base[1], base[2]);
-  } else if (id === "density-hall" || id === "density-hall-near") {
-    // the monument of the densities from the approach, its door toward the shore
-    const f = DENSITY_HALL.face, d = id === "density-hall" ? 70 : 34;
-    const px = DENSITY_HALL.x + Math.sin(f) * d, pz = DENSITY_HALL.z + Math.cos(f) * d;
+  } else if (/^(density|adept)-hall(-near)?$/.test(id)) {
+    // a monument from the approach, its door toward the shore
+    const H = id.startsWith("adept") ? ADEPT_HALL : DENSITY_HALL;
+    const f = H.face, d = id.endsWith("near") ? 38 : 80;
+    const px = H.x + Math.sin(f) * d, pz = H.z + Math.cos(f) * d;
     base = [px, heightAt(px, pz), pz];
-    view = { eye: [Math.sin(f) * 6 + Math.cos(f) * 5, 2.4, Math.cos(f) * 6 - Math.sin(f) * 5], look: [DENSITY_HALL.x - px, 11, DENSITY_HALL.z - pz] };
+    view = { eye: [Math.sin(f) * 6 + Math.cos(f) * 5, 2.4, Math.cos(f) * 6 - Math.sin(f) * 5], look: [H.x - px, 12, H.z - pz] };
     ctx.player.pos.set(px, heightAt(px, pz), pz);
   } else if (id === "meadow") {
     // the open land near the start, at eye height, looking inland

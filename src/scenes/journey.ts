@@ -53,6 +53,21 @@ export interface Stage {
   /** The room was drawn around its seat, somewhere else: move it so the seat is at the origin. */
   centreOnSeat?: boolean;
 }
+/** A monument's front door in the world. */
+export interface Hall {
+  readonly world: THREE.Object3D;
+  /** Its name on the map. */
+  readonly label: string;
+  /** The door's centre, and the heading that walks out of it. */
+  readonly door: THREE.Vector3;
+  readonly face: number;
+  /** Walking in through the door. */
+  atDoor(p: THREE.Vector3): boolean;
+  /** Where you stand coming out (before the door, facing away). */
+  outside(): { x: number; y: number; z: number; heading: number };
+  /** The rooms walked (to light what marks them outside). */
+  light(seen: Set<string>): void;
+}
 export interface JourneyHost {
   scene: THREE.Scene;
   narration: Narration;
