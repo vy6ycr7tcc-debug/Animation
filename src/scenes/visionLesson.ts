@@ -23,7 +23,7 @@ export interface VisionLessonCfg {
 }
 
 /** A seat of rough stone (the world's stone idiom: displaced, flat shaded, etched gold). */
-function seatStone(at: THREE.Vector3): THREE.Mesh {
+export function seatStone(at: THREE.Vector3): THREE.Mesh {
   const g = new THREE.IcosahedronGeometry(1, 2);
   const p = g.attributes.position as THREE.BufferAttribute, v = new THREE.Vector3();
   for (let i = 0; i < p.count; i++) {
