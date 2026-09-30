@@ -164,6 +164,26 @@ body.loading #title h1, body.loading #title p { animation-play-state: paused; }
   -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); opacity: 0.8;
 }
 #hear-again[hidden] { display: none; }
+/* how much of the narration remains: a hairline, always findable, never loud; a tap shows the time */
+#nprog {
+  position: fixed; left: 50%; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  width: min(42vw, 220px); min-height: 44px; padding: 0; z-index: 12; background: none; border: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+}
+#nprog[hidden] { display: none; }
+body.touring #nprog { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
+#nprog .bar { display: block; width: 100%; height: 2px; border-radius: 1px; background: rgba(255, 236, 200, 0.16); overflow: hidden; }
+#nprog .bar i { display: block; height: 100%; width: 100%; background: rgba(240, 205, 140, 0.75); transform-origin: left center; transform: scaleX(0); }
+#nprog .time { font: 500 12px/1 var(--font, system-ui); letter-spacing: 0.06em; color: var(--pearl); opacity: 0; transition: opacity 0.6s; min-height: 12px; }
+#nprog.show .time { opacity: 0.75; }
+@media (hover: hover) { #nprog:hover .time { opacity: 0.75; } }
+/* the seat's word, over the stone in the world */
+#seat-hint {
+  position: fixed; left: 0; top: 0; margin: 0; z-index: 11; pointer-events: none; white-space: nowrap;
+  font: italic 15px/1.2 var(--serif, Georgia, serif); color: var(--gold); letter-spacing: 0.04em;
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.8); opacity: 0; transition: opacity 0.8s;
+}
+#seat-hint.on { opacity: 0.9; }
 #hear-again:active { background: rgba(255, 236, 200, 0.18); }
 #menu-btn span { width: 6px; height: 6px; border-radius: 50%; background: var(--pearl); box-shadow: 0 -10px 0 var(--pearl), 0 10px 0 var(--pearl); }
 #menu {

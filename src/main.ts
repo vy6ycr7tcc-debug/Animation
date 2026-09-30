@@ -30,7 +30,7 @@ import { Creation, creationUniforms, Spirits } from "./world/creation";
 import { Beings } from "./world/beings";
 import { SeaFauna, SeaLife, UnderwaterEffect } from "./world/underwater";
 import { Post } from "./gpu/post";
-import { fogUniforms, gpuUniforms, gradeUniforms, ijFogNode } from "./gpu/tsl";
+import { T, fogUniforms, gpuUniforms, gradeUniforms, ijFogNode } from "./gpu/tsl";
 import { newerBuild, reloadTo } from "./core/fresh";
 import { Presences } from "./world/presences";
 import { Guide, type Destination } from "./world/guide";
@@ -1691,6 +1691,83 @@ function contemplationFrame(dt: number): void {
   follow.gaze = pts.length ? pts[gazeI % pts.length] : null;
 }
 
+/* The lessons' seats and the narration's progress (the owner: nobody knew a stone seat starts a
+   lesson, had to hunt for the show after sitting, or could tell how much of a narration was left).
+   Near a lesson's seat a soft ring of light breathes on the ground round it and "Sit to listen"
+   hangs over it; sitting turns the view to face the stage; while any narration speaks, a hairline
+   at the foot of the screen fills as it goes (a tap shows the time). */
+const seatRing = (() => {
+  const g = new THREE.RingGeometry(1.15, 1.45, 64);
+  g.rotateX(-Math.PI / 2);
+  const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending });
+  const u = T.uv();
+  const edge = T.smoothstep(0, 0.5, u.y).mul(T.smoothstep(1, 0.5, u.y));
+  const k = T.uniform(0);
+  m.colorNode = T.vec4(T.vec3(1, 0.78, 0.42).mul(edge).mul(k), 1);
+  const mesh = new THREE.Mesh(g, m);
+  mesh.visible = false;
+  mesh.renderOrder = 3;
+  scene.add(mesh);
+  return { mesh, k };
+})();
+const seatHint = $("#seat-hint");
+const nprog = $<HTMLButtonElement>("#nprog");
+const nprogBar = nprog.querySelector("i") as HTMLElement, nprogTime = nprog.querySelector(".time") as HTMLElement;
+let nprogShow = 0, lastSeated: string | null = null, faceFor = 0, faceYaw = 0;
+nprog.addEventListener("pointerdown", (e) => {
+  e.stopPropagation();
+  nprogShow = 4;
+});
+const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+const hintAt = new THREE.Vector3();
+function lessonUxFrame(dt: number): void {
+  // the nearest lesson seat not yet sat on
+  let near: { pos: THREE.Vector3; d: number } | null = null;
+  if (S.mode === "play" && sitting.phase === "none" && !apart()) {
+    for (const m of tourScenes.registry.modules) {
+      if (!m.seatPos || m === (tourScenes.tour as unknown)) continue;
+      const d = player.pos.distanceTo(m.seatPos);
+      if (d < 18 && (!near || d < near.d)) near = { pos: m.seatPos, d };
+    }
+  }
+  const want = near ? THREE.MathUtils.smoothstep(18, 12, near.d) : 0;
+  seatRing.k.value += (want * (0.55 + 0.25 * Math.sin(S.t * 2.2)) - seatRing.k.value) * Math.min(1, dt * 3);
+  seatRing.mesh.visible = seatRing.k.value > 0.01;
+  if (near) seatRing.mesh.position.set(near.pos.x, near.pos.y + 0.06, near.pos.z);
+  let hint = false;
+  if (near && want > 0.3) {
+    hintAt.set(near.pos.x, near.pos.y + 1.6, near.pos.z).project(camera);
+    if (hintAt.z < 1 && Math.abs(hintAt.x) < 0.95 && Math.abs(hintAt.y) < 0.95) {
+      hint = true;
+      const w = innerWidth, h = innerHeight;
+      seatHint.style.transform = `translate(${((hintAt.x + 1) / 2) * w}px, ${((1 - hintAt.y) / 2) * h}px) translate(-50%, -100%)`;
+    }
+  }
+  seatHint.classList.toggle("on", hint);
+  // sitting: the view turns to the stage, gently
+  const id = tourScenes.seatedId;
+  if (id && id !== lastSeated) {
+    const m = tourScenes.registry.modules.find((x) => x.id === id);
+    if (m?.seatHeading !== undefined) (faceYaw = m.seatHeading), (faceFor = 2.5), (player.heading = m.seatHeading);
+  }
+  lastSeated = id;
+  if (faceFor > 0) {
+    faceFor -= dt;
+    const d = Math.atan2(Math.sin(faceYaw - follow.yaw), Math.cos(faceYaw - follow.yaw));
+    follow.yaw += d * Math.min(1, dt * 2.2);
+    follow.pitch += (0.1 - follow.pitch) * Math.min(1, dt * 2);
+  }
+  // the narration's progress
+  const pr = S.mode === "play" ? narration.progress() : null;
+  nprog.hidden = !pr;
+  if (pr) {
+    nprogBar.style.transform = `scaleX(${(pr.t / pr.total).toFixed(4)})`;
+    nprogShow = Math.max(0, nprogShow - dt);
+    nprog.classList.toggle("show", nprogShow > 0);
+    nprogTime.textContent = `${clock(pr.t)} / ${clock(pr.total)}`;
+  }
+}
+
 /** In a place apart (the temple, the deep archive, the pyramid): the open world rests. */
 function apart(): boolean {
   return temple.inside || depths.inside || pyramid.isInside || !!inHall()?.journey.inside;
@@ -2623,6 +2700,7 @@ function update(dt: number): void {
   busyFrame();
   calmFrame();
   contemplationFrame(realDt);
+  lessonUxFrame(realDt);
   if (!apart()) {
     const vd = player.pos.distanceTo(vision.group.position);
     vision.update(dt, vd < 420, S.reduced);

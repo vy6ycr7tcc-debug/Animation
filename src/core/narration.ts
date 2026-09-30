@@ -52,7 +52,7 @@ export class Narration {
   onEnd: ((id: string) => void) | null = null;
   private raw = new Map<string, Promise<ArrayBuffer | null>>();
   private decoded = new Map<string, Promise<AudioBuffer | null>>();
-  private playing: { id: string; src: AudioBufferSourceNode; gain: GainNode; start: number; scale: number; from: number } | null = null;
+  private playing: { id: string; src: AudioBufferSourceNode; gain: GainNode; start: number; scale: number; from: number; end: number } | null = null;
   private cueIndex = -1;
   /** Bumped by every play and stop: a track still loading when another is asked for never starts. */
   private token = 0;
@@ -114,6 +114,16 @@ export class Narration {
     return p.from + Math.max(0, (ctx.currentTime - p.start) / p.scale);
   }
 
+  private partFrom = 0;
+  /** How far the voice speaking has come through what it was asked to say (a part of a track
+      counts from its own start), in seconds; null while none speaks. */
+  progress(): { t: number; total: number } | null {
+    const p = this.playing;
+    if (!p) return null;
+    const total = Math.max(0.1, p.end - this.partFrom);
+    return { t: Math.min(total, Math.max(0, this.time() - this.partFrom)), total };
+  }
+
   /** Play a track, or only its part from `from` to `to` seconds (track time), fading at the end. */
   async play(id: string, from = 0, to = Infinity): Promise<void> {
     const track = trackFor(id);
@@ -152,7 +162,8 @@ export class Narration {
       gain.gain.linearRampToValueAtTime(0, at + dur);
       src.start(at, off, dur);
     } else src.start(at, off);
-    this.playing = { id, src, gain, start: at, scale, from: off / scale };
+    this.playing = { id, src, gain, start: at, scale, from: off / scale, end: Number.isFinite(to) ? to : buf.duration / scale };
+    this.partFrom = from;
     this.cueIndex = -1;
     this.audio.duck(true);
     src.onended = () => {
