@@ -10,13 +10,13 @@ import * as THREE from "three/webgpu";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { LessonScene } from "../lessonKit";
 import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
-import { T, hash2, vnoise } from "../../gpu/tsl";
+import { T, hash2, vnoise, type N } from "../../gpu/tsl";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
 import { lightBodyMaterial, tickLightBody } from "../../player/lightBody";
 import { loadBeingModel } from "../../world/beings";
 import { applyAir, damp, keepAlpha, pointCloud, roomClock, scannedGround, seeded, skyDome, touch, type Air, roomPos } from "./roomKit";
 
-const { attribute, float, floor, fract, length, max, mix, positionGeometry, pow, sin, smoothstep, step, uniform, uv, vec2, vec3, vec4 } = T;
+const { attribute, exp, float, floor, fract, length, max, mix, positionGeometry, pow, sin, smoothstep, step, uniform, uv, vec2, vec3, vec4 } = T;
 
 const PLANET = new THREE.Vector3(-0.55, 0.16, -1).normalize();
 const PORTAL = new THREE.Vector3(0, 0, -40);
@@ -43,17 +43,31 @@ export function createDensityRoom4Scene(
   const uThreads = uniform(0.15); // the threads: faint → woken → burning together
   const uTowers = uniform(0.6);
   const uPortal = uniform(0.4);
+  const uWaves = uniform(0.6); // the waves of amber light
   const goal = { threads: 0.15, towers: 0.6, portal: 0.4, self: 0.6 };
   let self = 0.6, time = 0;
   let loaded: Promise<void> = Promise.resolve();
   const air: Air = {
-    color: new THREE.Color(0.12, 0.1, 0.19),
-    glow: new THREE.Color(0.55, 0.42, 0.6),
+    color: new THREE.Color(0.16, 0.1, 0.1),
+    glow: new THREE.Color(0.78, 0.46, 0.24),
     glowDir: PLANET.clone(),
     density: 0.0026,
-    shadow: new THREE.Color(0.02, 0.01, 0.05),
+    shadow: new THREE.Color(0.03, 0.012, 0.02),
     sat: 1.08,
     contrast: 1.05,
+  };
+
+  /** Wave after wave of amber light washing out across the plaza from its heart, on a loop: how
+      bright the wave is at `P` (a point in the room's frame). */
+  const wave = (P: N): N => {
+    const r = length(P.xz.sub(vec2(0, -14)));
+    let w: N = float(0);
+    for (let k = 0; k < 3; k++) {
+      const front = fract(clock.u.mul(0.022).add(k / 3)).mul(95);
+      const d = r.sub(front);
+      w = w.add(exp(d.mul(d).mul(-0.012)).mul(smoothstep(95, 40, front)));
+    }
+    return w.mul(uWaves);
   };
 
   const build = (ctx: LessonCtx) => {
@@ -94,10 +108,10 @@ export function createDensityRoom4Scene(
       const scan = scannedGround("rock", 3.2, { hue: 0.2, relief: 0.55, bright: 1.6 });
       // pale stone laid in great rings round the plaza's heart, a thin light in the joints
       const r = length(roomPos.xz.sub(vec2(0, -14)));
-      const joint = smoothstep(0.05, 0.0, T.abs(fract(r.div(4.2)).sub(0.5)).sub(0.47));
-      m.colorNode = vec3(0.13, 0.12, 0.16).mul(scan.color);
+      const joint = smoothstep(0.45, 0.49, T.abs(fract(r.div(4.2)).sub(0.5)));
+      m.colorNode = vec3(0.085, 0.07, 0.075).mul(scan.color);
       m.normalNode = scan.normal;
-      m.emissiveNode = vec3(0.9, 0.75, 0.9).mul(joint).mul(0.25).mul(uTowers).mul(smoothstep(40, 6, r));
+      m.emissiveNode = vec3(0.9, 0.75, 0.9).mul(joint).mul(0.25).mul(uTowers).mul(smoothstep(40, 6, r)).add(vec3(1, 0.55, 0.2).mul(wave(roomPos)).mul(float(0.05).add(joint.mul(0.6))));
       const mesh = new THREE.Mesh(geo, m);
       mesh.receiveShadow = true;
       g.add(mesh);
@@ -128,7 +142,7 @@ export function createDensityRoom4Scene(
       const facets = smoothstep(0.35, 0.95, vnoise(vec2(ang, P.y.mul(0.4))));
       const hue = mix(vec3(0.75, 0.8, 1.0), vec3(1.0, 0.75, 0.9), h);
       m.colorNode = mix(vec3(0.035, 0.035, 0.07), vec3(0.09, 0.085, 0.15), facets);
-      m.emissiveNode = hue.mul(vein.mul(0.9).add(smoothstep(0.85, 1.0, h).mul(0.4)).add(facets.mul(0.03))).mul(uTowers);
+      m.emissiveNode = hue.mul(vein.mul(0.9).add(smoothstep(0.85, 1.0, h).mul(0.4)).add(facets.mul(0.03))).mul(uTowers).add(vec3(1, 0.6, 0.25).mul(wave(roomPos)).mul(edge.mul(0.9).add(0.06)));
       const spots: [number, number, number, number][] = [
         // x, z, radius, height
         [-18, -30, 3.2, 34], [19, -34, 4.2, 46], [-30, -12, 2.4, 22], [30, -8, 2.8, 26], [-9, -52, 2.2, 28],
@@ -204,6 +218,21 @@ export function createDensityRoom4Scene(
       ours.push(tg, tm, pg, pm);
     }
 
+    // the long dusk light, low and amber, laying the towers' shadows long across the plaza
+    {
+      const dusk = new THREE.DirectionalLight(0xffa860, 0.9);
+      dusk.position.set(PLANET.x * 90, 16, PLANET.z * 90 - 14);
+      dusk.target.position.set(0, 0, -14);
+      dusk.castShadow = true;
+      dusk.shadow.mapSize.set(2048, 2048);
+      const sc = dusk.shadow.camera as THREE.OrthographicCamera;
+      sc.left = sc.bottom = -60;
+      sc.right = sc.top = 60;
+      sc.far = 220;
+      dusk.shadow.bias = -0.0005;
+      g.add(dusk, dusk.target);
+    }
+
     /* ---------------- the people, and the threads between them ---------------- */
     const people: Person[] = [
       { x: -3.2, z: -9, face: 0.6, act: "idle" }, { x: -1.9, z: -10.2, face: -2.4, act: "idle" }, { x: -4.3, z: -10.8, face: 1.4, act: "reach" },
@@ -244,10 +273,11 @@ export function createDensityRoom4Scene(
     geo.setAttribute("aC1", new THREE.BufferAttribute(aC1, 3));
     const U = attribute("aU", "float"), K = attribute("aK", "float");
     // each thread in the colours of the two it joins; a pulse of light travels along it
-    const col = mix(attribute("aC0", "vec3"), attribute("aC1", "vec3"), U);
-    const pulse = pow(fract(U.sub(t.mul(0.12)).add(K.mul(7.3))), 18).mul(1.6);
+    // warm gold travelling from being to being: compassion as a current, not a wire
+    const col = mix(mix(attribute("aC0", "vec3"), attribute("aC1", "vec3"), U), vec3(1, 0.52, 0.16), 0.72);
+    const pulse = pow(fract(U.sub(t.mul(0.16)).add(K.mul(7.3))), 14).mul(1.8).add(pow(fract(U.mul(-1).sub(t.mul(0.11)).add(K.mul(3.1))), 22).mul(1.1));
     const ends = smoothstep(0.0, 0.08, U).mul(smoothstep(1.0, 0.92, U)); // they melt into the hearts
-    const threadMat = keepAlpha(ribbonMaterial(col.mul(float(0.16).add(pulse)).mul(ends).mul(uThreads), 0.9));
+    const threadMat = keepAlpha(ribbonMaterial(col.mul(float(0.1).add(pulse).add(wave(positionGeometry).mul(0.8))).mul(ends).mul(uThreads).mul(0.55), 1.1));
     const threads = new THREE.Mesh(geo, threadMat);
     threads.frustumCulled = false;
     g.add(threads);
@@ -317,6 +347,7 @@ export function createDensityRoom4Scene(
       clock.tick(d);
       applyAir(air);
       uThreads.value = damp(uThreads.value, goal.threads, 0.12, d);
+      uWaves.value = damp(uWaves.value, Math.min(1.3, 0.6 + uThreads.value * 0.45), 0.2, d);
       uTowers.value = damp(uTowers.value, goal.towers, 0.15, d);
       uPortal.value = damp(uPortal.value, goal.portal, 0.15, d);
       self = damp(self, goal.self, 0.15, d);
@@ -333,7 +364,7 @@ export function createDensityRoom4Scene(
         }
         hearts[i].set(p.x, p.act === "sit" ? 0.85 : 1.25, p.z);
         if (b) {
-          b.root.position.set(p.x, 0, p.z);
+          b.root.position.set(p.x, Math.sin(time * 0.55 + b.ph) * 0.05, p.z); // breathing, rising and falling
           b.root.rotation.y = p.face;
           b.mixer?.update(d);
           for (const m of b.mats) tickLightBody(m, time + b.ph);
