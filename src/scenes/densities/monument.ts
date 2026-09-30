@@ -349,6 +349,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
   return [
     {
       id: "lobby",
+      focus: [[0, 3, -10]],
       title: "",
       make: async (scene) => lobby(scene, seen),
       start: { x: 0, z: 10.5, heading: Math.PI },
@@ -372,6 +373,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
     },
     {
       id: "room0",
+      focus: [[0, 2, -15]],
       title: "The beginning",
       make: mk(() => import("./room_0"), "createDensityRoom0Scene"),
       start: { x: 0, z: 1.5, heading: Math.PI },
@@ -383,6 +385,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
     },
     {
       id: "room1",
+      focus: [[-3, 5, -40], [8, 3, -20]],
       title: "The first density",
       make: async (scene, nar, wh) => {
         const mod = await import("./room_1");
@@ -397,6 +400,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
     },
     {
       id: "room2",
+      focus: [[2, 4, -30], [-10, 2, -18]],
       title: "The second density",
       make: async (scene, nar, wh) => {
         const mod = await import("./room_2");
@@ -411,6 +415,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
     },
     {
       id: "room3",
+      focus: [[-5.2, 1.3, -12], [5.6, 2.8, -13.5], [0, 2.6, -32]],
       title: "The third density",
       make: mk(() => import("./room_3"), "createRoom3Scene"),
       start: { x: 0, z: 3.4, heading: Math.PI },
@@ -420,6 +425,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
     },
     {
       id: "room4",
+      focus: [[-1, 2.2, -18], [0, 1.3, -14], [19, 20, -34]],
       title: "The fourth density",
       make: mk(() => import("./room_4"), "createDensityRoom4Scene"),
       start: { x: 0, z: 0, heading: Math.PI },
@@ -429,6 +435,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
     },
     {
       id: "room5",
+      focus: [[0, 9, -16]],
       title: "The fifth density",
       make: mk(() => import("./room_5"), "createDensity5Scene"),
       start: { x: 0, z: 0, heading: Math.PI },
@@ -438,6 +445,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
     },
     {
       id: "room6",
+      focus: [[0, 2, -18]],
       title: "The sixth density",
       make: mk(() => import("./room_6"), "createDensityRoom6Scene"),
       start: { x: 0, z: 0, heading: Math.PI },
@@ -447,6 +455,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
     },
     {
       id: "room7",
+      focus: [[0, 1.6, -52]],
       title: "The seventh density",
       make: mk(() => import("./room_7"), "createDensity7", [new THREE.Vector3(0, 0, 0), 0]),
       start: { x: 0, z: -1, heading: Math.PI },

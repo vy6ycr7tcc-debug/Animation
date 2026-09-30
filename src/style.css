@@ -541,7 +541,7 @@ input, textarea { -webkit-user-select: text; user-select: text; }
   background: rgba(14, 12, 34, 0.62); border: 1px solid var(--line);
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); animation: rise 0.8s ease;
 }
-#tp[hidden], #tp-source[hidden], #about[hidden] { display: none; }
+#tp[hidden], #tp-source[hidden], #about[hidden], #howto[hidden] { display: none; }
 #tp-head { display: flex; align-items: flex-start; gap: 6px; }
 #tp-title { flex: 1; margin: 2px 0 0; font-size: 14px; font-style: italic; }
 #tp-close, #tp-fold { width: 32px; height: 32px; margin: -4px -4px 0 0; font-size: 20px; color: var(--dim); }
@@ -572,18 +572,21 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 #tp-mini-back { left: 10px; top: 4px; width: 40px; height: 40px; font-size: 18px; color: var(--dim); }
 #tp-mini-next { right: 10px; top: 4px; width: 40px; height: 40px; font-size: 20px; color: var(--dim); }
 #tp-mini-open { left: 60px; top: 53px; width: 32px; height: 22px; font-size: 15px; line-height: 1; color: var(--gold); }
-#tp-source, #about {
+#tp-source, #about, #howto {
   position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 30;
   width: min(92vw, 30em); max-height: 78vh; overflow-y: auto; padding: 18px 20px 14px; border-radius: 18px;
   background: var(--panel); border: 1px solid var(--line); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   -webkit-user-select: text; user-select: text;
 }
-#tp-source-title, #about-title { margin: 0 0 6px; font-style: italic; color: var(--gold); font-size: 17px; }
+#tp-source-title, #about-title, #howto-title { margin: 0 0 6px; font-style: italic; color: var(--gold); font-size: 17px; }
 #tp-source .note, #about .note { font-size: 13px; color: var(--dim); }
 #tp-source-list { margin: 8px 0; padding-left: 18px; font-size: 13px; color: var(--dim); }
 #tp-source-text { margin: 10px 0; font-size: 15px; line-height: 1.6; white-space: pre-wrap; }
 #about p { font-size: 14px; line-height: 1.55; }
-#tp-source-close, #about-close { margin-top: 6px; min-height: 40px; color: var(--gold); font-style: italic; }
+#howto dl { margin: 6px 0 8px; }
+#howto dt { font-size: 14px; color: var(--gold); margin-top: 10px; }
+#howto dd { margin: 2px 0 0; font-size: 14px; line-height: 1.5; color: var(--pearl); }
+#tp-source-close, #about-close, #howto-close { margin-top: 6px; min-height: 40px; color: var(--gold); font-style: italic; }
 
 /* ---- the guide: where would you like to go? ---- */
 #guide {

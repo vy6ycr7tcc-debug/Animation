@@ -23,6 +23,12 @@ export class FollowCamera {
   /** Diving: the camera follows below the surface, and may look up. */
   underwater = false;
   private seatK = 0;
+  /** 0..1 contemplation: the view from the wanderer's own eyes (its body gone), turned slowly
+      toward `gaze` (what moves nearby), or straight ahead when there is none. */
+  inward = 0;
+  gaze: THREE.Vector3 | null = null;
+  private gazeAt = new THREE.Vector3();
+  private gazeHeld = false;
 
   constructor(public cam: THREE.PerspectiveCamera) {}
 
@@ -103,6 +109,16 @@ export class FollowCamera {
       this.cam.position.lerp(side, s);
       look.lerp(low, s);
     }
+    if (this.inward > 0.001) {
+      const eye = new THREE.Vector3(player.x, player.y + 1.6, player.z);
+      const ahead = eye.clone().add(new THREE.Vector3(-Math.sin(this.yaw) * 20, 0.8, -Math.cos(this.yaw) * 20));
+      if (!this.gazeHeld) (this.gazeAt.copy(look), (this.gazeHeld = true));
+      // the gaze glides from one thing to the next, never snaps
+      this.gazeAt.lerp(this.gaze ?? ahead, Math.min(1, dt * 0.4));
+      const s = THREE.MathUtils.smoothstep(this.inward, 0, 1);
+      this.cam.position.lerp(eye, s);
+      look.lerp(this.gazeAt, s);
+    } else this.gazeHeld = false;
     this.cam.lookAt(look);
   }
 }

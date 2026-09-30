@@ -51,6 +51,8 @@ export interface Stage {
   air?: Air;
   /** The room sets its own air each frame. */
   ownAir?: boolean;
+  /** Where contemplation turns the view, in turn (the room's own frame): what moves there. */
+  focus?: [number, number, number][];
   /** The room was drawn around its seat, somewhere else: move it so the seat is at the origin. */
   centreOnSeat?: boolean;
 }
@@ -140,6 +142,12 @@ export class Journey {
     private host: JourneyHost,
   ) {}
 
+  /** Contemplation's points of interest in this room (world), or none. */
+  focus(): THREE.Vector3[] {
+    const s = this.stage;
+    if (!this.inside || !s?.focus) return [];
+    return s.focus.map(([x, y, z]) => new THREE.Vector3(JOURNEY_ORIGIN.x + x, this.floorAt(JOURNEY_ORIGIN.x + x, JOURNEY_ORIGIN.z + z) + y, JOURNEY_ORIGIN.z + z));
+  }
   get stage(): Stage | null {
     return this.at >= 0 ? this.stages[this.at] : null;
   }

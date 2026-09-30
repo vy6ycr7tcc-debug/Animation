@@ -148,6 +148,23 @@
   <div id="tp-source-text"></div>
   <button id="tp-source-close" type="button">Close</button>
 </div>
+<div id="howto" role="dialog" aria-labelledby="howto-title" hidden>
+  <p id="howto-title">How to play</p>
+  <dl>
+    <dt>The stick, lower left</dt><dd>Put your thumb anywhere low on the left. Push a little to walk, further to run.</dd>
+    <dt>Look</dt><dd>Drag anywhere else to look around. Tap the land and you walk there.</dd>
+    <dt>The round button</dt><dd>Tap to jump. Hold to take off and rise; let go to glide. In flight a tap is a wingbeat. In water it dives and rises.</dd>
+    <dt>The word beside it</dt><dd>What you can do here: Land, Dive, Floor, Surface.</dd>
+    <dt>Hold on something</dt><dd>A tree, a rock, a crystal or the ground: you go and lay your hands on it. Hold on your own heart for the genesis of light.</dd>
+    <dt>Planets, stars, fruit, crystals</dt><dd>Tap one to hear the voice it keeps.</dd>
+    <dt>The half-moon, top right</dt><dd>The narration player: play or pause, back 15 seconds, next. Its card has "Only nature" to rest every voice.</dd>
+    <dt>↺ Hear again</dt><dd>In the monuments' rooms, starts the room's voice from the beginning.</dd>
+    <dt>Contemplation</dt><dd>Be still for about fifteen seconds and you become your own eyes, turned toward whatever moves nearby. Touch anywhere to return.</dd>
+    <dt>Quiet screen</dt><dd>When you don't touch the screen the controls fade away. Any touch brings them back.</dd>
+    <dt>⋮</dt><dd>The map, the guide who walks you to places, autofly, sound and settings.</dd>
+  </dl>
+  <button id="howto-close" type="button">Close</button>
+</div>
 <div id="about" role="dialog" aria-labelledby="about-title" hidden>
   <p id="about-title">About</p>
   <p>Some narrations in this world are interpretive adaptations of channeled material from the L/L Research archive, voiced by AI. They are artistic interpretations, not the channeling itself. This is an independent work, not affiliated with or endorsed by L/L Research. The complete archive is freely available at llresearch.org.</p>
@@ -177,6 +194,7 @@
     </div>
     <div class="menu-sec">
       <label class="check"><input id="freefly" type="checkbox"> Free flight: fly where you look</label>
+      <label class="check"><input id="contemplate" type="checkbox" checked> Contemplation when still</label>
       <label class="check"><input id="awake" type="checkbox" checked> Keep the screen awake</label>
       <label class="check"><input id="reduced" type="checkbox"> Reduce motion</label>
     </div>
@@ -186,6 +204,7 @@
         <div id="offline-bar"></div>
         <p id="offline-text" class="note">0%</p>
       </div>
+      <button id="howto-open" type="button" class="menu-row">How to play</button>
       <button id="about-open" type="button" class="menu-row">About</button>
     </div>
     <div class="menu-foot">

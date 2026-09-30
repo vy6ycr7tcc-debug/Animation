@@ -1570,9 +1570,10 @@ function journeyHost(hall: Hall): JourneyHost {
       audio.setTemple(on, false);
     },
     outside: () => hall.outside(),
-    presence: (k) => (wanderer.presence = k),
+    presence: (k) => (hallPresence = k),
   };
 }
+let hallPresence = 1; // a room's own say in how much of the wanderer is there (the seventh fades it)
 const halls: { hall: Hall; journey: Journey; lit: number }[] = [];
 {
   const dj: Journey = new Journey("densities", densityStages(() => dj.seen), journeyHost(densityHall));
@@ -1649,6 +1650,45 @@ function calmFrame(): void {
   calm = want;
   document.body.classList.toggle("calm", calm);
   if (calm && !$("#tp").hidden) tp.fold();
+}
+
+/* Contemplation (the owner: "the character goes away and it becomes first person and the view
+   is centred around animations if any, like in the rooms… triggered by not touching the
+   controls"): after a long stillness the wanderer fades and the view becomes its own eyes, turning
+   slowly from one thing that moves to the next (a room's points of interest; out in the world the
+   vision of creation when near, else straight ahead). Any touch brings the body back. */
+let inwardOn = true, inwardK = 0, gazeI = 0, gazeFor = 0, toldInward = false;
+try {
+  inwardOn = localStorage.getItem("inward-journey:contemplate") !== "0";
+  toldInward = localStorage.getItem("inward-journey:contemplate-told") === "1";
+} catch {
+  /* no storage: on */
+}
+const INWARD_AFTER = 15000;
+function contemplationFrame(dt: number): void {
+  const idle = performance.now() - lastTouch > INWARD_AFTER && Math.hypot(input.move.x, input.move.y) < 0.05 && !input.hold;
+  const want = inwardOn && idle && S.mode === "play" && !startMap.isOpen && $("#menu").hidden && player.speed < 0.3 &&
+    !player.flying && !player.diving && !follow.underwater && !autofly.active && !genesis.active && !crossing &&
+    sitting.phase === "none" && !tourScenes.movementHeld && !document.body.classList.contains("touring");
+  inwardK += ((want ? 1 : 0) - inwardK) * Math.min(1, dt * (want ? 0.35 : 3));
+  if (inwardK < 0.002 && !want) inwardK = 0;
+  follow.inward = inwardK;
+  wanderer.presence = hallPresence * (1 - inwardK);
+  if (want && inwardK > 0.5 && !toldInward) {
+    toldInward = true;
+    whisper("Contemplation: touch anywhere to return", 6000);
+    try {
+      localStorage.setItem("inward-journey:contemplate-told", "1");
+    } catch {
+      /* fine */
+    }
+  }
+  if (!want) return void (follow.gaze = null);
+  let pts = inHall()?.journey.focus() ?? [];
+  if (!pts.length && !apart() && player.pos.distanceTo(vision.group.position) < 70) pts = [vision.group.position.clone().setY(vision.group.position.y + 3)];
+  gazeFor += dt;
+  if (gazeFor > 20) (gazeFor = 0), gazeI++;
+  follow.gaze = pts.length ? pts[gazeI % pts.length] : null;
 }
 
 /** In a place apart (the temple, the deep archive, the pyramid): the open world rests. */
@@ -1998,6 +2038,25 @@ $("#about-open").addEventListener("click", () => {
   $<HTMLButtonElement>("#about-close").focus();
 });
 $("#about-close").addEventListener("click", () => ($("#about").hidden = true));
+$("#howto-open").addEventListener("click", () => {
+  setMenu(false);
+  $("#howto").hidden = false;
+  $<HTMLButtonElement>("#howto-close").focus({ preventScroll: true });
+  $("#howto").scrollTop = 0;
+});
+$("#howto-close").addEventListener("click", () => ($("#howto").hidden = true));
+{
+  const box = $<HTMLInputElement>("#contemplate");
+  box.checked = inwardOn;
+  box.addEventListener("change", () => {
+    inwardOn = box.checked;
+    try {
+      localStorage.setItem("inward-journey:contemplate", inwardOn ? "1" : "0");
+    } catch {
+      /* fine */
+    }
+  });
+}
 
 /* ---- The guide: tell it where you'd like to go, and it leads the way ---- */
 const guide = new Guide();
@@ -2563,6 +2622,7 @@ function update(dt: number): void {
   journeyFrame(dt);
   busyFrame();
   calmFrame();
+  contemplationFrame(realDt);
   if (!apart()) {
     const vd = player.pos.distanceTo(vision.group.position);
     vision.update(dt, vd < 420, S.reduced);
