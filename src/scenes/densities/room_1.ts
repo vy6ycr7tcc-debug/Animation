@@ -204,23 +204,33 @@ export function createDensityRoom1Scene(
     }
 
     /* ---------------- the sparks: consciousness resting in matter ---------------- */
-    {
-      const n = sparkPos.length;
-      const s = pointCloud(n, 0.34);
-      const light = VOLCANO.clone().setY(VOLCANO_H);
+    // each spark drawn as a bright core, a soft halo about it, and, as it leans, a short trail of
+    // itself reaching toward the fire (the owner: larger, and visibly leaning as they are named)
+    const light = VOLCANO.clone().setY(VOLCANO_H);
+    for (const [size, layer, reps] of [[0.62, 0, 3], [2.4, 1, 1]] as [number, number, number][]) {
+      const n = sparkPos.length * reps;
+      const s = pointCloud(n, size);
       sparkPos.forEach((p, i) => {
-        s.pos.set([p.x, p.y, p.z], i * 3);
         const d = light.clone().sub(p).normalize();
-        s.k.set([d.x, d.y, d.z, R()], i * 4);
+        const ph = R();
+        for (let r = 0; r < reps; r++) {
+          s.pos.set([p.x, p.y, p.z], (i * reps + r) * 3);
+          // aK: the way to the light, and (w) its own phase + which sample along its reach
+          s.k.set([d.x, d.y, d.z, ph + r * 10], (i * reps + r) * 4);
+        }
       });
       touch(s.cloud);
       const K = s.cloud.nodes.aK, base = s.cloud.nodes.position;
-      // each breathes on its own clock; awake, it glows; then it leans, barely, toward the light
-      const ph = K.w.mul(40);
-      const breathe = sin(t.mul(float(0.35).add(K.w.mul(0.3))).add(ph)).mul(0.35).add(0.65);
-      const lean = uLean.mul(0.45).mul(sin(t.mul(0.2).add(ph)).mul(0.3).add(0.7));
-      s.material.positionNode = base.add(K.xyz.mul(lean));
-      s.material.colorNode = vec4(vec3(1.0, 0.76, 0.42).mul(s.round).mul(breathe).mul(uSpark).mul(1.3), 1);
+      const rep = T.floor(K.w.div(10)), phase = fract(K.w);
+      const ph = phase.mul(40);
+      const breathe = sin(t.mul(float(0.35).add(phase.mul(0.3))).add(ph)).mul(0.35).add(0.65);
+      // leaning: a slow reach out toward the light and back, each at its own moment
+      const reach = uLean.mul(sin(t.mul(0.22).add(ph)).mul(0.5).add(0.5).mul(1.6).add(0.3));
+      const along = float(1).sub(rep.mul(0.35)); // the trail: the same spark a little behind
+      s.material.positionNode = base.add(K.xyz.mul(reach.mul(along)));
+      const trailDim = float(1).sub(rep.mul(0.38));
+      const lum = layer === 0 ? breathe.mul(trailDim).mul(1.5) : breathe.mul(0.16);
+      s.material.colorNode = vec4(vec3(1.0, 0.74, 0.4).mul(s.round).mul(lum).mul(uSpark), 1);
       g.add(s.cloud.sprite);
       ours.push(s.material);
     }
