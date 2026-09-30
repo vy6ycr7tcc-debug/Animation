@@ -8,7 +8,7 @@
 import * as THREE from "three/webgpu";
 import type { AudioEngine } from "../core/audio";
 import { softPoints, spriteCloud, T, viewDepth, withFog, type N, type SpriteCloud } from "../gpu/tsl";
-import { fbm, groundKind, heightAt, LANDMARK_SITES, WATER_Y } from "./terrain";
+import { fbm, gladeAt, groundKind, heightAt, LANDMARK_SITES, WATER_Y } from "./terrain";
 
 export interface LifeFrame {
   t: number;
@@ -88,7 +88,7 @@ export class Sparks {
 
 /* ---------------------------------------------------------------- grass of light */
 const TILE = 16;
-const BLADES_PER_TILE = 110; // sparse tufts: the ground's own texture carries the land (lighter on the phone)
+const BLADES_PER_TILE = 60; // a few tufts: the ground's own texture carries the land (lighter on the phone)
 const GRASS_RING = 2; // 5 × 5 tiles around the wanderer
 const TRAIL = 20;
 
@@ -322,8 +322,9 @@ export class Flowers {
     const key = `${i},${j}`;
     if (this.known.has(key)) return this.known.get(key)!;
     let f: Flower | null = null;
-    if (cellHash(i, j, 1) < 0.2) { // a few, here and there (fewer is lighter, and each one counts)
-      const x = (i + 0.2 + cellHash(i, j, 2) * 0.6) * CELL, z = (j + 0.2 + cellHash(i, j, 3) * 0.6) * CELL;
+    const x = (i + 0.2 + cellHash(i, j, 2) * 0.6) * CELL, z = (j + 0.2 + cellHash(i, j, 3) * 0.6) * CELL;
+    // only in the glades, and thick there
+    if (gladeAt(x, z) > 0 && cellHash(i, j, 1) < 0.85) {
       const h = heightAt(x, z);
       const k = groundKind(x, z, h);
       if (h > WATER_Y + 0.3 && k.meadow > 0.15) {
@@ -356,7 +357,7 @@ export class Flowers {
       if (d < 1.7 && fl.open < 0.2 && f.t - fl.openedAt > 8) {
         // brushing past: it blooms, sings its note, and lets go a few sparks
         fl.openedAt = f.t;
-        this.audio.bell(SCALE[fl.note], 0.035, 3.5);
+        this.audio.bowl(SCALE[fl.note] * 0.5 < 220 ? SCALE[fl.note] : SCALE[fl.note] * 0.5, 0.012, undefined, 6); // a soft singing bowl, not a ting
         this.sparks.emit(this.tmp.set(fl.x, fl.y + 0.4, fl.z), 7, new THREE.Color(1, 0.85, 0.6), 0.5);
       }
       const want = f.t - fl.openedAt < 22 ? 1 : 0;

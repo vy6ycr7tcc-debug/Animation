@@ -64,6 +64,10 @@ export class Controller {
   /** Coming in to land: a smooth, steady descent until the feet touch the ground. */
   landing = false;
   private heldAir = 0;
+  /** Seconds since the feet left the ground (a jump still answers just after stepping off an edge). */
+  private airTime = 0;
+  /** A jump tapped just before touching down, kept a moment so it happens on landing. */
+  private jumpQueued = 0;
   /** How far below the surface the swimmer has dived (0 at the surface). */
   depth = 0;
   get diving(): boolean {
@@ -114,9 +118,15 @@ export class Controller {
       flying, a wingbeat lifts you a little. */
   jump(): void {
     if (this.swimming) return;
-    if (this.grounded) {
+    // forgiving, as good platform games are: a tap just after stepping off an edge still jumps,
+    // and one just before landing jumps as the feet touch
+    if (this.grounded || (this.airTime < 0.15 && this.vy <= 0 && !this.flying)) {
       this.vy = JUMP_V;
       this.grounded = false;
+      this.airTime = 1;
+      this.jumpQueued = 0;
+    } else if (!this.flying && this.vy < 0 && this.pos.y - heightAt(this.pos.x, this.pos.z) < 0.6) {
+      this.jumpQueued = 0.2;
     } else if (!this.flying) {
       this.flying = true;
       this.landing = false;
@@ -298,6 +308,16 @@ export class Controller {
       if (this.grounded) {
         this.gliding = false;
         this.heldAir = 0;
+        this.airTime = 0;
+        if (this.jumpQueued > 0) {
+          this.jumpQueued = 0;
+          this.vy = JUMP_V;
+          this.grounded = false;
+          this.airTime = 1;
+        }
+      } else {
+        this.airTime += dt;
+        this.jumpQueued = Math.max(0, this.jumpQueued - dt);
       }
     }
 

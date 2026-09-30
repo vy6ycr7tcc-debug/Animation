@@ -55,11 +55,18 @@ function peaks(x: number, z: number): number {
     if (Math.abs(dx) > p.r || Math.abs(dz) > p.r) continue;
     const d = Math.hypot(dx, dz) / p.r;
     if (d >= 1) continue;
-    // ridges and gullies running down from the summit, and a craggy surface
+    // a massif, not a cone: sharp ridges and gullies at three scales (ridged noise, each scale
+    // cut into by the one above), secondary summits, crags, and a steeper upper third
+    const rid = (n: number) => 1 - Math.abs(n * 2 - 1);
+    const r1 = rid(vnoise(x * 0.0045 + p.x * 0.001, z * 0.0045));
+    const r2 = rid(vnoise(x * 0.011 - 7, z * 0.011 + 3));
+    const r3 = rid(vnoise(x * 0.027 + 11, z * 0.027 - 5));
+    const ridged = r1 * r1 * 0.5 + r1 * r2 * r2 * 0.33 + r2 * r3 * 0.17;
     const ca = dx / (d * p.r + 1e-6), sa = dz / (d * p.r + 1e-6);
-    const ridge = 1 - Math.abs(vnoise(ca * 2.6 + p.x * 0.01, sa * 2.6 + d * 5) * 2 - 1);
+    const spur = 1 - Math.abs(vnoise(ca * 2.6 + p.x * 0.01, sa * 2.6 + d * 5) * 2 - 1);
     const t = 1 - d;
-    h += p.h * t * t * (0.7 + 0.42 * ridge) + (vnoise(x * 0.025, z * 0.025) - 0.5) * 16 * t;
+    const shape = Math.pow(t, 1.45) * (0.45 + 0.55 * ridged) * (0.8 + 0.3 * spur);
+    h += p.h * shape * 1.15 + (vnoise(x * 0.06, z * 0.06) - 0.5) * 7 * t + (vnoise(x * 0.025, z * 0.025) - 0.5) * 12 * t;
   }
   return h;
 }
@@ -220,6 +227,29 @@ export const KEEP_CLEAR: { x: number; z: number; r: number }[] = [
   { x: PYRAMID.x, z: PYRAMID.z, r: PYRAMID.half * 1.5 },
   { x: MONUMENT.x, z: MONUMENT.z, r: MONUMENT.r + 4 },
 ];
+/** The flower glades (the owner: "spots that are special with them… really well done, not
+    everywhere"): a glade beside each archetype's home, out of its stone ring, and three near the
+    shore where you begin. Only here do flowers grow; elsewhere the land is soil, stone and grass. */
+export const GLADES: { x: number; z: number; r: number }[] = (() => {
+  const out: { x: number; z: number; r: number }[] = [];
+  LANDMARK_SITES.forEach(([x, z], i) => {
+    if (LANDMARK_KINDS[i] === "deep") return;
+    const a = i * 2.39996;
+    out.push({ x: x + Math.cos(a) * 17, z: z + Math.sin(a) * 17, r: 11 });
+  });
+  for (const [dx, dz] of [[26, -18], [-30, -12], [8, -38]]) out.push({ x: SPAWN.x + dx, z: SPAWN.z + dz, r: 13 });
+  return out;
+})();
+/** 0 outside every glade, 1 at a glade's heart. */
+export const gladeAt = (x: number, z: number): number => {
+  let k = 0;
+  for (const g of GLADES) {
+    const d = Math.hypot(x - g.x, z - g.z);
+    if (d < g.r) k = Math.max(k, 1 - d / g.r);
+  }
+  return k;
+};
+
 export const keptClear = (x: number, z: number, pad = 0) => KEEP_CLEAR.some((k) => Math.hypot(x - k.x, z - k.z) < k.r + pad);
 
 const PADS = LANDMARK_SITES.map(([x, z], i) => {
@@ -324,6 +354,7 @@ const C = {
   meadowC: new THREE.Color("#6d5268"), // rose
   stone: new THREE.Color("#4b4563"),
   snow: new THREE.Color("#bcb9da"),
+  granite: new THREE.Color("#3b3942"), // the mountains' bare rock, dark under the snow
   snowHigh: new THREE.Color("#e2e4f2"), // the high snowfields, whiter
   earth: new THREE.Color("#5e4a3c"), // bare, warm earth
   loam: new THREE.Color("#46382f"),
@@ -659,7 +690,15 @@ export class Terrain {
       const k = groundKind(x, z, h);
       const region = fbm(x * 0.004 + 9, z * 0.004 - 4);
       this.col.copy(C.meadowA).lerp(C.meadowB, smooth(0.35, 0.6, region)).lerp(C.meadowC, smooth(0.6, 0.78, region));
-      this.col.lerp(this.tmp.copy(C.sand), k.sand).lerp(C.stone, k.stone).lerp(C.snow, smooth(40, 70, h)).lerp(C.snowHigh, smooth(110, 190, h));
+      this.col.lerp(this.tmp.copy(C.sand), k.sand).lerp(C.stone, k.stone);
+      // the mountains: bare dark rock on their steep faces, snow only where it can lie (gentler
+      // ground, higher up), its line ragged; the high snowfields whiter
+      const up = nor.getY(v);
+      const mount = smooth(25, 60, h);
+      this.col.lerp(C.granite, mount * smooth(0.9, 0.62, up));
+      const snowLine = 95 + (fbm(x * 0.01 + 3, z * 0.01 - 8) - 0.5) * 60;
+      const lies = smooth(snowLine, snowLine + 30, h) * smooth(0.58, 0.8, up);
+      this.col.lerp(C.snow, lies).lerp(C.snowHigh, lies * smooth(150, 230, h));
       // broad stretches of bare earth, warm and deeply textured
       const earth = smooth(0.42, 0.62, fbm(x * 0.005 + 123, z * 0.005 - 7)) * (1 - k.sand) * smooth(0.6, 2.5, h);
       this.tmp.copy(C.earth).lerp(C.loam, smooth(0.3, 0.7, fbm(x * 0.03 - 9, z * 0.03 + 4)));

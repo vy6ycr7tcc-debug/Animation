@@ -326,3 +326,212 @@ export function boundHand(n: number, R: Rand): Shape {
   }
   return combine(n, [[(m) => fist(m, R), 0.7], [(m) => cord(coil, m, R, 0.04), 0.3]]);
 }
+
+/* ---------------------------------------------------------------- symbols by meaning
+   The widely known sign for a concept, so an image says the idea at once: a lotus for peace and
+   awakening, a dove for peace, a broken chain for release, an anchor for hope and trust, a
+   butterfly for change, yin and yang for balance, the infinity sign for what never ends, praying
+   hands for gratitude, a mountain for steadiness, a wave for feeling, the crescent moon for rest,
+   a key for understanding, a compass for direction, a bridge for connection, the ensō (the zen
+   circle) for wholeness and the moment, the unalome for the path, a teardrop for grief, a house
+   for home. */
+const circlePts = (cx: number, cy: number, r: number, a0 = 0, a1 = Math.PI * 2, n = 40): [number, number][] =>
+  Array.from({ length: n + 1 }, (_, i) => [cx + Math.cos(a0 + ((a1 - a0) * i) / n) * r, cy + Math.sin(a0 + ((a1 - a0) * i) / n) * r] as [number, number]);
+
+/** A lotus: petals opening upward from a bowl of water-line. */
+export function lotus(n: number, R: Rand, cy = FORM_H * 0.35): Shape {
+  const parts: [(m: number) => Float32Array, number][] = [];
+  const petal = (ang: number, len: number, w: number) => {
+    const pts: [number, number][] = [];
+    for (let i = 0; i <= 16; i++) {
+      const t = i / 16, bulge = Math.sin(t * Math.PI) * w;
+      pts.push([Math.sin(ang) * t * len + Math.cos(ang) * bulge, cy + Math.cos(ang) * t * len - Math.sin(ang) * bulge]);
+    }
+    for (let i = 16; i >= 0; i--) {
+      const t = i / 16, bulge = Math.sin(t * Math.PI) * w;
+      pts.push([Math.sin(ang) * t * len - Math.cos(ang) * bulge, cy + Math.cos(ang) * t * len + Math.sin(ang) * bulge]);
+    }
+    return pts;
+  };
+  for (const [a, l, w] of [[0, 1.8, 0.42], [-0.55, 1.55, 0.38], [0.55, 1.55, 0.38], [-1.1, 1.25, 0.32], [1.1, 1.25, 0.32]] as const) parts.push([(m) => glyph(m, R, petal(a, l, w), 0.8), 0.17]);
+  parts.push([(m) => stroke(m, R, [[-1.9, cy - 0.1], [-0.8, cy - 0.3], [0.8, cy - 0.3], [1.9, cy - 0.1]], 0.04), 0.15]);
+  return combine(n, parts);
+}
+
+/** A dove in flight, an olive sprig held. */
+export function dove(n: number, R: Rand, cy = FORM_H * 0.55): Shape {
+  const body: [number, number][] = [[-1.2, 0.1], [-0.6, 0.35], [0.3, 0.3], [0.9, 0.5], [1.15, 0.42], [0.95, 0.25], [0.4, 0], [-0.5, -0.15], [-1.4, -0.35], [-1.1, -0.05]].map(([x, y]) => [x, y + cy] as [number, number]);
+  const wing: [number, number][] = [[-0.3, 0.3], [-0.6, 1.2], [0.1, 1.6], [0.5, 0.9], [0.2, 0.32]].map(([x, y]) => [x, y + cy] as [number, number]);
+  return combine(n, [[(m) => glyph(m, R, body, 0.8), 0.45], [(m) => glyph(m, R, wing, 0.8), 0.4], [(m) => stroke(m, R, [[1.1, cy + 0.35], [1.5, cy + 0.2], [1.75, cy + 0.3]], 0.03), 0.15]]);
+}
+
+/** A chain of links, broken in the middle: release. */
+export function brokenChain(n: number, R: Rand, cy = FORM_H * 0.5): Shape {
+  const parts: [(m: number) => Float32Array, number][] = [];
+  for (const [x, gap] of [[-1.8, 0], [-1.05, 0], [-0.45, 0.35], [0.45, -0.35], [1.05, 0], [1.8, 0]] as const) {
+    const pts: [number, number][] = [];
+    for (let i = 0; i <= 30; i++) {
+      const a = (i / 30) * Math.PI * 2;
+      pts.push([x + Math.cos(a) * 0.42, cy + Math.sin(a) * 0.24 + gap * 0.3]);
+    }
+    parts.push([(m) => stroke(m, R, gap ? pts.slice(0, 26) : pts, 0.05), 1 / 6]);
+  }
+  return combine(n, parts);
+}
+
+/** An anchor: hope, and what holds steady. */
+export function anchor(n: number, R: Rand): Shape {
+  const top = FORM_H * 0.78, bot = FORM_H * 0.18;
+  return combine(n, [
+    [(m) => stroke(m, R, circlePts(0, top + 0.28, 0.26), 0.05), 0.14],
+    [(m) => stroke(m, R, [[0, top], [0, bot]], 0.06), 0.28],
+    [(m) => stroke(m, R, [[-0.8, top - 0.45], [0.8, top - 0.45]], 0.05), 0.14],
+    [(m) => stroke(m, R, circlePts(0, bot + 1.1, 1.1, Math.PI * 1.08, Math.PI * 1.92, 30), 0.06), 0.34],
+    [(m) => stroke(m, R, [[-1.05, bot + 0.9], [-1.2, bot + 1.3], [-0.8, bot + 1.1]], 0.04), 0.05],
+    [(m) => stroke(m, R, [[1.05, bot + 0.9], [1.2, bot + 1.3], [0.8, bot + 1.1]], 0.04), 0.05],
+  ]);
+}
+
+/** A butterfly: change. */
+export function butterfly(n: number, R: Rand, cy = FORM_H * 0.55, open = 1): Shape {
+  const wing = (s: number, up: boolean) => {
+    const pts: [number, number][] = [];
+    for (let i = 0; i <= 30; i++) {
+      const a = (i / 30) * Math.PI;
+      const r = up ? 1.2 : 0.8;
+      pts.push([s * Math.sin(a) * r * open, cy + (up ? 0.1 : -0.1) + (up ? 1 : -1) * (1 - Math.cos(a)) * r * 0.55]);
+    }
+    return pts;
+  };
+  return combine(n, [
+    [(m) => glyph(m, R, wing(-1, true), 0.7), 0.26],
+    [(m) => glyph(m, R, wing(1, true), 0.7), 0.26],
+    [(m) => glyph(m, R, wing(-1, false), 0.7), 0.18],
+    [(m) => glyph(m, R, wing(1, false), 0.7), 0.18],
+    [(m) => stroke(m, R, [[0, cy - 0.7], [0, cy + 0.8]], 0.06), 0.12],
+  ]);
+}
+
+/** Yin and yang: balance. */
+export function yinYang(n: number, R: Rand, cy = FORM_H * 0.5, r = 1.6): Shape {
+  const s: [number, number][] = [...circlePts(0, cy + r / 2, r / 2, -Math.PI / 2, Math.PI / 2, 20).reverse(), ...circlePts(0, cy - r / 2, r / 2, Math.PI / 2, Math.PI * 1.5, 20)];
+  return combine(n, [
+    [(m) => stroke(m, R, circlePts(0, cy, r, 0, Math.PI * 2, 60), 0.05), 0.4],
+    [(m) => stroke(m, R, s, 0.05), 0.3],
+    [(m) => shift(sphere(m, R, 0.18, 0, 0.3), 0, cy + r / 2, 0), 0.15],
+    [(m) => stroke(m, R, circlePts(0, cy - r / 2, 0.18), 0.04), 0.15],
+  ]);
+}
+
+/** The infinity sign: what never ends. */
+export function infinity(n: number, R: Rand, cy = FORM_H * 0.5): Shape {
+  const pts: [number, number][] = [];
+  for (let i = 0; i <= 80; i++) {
+    const t = (i / 80) * Math.PI * 2, d = 1 + Math.sin(t) ** 2;
+    pts.push([(1.9 * Math.cos(t)) / d, cy + (1.9 * Math.sin(t) * Math.cos(t)) / d]);
+  }
+  return stroke(n, R, pts, 0.06);
+}
+
+/** Two hands pressed together, as in prayer: gratitude. */
+export function prayerHands(n: number, R: Rand): Shape {
+  const cy = FORM_H * 0.5;
+  const one = (s: number): [number, number][] => [[0, cy - 1.2], [s * 0.55, cy - 1.0], [s * 0.6, cy - 0.2], [s * 0.45, cy + 0.7], [s * 0.2, cy + 1.3], [0, cy + 1.4]];
+  return combine(n, [[(m) => glyph(m, R, one(-1), 0.75), 0.45], [(m) => glyph(m, R, one(1), 0.75), 0.45], [(m) => stroke(m, R, [[-0.9, cy - 1.3], [0.9, cy - 1.3]], 0.04), 0.1]]);
+}
+
+/** A mountain, its snow line: steadiness. */
+export function mountain(n: number, R: Rand): Shape {
+  const pts: [number, number][] = [[-2.3, 0.1], [-0.9, 2.2], [-0.4, 1.7], [0.3, 3.6], [1.4, 1.9], [2.3, 0.1]];
+  return combine(n, [[(m) => glyph(m, R, pts, 0.8), 0.8], [(m) => stroke(m, R, [[-0.2, 2.8], [0.1, 2.6], [0.4, 2.85], [0.75, 2.55]], 0.04), 0.2]]);
+}
+
+/** A wave rising and curling: feeling. */
+export function wave(n: number, R: Rand): Shape {
+  const pts: [number, number][] = [];
+  for (let i = 0; i <= 60; i++) {
+    const t = i / 60, x = -2.2 + t * 4.4;
+    pts.push([x, 1.4 + Math.sin(t * Math.PI * 1.5) * 0.9 * t]);
+  }
+  const curl = circlePts(1.5, 2.1, 0.55, -Math.PI / 2, Math.PI * 1.2, 24);
+  return combine(n, [[(m) => stroke(m, R, pts, 0.05), 0.55], [(m) => stroke(m, R, curl, 0.05), 0.25], [(m) => stroke(m, R, [[-2.2, 0.9], [2.2, 0.9]], 0.03), 0.2]]);
+}
+
+/** The crescent moon: night, and rest. */
+export function crescent(n: number, R: Rand, cy = FORM_H * 0.58): Shape {
+  const pts: [number, number][] = [...circlePts(0, cy, 1.4, Math.PI * 0.35, Math.PI * 1.65, 40), ...circlePts(0.6, cy, 1.15, Math.PI * 1.55, Math.PI * 0.45, 40)];
+  return glyph(n, R, pts, 0.75);
+}
+
+/** A key: understanding, the answer. */
+export function key(n: number, R: Rand, cy = FORM_H * 0.5): Shape {
+  return combine(n, [
+    [(m) => stroke(m, R, circlePts(-1.3, cy, 0.55), 0.05), 0.35],
+    [(m) => stroke(m, R, [[-0.75, cy], [1.8, cy]], 0.06), 0.4],
+    [(m) => stroke(m, R, [[1.3, cy], [1.3, cy - 0.5]], 0.05), 0.12],
+    [(m) => stroke(m, R, [[1.7, cy], [1.7, cy - 0.4]], 0.05), 0.13],
+  ]);
+}
+
+/** A compass rose: direction. */
+export function compass(n: number, R: Rand, cy = FORM_H * 0.5): Shape {
+  const star: [number, number][] = [];
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2, r = i % 4 === 0 ? 1.7 : i % 2 === 0 ? 0.75 : 0.35;
+    star.push([Math.sin(a) * r, cy + Math.cos(a) * r]);
+  }
+  return combine(n, [[(m) => glyph(m, R, star, 0.8), 0.7], [(m) => stroke(m, R, circlePts(0, cy, 1.25), 0.03), 0.3]]);
+}
+
+/** A bridge's arch over water: connection. */
+export function bridge(n: number, R: Rand): Shape {
+  return combine(n, [
+    [(m) => stroke(m, R, circlePts(0, 0.6, 2.2, Math.PI * 0.12, Math.PI * 0.88, 40), 0.07), 0.45],
+    [(m) => stroke(m, R, [[-2.4, 1.55], [2.4, 1.55]], 0.05), 0.3],
+    [(m) => stroke(m, R, [[-2.3, 0.35], [-1, 0.45], [0, 0.35], [1, 0.45], [2.3, 0.35]], 0.03), 0.25],
+  ]);
+}
+
+/** The ensō, the zen circle drawn in one breath: wholeness, the moment. */
+export function enso(n: number, R: Rand, cy = FORM_H * 0.5): Shape {
+  const out = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const t = R() * 0.93, a = Math.PI * 0.6 + t * Math.PI * 2;
+    const w = 0.05 + Math.sin(t * Math.PI) * 0.16; // the brush swells and thins
+    const r = 1.6 + (R() - 0.5) * w * 2;
+    out.set([Math.cos(a) * r, cy + Math.sin(a) * r, (R() - 0.5) * 0.08], i * 3);
+  }
+  return out;
+}
+
+/** The unalome: the winding path of a life, straightening toward awakening. */
+export function unalome(n: number, R: Rand): Shape {
+  const pts: [number, number][] = [];
+  for (let i = 0; i <= 60; i++) {
+    const t = i / 60, a = t * Math.PI * 6, r = 0.7 * (1 - t);
+    pts.push([Math.cos(a) * r, 0.4 + t * 1.6 + Math.sin(a) * r * 0.6]);
+  }
+  for (let i = 0; i <= 8; i++) {
+    const t = i / 8;
+    pts.push([Math.sin(t * Math.PI * 3) * 0.25 * (1 - t), 2.0 + t * 0.9]);
+  }
+  pts.push([0, 3.3]);
+  return combine(n, [[(m) => stroke(m, R, pts, 0.04), 0.85], [(m) => shift(sphere(m, R, 0.1, 0, 0.3), 0, 3.6, 0), 0.08], [(m) => shift(sphere(m, R, 0.08, 0, 0.3), 0, 3.95, 0), 0.07]]);
+}
+
+/** A teardrop: grief. */
+export function teardrop(n: number, R: Rand, cy = FORM_H * 0.5): Shape {
+  const pts: [number, number][] = [];
+  for (let i = 0; i <= 40; i++) {
+    const a = (i / 40) * Math.PI * 2;
+    const r = 0.9 * (1 - Math.sin(a) * 0.0);
+    pts.push([Math.sin(a) * r * Math.sin(a / 2), cy - Math.cos(a) * 1.2]);
+  }
+  return glyph(n, R, pts, 0.7);
+}
+
+/** A house with a lit window: home. */
+export function house(n: number, R: Rand): Shape {
+  const pts: [number, number][] = [[-1.4, 0.1], [-1.4, 1.7], [0, 3.0], [1.4, 1.7], [1.4, 0.1]];
+  return combine(n, [[(m) => stroke(m, R, [...pts, [-1.4, 0.1]], 0.06), 0.7], [(m) => shift(sphere(m, R, 0.3, 0, 0.5), 0, 1.2, 0), 0.3]]);
+}
