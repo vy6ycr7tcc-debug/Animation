@@ -373,7 +373,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
     },
     {
       id: "room0",
-      focus: [[0, 2, -15]],
+      focus: [[0, 4, -14], [0, 6, -30], [0, 1.3, 1.5]],
       title: "The beginning",
       make: mk(() => import("./room_0"), "createDensityRoom0Scene"),
       start: { x: 0, z: 1.5, heading: Math.PI },
@@ -382,6 +382,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
         { x: 0, z: 5, r: 1.6, to: 0, at: LOBBY_BACK },
       ],
       confine: box(-24, 24, -27, 6),
+      ownAir: true, // pitch black until the light
     },
     {
       id: "room1",
