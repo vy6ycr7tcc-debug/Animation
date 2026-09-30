@@ -228,17 +228,34 @@ export class AudioEngine {
     lap();
   }
 
-  /** Soft night tones: open fifths, very quiet, slowly breathing. */
+  /** The night's music (the owner: "really relaxing… but it can become a bit monotonous"; "any
+      sound that is sort of like Buddhism and meditation"). Never the same for long:
+      - a soft pad that drifts through a cycle of open modal chords on D, gliding from one to the
+        next every 40–80 s;
+      - now and then a singing bowl struck somewhere near, its partials beating slowly;
+      - soft wind chimes in the pentatonic, a few notes at a time;
+      - rarely, a distant temple bell;
+      - a tanpura-like drone that comes for a few minutes and goes again.
+      All very quiet, above ~200 Hz (phone speakers), through the night's reverb. */
   private startTones(): void {
     const c = this.ctx!;
     const lp = c.createBiquadFilter();
     lp.type = "lowpass";
-    lp.frequency.value = 1400;
+    lp.frequency.value = 1500;
     const out = c.createGain();
     out.gain.value = 1;
     lp.connect(out).connect(this.worldDry);
     out.connect(this.worldWet);
-    [293.66, 440, 554.37, 880].forEach((f, i) => {
+    // the pad: four voices, each gliding to its note in the next chord
+    const CHORDS = [
+      [293.66, 440, 554.37, 880], // D A C# A (the old open fifths)
+      [293.66, 392, 587.33, 739.99], // D G D F# (Gmaj over D)
+      [246.94, 369.99, 493.88, 587.33], // B F# B D (Bm)
+      [220, 329.63, 440, 659.25], // A E A E (open A)
+      [261.63, 392, 523.25, 659.25], // C G C E (C, the flat seventh's colour)
+      [293.66, 440, 587.33, 659.25], // D A D E (Dsus2)
+    ];
+    const voices = CHORDS[0].map((f, i) => {
       const o = c.createOscillator();
       o.type = i % 2 ? "sine" : "triangle";
       o.frequency.value = f;
@@ -258,7 +275,144 @@ export class AudioEngine {
       o.start();
       l.start();
       bias.start();
+      return o;
     });
+    let chord = 0;
+    const nextChord = () => {
+      if (!this.ctx) return;
+      chord = (chord + 1 + (Math.random() < 0.3 ? 1 : 0)) % CHORDS.length;
+      const t = this.ctx.currentTime;
+      voices.forEach((o, i) => {
+        o.frequency.cancelScheduledValues(t);
+        o.frequency.setValueAtTime(o.frequency.value, t);
+        o.frequency.exponentialRampToValueAtTime(CHORDS[chord][i], t + 8 + i * 2);
+      });
+      window.setTimeout(nextChord, 40000 + Math.random() * 40000);
+    };
+    window.setTimeout(nextChord, 30000);
+    this.startSoundscape(lp);
+  }
+
+  /** The things that come and go over the pad: bowls, chimes, a far bell, the drone. */
+  private startSoundscape(into: AudioNode): void {
+    const c = this.ctx!;
+    const PENTA = [587.33, 659.25, 739.99, 880, 987.77, 1174.66, 1318.51, 1479.98]; // D major pentatonic, high
+    const BOWLS = [293.66, 329.63, 369.99, 440, 493.88];
+    const later = (min: number, max: number, fn: () => void) => window.setTimeout(fn, (min + Math.random() * (max - min)) * 1000);
+    // a singing bowl, every half minute or so
+    const bowlLoop = () => {
+      if (!this.inTemple) this.bowl(BOWLS[Math.floor(Math.random() * BOWLS.length)], 0.018 + Math.random() * 0.01, into);
+      later(25, 70, bowlLoop);
+    };
+    later(12, 30, bowlLoop);
+    // wind chimes: a few soft notes, stirred by a breeze
+    const chimeLoop = () => {
+      if (!this.inTemple) {
+        const n = 3 + Math.floor(Math.random() * 5);
+        for (let k = 0; k < n; k++) {
+          window.setTimeout(() => this.chime(PENTA[Math.floor(Math.random() * PENTA.length)], 0.006 + Math.random() * 0.005, into), k * (180 + Math.random() * 420));
+        }
+      }
+      later(40, 120, chimeLoop);
+    };
+    later(20, 60, chimeLoop);
+    // rarely, a temple bell far away
+    const farBell = () => {
+      if (!this.inTemple) this.bowl(220, 0.02, into, 14, true);
+      later(150, 330, farBell);
+    };
+    later(90, 180, farBell);
+    // the drone: a few minutes, then gone for a while
+    const drone = this.tanpura(into);
+    const droneLoop = (on: boolean) => {
+      const t = c.currentTime;
+      drone.gain.cancelScheduledValues(t);
+      drone.gain.setValueAtTime(drone.gain.value, t);
+      drone.gain.linearRampToValueAtTime(on ? 1 : 0, t + 25);
+      later(on ? 120 : 150, on ? 240 : 360, () => droneLoop(!on));
+    };
+    later(60, 120, () => droneLoop(true));
+  }
+
+  /** A singing bowl (or, `far`, a temple bell a long way off): inharmonic partials, each a
+      pair a hair apart so they beat slowly, a long bloom and fade. */
+  bowl(f: number, gain: number, into?: AudioNode, dur = 9, far = false): void {
+    if (!this.ctx) return;
+    const c = this.ctx, t = c.currentTime;
+    const dest = into ?? this.fx;
+    const lp = c.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = far ? 1400 : 4000;
+    lp.connect(dest);
+    for (const [m, a] of [[1, 1], [2.71, 0.45], [5.12, 0.18], [8.4, 0.06]] as const) {
+      for (const beat of [-0.6, 0.6]) {
+        const o = c.createOscillator();
+        o.frequency.value = f * m + beat * m;
+        const g = c.createGain();
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(gain * a * 0.5, t + (far ? 0.4 : 0.03));
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur / Math.sqrt(m));
+        o.connect(g).connect(lp);
+        o.start(t);
+        o.stop(t + dur + 0.2);
+      }
+    }
+    window.setTimeout(() => lp.disconnect(), (dur + 1) * 1000);
+  }
+
+  /** One chime: a bright, short-lived note with a glassy overtone. */
+  private chime(f: number, gain: number, into: AudioNode): void {
+    const c = this.ctx!, t = c.currentTime;
+    for (const [m, a] of [[1, 1], [3.01, 0.25]] as const) {
+      const o = c.createOscillator();
+      o.frequency.value = f * m;
+      const g = c.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(gain * a, t + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 3.2 / m);
+      o.connect(g).connect(into);
+      o.start(t);
+      o.stop(t + 3.5);
+    }
+  }
+
+  /** A tanpura-like drone on D and A: soft buzzing strings plucked in turn, their overtones
+      opening slowly through a shifting filter. Returns its gain (0 to start). */
+  private tanpura(into: AudioNode): GainNode {
+    const c = this.ctx!;
+    const g = c.createGain();
+    g.gain.value = 0;
+    const bp = c.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 900;
+    bp.Q.value = 0.8;
+    const sweep = c.createOscillator(), sg = c.createGain();
+    sweep.frequency.value = 0.07;
+    sg.gain.value = 500;
+    sweep.connect(sg).connect(bp.frequency);
+    sweep.start();
+    bp.connect(g).connect(into);
+    const strings = [220, 293.66, 293.66, 146.83 * 2]; // Pa Sa Sa Sa (A D D D)
+    let k = 0;
+    const pluck = () => {
+      if (!this.ctx) return;
+      window.setTimeout(pluck, 1150);
+      if (g.gain.value < 0.005 || this.inTemple) return; // resting: no strings struck
+      const t = this.ctx.currentTime, f = strings[k++ % strings.length];
+      const o = c.createOscillator();
+      o.type = "sawtooth";
+      o.frequency.value = f;
+      const e = c.createGain();
+      e.gain.setValueAtTime(0, t);
+      e.gain.linearRampToValueAtTime(0.004, t + 0.08);
+      e.gain.exponentialRampToValueAtTime(0.0008, t + 3.5);
+      e.gain.exponentialRampToValueAtTime(0.0001, t + 5);
+      o.connect(e).connect(bp);
+      o.start(t);
+      o.stop(t + 5.1);
+    };
+    pluck();
+    return g;
   }
 
   /* ---------- the temple ---------- */

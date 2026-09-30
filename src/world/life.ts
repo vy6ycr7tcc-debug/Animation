@@ -356,7 +356,7 @@ export class Flowers {
       if (d < 1.7 && fl.open < 0.2 && f.t - fl.openedAt > 8) {
         // brushing past: it blooms, sings its note, and lets go a few sparks
         fl.openedAt = f.t;
-        this.audio.bell(SCALE[fl.note], 0.035, 3.5);
+        this.audio.bowl(SCALE[fl.note] * 0.5 < 220 ? SCALE[fl.note] : SCALE[fl.note] * 0.5, 0.012, undefined, 6); // a soft singing bowl, not a ting
         this.sparks.emit(this.tmp.set(fl.x, fl.y + 0.4, fl.z), 7, new THREE.Color(1, 0.85, 0.6), 0.5);
       }
       const want = f.t - fl.openedAt < 22 ? 1 : 0;
