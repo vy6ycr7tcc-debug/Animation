@@ -65,6 +65,9 @@ export class StartMap {
   private goBtn = document.getElementById("map-go") as HTMLButtonElement;
   private continueBtn = document.getElementById("map-continue") as HTMLButtonElement;
   private guideBtn = document.getElementById("map-guide") as HTMLButtonElement;
+  /** The walk-throughs (end to end, the narrations timed): a tab of their own, each marked once walked. */
+  tours: { id: string; label: string; walked: boolean }[] = [];
+  onTour: ((id: string) => void) | null = null;
   /** "Ask the guide" (while travelling): the map closes and the guide asks where to go. */
   onGuide: (() => void) | null = null;
   private places: Place[] = [];
@@ -173,7 +176,7 @@ export class StartMap {
 
   /** The places below the map, one group at a time behind a row of tabs (all of them at once
       were a long, confusing list). */
-  private tab: Group = "Shore";
+  private tab: Group | "Tours" = "Shore";
   private buildList(): HTMLElement[] {
     const tabs = document.createElement("div");
     tabs.className = "map-tabs";
@@ -181,10 +184,10 @@ export class StartMap {
     const body = document.createElement("div");
     body.className = "map-group";
     const shown = GROUPS.filter(({ g }) => g !== "Choice" && this.places.some((q) => q.group === g));
-    const show = (g: Group) => {
+    const show = (g: Group | "Tours") => {
       this.tab = g;
       for (const b of tabs.children) b.setAttribute("aria-selected", String((b as HTMLElement).dataset.g === g));
-      body.replaceChildren(...this.groupButtons(g), ...(g === "Spirit" ? this.groupButtons("Choice") : []));
+      body.replaceChildren(...(g === "Tours" ? this.tourButtons() : [...this.groupButtons(g), ...(g === "Spirit" ? this.groupButtons("Choice") : [])]));
     };
     for (const { g, title } of shown) {
       const b = document.createElement("button");
@@ -195,8 +198,30 @@ export class StartMap {
       b.addEventListener("click", () => show(g));
       tabs.append(b);
     }
-    show(shown.some(({ g }) => g === this.tab) ? this.tab : "Shore");
+    if (this.tours.length && this.closeBtn.hidden === false) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.setAttribute("role", "tab");
+      b.dataset.g = "Tours";
+      b.textContent = "Tours";
+      b.addEventListener("click", () => show("Tours"));
+      tabs.append(b);
+    }
+    show(this.tab === "Tours" ? (this.tours.length ? "Tours" : "Shore") : shown.some(({ g }) => g === this.tab) ? this.tab : "Shore");
     return [tabs, body];
+  }
+  /** Each walk-through: the whole way, end to end; "walked" once you have been all the way. */
+  private tourButtons(): HTMLElement[] {
+    return this.tours.map((t) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = t.walked ? `${t.label} · walked ✓` : t.label;
+      b.addEventListener("click", () => {
+        this.finish(null);
+        this.onTour?.(t.id);
+      });
+      return b;
+    });
   }
   private groupButtons(g: Group): HTMLElement[] {
     const out: HTMLElement[] = [];

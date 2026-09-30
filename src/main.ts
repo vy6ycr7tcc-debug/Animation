@@ -49,7 +49,7 @@ import { Touch } from "./world/touch";
 import { Depths, RUIN_NAMES, RUIN_SITES } from "./world/depths";
 import { Pyramid, DUAT_ORIGIN } from "./world/pyramid";
 import { Vision } from "./world/vision";
-import { Journey, inJourney, type Hall, type JourneyHost } from "./scenes/journey";
+import { Journey, JOURNEY_ORIGIN, inJourney, type Hall, type JourneyHost } from "./scenes/journey";
 import { AdeptMonument, adeptStages } from "./scenes/adept/monument";
 import { DensityMonument, densityStages } from "./scenes/densities/monument";
 import { cloudUniforms } from "./world/atmosphere";
@@ -1771,6 +1771,155 @@ function lessonUxFrame(dt: number): void {
   }
 }
 
+
+/* The walk-throughs (the owner: "a walk thru for all monuments and rooms… end to end with the
+   narrations well timed, then… another tab on map where you see walked tours"). A tour is the
+   monuments' rooms in order: it takes you in, lets each room's recording play to its end (a
+   moment's stillness after), walks you to the door onward and through it, and so on to the last,
+   then out into the world. The stick rests while it runs (as in the temple tour); "Skip ›" goes on
+   to the next room at once, "✕" ends it where you are. Walked tours are saved on the device and
+   marked on the map's Tours tab. */
+interface WalkStop { hall: number; stage: number }
+const WALKS: { id: string; label: string; stops: () => WalkStop[] }[] = [
+  { id: "densities", label: "The densities, end to end", stops: () => halls[0].journey.stages.map((_, i) => ({ hall: 0, stage: i })) },
+  { id: "adept", label: "The school of the adept, end to end", stops: () => halls[1].journey.stages.map((_, i) => ({ hall: 1, stage: i })) },
+  {
+    id: "all",
+    label: "Every monument, end to end",
+    stops: () => [0, 1].flatMap((h) => halls[h].journey.stages.map((_, i) => ({ hall: h, stage: i }))),
+  },
+];
+let walked = new Set<string>();
+try {
+  walked = new Set(JSON.parse(localStorage.getItem("inward-journey:walked") || "[]") as string[]);
+} catch {
+  /* nothing walked yet */
+}
+const walkPanel = Object.assign(document.createElement("div"), { id: "walk-panel", hidden: true });
+{
+  const mk = (text: string, cls: string, label: string) => {
+    const b = Object.assign(document.createElement("button"), { type: "button", textContent: text, className: cls });
+    b.setAttribute("aria-label", label);
+    return b;
+  };
+  const mid = Object.assign(document.createElement("div"), { className: "mid" });
+  mid.append(Object.assign(document.createElement("p"), { className: "title" }), Object.assign(document.createElement("p"), { className: "hint" }));
+  const skip = mk("Skip ›", "step next", "Go on to the next room");
+  const end = mk("✕", "end", "End the walk-through");
+  skip.addEventListener("pointerdown", (e) => (e.stopPropagation(), walkSkip()));
+  end.addEventListener("pointerdown", (e) => (e.stopPropagation(), walkEnd(false)));
+  walkPanel.append(mid, skip, end);
+  document.body.append(walkPanel);
+}
+let walk: { id: string; label: string; stops: WalkStop[]; i: number; phase: "enter" | "listen" | "linger" | "go"; t: number; heard: boolean } | null = null;
+const walkTitle = (t: string, hint: string) => {
+  (walkPanel.querySelector(".title") as HTMLElement).textContent = t;
+  (walkPanel.querySelector(".hint") as HTMLElement).textContent = hint;
+};
+function walkStart(id: string): void {
+  const w = WALKS.find((x) => x.id === id);
+  if (!w) return;
+  if (autofly.active) setAutofly(false);
+  standUp();
+  const cur = inHall();
+  if (cur && cur.journey !== halls[w.stops()[0].hall].journey) cur.journey.leaveNow();
+  walk = { id, label: w.label, stops: w.stops(), i: 0, phase: "enter", t: 0, heard: false };
+  document.body.classList.add("touring");
+  walkPanel.hidden = false;
+  walkTitle(w.label, "Beginning…");
+  void walkEnterStop();
+}
+async function walkEnterStop(): Promise<void> {
+  if (!walk) return;
+  const s = walk.stops[walk.i], j = halls[s.hall].journey;
+  // leaving one monument for the next: out of the first, then in through the other's door
+  const other = inHall();
+  if (other && other.journey !== j) await other.journey.leave();
+  if (!walk) return;
+  walk.phase = "enter";
+  walk.t = 0;
+  walk.heard = false;
+  await j.enter(s.stage);
+}
+function walkSkip(): void {
+  if (!walk || walk.phase === "enter") return;
+  walkNext();
+}
+function walkNext(): void {
+  if (!walk) return;
+  walk.i++;
+  if (walk.i >= walk.stops.length) return walkEnd(true);
+  void walkEnterStop();
+}
+function walkEnd(done: boolean): void {
+  if (!walk) return;
+  const w = walk;
+  walk = null;
+  player.target = null;
+  document.body.classList.remove("touring");
+  walkPanel.hidden = true;
+  if (done) {
+    walked.add(w.id);
+    try {
+      localStorage.setItem("inward-journey:walked", JSON.stringify([...walked]));
+    } catch {
+      /* fine */
+    }
+    const h = inHall();
+    if (h) void h.journey.leave();
+    whisper("The walk is complete", 5000);
+  }
+}
+const walkTo = new THREE.Vector2();
+function walkFrame(dt: number): void {
+  if (!walk) return;
+  const s = walk.stops[walk.i], j = halls[s.hall].journey;
+  walk.t += dt;
+  if (walk.phase === "enter") {
+    if (j.inside && !j.crossing && j.at === s.stage) {
+      walk.phase = "listen";
+      walk.t = 0;
+    }
+    walkTitle(walk.label, `${walk.i + 1} of ${walk.stops.length}`);
+    return;
+  }
+  const stage = j.stage;
+  walkTitle(stage?.title || (stage?.id === "lobby" ? "The lobby" : walk.label), `${walk.i + 1} of ${walk.stops.length}`);
+  if (walk.phase === "listen") {
+    const pr = narration.progress();
+    if (pr) walk.heard = true;
+    // a room is heard when its recording has played to its end; a room without a voice, a moment
+    const quiet = !j.hasVoice ? walk.t > 7 : walk.heard ? !pr || pr.t > pr.total - 0.4 : walk.t > 14;
+    if (quiet || walk.t > 480) {
+      walk.phase = "linger";
+      walk.t = 0;
+    }
+  } else if (walk.phase === "linger") {
+    if (walk.t > 3) {
+      walk.phase = "go";
+      walk.t = 0;
+    }
+  } else if (walk.phase === "go") {
+    // walk to the door onward (the one that leads where the tour goes next), and through it
+    const nx = walk.stops[walk.i + 1];
+    const door = stage?.exits.find((e) => nx && nx.hall === s.hall && e.to === nx.stage) ?? stage?.exits[0];
+    if (door && walk.t < 9) {
+      walkTo.set(JOURNEY_ORIGIN.x + door.x, JOURNEY_ORIGIN.z + door.z);
+      player.target = walkTo.clone();
+    }
+    // the door took us on by itself, or it is time to go on
+    if (j.crossing || j.at !== s.stage || walk.t > 9) {
+      player.target = null;
+      if (j.at !== s.stage && !j.crossing && nx && nx.hall === s.hall && j.at === nx.stage) {
+        walk.i++;
+        walk.phase = "listen";
+        walk.t = 0;
+        walk.heard = false;
+      } else if (!j.crossing) walkNext();
+    }
+  }
+}
+
 /** In a place apart (the temple, the deep archive, the pyramid): the open world rests. */
 function apart(): boolean {
   return temple.inside || depths.inside || pyramid.isInside || !!inHall()?.journey.inside;
@@ -2243,10 +2392,12 @@ $("#guide-go").addEventListener("click", () => {
   guide.lead(d, player.pos);
 });
 startMap.onGuide = openGuide;
+startMap.onTour = (id) => walkStart(id);
 
 $("#map-open").addEventListener("click", () => {
   setMenu(false);
   input.enabled = false;
+  startMap.tours = WALKS.map((w) => ({ id: w.id, label: w.label, walked: walked.has(w.id) }));
   void startMap.open(places(), { x: player.pos.x, z: player.pos.z }, true).then((c) => {
     input.enabled = true;
     if (c) arrive(c, false);
@@ -2721,6 +2872,7 @@ function update(dt: number): void {
   calmFrame();
   contemplationFrame(realDt);
   lessonUxFrame(realDt);
+  walkFrame(realDt);
   if (!apart()) {
     const vd = player.pos.distanceTo(vision.group.position);
     vision.update(dt, vd < 420, S.reduced);
