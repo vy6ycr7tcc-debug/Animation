@@ -54,3 +54,15 @@ Never call a scene done on typecheck/build alone.
 - One feature per session, one branch per session.
 - Parallel sessions must not touch overlapping files.
 - Do not regenerate a plan that discards human commits on the branch.
+- **Do not ask clarifying questions** — make the least-surprising
+  assumption, state it in your summary, and keep working. A session parked
+  waiting for feedback is a failure mode, not a status.
+- Name the exact files in scope up front. If you touch anything outside
+  them, restore those files from `origin/main`
+  (`git fetch origin && git checkout origin/main -- <file>`) and report
+  what happened before continuing.
+- Visual briefs may attach project style docs (visual quality, animation
+  quality, style guide) — when present, they are the visual bar: read and
+  follow them on every visual you generate, and confirm in your summary
+  that you are actually following them.
+
