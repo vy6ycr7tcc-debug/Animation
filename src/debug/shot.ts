@@ -106,7 +106,7 @@ const ROOM_VIEWS: Record<string, { eye: XYZ; look: XYZ }> = {
   "density-3R": { eye: [1.5, 2.4, -4], look: [5.6, 2.2, -13.5] },
   "density-4": { eye: [2.5, 2.0, -1], look: [-1, 2.2, -18] },
   "density-5": { eye: [1.5, 2.2, 6], look: [0, 9, -31] },
-  "density-5L": { eye: [2.5, 1.9, -5], look: [0, 3, -20] },
+  "density-5L": { eye: [2.5, 2.4, -6], look: [0, 4, -16] },
   "density-6": { eye: [0, 1.8, 10], look: [0, 2, -18] },
 };
 /** The journey's stages (0 the lobby, 1 the beginning, 2–8 the densities): over the shoulder
