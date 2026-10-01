@@ -14,6 +14,8 @@ import type { Narration } from "../core/narration";
 import { TEMPLE_ORIGIN } from "../world/temple";
 import type { SceneModule } from "./lessonKit";
 import { tourBar, type TourBarOwner } from "../ui/tourBar";
+import { VisionStage, EMBER, GOLD, PALE, PEARL, type Key, type Maker, type RGB } from "./visionStage";
+import { combine, cord, flame, FORM_H, lantern, point, shift, sphere, sun } from "../world/forms";
 
 export { TEMPLE_ORIGIN };
 
@@ -137,6 +139,61 @@ const NAMED = [8.0, 13.3, 21.5];
     (measured, ffmpeg silencedetect −40 dB: speech 6.45–10.54 s, pauses before and after). */
 const MIND_LINE: [number, number] = [6.15, 11.2];
 
+/* The opening, shown (the owner: at the door "you don't see anything going on"): a vision of
+   light in the aisle before you, the format of the vision of creation, gathering into what the
+   opening's words name, each at its word (measured from the recording): a house of three rooms
+   (2.7 s), the Mind's lamp (6.3), the Body's fire (11.75), the Spirit's star in the dark (16.6),
+   the three together (21.5), twenty-two stations along the way (25.3), someone walking them, as
+   every life does (30.3), and, "walk with me" (39.3), the figure turned to go on. */
+const VIOLET: RGB = [0.82, 0.74, 1.0];
+function threeRooms(n: number, R: () => number): Float32Array {
+  const V = THREE.Vector3;
+  const y0 = 0.4, y1 = 2.6, w = 1.25;
+  const wall = (x0: number, x1: number) => [new V(x0, y0, 0), new V(x0, y1, 0), new V(x1, y1, 0), new V(x1, y0, 0)];
+  return combine(n, [
+    [(m) => cord([new V(-3 * w / 2 - 0.2, y1, 0), new V(0, y1 + 1.5, 0), new V(3 * w / 2 + 0.2, y1, 0)], m, R, 0.04), 0.16],
+    [(m) => cord(wall(-1.5 * w, -0.5 * w), m, R, 0.035), 0.2],
+    [(m) => cord(wall(-0.5 * w, 0.5 * w), m, R, 0.035), 0.2],
+    [(m) => cord(wall(0.5 * w, 1.5 * w), m, R, 0.035), 0.2],
+    [(m) => shift(sphere(m, R, 0.16, 0, 0.3), -w, 1.5, 0), 0.08],
+    [(m) => shift(sphere(m, R, 0.16, 0, 0.3), 0, 1.5, 0), 0.08],
+    [(m) => shift(sphere(m, R, 0.12, 0, 0.3), w, 1.9, 0), 0.08],
+  ]);
+}
+function stations(n: number, R: () => number): Float32Array {
+  // twenty-two small lights on a way that winds up and away: the stations of the road
+  const out = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const k = Math.floor(R() * 22), u = k / 21;
+    const x = Math.sin(u * 5.2) * 1.9 * (1 - u * 0.4), y = 0.4 + u * 3.9, z = -u * 2.5;
+    const d = new THREE.Vector3(R() - 0.5, R() - 0.5, R() - 0.5).normalize().multiplyScalar(0.11 * Math.cbrt(R()));
+    out.set([x + d.x, y + d.y, z + d.z], i * 3);
+  }
+  return out;
+}
+const OPENING_FORMS: Record<string, Maker> = {
+  seed: (n, R) => point(n, R, FORM_H * 0.35),
+  house: (n, R) => threeRooms(n, R),
+  lamp: (n, R) => lantern(n, R),
+  fire: (n, R) => flame(n, R, 0.5, 3.2),
+  star: (n, R) => sun(n, R, FORM_H * 0.6),
+  three: (n, R) => combine(n, [[(m) => shift(lantern(m, R), -2.1, 0, 0, 0.8), 0.34], [(m) => flame(m, R, 0.5, 2.4), 0.33], [(m) => shift(sun(m, R, 0), 2.1, 3.3, 0, 0.55), 0.33]]),
+  stations: (n, R) => stations(n, R),
+  walker: (n, R, b) => b && b.figure(n, R, "Walk_Loop", 0.4, [], FORM_H * 0.8),
+  withMe: (n, R, b) => b && b.figure(n, R, "Spell_Simple_Idle_Loop", 1.6, [], FORM_H * 0.8),
+};
+const OPENING_KEYS: Key[] = [
+  { t: 0, form: "seed", tint: GOLD, dur: 2 },
+  { t: 2.7, form: "house", tint: PEARL, dur: 3 },
+  { t: 6.3, form: "lamp", tint: PALE, dur: 2.5 },
+  { t: 11.75, form: "fire", tint: EMBER, dur: 2.5 },
+  { t: 16.6, form: "star", tint: VIOLET, dur: 3, spin: 0.15, axis: "z" },
+  { t: 21.5, form: "three", tint: PEARL, dur: 3 },
+  { t: 25.3, form: "stations", tint: GOLD, dur: 3.5, spin: 0.12 },
+  { t: 30.3, form: "walker", tint: PEARL, dur: 3.5 },
+  { t: 39.3, form: "withMe", tint: GOLD, dur: 2.5 },
+];
+
 /** The stops: the door (the opening, where all three signs kindle as they are named); then each
     room in turn: its sign (the Mind's lamp with the opening's own line for it, "In the first room,
     a lamp is lit…"; the Body's fire and the Spirit's star with the recorded passages into them), then
@@ -239,6 +296,9 @@ export class TempleTour implements SceneModule {
   private walk: THREE.Vector2[] = [];
   private view = { dist: 7, pitch: 0.36 };
   private yawVel = 0;
+  /** The opening's vision of light, in the aisle before the door (made on the tour's first start). */
+  private opening: VisionStage | null = null;
+  private scene: THREE.Scene;
 
   constructor(
     scene: THREE.Scene,
@@ -248,6 +308,7 @@ export class TempleTour implements SceneModule {
     _hooks: TourHooks,
     private temple: TempleLike,
   ) {
+    this.scene = scene;
     // the guiding light: a small bright core in a soft glow, contained
     const c = document.createElement("canvas");
     c.width = c.height = 64;
@@ -307,6 +368,12 @@ export class TempleTour implements SceneModule {
     tourBar().show(this.bar);
     this.light.visible = this.halo.visible = true;
     this.temple.signsLit?.(false); // the opening kindles them as it names them
+    if (!this.opening) {
+      const d = this.temple.entry(), fx = -Math.sin(d.heading), fz = -Math.cos(d.heading);
+      const x = d.x + fx * 7.5, z = d.z + fz * 7.5;
+      this.opening = new VisionStage({ at: new THREE.Vector3(x, this.temple.floorAt(x, z), z), face: d.heading, forms: OPENING_FORMS, keys: OPENING_KEYS, seedNum: 3311, pointSize: 0.05 });
+      this.scene.add(this.opening.group);
+    }
     const O = TEMPLE_ORIGIN;
     this.lightAt.set(this.player.pos.x - O.x, this.player.pos.z - O.z - 3);
     // a still frame (?shot) lands on the stop that time belongs to, already there
@@ -447,8 +514,13 @@ export class TempleTour implements SceneModule {
   }
 
   update(dt: number): void {
+    if (this.opening && (!this.active || this.index > 0)) this.opening.update(0, 0, false, false, false);
     if (!this.active) return;
     const step = Number.isFinite(dt) && dt > 0 ? Math.min(dt, 0.05) : 0;
+    if (this.opening && this.index === 0) {
+      const speaking = this.phase !== "leading" && (this.narration.current === TRACK_ID || this.narration.debugTime !== null);
+      this.opening.update(step, speaking ? this.narration.time() : 0, speaking, true, false);
+    }
     this.lifeT += step;
     const O = TEMPLE_ORIGIN, s = this.stops[this.index];
     // the light travels its way, slowing into the last metres, then waits, turning slowly
