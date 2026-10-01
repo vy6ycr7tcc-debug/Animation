@@ -4,6 +4,7 @@
    forms (beam, veil, garden, throne, arch, rings) stand as landmarks to wander toward.
    Narration plays in the background the whole time, one recording after another.
    States: intro (title over the night water) → play → rest (after Leave) → play … */
+import { EgyptGate } from "./world/egyptGate";
 import { CUES, FINALE_T, TRACK_ID as TEMPLE_TRACK } from "./scenes/templeTour";
 import "./gpu/compat";
 import { registerSW } from "virtual:pwa-register";
@@ -1580,6 +1581,9 @@ function crossDeep(inside: boolean): void {
    King's Chamber (healing: light through you in seven colours). All said here is paraphrase. */
 const pyramid = new Pyramid();
 scene.add(pyramid.world, pyramid.inside);
+// beside it, the gateway into the telling of Egypt (world/egyptGate.ts)
+const egyptGate = new EgyptGate(pyramid.door);
+scene.add(egyptGate.group);
 
 /* The monuments (scenes/journey.ts): through each one's door, a lobby, then its rooms one after
    another, each crossing pitch black, each room's recording beginning as you arrive, and home to
@@ -1620,7 +1624,7 @@ function journeyHost(hall: Hall): JourneyHost {
       }
       audio.setTemple(on, false);
     },
-    outside: () => hall.outside(),
+    outside: () => (hall === pastHall && halls[2]?.journey.via ? egyptGate.outside() : hall.outside()),
     presence: (k) => (hallPresence = k),
     sit: (x, y, z, heading) => {
       // a seated room's seat: you sit, and the view turns to what it shows
@@ -1655,6 +1659,8 @@ hearAgain.addEventListener("pointerdown", (e) => {
 });
 /** Each frame: the monuments' doors, and within one, its journey. */
 function journeyFrame(dt: number): void {
+  egyptGate.update(S.t);
+  if (!apart() && S.mode === "play" && Math.hypot(player.pos.x - egyptGate.at.x, player.pos.z - egyptGate.at.z) < 9) tellPyr("egypt-gate", "The telling of Egypt", 4500);
   const at = inHall();
   if (at?.journey.inside) {
     if (player.flying) player.flying = false; // you walk here
@@ -1664,6 +1670,12 @@ function journeyFrame(dt: number): void {
   } else if (!at && S.mode === "play" && !crossing && !autofly.active && !genesis.active && sitting.phase !== "seated") {
     const h = halls.find((h) => h.hall.atDoor(player.pos));
     if (h) void h.journey.enter();
+    else if (egyptGate.atGate(player.pos) && !halls[2].journey.crossing) {
+      // the pyramid's gate: straight into the telling of Egypt, and back out here after
+      const j = halls[2].journey, k = j.stages.findIndex((s) => s.id === "egypt");
+      j.via = true;
+      void j.enter(k);
+    }
   }
   for (const h of halls)
     if (h.journey.seen.size !== h.lit) {

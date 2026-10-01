@@ -492,6 +492,7 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - When the part has ended, three quiet lines come far apart: "What is your choice?" (the owner's), "How will you love?" (the Choice's existing question), "Stay as long as you like." No other words were added.
   - The tour's last stop is the same seat. The shrine panel doesn't show while you sit.
   - Also fixed: the Mind's lamp and the Body's fire stood inside the fallen drum and block by the door; they now stand clear (x ±8, z 27).
+- 2026-10-01: Egypt reachable from the pyramid (the owner). A small gateway of cut sandstone (`world/egyptGate.ts`) stands on the pyramid's plaza, 16 m east of its north door and 14 m out, warm light standing in its opening and spilling both ways; "The telling of Egypt" whispers once near it. Walking through it enters the Monument of Past Choices' Egypt room directly (`Journey.via`); Egypt's door then leads back out to the plaza before the gate, not to the monument's lobby (a door home to the lobby goes out when `via`; `outside()` is asked before the world returns). Why outside rather than a hidden room: the telling looks *at* the pyramid from the desert, and the interior stays Ra's chambers and the way to the Duat. The content is unchanged.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.
