@@ -52,6 +52,7 @@ import { Genesis } from "./world/genesis";
 import { Touch } from "./world/touch";
 import { Depths, RUIN_NAMES, RUIN_SITES } from "./world/depths";
 import { Pyramid, DUAT_ORIGIN } from "./world/pyramid";
+import { Companion } from "./world/companion";
 import { Vision } from "./world/vision";
 import { Journey, JOURNEY_ORIGIN, inJourney, type Hall, type JourneyHost } from "./scenes/journey";
 import { AdeptMonument, adeptStages } from "./scenes/adept/monument";
@@ -1940,15 +1941,20 @@ function lessonUxFrame(dt: number): void {
    then out into the world. The stick rests while it runs (as in the temple tour); "Skip ›" goes on
    to the next room at once, "✕" ends it where you are. Walked tours are saved on the device and
    marked on the map's Tours tab. */
-interface WalkStop { hall: number; stage: number }
+/** A stop: a monument's room (hall, stage), or a place with its own guided tour (the temple's,
+    the Duat's), walked inside the walk. */
+interface WalkStop { hall: number; stage: number; place?: "temple" | "duat" }
+const monumentStops = (h: number): WalkStop[] => halls[h].journey.stages.map((_, i) => ({ hall: h, stage: i }));
 const WALKS: { id: string; label: string; stops: () => WalkStop[] }[] = [
   { id: "densities", label: "The densities, end to end", stops: () => halls[0].journey.stages.map((_, i) => ({ hall: 0, stage: i })) },
   { id: "adept", label: "The school of the adept, end to end", stops: () => halls[1].journey.stages.map((_, i) => ({ hall: 1, stage: i })) },
   { id: "past", label: "Past choices, end to end", stops: () => halls[2].journey.stages.map((_, i) => ({ hall: 2, stage: i })) },
+  { id: "temple", label: "The temple, guided", stops: () => [{ hall: -1, stage: 0, place: "temple" }] },
   {
+    // the grand tour: every monument, the temple and the Duat, flying from one to the next
     id: "all",
-    label: "Every monument, end to end",
-    stops: () => [0, 1, 2].flatMap((h) => halls[h].journey.stages.map((_, i) => ({ hall: h, stage: i }))),
+    label: "The grand tour: everything, end to end",
+    stops: () => [...[0, 1, 2].flatMap(monumentStops), { hall: -1, stage: 0, place: "temple" }, { hall: -1, stage: 0, place: "duat" }],
   },
 ];
 let walked = new Set<string>();
@@ -1968,40 +1974,111 @@ const walkBar: TourBarOwner = {
       const h = pyramid.duatHours()[duatTour.i];
       return h && duatTour.phase === "watch" ? duatTour.t / (h.cycle + 1.5) : duatTour.i >= pyramid.duatHours().length ? 1 : 0;
     }
-    if (!walk) return 0;
+    if (!walk || walk.phase === "travel" || walk.phase === "place") return 0;
     if (walk.phase === "linger" || walk.phase === "go") return 1;
     const pr = narration.progress();
     return pr ? pr.t / pr.total : 0;
   },
 };
-let walk: { id: string; label: string; stops: WalkStop[]; i: number; phase: "enter" | "listen" | "linger" | "go"; t: number; heard: boolean; skip: boolean; tries: number } | null = null;
+let walk: {
+  id: string;
+  label: string;
+  stops: WalkStop[];
+  i: number;
+  phase: "enter" | "listen" | "linger" | "go" | "travel" | "place";
+  t: number;
+  heard: boolean;
+  skip: boolean;
+  tries: number;
+  /** A place's own tour has begun (the temple's, the Duat's), and how it ended. */
+  begun: boolean;
+  done: boolean;
+} | null = null;
 const walkTitle = (t: string, hint: string) => tourBar().set(t, hint);
 function walkStart(id: string): void {
   const w = WALKS.find((x) => x.id === id);
   if (!w) return;
   if (autofly.active) setAutofly(false);
   standUp();
-  const cur = inHall();
-  if (cur && cur.journey !== halls[w.stops()[0].hall].journey) cur.journey.leaveNow();
-  walk = { id, label: w.label, stops: w.stops(), i: 0, phase: "enter", t: 0, heard: false, skip: false, tries: 0 };
+  if (duatTour) duatTourEnd(false);
+  walk = { id, label: w.label, stops: w.stops(), i: 0, phase: "enter", t: 0, heard: false, skip: false, tries: 0, begun: false, done: false };
   document.body.classList.add("touring");
   tourBar().show(walkBar);
   walkTitle(w.label, "Beginning…");
   void walkEnterStop();
 }
+/* Between places the walk glides (the owner: "glide, don't teleport"): out through the door you
+   are in, then the wanderer takes off and flies to the next place's door (or runs, when it is
+   near), comes down before it and goes in. Only a place too far to fly to in good time (or a walk
+   begun in a place apart) is reached through the dark. The companion goes ahead the whole way. */
+const TRAVEL_MAX = 1500;
+const travelTo = new THREE.Vector2();
+let travelHold = false;
+const crossingSettled = (): Promise<void> => new Promise((done) => {
+  const f = (): void => void (crossing ? window.setTimeout(f, 100) : done());
+  f();
+});
+function stopApproach(s: WalkStop): { x: number; z: number } {
+  if (s.place === "temple") return temple.outside();
+  if (s.place === "duat") return pyramid.outside();
+  return halls[s.hall].hall.outside();
+}
 async function walkEnterStop(): Promise<void> {
   if (!walk) return;
-  const s = walk.stops[walk.i], j = halls[s.hall].journey;
-  // leaving one monument for the next: out of the first, then in through the other's door
-  const other = inHall();
-  if (other && other.journey !== j) await other.journey.leave();
-  if (!walk) return;
-  walk.phase = "enter";
-  walk.t = 0;
+  const s = walk.stops[walk.i], j = s.place ? null : halls[s.hall].journey;
   walk.heard = false;
+  walk.begun = walk.done = false;
   walk.tries++;
-  await j.enter(s.stage);
+  const other = inHall();
+  if (j && other?.journey === j) {
+    // the next room of the same monument: through its door
+    walk.phase = "enter";
+    walk.t = 0;
+    await j.enter(s.stage);
+    return;
+  }
+  // somewhere else: out of where you are first
+  if (other) await other.journey.leave();
+  if (temple.inside) {
+    if (!crossing) crossTemple(false);
+    await crossingSettled();
+  }
+  if (!walk) return;
+  const a = stopApproach(s);
+  if (apart() || Math.hypot(a.x - player.pos.x, a.z - player.pos.z) > TRAVEL_MAX) return walkArrive();
+  travelTo.set(a.x, a.z);
+  walk.phase = "travel";
+  walk.t = 0;
 }
+/** Each frame on the way somewhere by itself (a walk between places; the guide's "Walk me
+    there"): on foot when it is near, in flight when it is far, cruising ~14 m over the land and
+    coming down before it; a place in the air (`y` well above its ground) is flown to at its
+    height. Out of the water it rises into flight. True when there. */
+function driveTo(x: number, z: number, y: number | null, since: number): boolean {
+  const d = Math.hypot(x - player.pos.x, z - player.pos.z);
+  (player.target ??= new THREE.Vector2()).set(x, z);
+  const high = y !== null && y > Math.max(heightAt(x, z), WATER_Y) + 20;
+  const cruise = high ? y - 2 : Math.max(heightAt(player.pos.x, player.pos.z), WATER_Y) + 14;
+  const far = d > 45 || high;
+  if (far && !player.flying && !player.swimming && since > 0.6) player.jump(); // a jump, and in the air a second: flight
+  travelHold = player.swimming ? far : player.flying && (high || d > 40) && player.pos.y < cruise;
+  if (player.flying) player.landing = !high && d < 34;
+  return high ? d < 6 && player.pos.y > y - 12 : !player.flying && d < 2.2;
+}
+/** At the stop's door: in. */
+function walkArrive(): void {
+  if (!walk) return;
+  const s = walk.stops[walk.i];
+  travelHold = false;
+  player.target = null;
+  if (player.flying) player.landing = true;
+  walk.phase = s.place ? "place" : "enter";
+  walk.t = 0;
+  if (s.place === "temple") crossTemple(true); // its own tour begins as you go in
+  else if (s.place === "duat") duatTourStart(true);
+  else void halls[s.hall].journey.enter(s.stage);
+}
+const stopName = (s: WalkStop): string => (s.place === "temple" ? "The temple" : s.place === "duat" ? "The Duat" : halls[s.hall].hall.label);
 /** Skip always answers: mid-crossing it is kept and taken as soon as the crossing ends. */
 /* Pause (the half-moon's ❚❚ while the archive is quiet): the voice speaking stops where it is,
    and with it its clock, so rooms, lessons and the tours' advance all stand still; play goes on
@@ -2037,10 +2114,11 @@ tourBar().isPaused = () => narration.paused || tourHeld;
    and tells itself once through, beat by beat; then on to the next, and at the end up the stair
    into the dawn. Skip › goes on, ✕ ends it. No words but the places' names. */
 let duatTour: { i: number; phase: "enter" | "walk" | "watch"; t: number; skip: boolean } | null = null;
-function duatTourStart(): void {
+/** `chained`: a stop of a walk (the grand tour), which goes on when the Duat's tour ends. */
+function duatTourStart(chained = false): void {
   if (autofly.active) setAutofly(false);
   standUp();
-  if (walk) walkEnd(false);
+  if (walk && !chained) walkEnd(false);
   inHall()?.journey.leaveNow();
   if (temple.inside) setInside(false);
   duatTour = { i: 0, phase: "enter", t: 0, skip: false };
@@ -2057,6 +2135,11 @@ function duatTourEnd(done: boolean): void {
   if (!duatTour) return;
   duatTour = null;
   player.target = null;
+  if (walk) {
+    // a stop of a walk: the walk goes on (or ends, if this was ended by hand)
+    walk.done = done;
+    return;
+  }
   document.body.classList.remove("touring");
   tourBar().hide(walkBar);
   if (done) {
@@ -2073,6 +2156,7 @@ const duatTo = new THREE.Vector2();
 function duatTourFrame(dt: number): void {
   const d = duatTour;
   if (!d || tourHeld) return;
+  goalOn = false;
   d.t += dt;
   if (d.phase === "enter") {
     if (pyramid.duatActive && !crossing) Object.assign(d, { phase: "walk", t: 0 });
@@ -2090,6 +2174,7 @@ function duatTourFrame(dt: number): void {
     const p7 = pyramid.PATH[pyramid.PATH.length - 1];
     duatTo.set(O.x + p7.x, O.z + p7.z);
     player.target = duatTo.clone();
+    tourGoal(duatTo.x, duatTo.y);
     walkTitle("Dawn", `${hs.length} of ${hs.length}`);
     return;
   }
@@ -2098,6 +2183,7 @@ function duatTourFrame(dt: number): void {
   if (d.phase === "walk") {
     duatTo.set(sx, sz);
     player.target = duatTo.clone();
+    tourGoal(sx, sz);
     if (Math.hypot(player.pos.x - sx, player.pos.z - sz) < 0.9 || d.t > 45) {
       player.target = null;
       player.pos.x = sx;
@@ -2113,7 +2199,7 @@ function duatTourFrame(dt: number): void {
 /** ⟲ in a walk-through: ten seconds back in the room's telling (back into it if it has just
     ended); near its start or in a room without a voice, the room before. */
 function walkBack(): void {
-  if (!walk) return;
+  if (!walk || walk.phase === "travel" || walk.phase === "place") return;
   const s = walk.stops[walk.i], j = halls[s.hall].journey;
   if (j.crossing || walk.phase === "enter") return;
   const pr = narration.progress();
@@ -2143,7 +2229,7 @@ function duatTourBack(): void {
 }
 function walkSkip(): void {
   if (!walk) return;
-  if (inHall()?.journey.crossing) walk.skip = true;
+  if (inHall()?.journey.crossing || walk.phase === "travel") walk.skip = true; // on the way: there at once
   else walkNext();
 }
 function walkNext(): void {
@@ -2159,6 +2245,9 @@ function walkEnd(done: boolean): void {
   const w = walk;
   walk = null;
   player.target = null;
+  travelHold = false;
+  setRecording(false);
+  if (duatTour) duatTourEnd(false);
   document.body.classList.remove("touring");
   tourBar().hide(walkBar);
   if (done) {
@@ -2176,18 +2265,60 @@ function walkEnd(done: boolean): void {
 const walkTo = new THREE.Vector2();
 function walkFrame(dt: number): void {
   if (!walk || tourHeld || narration.paused) return;
-  const s = walk.stops[walk.i], j = halls[s.hall].journey;
+  goalOn = false;
   walk.t += dt;
-  const crossing = !!inHall()?.journey.crossing || j.crossing;
-  if (walk.skip && !crossing) return walkNext();
+  const s0 = walk.stops[walk.i];
+  // a place's own tour may have taken the bar and the stick for a while: the walk takes them back
+  if (!tourScenes.tour.active && !document.body.classList.contains("touring")) document.body.classList.add("touring");
+  if (!tourScenes.tour.active && !tourBar().shown) tourBar().show(walkBar);
+  if (walk.phase === "travel") {
+    walkTitle(stopName(s0), `${walk.i + 1} of ${walk.stops.length} · on the way`);
+    if (walk.skip) {
+      walk.skip = false;
+      return walkArrive();
+    }
+    tourGoal(travelTo.x, travelTo.y);
+    if (driveTo(travelTo.x, travelTo.y, null, walk.t) || walk.t > 150) walkArrive();
+    return;
+  }
+  if (walk.phase === "place") {
+    walkTitle(stopName(s0), `${walk.i + 1} of ${walk.stops.length}`);
+    if (crossing) return;
+    if (s0.place === "temple") {
+      const tour = tourScenes.tour;
+      if (temple.inside && tour.active) {
+        walk.begun = true;
+        if (tour.completed && walk.t > 6) {
+          // its end ("rest at the tree / stay"): stay, and go on
+          tour.choose("stay");
+          crossTemple(false);
+          walkNext();
+        } else if (!tour.completed) walk.t = 0;
+      } else if (walk.begun) {
+        // its own ✕ ended it: so the walk ends
+        if (temple.inside) crossTemple(false);
+        walkEnd(false);
+      } else if (walk.t > 15) walkNext(); // it never opened: on
+    } else if (s0.place === "duat") {
+      if (duatTour) walk.begun = true;
+      else if (walk.begun) {
+        if (walk.done) walkNext();
+        else walkEnd(false);
+      } else if (walk.t > 20) walkNext();
+    }
+    return;
+  }
+  const s = s0, j = halls[s.hall].journey;
+  const hallCrossing = !!inHall()?.journey.crossing || j.crossing;
+  if (walk.skip && !hallCrossing) return walkNext();
   if (walk.phase === "enter") {
-    if (j.inside && !crossing && j.at === s.stage) {
+    if (j.inside && !hallCrossing && j.at === s.stage) {
       walk.phase = "listen";
       walk.t = 0;
-    } else if (!crossing && j.failed === s.stage) {
+    } else if (!hallCrossing && j.failed === s.stage) {
       walkNext(); // the room would not open (said so): on to the next
       return;
-    } else if (!crossing && walk.t > 4) {
+    } else if (!hallCrossing && walk.t > 4) {
       // the way in was taken by another crossing: try again once, then go on
       if (walk.tries < 2) void walkEnterStop();
       else return walkNext();
@@ -2203,6 +2334,7 @@ function walkFrame(dt: number): void {
     if (seat && !walk.heard) {
       walkTo.set(seat.x, seat.z);
       player.target = walkTo.clone();
+      tourGoal(seat.x, seat.z);
     }
     const pr = narration.progress();
     if (pr) walk.heard = true;
@@ -2225,6 +2357,7 @@ function walkFrame(dt: number): void {
     if (door && walk.t < 9) {
       walkTo.set(JOURNEY_ORIGIN.x + door.x, JOURNEY_ORIGIN.z + door.z);
       player.target = walkTo.clone();
+      tourGoal(walkTo.x, walkTo.y);
     }
     // the door took us on by itself, or it is time to go on
     if (j.crossing || j.at !== s.stage || walk.t > 9) {
@@ -2237,6 +2370,47 @@ function walkFrame(dt: number): void {
       } else if (!j.crossing) walkNext();
     }
   }
+}
+
+/* The companion (world/companion.ts): with you on every walk-through and the Duat's tour, ahead on
+   the way to where the tour goes next, at your shoulder while a place speaks. The temple tour has
+   its own light of the same look, so it steps back there. */
+const companion = new Companion(scene);
+const tourGoalV = new THREE.Vector3();
+let goalOn = false;
+function tourGoal(x: number, z: number): void {
+  goalOn = true;
+  tourGoalV.set(x, apart() || inJourney(x) ? player.pos.y : Math.max(heightAt(x, z), WATER_Y), z);
+}
+function companionFrame(dt: number): void {
+  const on = S.mode === "play" && (!!walk || !!duatTour) && !(temple.inside && tourScenes.tour.active);
+  companion.update(dt, on, player.pos, player.heading, on && goalOn ? tourGoalV : null);
+}
+
+/* Record mode (the tour bar's ◉; the owner records the tours for the TV app): every control,
+   hint, line and word fades, leaving the world, the companion and the animations. A long press
+   anywhere brings them back; the end of the walk does too. */
+function setRecording(on: boolean): void {
+  if (document.body.classList.contains("recording") === on) return;
+  document.body.classList.toggle("recording", on);
+}
+tourBar().onRecord = () => {
+  whisper("Record mode: everything but the world fades. Hold anywhere to bring the controls back.", 2600);
+  window.setTimeout(() => (walk || duatTour || tourScenes.tour.active) && setRecording(true), 2800);
+};
+{
+  let holdTimer = 0;
+  const clear = (): void => window.clearTimeout(holdTimer);
+  window.addEventListener(
+    "pointerdown",
+    () => {
+      if (!document.body.classList.contains("recording")) return;
+      clear();
+      holdTimer = window.setTimeout(() => setRecording(false), 1000);
+    },
+    { capture: true },
+  );
+  for (const ev of ["pointerup", "pointercancel"]) window.addEventListener(ev, clear, { capture: true });
 }
 
 /** In a place apart (the temple, the deep archive, the pyramid): the open world rests. */
@@ -2694,10 +2868,32 @@ function closeGuide(): void {
 }
 $("#guide-open").addEventListener("click", openGuide);
 $("#guide-close").addEventListener("click", closeGuide);
+/* "Walk me there" (the owner: "one click and it completes; the stick takes over"): the guide's
+   light goes ahead and the wanderer goes after it by itself, on foot or in flight (`driveTo`),
+   all the way; touching the stick or the round button gives you back the way, and the light
+   still leads. */
+let guideAuto: { since: number } | null = null;
+function stopGuideAuto(): void {
+  if (!guideAuto) return;
+  guideAuto = null;
+  travelHold = false;
+  player.target = null;
+}
+function guideAutoFrame(dt: number): void {
+  const g = guide.target;
+  if (!guideAuto) return;
+  if (!g || walk || duatTour || apart() || S.mode !== "play") return stopGuideAuto();
+  if (Math.hypot(input.move.x, input.move.y) > 0.25 || input.hold) return stopGuideAuto(); // the thumb takes over
+  guideAuto.since += dt;
+  if (driveTo(g.x, g.z, g.y, guideAuto.since)) stopGuideAuto();
+}
 $("#guide-walk").addEventListener("click", () => {
   if (!guideChoice) return;
+  if (autofly.active) setAutofly(false);
+  standUp();
   guide.lead(guideChoice, player.pos);
-  whisper(`Follow the light · ${guideChoice.label}`, 5000);
+  guideAuto = { since: 0 };
+  whisper(`On the way · ${guideChoice.label}. The stick takes over.`, 5000);
   closeGuide();
 });
 $("#guide-go").addEventListener("click", () => {
@@ -3020,9 +3216,11 @@ function update(dt: number): void {
   if (z !== 1) follow.zoom(z);
 
   if (S.mode === "play") {
+    guideAutoFrame(dt);
     if (wanderer.gesture !== "none" && Math.hypot(input.move.x, input.move.y) > 0.2 && wanderer.gesture === "sit") wanderer.setGesture("none");
     if (autofly.active && !isTv && (Math.hypot(input.move.x, input.move.y) > 0.25 || input.hold)) setAutofly(false); // the thumb takes over
     if (genesis.active || temple.cardsOpen || tourScenes.tour.active) player.update(dt, { x: 0, y: 0, glide: false, run: 0, hold: false, down: false, pitch: follow.pitch }, follow.yaw);
+    else if (walk?.phase === "travel" || guideAuto) player.update(dt, { x: 0, y: 0, glide: false, run: 1, hold: travelHold, down: false, pitch: follow.pitch }, follow.yaw);
     else if (autofly.active) {
       const r = autofly.update(dt, player.pos);
       Object.assign(player, { heading: r.heading, speed: r.speed, vy: r.vy, flying: true, landing: false, grounded: false, swimming: false, gliding: false, pose: "fly", target: null });
@@ -3200,6 +3398,8 @@ function update(dt: number): void {
   lessonUxFrame(realDt);
   walkFrame(realDt);
   duatTourFrame(realDt);
+  companionFrame(realDt);
+  if (!walk && !duatTour && !tourScenes.tour.active) setRecording(false);
   if (!apart()) {
     const vd = player.pos.distanceTo(vision.group.position);
     vision.update(dt, vd < 420, S.reduced);
@@ -3463,4 +3663,4 @@ function endLoading(): void {
   }, wait);
 }
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall } });

@@ -452,6 +452,10 @@ body.tour-bar #tp-mini.guest, body.tour-bar #nprog { display: none; }
 #tour-panel .next { font-size: 22px; border: 1px solid transparent; }
 #tour-panel .next.ready { border-color: rgba(240, 200, 120, 0.9); box-shadow: 0 0 12px rgba(240, 200, 120, 0.45); animation: tour-ready 2.4s ease-in-out infinite; }
 #tour-panel .end { font-size: 14px; color: var(--dim); }
+#tour-panel .rec { font-size: 15px; color: #e58a7a; }
+/* record mode (the tour bar's ◉): everything but the world, the companion and the animations
+   fades; the crossings' dark still falls. A long press anywhere brings it all back. */
+body.recording > :not(#gl):not(#fade) { opacity: 0 !important; pointer-events: none !important; transition: opacity 0.8s ease; }
 @keyframes tour-ready { 50% { box-shadow: 0 0 20px rgba(240, 200, 120, 0.7); } }
 @media (prefers-reduced-motion: reduce) { #tour-panel .next.ready { animation: none; } #tour-panel .line i { transition: none; } }
 #tour-choice {
