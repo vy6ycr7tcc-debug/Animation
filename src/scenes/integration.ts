@@ -24,6 +24,9 @@ import { createGardenScene } from "./garden";
 import { createGalaxiesScene } from "./galaxies";
 import { createDesert } from "./desert";
 import { createTreeStationScene } from "./treeStation"; // TEMP-VERIFY
+import { createAtomsScene } from "./atomsLight";
+import { createOtherWorldsScene } from "./otherWorlds";
+import { createGreetingsScene } from "./greetings";
 
 /* ---------- contract ---------- */
 
@@ -96,9 +99,12 @@ export function initTourScenes(hooks: TourHooks2): TourScenes {
   const galaxies = createGalaxiesScene(hooks.scene, hooks.narration, hooks.whisper);
   const desert = createDesert(hooks.scene, hooks.narration, hooks.whisper);
   const treeStation = createTreeStationScene(hooks.scene, hooks.narration, hooks.whisper);
+  const atoms = createAtomsScene(hooks.scene, hooks.narration, hooks.whisper);
+  const otherWorlds = createOtherWorldsScene(hooks.scene, hooks.narration, hooks.whisper);
+  const greetings = createGreetingsScene(hooks.scene, hooks.narration, hooks.whisper);
 
-  const lessons: Record<string, SceneModule> = { shore, igloo, garden, galaxies, desert, "tree-station": treeStation };
-  const registry = new SceneRegistry([tour, tree, shore, igloo, garden, galaxies, desert, treeStation]);
+  const lessons: Record<string, SceneModule> = { shore, igloo, garden, galaxies, desert, "tree-station": treeStation, atoms, "other-worlds": otherWorlds, greetings };
+  const registry = new SceneRegistry([tour, tree, shore, igloo, garden, galaxies, desert, treeStation, atoms, otherWorlds, greetings]);
 
   let seated: SceneModule | null = null;
   let stoodFrom: SceneModule | null = null;
@@ -191,7 +197,7 @@ export function initTourScenes(hooks: TourHooks2): TourScenes {
 
 /* ---------- places ---------- */
 
-/** The seven stops on the map, each starting a short walk short of its seat. */
+/** The stops on the map, each starting a short walk short of its seat. */
 export function tourPlaces(hooks: Pick<TourHooks2, "temple">): Place[] {
   const gate = hooks.temple.gateAt;
   const outside = hooks.temple.outside();
@@ -226,5 +232,8 @@ export function tourPlaces(hooks: Pick<TourHooks2, "temple">): Place[] {
     stop("The lesson of the garden", SITES.garden.x, SITES.garden.z, SITES.garden.heading, LESSON_BACK),
     stop("The lesson of the galaxies", SITES.galaxies.x, SITES.galaxies.z, SITES.galaxies.heading, LESSON_BACK),
     stop("The lesson of the desert", SITES.desert.x, SITES.desert.z, SITES.desert.heading, LESSON_BACK),
+    stop("Atoms and light", SITES.atoms.x, SITES.atoms.z, SITES.atoms.heading, LESSON_BACK),
+    stop("Other worlds", SITES["other-worlds"].x, SITES["other-worlds"].z, SITES["other-worlds"].heading, LESSON_BACK),
+    stop("Psychic greetings", SITES.greetings.x, SITES.greetings.z, SITES.greetings.heading, LESSON_BACK),
   ];
 }

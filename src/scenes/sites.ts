@@ -14,7 +14,7 @@ export interface SiteDef {
   heading: number;
 }
 
-export const SITES: Record<"shore" | "igloo" | "garden" | "galaxies" | "desert" | "tree" | "tree-station", SiteDef> = {
+export const SITES: Record<"shore" | "igloo" | "garden" | "galaxies" | "desert" | "tree" | "tree-station" | "atoms" | "other-worlds" | "greetings", SiteDef> = {
   shore:    { x: -590,    z: 900,     y: 1.88,  heading: 2.561  },
   igloo:    { x: 2097.8,  z: -1180.4, y: 19.76, heading: -1.058 },
   garden:   { x: -1600,   z: 1200,    y: 4.21,  heading: 2.214  },
@@ -22,6 +22,10 @@ export const SITES: Record<"shore" | "igloo" | "garden" | "galaxies" | "desert" 
   desert:   { x: 2270.5,  z: 175,     y: 12.67, heading: -1.648 },
   tree:     { x: -2428.1, z: -1044.9, y: 19.35, heading: 1.164  },
   "tree-station": { x: -1200, z: 1600, y: 5.0, heading: 0.303 }, // TEMP-VERIFY (harness sets final)
+  // the three standalone visions (scenes/atomsLight.ts, otherWorlds.ts, greetings.ts)
+  atoms:          { x: 499.7,  z: -16.6,  y: 13.27, heading: -1.538 },
+  "other-worlds": { x: -547.8, z: 368.1,  y: 5.97,  heading: 2.162  },
+  greetings:      { x: -241.4, z: -343.7, y: 5.41,  heading: 0.612  },
 };
 
 /* The lessons' stages stand before their seats and fill the view (scenes/enacted.ts): nothing
@@ -30,4 +34,6 @@ for (const [id, s] of Object.entries(SITES)) {
   if (id === "tree") continue;
   const fx = -Math.sin(s.heading), fz = -Math.cos(s.heading);
   KEEP_CLEAR.push({ x: s.x + fx * 5, z: s.z + fz * 5, r: 17 });
+  // the standalone visions' bodies of light stand larger and further: clear round them too
+  if (id === "atoms" || id === "other-worlds" || id === "greetings") KEEP_CLEAR.push({ x: s.x + fx * 18, z: s.z + fz * 18, r: 26 });
 }

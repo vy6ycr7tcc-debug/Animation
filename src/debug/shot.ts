@@ -32,6 +32,9 @@ const DEFAULT_T: Record<string, number> = {
   desert: 120,
   tree: 30,
   "tree-station": 8, // TEMP-VERIFY
+  atoms: 52,
+  "other-worlds": 36,
+  greetings: 68,
   pyramid: 30,
   duat: 30,
   genesis: 9,
@@ -39,7 +42,7 @@ const DEFAULT_T: Record<string, number> = {
 
 type XYZ = [number, number, number];
 /** The lessons told as visions (scenes/visionLesson.ts): framed from behind the seat. */
-const VISION_LESSONS = new Set(["shore", "igloo", "garden", "galaxies", "desert", "tree-station"]);
+const VISION_LESSONS = new Set(["shore", "igloo", "garden", "galaxies", "desert", "tree-station", "atoms", "other-worlds", "greetings"]);
 type Site = { x: number; y: number; z: number; heading: number };
 const sites = SITES as Record<string, Site | undefined>;
 /** The temple tour's interior group sits here (scenes/templeTour.ts). */
@@ -51,6 +54,9 @@ const VIEWS: Record<string, { eye: XYZ; look: XYZ }> = {
   igloo: { eye: [14, 5, 14], look: [0, 2, 0] }, // at the dome centre
   garden: { eye: [12, 2.2, 12], look: [0, 1.1, 0] },
   galaxies: { eye: [10, 2.8, 10], look: [0, 1.1, 0] },
+  atoms: { eye: [0, 3, 8], look: [0, 1, 0] },
+  "other-worlds": { eye: [0, 3, 8], look: [0, 1, 0] },
+  greetings: { eye: [0, 3, 8], look: [0, 1, 0] },
   desert: { eye: [18, 3, 18], look: [0, 1.1, 0] },
   tree: { eye: [16, 4, 16], look: [0, 0, 0] }, // the crest
   "tree-station": { eye: [0, 1.7, 0], look: [2.5, 9.0, 8] }, // seated view, tilted up: the tree stands ~5m above the seat on the slope
