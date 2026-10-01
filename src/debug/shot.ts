@@ -127,7 +127,7 @@ const ADEPT_VIEWS: Record<number, { eye: XYZ; look: XYZ }> = {
   0: { eye: [0, 3.0, 11], look: [0, 3.0, -10] },
   1: { eye: [1.2, 2.2, 5], look: [0, 3.5, -40] },
   2: { eye: [3.5, 3.2, 5.5], look: [-1.2, 3.4, -10] },
-  3: { eye: [3.5, 2.6, 12], look: [0, 2, -16] },
+  3: { eye: [2.2, 2.4, 8.5], look: [0.4, 2.2, -4] }, // as the live view frames it: the servant by the basin
   4: { eye: [3, 2.4, 5], look: [-7, 3, -30] },
   5: { eye: [2, 2.4, 6], look: [-2, 12, -60] },
   6: { eye: [-0.5, 2.0, -3.5], look: [2.6, 1.3, -8.6] },

@@ -286,12 +286,12 @@ export function createDisciplinesScene(scene: THREE.Scene, narration: LessonCtx[
       clock.tick(d);
       applyAir(air);
       uLamps.value = damp(uLamps.value, goal.lamps, 0.8, d);
-      uClimb.value = Math.min(goal.climb, uClimb.value + d / 30);
+      uClimb.value = Math.min(goal.climb, uClimb.value + d / 14);
       uAlcoves.value = damp(uAlcoves.value, goal.alcoves, 0.8, d);
       uQueue.value = damp(uQueue.value, goal.queue, 0.6, d);
-      uTools.value = damp(uTools.value, goal.tools, 0.25, d);
-      uWater.value = damp(uWater.value, goal.water, 0.15, d);
-      uMorning.value = damp(uMorning.value, goal.morning, 0.04, d);
+      uTools.value = damp(uTools.value, goal.tools, 0.625, d);
+      uWater.value = damp(uWater.value, goal.water, 0.375, d);
+      uMorning.value = damp(uMorning.value, goal.morning, 0.08, d);
       // the Sufi turns
       const sufi = folk.bodies[2];
       if (sufi) sufi.root.rotation.y += d * 0.9 * Math.min(1, Math.max(0, uAlcoves.value - 1));
