@@ -396,6 +396,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
     {
       id: "room1",
       focus: [[-3, 5, -40], [8, 3, -20]],
+      centre: [3.6, 1.8, -9.5], // where the life is: the stone of sparks close ahead
       title: "The first density",
       make: async (scene, nar, wh) => {
         const mod = await import("./room_1");
