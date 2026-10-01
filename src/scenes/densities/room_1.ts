@@ -203,6 +203,54 @@ export function createDensityRoom1Scene(
       for (let k = 0; k < 3; k++) sparkPos.push(mesh.position.clone().add(new THREE.Vector3((R() - 0.5) * 1.2, 0.4 + R() * 0.8, (R() - 0.5) * 1.2)));
     }
 
+    /* ---------------- where the life is: a stone close ahead, alive with sparks ---------------- */
+    // (the owner: "focus where the life is"): a dark stone a few steps ahead, its cracks glowing
+    // with sparks; as the narration names their reach toward the light, sparks lift out of it and
+    // spiral up toward the fire's glow, and sink home again, each in its own time
+    {
+      const N = new THREE.Vector3(3.6, sandHeight(3.6, -9.5) - 0.35, -9.5);
+      const geo = boulderGeometry(1.7, 777);
+      geo.scale(1.25, 0.9, 1);
+      const mesh = new THREE.Mesh(geo, stone);
+      mesh.position.copy(N);
+      mesh.castShadow = mesh.receiveShadow = true;
+      g.add(mesh);
+      ours.push(geo);
+      // sparks in its cracks
+      const n = 70;
+      const c = pointCloud(n, 0.42);
+      for (let i = 0; i < n; i++) {
+        const a = R() * Math.PI * 2, el = R() * 1.2 - 0.1;
+        c.pos.set([N.x + Math.cos(a) * Math.cos(el) * 2.05, N.y + 0.6 + Math.sin(el) * 1.45, N.z + Math.sin(a) * Math.cos(el) * 1.75], i * 3);
+        c.k.set([R(), R(), R(), R()], i * 4);
+      }
+      touch(c.cloud);
+      const K = c.cloud.nodes.aK;
+      const glow = sin(t.mul(float(0.7).add(K.x.mul(0.8))).add(K.y.mul(40))).mul(0.4).add(0.6);
+      c.material.colorNode = vec4(vec3(1, 0.7, 0.36).mul(c.round).mul(glow).mul(uSpark).mul(1.4), 1);
+      g.add(c.cloud.sprite);
+      ours.push(c.material);
+      // the ones that rise: out of the stone, spiralling up toward the light, and home again
+      const m = 90;
+      const f = pointCloud(m, 0.32);
+      for (let i = 0; i < m; i++) f.k.set([R(), R(), R(), R()], i * 4);
+      touch(f.cloud);
+      const F = f.cloud.nodes.aK;
+      const cyc = fract(F.x.add(t.mul(float(0.05).add(F.y.mul(0.04)))));
+      const up = sin(cyc.mul(Math.PI)); // out and back
+      const toward = new THREE.Vector3(VOLCANO.x - N.x, 0, VOLCANO.z - N.z).normalize();
+      const a = F.z.mul(6.283).add(t.mul(float(0.5).add(F.w.mul(0.6))));
+      const rad = up.mul(float(0.6).add(F.w.mul(1.6)));
+      const reach = up.mul(uLean.min(1.6)).mul(float(2).add(F.y.mul(5)));
+      f.material.positionNode = vec3(N.x, N.y + 1.2, N.z)
+        .add(vec3(cos(a).mul(rad), up.mul(float(2).add(F.x.mul(5))).mul(uLean.min(1.6)), sin(a).mul(rad)))
+        .add(vec3(toward.x, 0, toward.z).mul(reach));
+      const tw = sin(t.mul(3).add(F.z.mul(50))).mul(0.25).add(0.75);
+      f.material.colorNode = vec4(vec3(1, 0.82, 0.5).mul(f.round).mul(tw).mul(smoothstep(0.02, 0.15, up)).mul(uLean.min(1)).mul(uSpark).mul(1.3), 1);
+      g.add(f.cloud.sprite);
+      ours.push(f.material);
+    }
+
     /* ---------------- the sparks: consciousness resting in matter ---------------- */
     // each spark drawn as a bright core, a soft halo about it, and, as it leans, a short trail of
     // itself reaching toward the fire (the owner: larger, and visibly leaning as they are named)
@@ -233,6 +281,34 @@ export function createDensityRoom1Scene(
       s.material.colorNode = vec4(vec3(1.0, 0.74, 0.4).mul(s.round).mul(lum).mul(uSpark), 1);
       g.add(s.cloud.sprite);
       ours.push(s.material);
+    }
+
+    /* ---------------- the volcano throws fire: bombs of lava in arcs, more as it surges ---------------- */
+    {
+      const n = 1400;
+      const b = pointCloud(n, 1.1);
+      const aV = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) {
+        const a = R() * Math.PI * 2, up = 0.55 + R() * 0.45, sp = 16 + R() * 34;
+        const h = Math.sqrt(1 - up * up);
+        aV.set([Math.cos(a) * h * sp, up * sp, Math.sin(a) * h * sp], i * 3);
+        b.k.set([R(), R(), R(), R()], i * 4);
+      }
+      const bV = new THREE.InstancedBufferAttribute(aV, 3);
+      b.cloud.sprite.geometry.setAttribute("aV", bV);
+      touch(b.cloud);
+      const K = b.cloud.nodes.aK, V = T.instancedBufferAttribute(bV);
+      // bursts: the whole volcano breathes out every few seconds; each bomb flies its own arc
+      const burst = fract(t.mul(0.11).add(floor(K.x.mul(4)).mul(0.25)));
+      const tau = burst.mul(9);
+      const p = vec3(VOLCANO.x, VOLCANO.y + VOLCANO_H + 1, VOLCANO.z).add(V.mul(tau)).add(vec3(0, tau.mul(tau).mul(-4.9), 0));
+      b.material.positionNode = p;
+      const alive = smoothstep(0, 0.03, burst).mul(smoothstep(VOLCANO.y + 4, VOLCANO.y + 20, p.y));
+      const hot = mix(vec3(1, 0.85, 0.5), vec3(0.9, 0.22, 0.04), smoothstep(0, 0.6, burst));
+      const surge = T.clamp(uLava.sub(0.7), 0, 2);
+      b.material.colorNode = vec4(hot.mul(b.round).mul(alive).mul(float(1).sub(burst.mul(0.6))).mul(surge).mul(K.w.mul(0.6).add(0.5)), 1);
+      g.add(b.cloud.sprite);
+      ours.push(b.material);
     }
 
     /* ---------------- the volcano, pouring slow fire ---------------- */
@@ -461,12 +537,12 @@ export function createDensityRoom1Scene(
       const d = Math.min(0.05, Math.max(0, dt));
       clock.tick(d);
       applyAir(air);
-      uSpark.value = damp(uSpark.value, goal.spark, 0.12, d);
-      uLean.value = damp(uLean.value, goal.lean, 0.08, d);
-      uLava.value = damp(uLava.value, goal.lava, 0.18, d);
-      uSwell.value = damp(uSwell.value, goal.swell, 0.1, d);
-      uStorm.value = damp(uStorm.value, goal.storm, 0.2, d);
-      uPortal.value = damp(uPortal.value, goal.portal, 0.15, d);
+      uSpark.value = damp(uSpark.value, goal.spark, 0.35, d);
+      uLean.value = damp(uLean.value, goal.lean, 0.25, d);
+      uLava.value = damp(uLava.value, goal.lava, 0.45, d);
+      uSwell.value = damp(uSwell.value, goal.swell, 0.3, d);
+      uStorm.value = damp(uStorm.value, goal.storm, 0.5, d);
+      uPortal.value = damp(uPortal.value, goal.portal, 0.4, d);
     });
   };
 
