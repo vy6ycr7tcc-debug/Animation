@@ -580,6 +580,8 @@ input, textarea { -webkit-user-select: text; user-select: text; }
 #tp-mini { scale: 0.78; transform-origin: top right; }
 #tp-mini.idle { opacity: 0.6; }
 #tp-mini.idle #tp-mini-back { opacity: 0.25; pointer-events: none; }
+/* pausing a room's voice or a tour: only play/pause (no rewind, no skip from here) */
+#tp-mini.guest #tp-mini-back, #tp-mini.guest #tp-mini-next { visibility: hidden; }
 #tp-row button[hidden] { display: none; }
 #tp-mini svg { position: absolute; left: 0; top: 0; width: 152px; height: 76px; overflow: visible; pointer-events: none; }
 #tp-mini path { fill: none; stroke-width: 2; }

@@ -548,6 +548,10 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - the birds were 0.3–0.45 m models circling 45–100 m out and 24 m up.
   - Now: modest counts (6 horses and 12 birds on a phone, 8 and 18 on desktop), a little more glow than the wanderer (`herdOf`'s `glow`), herds roaming 18–50 m from you, birds true to size (stork 0.9 m, flamingo 1.0, parrot 0.55) circling 30–58 m out and 14–26 m up.
   - A model that fails to parse is reported (it rejected silently, taking every creature with it), as is a failed load (`loadBytes`).
+- 2026-10-01: pause for tours and every narration (the owner).
+  - The half-moon (top right) is the one control. While no archive narration plays, it becomes its "guest" (`TranscriptPlayer.guest`, `guestFrame`): whatever voice is speaking or tour is leading (a room, a lesson, the temple tour, a walk-through, the Duat tour). Its ▶/❚❚ pauses and resumes, and its arc shows that voice's progress. Back and next are hidden there: no new rewind.
+  - Pausing freezes three things together: the audio (`Narration.pause`/`resume`: Web Audio can't pause, so it stops at the moment and starts again from it, keeping the part's own progress); the narration clock (`time()`/`progress()` stand still, so rooms, lessons and seated tellings stand still); and the tours' advance (`tourHeld`: walk-throughs, the Duat tour, the temple tour's walking and its 2.2 s going-on).
+  - When nothing is left to pause, the hold clears itself.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.
