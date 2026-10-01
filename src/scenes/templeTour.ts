@@ -220,6 +220,7 @@ export class TempleTour implements SceneModule {
   /** The wanderer's own way to the stop (world x, z), walked one point after another. */
   private walk: THREE.Vector2[] = [];
   private view = { dist: 7, pitch: 0.36 };
+  private yawVel = 0;
 
   constructor(
     scene: THREE.Scene,
@@ -444,7 +445,11 @@ export class TempleTour implements SceneModule {
     const yawGoal = at ? s.heading : this.player.heading;
     let dy = yawGoal - this.follow.yaw;
     dy = Math.atan2(Math.sin(dy), Math.cos(dy));
-    this.follow.yaw += dy * Math.min(1, step * (at ? 1.4 : 2));
+    // the view comes round as a camera operator would move it: a critically damped spring,
+    // easing in and out (and walls never stand between it and the wanderer: FollowCamera.blockers)
+    const kk = at ? 1.5 : 2.2;
+    this.yawVel += (dy * kk * kk - 2 * kk * this.yawVel) * step;
+    this.follow.yaw += this.yawVel * step;
     this.follow.pitch += ((at ? 0.14 : 0.3) - this.follow.pitch) * Math.min(1, step * 1.5);
     if (this.follow.dist !== undefined) this.follow.dist += ((at ? 4.4 : 6) - this.follow.dist) * Math.min(1, step * 1.5);
     // its part spoken to its end (or no voice to speak it): a breath, then the light goes on by

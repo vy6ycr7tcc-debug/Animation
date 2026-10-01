@@ -34,6 +34,11 @@ export class FollowCamera {
       firmly (lower while a finger is on the screen, so it never fights the hand). */
   frame: THREE.Vector3 | null = null;
   frameHold = 1;
+  /** Walls a place apart sets: the view never stands behind one (it draws in before it). */
+  blockers: THREE.Object3D[] = [];
+  private ray = new THREE.Raycaster();
+  private hits: THREE.Intersection[] = [];
+  private rayDir = new THREE.Vector3();
   private frameK = 0;
   private frameAt = new THREE.Vector3();
 
@@ -86,6 +91,15 @@ export class FollowCamera {
         clear = Math.max(1.6, (dist * (k - 1)) / 10);
         break;
       }
+    }
+    // and when a wall would come between the camera and the wanderer, in front of the wall
+    if (this.blockers.length) {
+      this.rayDir.set(-fx * cp, sp, -fz * cp).normalize();
+      this.ray.set(this.target, this.rayDir);
+      this.ray.far = dist + 0.5;
+      this.hits.length = 0;
+      this.ray.intersectObjects(this.blockers, false, this.hits);
+      if (this.hits.length) clear = Math.min(clear, Math.max(1.1, this.hits[0].distance - 0.45));
     }
     this.effDist += (clear - this.effDist) * Math.min(1, dt * (clear < this.effDist ? 10 : 2));
     const ed = this.effDist;

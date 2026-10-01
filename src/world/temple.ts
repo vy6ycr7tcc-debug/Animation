@@ -463,6 +463,8 @@ export class Temple {
   /** Residency: the interior is built when you first go in and freed when you come out (the
       pylon outside always stands). What must outlast it (the lamps you have lit) is kept here. */
   private built = false;
+  /** The walls, for the camera to keep in front of (`FollowCamera.blockers`). */
+  blockers: THREE.Object3D[] = [];
   private gen = 0;
   private litKept = new Set<number>();
 
@@ -503,6 +505,7 @@ export class Temple {
       if (k >= 0) colliders.splice(k, 1);
     }
     this.myColliders = [];
+    this.blockers = [];
     this.shrines = [];
     this.centreShaft = [];
     this.spots = [];
@@ -683,8 +686,8 @@ export class Temple {
       this.group.add(mesh);
       return mesh;
     };
-    add(wallGeo, wallMat);
-    add(merged(stone), stoneMat);
+    // the walls and the niches' stone (their backs and lintels) keep the view in front of them
+    this.blockers = [add(wallGeo, wallMat), add(merged(stone), stoneMat)];
     add(merged(floors), floorMat, false);
     add(merged(ceil), ceilMat);
 
