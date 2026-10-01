@@ -209,7 +209,7 @@ export function runShot(ctx: ShotCtx): void {
     base = TEMPLE_ORIGIN;
     view = id === "temple-sanctuary" ? { eye: [0, 3.4, -29], look: [0, 2.6, -50] }
       : id === "temple-hall" ? { eye: [0, 3.2, 30], look: [0, 3, 0] }
-      : { eye: [0, 4, -40], look: [0, 3.5, -56] };
+      : { eye: [16.6, 2.6, -39.5], look: [26.2, 2.4, -39.5] }; // the Choice's room from its door
     ctx.setInside(true);
     ctx.player.pos.set(base[0] + view.eye[0], base[1], base[2] + view.eye[2] - 2);
   } else if (/^peak-\d$/.test(id)) {
