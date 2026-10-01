@@ -98,6 +98,8 @@ const CENTRE = new THREE.Vector2(0, -44);
 const GATE_Z = -30;
 const ARRIVE_R = 2.4;
 const LIGHT_SPEED = 3.4;
+/** The view's glide between stops (m/s at its fullest). */
+const GLIDE_SPEED = 2.6;
 /** After a part has been spoken, a breath of stillness before the light goes on. */
 const AUTO_AFTER = 2.2;
 
@@ -198,10 +200,12 @@ type Phase = "leading" | "speaking" | "done";
 export class TempleTour implements SceneModule {
   readonly id = "tour";
   active = false;
-  /** Standing before a shrine while it speaks (or after): the wanderer steps out of the view. */
+  /** The whole tour: the wanderer steps out of the view, and the view glides after the light. */
   get watching(): boolean {
-    return this.active && this.phase !== "leading";
+    return this.active;
   }
+  /** The view's glide to the next stop: a smooth curve along the aisle, how far along it. */
+  private glide: { curve: THREE.CatmullRomCurve3; L: number; s: number } | null = null;
   /** Paused from the half-moon: the walking and the going on stand still. */
   held = false;
   /** It has come to its end (the Choice spoken; rest or stay offered). */
@@ -352,6 +356,19 @@ export class TempleTour implements SceneModule {
     const from = new THREE.Vector2(this.player.pos.x - O.x, this.player.pos.z - O.z);
     this.walk = there ? [] : route(from, this.goal).map((p) => new THREE.Vector2(p.x + O.x, p.y + O.z));
     this.player.target = null;
+    // no walking (the owner: "very artificial and silly"): the view glides on one smooth curve
+    // through the same aisle, after the light
+    this.glide = null;
+    if (!there && k > 0) {
+      const pts = [new THREE.Vector3(this.player.pos.x, 0, this.player.pos.z), ...this.walk.map((p) => new THREE.Vector3(p.x, 0, p.y))];
+      if (pts[pts.length - 1].distanceTo(new THREE.Vector3(s.x, 0, s.z)) > 0.3) pts.push(new THREE.Vector3(s.x, 0, s.z));
+      const kept = pts.filter((p, i) => i === 0 || p.distanceTo(pts[i - 1]) > 0.4);
+      if (kept.length >= 2) {
+        const curve = new THREE.CatmullRomCurve3(kept, false, "centripetal");
+        this.glide = { curve, L: curve.getLength(), s: 0 };
+        this.path = [];
+      }
+    }
     if (there || k === 0) this.arrive();
     this.refresh();
   }
@@ -424,7 +441,7 @@ export class TempleTour implements SceneModule {
   private refresh(): void {
     const s = this.stops[this.index];
     const n = this.stops.length;
-    const hint = this.phase === "leading" ? "Walking there…" : this.phase === "done" ? (this.index === n - 1 ? "The end of the tour" : "Going on…") : `${this.index + 1} of ${n}`;
+    const hint = this.phase === "leading" ? "Going there…" : this.phase === "done" ? (this.index === n - 1 ? "The end of the tour" : "Going on…") : `${this.index + 1} of ${n}`;
     tourBar().set(s.title, hint);
     tourBar().ready(this.phase === "done");
   }
@@ -436,7 +453,30 @@ export class TempleTour implements SceneModule {
     const O = TEMPLE_ORIGIN, s = this.stops[this.index];
     // the light travels its way, slowing into the last metres, then waits, turning slowly
     let moving = false;
-    if (this.path.length) {
+    const held0 = this.held || this.narration.paused;
+    if (this.glide && this.phase === "leading") {
+      // the view glides along its curve, easing out of the stop and into the next; the light
+      // goes a few metres ahead on the same curve, so the view simply follows it
+      const g = this.glide;
+      if (!held0) {
+        const v = GLIDE_SPEED * Math.min(1, 0.18 + g.s / 2.4, 0.15 + (g.L - g.s) / 3.2);
+        g.s = Math.min(g.L, g.s + v * step);
+      }
+      const u = g.L > 0 ? g.s / g.L : 1;
+      const p = g.curve.getPointAt(u), tan = g.curve.getTangentAt(Math.min(0.999, u));
+      this.player.pos.x = p.x;
+      this.player.pos.z = p.z;
+      this.player.target = null;
+      if (tan.lengthSq() > 1e-6) this.player.heading = Math.atan2(-tan.x, -tan.z);
+      const ahead = g.curve.getPointAt(Math.min(1, (g.s + 3.5) / Math.max(g.L, 1e-3)));
+      this.lightAt.lerp(new THREE.Vector2(ahead.x - O.x, ahead.z - O.z), Math.min(1, step * 4));
+      moving = true;
+      if (g.s >= g.L - 1e-3) {
+        this.glide = null;
+        this.path = route(this.lightAt, this.waitPoint(s));
+        this.arrive();
+      }
+    } else if (this.path.length) {
       const target = this.path[0], d = this.lightAt.distanceTo(target);
       const v = LIGHT_SPEED * (this.path.length === 1 ? Math.min(1, 0.3 + d / 2.5) : 1) * step;
       if (d <= v || d < 1e-3) {
@@ -462,7 +502,7 @@ export class TempleTour implements SceneModule {
     if (held) {
       this.player.target = null;
       this.doneT = performance.now();
-    } else if (this.phase === "leading") {
+    } else if (this.phase === "leading" && !this.glide) {
       while (this.walk.length && Math.hypot(this.player.pos.x - this.walk[0].x, this.player.pos.z - this.walk[0].y) < 0.7) this.walk.shift();
       if (this.walk.length) this.player.target = this.walk[0].clone();
       if (!this.walk.length && Math.hypot(px - this.goal.x, pz - this.goal.y) < ARRIVE_R * 0.5) this.arrive();
@@ -484,8 +524,8 @@ export class TempleTour implements SceneModule {
     const kk = at ? 1.5 : 2.2;
     this.yawVel += (dy * kk * kk - 2 * kk * this.yawVel) * step;
     this.follow.yaw += this.yawVel * step;
-    this.follow.pitch += ((at ? 0.14 : 0.3) - this.follow.pitch) * Math.min(1, step * 1.5);
-    if (this.follow.dist !== undefined) this.follow.dist += ((at ? 4.4 : 6) - this.follow.dist) * Math.min(1, step * 1.5);
+    this.follow.pitch += ((at ? 0.14 : 0.2) - this.follow.pitch) * Math.min(1, step * 1.5);
+    if (this.follow.dist !== undefined) this.follow.dist += ((at ? 4.4 : 4.8) - this.follow.dist) * Math.min(1, step * 1.5);
     // its part spoken to its end (or no voice to speak it): a breath, then the light goes on by
     // itself; never before the part is over, so nothing is cut
     if (held) {
