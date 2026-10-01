@@ -1,7 +1,7 @@
 /* Third-person camera: glides after the wanderer, eases behind them while they move,
    and never dips under the ground or the water. No shake, ever. */
 import * as THREE from "three/webgpu";
-import { heightAt, WATER_Y } from "../world/terrain";
+import { heightAt, heightCoarse, WATER_Y } from "../world/terrain";
 
 export class FollowCamera {
   yaw = 0;
@@ -82,7 +82,7 @@ export class FollowCamera {
     for (let k = 1; k <= 10; k++) {
       const d = (dist * k) / 10;
       const px = this.target.x - fx * cp * d, pz = this.target.z - fz * cp * d, py = this.target.y + sp * d;
-      if (py < Math.max(heightAt(px, pz), this.underwater ? -1e9 : WATER_Y) + 0.4) {
+      if (py < Math.max(heightCoarse(px, pz), this.underwater ? -1e9 : WATER_Y) + 0.4) {
         clear = Math.max(1.6, (dist * (k - 1)) / 10);
         break;
       }

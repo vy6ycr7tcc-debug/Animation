@@ -73,6 +73,8 @@ interface Bird extends Animal {
   v: THREE.Vector3;
   flock: number;
   phase: number;
+  /** The ground under it, refreshed every few frames. */
+  ground?: number;
 }
 
 export class Creatures {
@@ -186,21 +188,27 @@ export class Creatures {
       if (toP < 140) h.mixer.update(dt);
     }
     // birds: loose flocks wheeling in wide circles above the wanderer
-    for (const [i, b] of this.birds.entries()) {
+    this.frameN++;
+    for (let i = 0; i < this.birds.length; i++) {
+      const b = this.birds[i];
       b.obj.visible = true;
-      if (b.p.lengthSq() === 0 || b.p.distanceTo(player) > 300) b.p.set(player.x + (Math.random() - 0.5) * 90, player.y + 26 + Math.random() * 20, player.z + (Math.random() - 0.5) * 90);
+      const far = b.p.lengthSq() === 0 ? Infinity : b.p.distanceTo(player);
+      if (far > 300) b.p.set(player.x + (Math.random() - 0.5) * 90, player.y + 26 + Math.random() * 20, player.z + (Math.random() - 0.5) * 90);
+      // the ground under it changes slowly: asked every 8th frame, each bird on its own frame
+      if ((this.frameN + i) % 8 === 0 || b.ground === undefined) b.ground = Math.max(heightAt(b.p.x, b.p.z), WATER_Y);
       const a = t * (0.07 + b.flock * 0.018) + b.flock * 2.1;
       const r = 45 + b.flock * 24;
       this.tmp.set(
         player.x + Math.cos(a) * r + Math.sin(i * 1.3) * 6,
-        Math.max(heightAt(b.p.x, b.p.z), WATER_Y) + 24 + b.flock * 10 + Math.sin(t * 0.3 + b.phase) * 4,
+        b.ground + 24 + b.flock * 10 + Math.sin(t * 0.3 + b.phase) * 4,
         player.z + Math.sin(a) * r + Math.cos(i * 2.1) * 6,
       );
       b.v.addScaledVector(this.tmp.sub(b.p), dt * 0.3).multiplyScalar(1 - dt * 0.22);
       b.p.addScaledVector(b.v, dt);
       b.obj.position.copy(b.p);
       if (b.v.lengthSq() > 1e-4) b.obj.lookAt(this.look.copy(b.p).sub(b.v)); // the model faces −z after the flip
-      b.mixer.update(reduced ? dt * 0.5 : dt);
+      if (far < 200) b.mixer.update(reduced ? dt * 0.5 : dt); // beyond, its wingbeat can't be seen
     }
   }
+  private frameN = 0;
 }

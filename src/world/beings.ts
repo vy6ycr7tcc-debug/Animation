@@ -288,8 +288,9 @@ class Being {
     for (const m of this.meshes) m.visible = !this.figure && d0 < 90;
     if (this.figure) {
       this.figure.cloud.sprite.visible = d0 < 160;
-      // held still while out of the nearest two: its motes still gather and turn, a few times a second
-      if (!show && d0 < 160 && (this.figureTick += dt) > 0.2) {
+      // held still while out of the nearest two: its motes still gather and turn, a few times a
+      // second within 100 m, about once a second beyond (small there; its light still shimmers)
+      if (!show && d0 < 160 && (this.figureTick += dt) > (d0 < 100 ? 0.3 : 0.8)) {
         this.root.updateMatrixWorld(true);
         this.figure.update(this.figureTick, t, d0 < 45, 0.85 + this.wake * 0.3, reduced);
         this.figureTick = 0;

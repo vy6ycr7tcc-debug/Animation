@@ -125,6 +125,9 @@ export class Playlist {
         this.first = null;
         this.heard.add(id);
         this.narration.play(id);
+        // the next voice to come starts downloading now, so it is ready when its time comes
+        const next = ORDER.find((x, k) => k >= this.i && !this.heard.has(x)) ?? ORDER.find((x) => !this.heard.has(x));
+        if (next) this.narration.preload([next]);
         spoke = true;
         break;
       }

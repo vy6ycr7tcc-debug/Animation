@@ -16,7 +16,8 @@
 import { seatStone } from "../scenes/visionLesson";
 import * as THREE from "three/webgpu";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
-import { Beings, type BeingModel } from "./beings";
+import { ARCHETYPES, Beings, type BeingModel } from "./beings";
+import { release } from "../core/residency";
 import type { Sparks } from "./life";
 import type { Station } from "./stations";
 import { surface } from "./textures";
@@ -91,7 +92,12 @@ function rng(seed: number): () => number {
 
 /** The walls: 8 m of wall, full height, carved in registers (sunk relief: a dark cut with a
     light lip below it), with faded pigment in the cuts: ochre, a little blue and green. */
+let reliefTextureMade: THREE.CanvasTexture | null = null;
+/** Painted once, kept (the temple is rebuilt on each visit; its canvas need not be). */
 function reliefTexture(): THREE.CanvasTexture {
+  return (reliefTextureMade ??= reliefTexturePaint());
+}
+function reliefTexturePaint(): THREE.CanvasTexture {
   const PX = 128, W = 8 * PX, H = WALL_H * PX;
   const [c, g] = canvas(W, H);
   const r = rng(7);
@@ -251,7 +257,12 @@ function reliefTexture(): THREE.CanvasTexture {
 }
 
 /** The ceiling: deep blue, with rows of five-pointed gold stars (as on temple ceilings). */
+let starTextureMade: THREE.CanvasTexture | null = null;
+/** Painted once, kept (the temple is rebuilt on each visit; its canvas need not be). */
 function starTexture(): THREE.CanvasTexture {
+  return (starTextureMade ??= starTexturePaint());
+}
+function starTexturePaint(): THREE.CanvasTexture {
   const [c, g] = canvas(512, 512);
   g.fillStyle = "#16244f";
   g.fillRect(0, 0, 512, 512);
@@ -276,7 +287,15 @@ function starTexture(): THREE.CanvasTexture {
 }
 
 /** A numeral carved and gilded on a coloured field, for the lintel over a shrine. */
+const numeralTextureMade = new Map<string, THREE.CanvasTexture>();
+/** Painted once each, kept (the temple is rebuilt on each visit; its canvases need not be). */
 function numeralTexture(numeral: string, name: string, tint: THREE.Color): THREE.CanvasTexture {
+  const key = numeral;
+  let t = numeralTextureMade.get(key);
+  if (!t) numeralTextureMade.set(key, (t = numeralTexturePaint(numeral, name, tint)));
+  return t;
+}
+function numeralTexturePaint(numeral: string, name: string, tint: THREE.Color): THREE.CanvasTexture {
   // cut into the stone, not a painted box: a sunk border, the letters incised (a shadowed cut
   // with a lit lip) and gilded, a thread of the archetype's colour under the name
   const [c, g] = canvas(512, 160);
@@ -441,17 +460,67 @@ export class Temple {
   private local = new THREE.Vector3();
   private myColliders: Collider[] = [];
 
+  /** Residency: the interior is built when you first go in and freed when you come out (the
+      pylon outside always stands). What must outlast it (the lamps you have lit) is kept here. */
+  private built = false;
+  private gen = 0;
+  private litKept = new Set<number>();
+
   constructor(private sparks: Sparks, private hooks: TempleHooks) {
     this.group.position.copy(TEMPLE_ORIGIN);
+    this.group.visible = false;
+    this.buildGate();
+  }
+
+  /** Build the interior (in the dark of the crossing). */
+  private build(): void {
+    if (this.built) return;
+    this.built = true;
+    this.gen++;
+    this.stage = new THREE.Group();
     this.buildHall();
-    this.buildShrines(sparks);
-    this.buildStage(sparks);
+    this.buildShrines(this.sparks);
+    this.buildStage(this.sparks);
     this.showCard(0);
     this.buildRuin();
     void this.loadProps();
     this.buildLight();
-    this.group.visible = false;
-    this.buildGate();
+    if (this.model) this.attach(this.model);
+    for (const i of this.litKept) this.kindle(i, true);
+  }
+
+  /** Free the interior: every geometry, material and texture it alone holds, its colliders. */
+  private unbuild(): void {
+    if (!this.built) return;
+    this.built = false;
+    this.gen++;
+    const kids = [...this.group.children];
+    this.group.clear();
+    const scene = this.gate.parent as THREE.Scene | null;
+    if (scene) release(scene, kids);
+    for (const c of this.myColliders) {
+      const k = colliders.indexOf(c);
+      if (k >= 0) colliders.splice(k, 1);
+    }
+    this.myColliders = [];
+    this.shrines = [];
+    this.centreShaft = [];
+    this.spots = [];
+    this.lamps = [];
+    this.synth.glow = null;
+    this.firePits = [];
+    this.flames = [];
+    this.focus = { i: -1, k: 0, glow: [], hall: [] };
+    this.shafts = [];
+    this.signs = [];
+    this.washK = [0, 0, 0];
+    this.group_ = -1;
+    this.cardBeings.clear();
+    this.cardOffset.clear();
+    this.cardShown = -1;
+    this.cardPrev = null;
+    this.cardsOpen = false;
+    this.quietStage = false;
   }
 
   /** Stone that feels real (Samuel: "more real life, more texture… Assassin's Creed Origins"):
@@ -666,11 +735,13 @@ export class Temple {
       their pedestals, clay and ceramic vessels gathered at the foot of the shrines and in the
       sanctuary, brass lamps around the ring. Each kind drawn as instances (one draw per part). */
   private async loadProps(): Promise<void> {
+    const gen = this.gen;
     const bytes = await loadBytes("models/temple-props.glb");
-    if (!bytes) return;
+    if (!bytes || gen !== this.gen) return;
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
     const gltf = await loader.parseAsync(bytes, "");
+    if (gen !== this.gen) return; // left again before they arrived
     floatAttributes(gltf.scene);
     gltf.scene.updateMatrixWorld(true);
     const r = rng(21);
@@ -1002,8 +1073,8 @@ export class Temple {
   }
 
   shrineInfo(i: number): { numeral: string; name: string; tint: THREE.Color } {
-    const s = this.shrines[i];
-    return { numeral: s.numeral, name: s.name, tint: new THREE.Color(...s.beings.list[0].spec.tint) };
+    const a = ARCHETYPES[i];
+    return { numeral: a.numeral, name: a.name, tint: new THREE.Color(...a.tint) };
   }
 
   /** Light shrine `i` for the tour (−1: none): its carving glows from within, the hall dimmed round it. */
@@ -1019,6 +1090,7 @@ export class Temple {
 
   /** Light (or show as lit, on arriving) the lamp of shrine `i`. */
   kindle(i: number, at = false): void {
+    this.litKept.add(i);
     const l = this.lamps[i];
     if (!l) return;
     l.lit = 1;
@@ -1170,10 +1242,9 @@ export class Temple {
 
   /** The archetype of card `i` (0–21): numeral, name, realm, place. */
   cardInfo(i: number): { numeral: string; name: string; realm: string; place: string } {
-    const s = this.shrines[i];
+    const a = ARCHETYPES[i];
     const POS = ["Matrix", "Potentiator", "Catalyst", "Experience", "Significator", "Transformation", "Great Way"];
-    const b = s.beings.list[0];
-    return { numeral: s.numeral, name: s.name, realm: i === 21 ? "" : b.spec.realm, place: i === 21 ? "The Choice" : POS[i % 7] };
+    return { numeral: a.numeral, name: a.name, realm: i === 21 ? "" : a.realm, place: i === 21 ? "The Choice" : POS[i % 7] };
   }
 
   showCard(i: number): void {
@@ -1499,8 +1570,10 @@ export class Temple {
   }
 
   show(inside: boolean): void {
+    if (inside) this.build();
     this.inside = inside;
     this.group.visible = inside;
+    if (!inside) this.unbuild();
   }
 
   update(t: number, dt: number, player: THREE.Vector3, reduced: boolean): void {

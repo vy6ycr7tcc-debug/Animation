@@ -19,13 +19,30 @@ export async function loadBytes(path: string): Promise<ArrayBuffer | null> {
     for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
     return out.buffer;
   }
-  try {
-    const r = await fetch(`./${path}`);
-    return r.ok ? await r.arrayBuffer() : null;
-  } catch {
-    return null;
+  // never silent: a failure is reported once, a network error is tried again once after a
+  // moment, and a model that cannot load is told to the game (main.ts says so on screen)
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const r = await fetch(`./${path}`);
+      if (r.ok) return await r.arrayBuffer();
+      warnOnce(path, `HTTP ${r.status}`);
+      if (r.status === 404) break; // not there (a re-voiced copy not made yet): no use asking again
+    } catch (e) {
+      warnOnce(path, String((e as Error)?.message ?? e));
+    }
+    if (attempt === 0) await new Promise((r) => setTimeout(r, 900));
   }
+  if (path.startsWith("models/")) loadFailed.hook?.(path);
+  return null;
 }
+const warned = new Set<string>();
+function warnOnce(path: string, why: string): void {
+  if (warned.has(path)) return;
+  warned.add(path);
+  console.warn(`Could not load ${path}: ${why}`);
+}
+/** Told when a model could not be loaded (after its retry). */
+export const loadFailed: { hook: ((path: string) => void) | null } = { hook: null };
 
 /** Turn quantized vertex data (16-bit positions, 8-bit normals from KHR_mesh_quantization) into
     plain floats. WebGPU's shadow pass misread the quantized positions: one scanned rock covered

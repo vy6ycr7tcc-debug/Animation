@@ -1,14 +1,14 @@
 /* Night water: dark, calm, and safe. It mirrors the sky (stars and the bright star) with
    pale cyan light on the ripples. Small waves near the viewer calm to a mirror far away.
    Ripples (footsteps, strokes, the first touch) are rings added to the surface normal.
-   The world above (the land, the beings, the wanderer, the lights) is mirrored by three's
-   reflector node, bent by the same ripples. */
+   Nothing of the world is mirrored (the owner: no reflections, only the sky); the reflector
+   that once mirrored it is gone. */
 import * as THREE from "three/webgpu";
 import { T, withFog, type N } from "../gpu/tsl";
 import { skyColor, skyUniforms } from "./sky";
 
 const {
-  abs, cameraPosition, clamp, cos, dot, exp, float, Fn, length, Loop, max, mix, normalize, positionWorld, pow, reflect, reflector,
+  abs, cameraPosition, clamp, cos, dot, exp, float, Fn, length, Loop, max, mix, normalize, positionWorld, pow, reflect,
   sin, smoothstep, uniform, uniformArray, vec2, vec3, vec4,
 } = T;
 
@@ -18,29 +18,19 @@ export const NO_MIRROR_LAYER = 1;
 
 export class Water {
   mesh: THREE.Mesh;
-  /** The reflector's plane (add it to the scene) and its render settings. */
-  readonly mirror: N;
   private ripples: THREE.Vector4[] = [];
   private next = 0;
-  private matOn: THREE.MeshBasicNodeMaterial;
-  private matOff: THREE.MeshBasicNodeMaterial;
+  private mat: THREE.MeshBasicNodeMaterial;
   readonly uniforms = {
     uCalm: uniform(1),
     uGlow: uniform(new THREE.Vector3()), // the wanderer's light, reflected
-    uReflOn: { value: 0 }, // 1 draws the mirrored world (costly), 0 only the sky
   };
 
   constructor() {
     for (let i = 0; i < MAX_RIPPLES; i++) this.ripples.push(new THREE.Vector4(0, 0, -100, 0));
     const rip = uniformArray(this.ripples, "vec4");
     const U = this.uniforms, S = skyUniforms;
-    this.mirror = reflector({ resolutionScale: 0.5 });
-    // the mirror plane is the water surface: its local +z faces up
-    this.mirror.target.rotation.x = -Math.PI / 2;
-    // rendered by renderMirror() before the frame, rather than nested inside the scene pass
-    this.mirror.reflector.updateBeforeType = "none";
-
-    const build = (withWorld: boolean) =>
+    const build = () =>
       Fn(() => {
         const vW = positionWorld;
         /* ---- from below: the sky through a bright window straight up, elsewhere a plain dim
@@ -86,13 +76,6 @@ export class Water {
         const R0 = reflect(v.negate(), n);
         const R = vec3(R0.x, abs(R0.y), R0.z);
         const refl = skyColor(R).toVar();
-        if (withWorld) {
-          // the land, the beings and the wanderer, mirrored and bent by the ripples
-          const m = this.mirror;
-          m.uvNode = m.uvNode.add(g.mul(vec2(0.9, 0.6)));
-          const rt = m;
-          refl.assign(refl.mul(float(1).sub(clamp(rt.a, 0, 1))).add(rt.rgb)); // solid things cover the sky; glows add their light
-        }
         // pale cyan catches on the ripple slopes
         refl.addAssign(vec3(0.3, 0.6, 0.7).mul(smoothstep(0.02, 0.25, length(g))).mul(0.1));
         const c = mix(vec3(0.012, 0.024, 0.055), refl, clamp(fres.mul(1.25), 0, 1)).toVar();
@@ -105,34 +88,15 @@ export class Water {
         return vec4(cameraPosition.y.lessThan(vW.y.sub(0.001)).select(fromBelow, fromAbove), 1);
       })();
 
-    const make = (withWorld: boolean) => {
-      const m = new THREE.MeshBasicNodeMaterial({ side: THREE.DoubleSide, fog: false }); // seen from beneath when diving
-      m.colorNode = build(withWorld);
-      return m;
-    };
-    this.matOff = make(false);
-    this.matOn = make(true);
-    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(14000, 14000, 1, 1).rotateX(-Math.PI / 2), this.matOff);
+    this.mat = new THREE.MeshBasicNodeMaterial({ side: THREE.DoubleSide, fog: false }); // seen from beneath when diving
+    this.mat.colorNode = build();
+    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(14000, 14000, 1, 1).rotateX(-Math.PI / 2), this.mat);
     this.mesh.frustumCulled = false;
   }
 
-  /** Call once with the main camera (which must see NO_MIRROR_LAYER): the mirror's camera then
-      leaves that layer out, so the sky shows through where nothing stands (alpha 0). */
+  /** The main camera sees NO_MIRROR_LAYER (the sky, the grass, the lights seen through the ground). */
   excludeFromMirror(camera: THREE.Camera): void {
     camera.layers.enable(NO_MIRROR_LAYER);
-    this.mirror.reflector.getVirtualCamera(camera).layers.disable(NO_MIRROR_LAYER);
-  }
-
-  /** Mirror the world above (true) or only the sky (false). */
-  setReflection(on: boolean): void {
-    this.uniforms.uReflOn.value = on ? 1 : 0;
-    this.mesh.material = on ? this.matOn : this.matOff;
-  }
-
-  /** Draw the mirrored world for this frame (before the scene itself is drawn). */
-  renderMirror(renderer: THREE.WebGPURenderer, scene: THREE.Scene, camera: THREE.Camera): void {
-    if (!this.uniforms.uReflOn.value) return;
-    this.mirror.reflector.updateBefore({ renderer, scene, camera, material: this.mesh.material });
   }
 
   ripple(x: number, z: number, strength: number, time: number): void {

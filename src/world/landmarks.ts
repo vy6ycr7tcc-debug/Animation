@@ -10,6 +10,8 @@ import { skyUniforms } from "./sky";
 import { buildLandmarks, type Frame, type Hooks, type Station } from "./stations";
 
 export class Landmarks {
+  private farOff = new Set<Station>();
+  private frame = {} as Frame;
   list: Station[];
   timeScale = 1;
   /** 0–1: resting in silence with an archetype. The stars come out and time slows. */
@@ -42,11 +44,16 @@ export class Landmarks {
       const d = s.distance(player);
       const near = d < s.radius + 1;
       // Pausing near a landmark counts as sitting with it.
-      // Far beyond the fog a landmark is simply not drawn (it would be invisible anyway).
+      // Far beyond the fog a landmark is simply not drawn (it would be invisible anyway), and,
+      // once hidden, not updated either
       const seen = Math.min(1, Math.max(0, (1100 - d) / 150));
-      const f: Frame = { t, dt, player, reduced, seen, gesture: near && this.still > 1.2 ? "sit" : this.wanderer.gesture === "touch" ? "reach" : this.wanderer.gesture };
+      if (seen === 0 && this.farOff.has(s)) continue;
+      const f = this.frame;
+      Object.assign(f, { t, dt, player, reduced, seen, gesture: near && this.still > 1.2 ? "sit" : this.wanderer.gesture === "touch" ? "reach" : this.wanderer.gesture });
       if (near && !s.visited) s.markVisited(); // its ring closes once you've been
       s.update(f, this.hooks, near);
+      if (seen === 0) this.farOff.add(s);
+      else this.farOff.delete(s);
     }
     this.wantStars = Math.max(this.wantStars, this.stillness * 1.6);
     this.wantTime = Math.min(this.wantTime, 1 - this.stillness * 0.5);

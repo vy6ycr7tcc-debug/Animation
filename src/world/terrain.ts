@@ -8,7 +8,6 @@
 import * as THREE from "three/webgpu";
 import { fogUniforms, T, type N } from "../gpu/tsl";
 import { starDirection } from "./fog";
-import { groundLight } from "./lightfield";
 import { surface } from "./textures";
 
 export const WATER_Y = 0;
@@ -314,6 +313,28 @@ export const platformRise = (d: number): number => (d < 19.6 ? 1.35 : d < 20.8 ?
 /** A place apart, beyond the world's edge (the temple): its own floor. */
 export const floorHook: { fn: ((x: number, z: number) => number) | null } = { fn: null };
 
+/** The ground's height from a coarse cache (corners every 4 m, bilinear between; bounded): for
+    the many queries that need only the lie of the land (the camera's ray against the ground,
+    autofly's look ahead, the shadow's target), not the exact ground under a foot. Places apart
+    answer exactly (their floors change). */
+const COARSE = 4;
+const coarse = new Map<number, number>();
+function corner(ix: number, iz: number): number {
+  const key = (ix + 50000) * 100003 + (iz + 50000);
+  let h = coarse.get(key);
+  if (h === undefined) {
+    if (coarse.size > 20000) coarse.clear();
+    h = heightAt(ix * COARSE, iz * COARSE);
+    coarse.set(key, h);
+  }
+  return h;
+}
+export function heightCoarse(x: number, z: number): number {
+  if (x > 20000) return heightAt(x, z);
+  const fx = x / COARSE, fz = z / COARSE, ix = Math.floor(fx), iz = Math.floor(fz), u = fx - ix, v = fz - iz;
+  const a = corner(ix, iz), b = corner(ix + 1, iz), c = corner(ix, iz + 1), d = corner(ix + 1, iz + 1);
+  return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
+}
 export function heightAt(x: number, z: number): number {
   if (x > 20000 && floorHook.fn) return floorHook.fn(x, z);
   let h = rawHeight(x, z);
@@ -644,8 +665,6 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
     // (left out: Samuel found the moving web on the floor "annoying", like a reflection)
     void cau, k;
     // a soft sheen where the ground faces away toward the moon (light through the haze)
-    // the lights of the world, pooling on the ground (lanterns, beings, crystals, your own)
-    e.addAssign(groundLight(vGW).mul(T.vertexColor().rgb.mul(1.6).add(0.12)).mul(gr.x));
     // Journey's sand: a liquid sheen toward the low sun or the moon, off the rippled surface (soft,
     // broad and faint: never a glare sliding over the ground), and a pale rim at grazing angles
     const nS = normalize(nW.add(dRip.mul(1.2)));
