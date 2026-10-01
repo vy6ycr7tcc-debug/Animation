@@ -396,6 +396,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
     {
       id: "crucible",
       focus: [[0, 4.5, -12]],
+      centre: [0, 4.2, -6], // the crucible and the seven rings of light over it
       title: "The crucible",
       make: async (scene, nar, wh) => (await import("./crucible")).createCrucibleScene(scene, nar, wh) as Room,
       start: { x: 0, z: 4.5, heading: 0 },
@@ -409,9 +410,10 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
     {
       id: "radiance",
       focus: [[0, 2, -16]],
+      centre: [0.6, 1.6, 0.2], // the servant by the basin, not the far door
       title: "The radiance",
       make: async (scene, nar, wh) => (await import("./radiance")).createRadianceScene(scene, nar, wh) as Room,
-      start: { x: 0, z: 9, heading: 0 },
+      start: { x: 0, z: 6.5, heading: 0 },
       exits: [{ x: 0, z: -16.6, r: 1.8, to: 4 }], // on to the ancient practices
       confine: (p) => {
         const d = Math.hypot(p.x, p.z), lim = Math.abs(p.x) < 1.6 && p.z < 0 ? 17 : 15.6;

@@ -139,9 +139,43 @@ export function createCrucibleScene(scene: THREE.Scene, narration: LessonCtx["na
       const lit = smoothstep(k.add(0.1), k.add(0.9), uRings);
       const pulse = exp(abs(y.div(38).sub(uClimb)).mul(-18)).mul(1.4);
       const gate = exp(abs(y.div(38).sub(uDesc)).mul(-22)).mul(1.1);
-      const m = ribbonMaterial(col.mul(col).mul(lit.mul(0.75).add(pulse.mul(0.6)).add(gate.mul(0.5)).add(0.02)), 1.2);
+      const m = ribbonMaterial(col.mul(col).mul(lit.mul(0.9).add(pulse.mul(0.7)).add(gate.mul(0.6)).add(0.02)), 2.2);
       g.add(new THREE.Mesh(geo, m));
       ours.push(geo, m);
+    }
+    // the seven chambers again, in view: a small tower of seven rings of light standing over the
+    // crucible, each lit in its colour as it is named; the pulse climbs through them and the light
+    // goes down through them, as up the great tower's walls
+    {
+      const COLS = [[0.88, 0.28, 0.23], [0.94, 0.54, 0.2], [0.95, 0.81, 0.29], [0.37, 0.81, 0.45], [0.31, 0.56, 0.91], [0.36, 0.31, 0.81], [0.66, 0.43, 0.88]];
+      for (let i = 0; i < 7; i++) {
+        const y = 2.4 + i * 0.95, rad = 2.5 - i * 0.16;
+        const pairs: number[] = [];
+        const n = 64;
+        for (let k = 0; k < n; k++) {
+          const a0 = (k / n) * Math.PI * 2, a1 = ((k + 1) / n) * Math.PI * 2;
+          pairs.push(C.x + Math.sin(a0) * rad, y, C.z + Math.cos(a0) * rad, C.x + Math.sin(a1) * rad, y, C.z + Math.cos(a1) * rad);
+        }
+        const col = vec3(...(COLS[i] as [number, number, number]));
+        const lit = smoothstep(float(i + 0.1), float(i + 0.9), uRings);
+        const at = i / 6;
+        const pulse = exp(abs(uClimb.sub(at)).mul(-14));
+        const gate = exp(abs(uDesc.sub(at)).mul(-14)).mul(smoothstep(-0.05, 0.02, uDesc));
+        const k = lit.mul(0.85).add(pulse.mul(0.9)).add(gate.mul(0.8)).add(0.03);
+        const geo = ribbonGeometry(pairs);
+        const m = ribbonMaterial(col.mul(k), 2.6);
+        g.add(new THREE.Mesh(geo, m));
+        ours.push(geo, m);
+        // a soft annulus of the same light under each ring, so it reads as a chamber of light
+        const ag = new THREE.RingGeometry(rad - 0.35, rad + 0.35, 64, 1);
+        ag.rotateX(-Math.PI / 2);
+        ag.translate(C.x, y, C.z);
+        const am = keepAlpha(new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide }));
+        const rr = length(T.positionGeometry.xz.sub(vec2(C.x, C.z)));
+        am.colorNode = vec4(col.mul(exp(rr.sub(rad).mul(rr.sub(rad)).mul(-30))).mul(k).mul(0.35), 1);
+        g.add(new THREE.Mesh(ag, am));
+        ours.push(ag, am);
+      }
     }
     // the light going down through the seven gates
     {
@@ -194,7 +228,12 @@ export function createCrucibleScene(scene: THREE.Scene, narration: LessonCtx["na
       const light = new THREE.PointLight(0xff8a3c, 0, 40, 1.3);
       light.position.set(C.x, 3.0, C.z);
       g.add(light);
-      tickers.push(() => (light.intensity = 110 * uForge.value * (1 - uCool.value * 0.4) + 14));
+      const warmC = new THREE.Color(0xff8a3c), redC = new THREE.Color(0xff2a18), blueC = new THREE.Color(0x4a8cff), whiteC = new THREE.Color(0xfff2e0);
+      tickers.push(() => {
+        light.intensity = 110 * uForge.value * (1 - uCool.value * 0.4) + 14 + (uRed.value + uBlue.value + uStill.value) * 60;
+        // the practice washes the tower in its colour: the red, its opposite, then the steady white
+        light.color.copy(warmC).lerp(redC, uRed.value * 0.8).lerp(blueC, uBlue.value * 0.8).lerp(whiteC, uStill.value * 0.6);
+      });
       // sparks rising off the metal
       const n = 360;
       const s = pointCloud(n, 0.06);
@@ -218,7 +257,7 @@ export function createCrucibleScene(scene: THREE.Scene, narration: LessonCtx["na
       const mk = (x: number, col: THREE.Vector3, u: N) => {
         const m = keepAlpha(new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false, fog: false }));
         const r = length(uv().sub(0.5)).mul(2);
-        m.colorNode = vec4(vec3(col.x, col.y, col.z).mul(exp(r.mul(r).mul(-5))).mul(smoothstep(1, 0.6, r)).mul(u).mul(0.4), 1);
+        m.colorNode = vec4(vec3(col.x, col.y, col.z).mul(exp(r.mul(r).mul(-5))).mul(smoothstep(1, 0.6, r)).mul(u).mul(0.9), 1);
         const sp = new THREE.Sprite(m);
         sp.position.set(C.x + x, 2.8, C.z);
         sp.scale.setScalar(3.4);
@@ -231,9 +270,9 @@ export function createCrucibleScene(scene: THREE.Scene, narration: LessonCtx["na
       const white = mk(0, new THREE.Vector3(1, 0.97, 0.9), uStill);
       white.position.y = 3.0;
       tickers.push(() => {
-        red.scale.setScalar(0.8 + uRed.value * 1.8);
-        blue.scale.setScalar(0.8 + uBlue.value * 1.8);
-        white.scale.setScalar(0.6 + uStill.value * 0.9);
+        red.scale.setScalar(1 + uRed.value * 3.6);
+        blue.scale.setScalar(1 + uBlue.value * 3.6);
+        white.scale.setScalar(0.8 + uStill.value * 2);
       });
     }
     // the arch the shadow comes from, and the shortcut's glittering opening
@@ -335,22 +374,22 @@ export function createCrucibleScene(scene: THREE.Scene, narration: LessonCtx["na
       const d = Math.min(0.05, Math.max(0, dt));
       clock.tick(d);
       applyAir(air);
-      uRings.value = damp(uRings.value, goal.rings, 0.9, d);
-      if (climbing) uClimb.value = Math.min(1.25, uClimb.value + d / 14);
-      if (descending) uDesc.value = uDesc.value > -0.5 ? uDesc.value - d / 16 : -1;
-      uRed.value = damp(uRed.value, goal.red, 0.4, d);
-      uBlue.value = damp(uBlue.value, goal.blue, 0.4, d);
-      uStill.value = damp(uStill.value, goal.still, 0.3, d);
-      uForge.value = damp(uForge.value, goal.forge, 0.25, d);
-      uCool.value = damp(uCool.value, goal.cool, 0.12, d);
-      uLure.value = damp(uLure.value, goal.lure, 0.2, d);
-      uHeart.value = damp(uHeart.value, goal.heart, 0.2, d);
-      uWomb.value = damp(uWomb.value, goal.womb, 0.12, d);
+      uRings.value = damp(uRings.value, goal.rings, 2.6, d);
+      if (climbing) uClimb.value = Math.min(1.25, uClimb.value + d / 7);
+      if (descending) uDesc.value = uDesc.value > -0.5 ? uDesc.value - d / 8 : -1;
+      uRed.value = damp(uRed.value, goal.red, 1.3, d);
+      uBlue.value = damp(uBlue.value, goal.blue, 1.3, d);
+      uStill.value = damp(uStill.value, goal.still, 1, d);
+      uForge.value = damp(uForge.value, goal.forge, 0.8, d);
+      uCool.value = damp(uCool.value, goal.cool, 0.45, d);
+      uLure.value = damp(uLure.value, goal.lure, 0.8, d);
+      uHeart.value = damp(uHeart.value, goal.heart, 0.7, d);
+      uWomb.value = damp(uWomb.value, goal.womb, 0.5, d);
       // the shadow walks in from its arch to the crucible, then stands
       const [light, shadow] = folk.bodies;
       if (shadow) {
         if (shadowGo && shadowK < 1) {
-          shadowK = Math.min(1, shadowK + d / 17);
+          shadowK = Math.min(1, shadowK + d / 9);
           if (shadowK >= 1) shadow.act("idle");
         }
         shadow.root.position.lerpVectors(shadowFrom, shadowTo, shadowK);

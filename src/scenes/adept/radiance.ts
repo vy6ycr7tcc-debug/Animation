@@ -29,7 +29,7 @@ const SUN = new THREE.Vector3(0, 0.02, -1).normalize();
 export const RAD_DOOR = new THREE.Vector3(0, 0, -TERRACE_R);
 
 export function createRadianceScene(scene: THREE.Scene, narration: LessonCtx["narration"], whisper: (t: string, ms?: number) => void): SceneModule {
-  const seatPos = new THREE.Vector3(0, 0, 9);
+  const seatPos = new THREE.Vector3(0, 0, 6.5);
   const tickers: Array<(dt: number) => void> = [];
   const ours: Array<{ dispose(): void }> = [];
   const clock = roomClock();
@@ -59,8 +59,8 @@ export function createRadianceScene(scene: THREE.Scene, narration: LessonCtx["na
   };
   const R = seeded(733);
   const folk = new GlassFolk([
-    { x: 1.3, z: 0.4, face: Math.PI * 0.85, act: "sit", tint: new THREE.Color(1, 0.9, 0.72) },
-    { x: -9, z: -13, face: 0.6, act: "walk", tint: new THREE.Color(0.85, 0.9, 1), glow: { inner: 0.22, edge: 0.7, body: 0.3 } },
+    { x: 1.3, z: 0.4, face: Math.PI * 0.85, act: "sit", tint: new THREE.Color(1, 0.9, 0.72), scale: 1.35 },
+    { x: -9, z: -13, face: 0.6, act: "walk", tint: new THREE.Color(0.85, 0.9, 1), glow: { inner: 0.22, edge: 0.7, body: 0.3 }, scale: 1.35 },
   ], 57);
   const futureFrom = new THREE.Vector3(-9, 0, -13), futureTo = new THREE.Vector3(-1.1, 0, 0.6);
   let futureK = 0, futureGo = false, futureSat = false;
@@ -304,26 +304,26 @@ export function createRadianceScene(scene: THREE.Scene, narration: LessonCtx["na
       const d = Math.min(0.05, Math.max(0, dt));
       clock.tick(d);
       applyAir(air);
-      uDawn.value = damp(uDawn.value, goal.dawn, 0.05, d);
-      uClear.value = damp(uClear.value, goal.clear, 0.15, d);
-      uJoy.value = damp(uJoy.value, goal.joy, 0.2, d);
-      uHeal.value = damp(uHeal.value, goal.heal, 0.15, d);
-      uFork.value = damp(uFork.value, goal.fork, 0.2, d);
-      uAnswer.value = Math.min(goal.answer, uAnswer.value + d / 20);
-      uLegs.value = damp(uLegs.value, goal.legs, 0.25, d);
-      uRivers.value = damp(uRivers.value, goal.rivers, 0.12, d);
-      uSun.value = damp(uSun.value, goal.sun, 0.1, d);
+      uDawn.value = damp(uDawn.value, goal.dawn, 0.18, d);
+      uClear.value = damp(uClear.value, goal.clear, 0.5, d);
+      uJoy.value = damp(uJoy.value, goal.joy, 0.7, d);
+      uHeal.value = damp(uHeal.value, goal.heal, 0.5, d);
+      uFork.value = damp(uFork.value, goal.fork, 0.7, d);
+      uAnswer.value = Math.min(goal.answer, uAnswer.value + d / 9);
+      uLegs.value = damp(uLegs.value, goal.legs, 0.8, d);
+      uRivers.value = damp(uRivers.value, goal.rivers, 0.45, d);
+      uSun.value = damp(uSun.value, goal.sun, 0.35, d);
       if (vowAt >= 0) {
         vowAt += d;
-        uVow.value = Math.min(1, vowAt / 14);
+        uVow.value = Math.min(1, vowAt / 8);
         if (!stood && folk.bodies[0]) (stood = true), folk.bodies[0].act("idle", 0.6);
       }
-      if (sending) uSend.value = Math.min(1.01, uSend.value + d / 24);
+      if (sending) uSend.value = Math.min(1.01, uSend.value + d / 14);
       air.glow.setRGB(0.5 + 0.35 * uDawn.value, 0.32 + 0.22 * uDawn.value, 0.22 + 0.1 * uDawn.value);
       const [servant, future] = folk.bodies;
       if (servant) servant.mat.emissiveIntensity = 1 + uClear.value * 0.6;
       if (future) {
-        if (futureGo && futureK < 1) futureK = Math.min(1, futureK + d / 16);
+        if (futureGo && futureK < 1) futureK = Math.min(1, futureK + d / 9);
         future.root.position.lerpVectors(futureFrom, futureTo, futureK);
         future.root.visible = futureGo;
         if (futureK >= 1 && !futureSat) {
