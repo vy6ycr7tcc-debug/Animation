@@ -8,7 +8,7 @@
      the place, "n of N" and a hairline of the part's progress
      »  on to the next stop
      ◉  record mode: every control, hint and word fades, leaving the world, the companion and
-        the animations (to screen-record); a long press anywhere brings them back
+        the animations (to screen-record); a touch anywhere brings them back
      ✕  end the tour
 
    Whoever runs a tour `show`s the bar with its own handlers and `hide`s it; pause is shared (the
