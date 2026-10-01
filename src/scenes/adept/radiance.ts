@@ -264,20 +264,67 @@ export function createRadianceScene(scene: THREE.Scene, narration: LessonCtx["na
       g.add(fork);
       ours.push(geo, m);
     }
-    // the vow: the one seated stands, and light goes out from it in every direction
+    // the vow: the one seated stands, and light goes out from it in every direction, unmistakably:
+    // a flash at its heart, a burst of light flying out on all sides, rays streaming out along
+    // forty-eight lines and on in slower pulses after, and a ring racing out over the cloud-sea
+    const HEART = new THREE.Vector3(1.3, 1.4, 0.4);
     {
-      const n = 3000;
-      const s = pointCloud(n, 0.14);
+      const n = 6000;
+      const s = pointCloud(n, 0.3);
       for (let i = 0; i < n; i++) s.k.set([R(), R(), R(), R()], i * 4);
       touch(s.cloud);
       const K = s.cloud.nodes.aK;
       const th = K.x.mul(6.283), ph = T.acos(K.y.mul(2).sub(1));
       const dir = vec3(sin(ph).mul(T.cos(th)), T.cos(ph).abs().mul(0.8).add(0.1), sin(ph).mul(sin(th)));
-      const out = uVow.mul(float(40).add(K.z.mul(80)));
-      s.material.positionNode = vec3(1.3, 1.4, 0.4).add(dir.mul(out));
-      s.material.colorNode = vec4(vec3(1, 0.9, 0.7).mul(s.round).mul(smoothstep(0, 0.03, uVow)).mul(float(1).sub(uVow.mul(0.8))).mul(1.2), 1);
+      const out = pow(uVow, 0.7).mul(float(40).add(K.z.mul(110)));
+      s.material.positionNode = vec3(HEART.x, HEART.y, HEART.z).add(dir.mul(out));
+      s.material.colorNode = vec4(vec3(1, 0.9, 0.7).mul(s.round).mul(smoothstep(0, 0.02, uVow)).mul(float(1).sub(uVow.mul(0.55))).mul(1.6), 1);
       g.add(s.cloud.sprite);
       ours.push(s.material);
+    }
+    {
+      // rays: points strung along 48 directions, flowing outward in pulses for as long as the vow holds
+      const n = 7000, rays = 48;
+      const s = pointCloud(n, 0.16);
+      for (let i = 0; i < n; i++) {
+        const k = i % rays, yk = 0.92 - (1.3 * (k + 0.5)) / rays, rk = Math.sqrt(Math.max(0, 1 - yk * yk)), ak = k * 2.39996;
+        s.k.set([Math.cos(ak) * rk, Math.max(0.04, yk), Math.sin(ak) * rk, R()], i * 4);
+      }
+      touch(s.cloud);
+      const K = s.cloud.nodes.aK;
+      const f = fract(K.w.add(clock.u.mul(0.12)));
+      const reach = smoothstep(0, 0.35, uVow).mul(f).mul(70);
+      s.material.positionNode = vec3(HEART.x, HEART.y, HEART.z).add(vec3(K.x, K.y, K.z).mul(reach.add(0.6)));
+      const pulse = pow(sin(f.mul(18).sub(clock.u.mul(2.4))).mul(0.5).add(0.5), 3);
+      s.material.colorNode = vec4(vec3(1, 0.86, 0.6).mul(s.round).mul(smoothstep(1, 0.4, f)).mul(pulse.mul(0.8).add(0.35)).mul(smoothstep(0, 0.1, uVow)).mul(1.3), 1);
+      g.add(s.cloud.sprite);
+      ours.push(s.material);
+    }
+    {
+      // the flash at its heart
+      const m = keepAlpha(new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }));
+      const r = length(uv().sub(0.5)).mul(2);
+      const flash = smoothstep(0, 0.02, uVow).mul(exp(uVow.mul(-9))).mul(2.4).add(smoothstep(0.05, 0.4, uVow).mul(0.35));
+      m.colorNode = vec4(vec3(1, 0.92, 0.75).mul(exp(r.mul(r).mul(-5))).mul(smoothstep(1, 0.6, r)).mul(flash), 1);
+      const sp = new THREE.Sprite(m);
+      sp.position.copy(HEART);
+      sp.scale.setScalar(7);
+      g.add(sp);
+      ours.push(m);
+      // the ring racing out over the clouds
+      const rg = new THREE.PlaneGeometry(2, 2);
+      rg.rotateX(-Math.PI / 2);
+      const rm = keepAlpha(new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }));
+      const q = length(uv().sub(0.5)).mul(2);
+      const front = pow(uVow, 0.6);
+      const band = exp(q.sub(front).mul(q.sub(front)).mul(-900)).add(exp(q.sub(front.mul(0.8)).mul(q.sub(front.mul(0.8))).mul(-2500)).mul(0.5));
+      rm.colorNode = vec4(vec3(1, 0.85, 0.6).mul(band).mul(smoothstep(0, 0.03, uVow)).mul(float(1).sub(uVow.mul(0.7))).mul(1.4), 1);
+      const ring = new THREE.Mesh(rg, rm);
+      ring.position.set(HEART.x, -0.6, HEART.z);
+      ring.scale.setScalar(260);
+      ring.frustumCulled = false;
+      g.add(ring);
+      ours.push(rg, rm);
     }
     // the light sent away over the clouds
     {
@@ -315,7 +362,7 @@ export function createRadianceScene(scene: THREE.Scene, narration: LessonCtx["na
       uSun.value = damp(uSun.value, goal.sun, 0.35, d);
       if (vowAt >= 0) {
         vowAt += d;
-        uVow.value = Math.min(1, vowAt / 8);
+        uVow.value = Math.min(1, vowAt / 10);
         if (!stood && folk.bodies[0]) (stood = true), folk.bodies[0].act("idle", 0.6);
       }
       if (sending) uSend.value = Math.min(1.01, uSend.value + d / 14);

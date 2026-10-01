@@ -60,11 +60,10 @@ export function createCrucibleScene(scene: THREE.Scene, narration: LessonCtx["na
   // the traveler and the shadow
   const folk = new GlassFolk([
     { x: 1.7, z: CRU_C.z + 3.2, face: -Math.PI / 2 - 0.3, act: "idle", tint: new THREE.Color(1, 0.88, 0.66) },
-    { x: -TOWER_R + 1.2, z: CRU_C.z + 3.2, face: Math.PI / 2, act: "walk", tint: new THREE.Color(0.32, 0.2, 0.5), glow: { inner: 0.1, edge: 0.7, body: 0.5 }, scale: 2.3 },
+    { x: -TOWER_R + 1.2, z: CRU_C.z + 3.2, face: Math.PI / 2, act: "walk", tint: new THREE.Color(0.32, 0.2, 0.5), glow: { inner: 0.1, edge: 0.7, body: 0.5 }, scale: 2.8 },
   ], 91);
   const shadowFrom = new THREE.Vector3(-TOWER_R + 1.2, 0, CRU_C.z + 3.2), shadowTo = new THREE.Vector3(-2.2, 0, CRU_C.z + 4.4);
   let shadowK = 0, shadowGo = false, welcomed = false;
-  const warmTint = new THREE.Color(0.95, 0.62, 0.72);
 
   const build = (ctx: LessonCtx) => {
     const g = ctx.group;
@@ -320,20 +319,61 @@ export function createCrucibleScene(scene: THREE.Scene, narration: LessonCtx["na
     // (a warm pool spreading over the floor in slow rings, a stream of light from the traveler
     // into the dark figure)
     const shadowAt = uniform(shadowFrom.clone());
+    /* Before the welcome the monster is genuinely dark: an opaque body of black obsidian that
+       swallows the furnace's light, only a faint cold edge and two ember eyes; welcomed, a warm
+       light rises through it from within (it stays itself). */
+    const shadowMat = new THREE.MeshStandardNodeMaterial({ roughness: 0.32, metalness: 0.2 });
+    {
+      const vdir = T.normalize(T.positionView.negate());
+      const fr = pow(float(1).sub(abs(T.dot(T.normalView, vdir))), 2.6);
+      shadowMat.colorNode = mix(vec3(0.006, 0.004, 0.009), vec3(0.3, 0.16, 0.12), uHeart);
+      const cold = vec3(0.16, 0.1, 0.3).mul(fr).mul(0.6);
+      const warm = vec3(1, 0.6, 0.45).mul(fr.mul(0.8).add(0.12).add(sin(T.positionView.y.mul(5).add(clock.u.mul(1.3))).mul(0.04)));
+      shadowMat.emissiveNode = mix(cold, warm, uHeart);
+      ours.push(shadowMat);
+    }
+    let shadowDressed = false;
+    // its eyes, two small embers at the height of its head
+    const eyes: THREE.Sprite[] = [];
+    {
+      const m = keepAlpha(new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }));
+      const r = length(uv().sub(0.5)).mul(2);
+      m.colorNode = vec4(vec3(1, 0.32, 0.12).mul(exp(r.mul(r).mul(-6))).mul(float(1).sub(uHeart)).mul(1.4), 1);
+      for (let k = 0; k < 2; k++) {
+        const e = new THREE.Sprite(m);
+        e.scale.setScalar(0.22);
+        g.add(e);
+        eyes.push(e);
+      }
+      ours.push(m);
+    }
+    // the dark it brings: a pall over the floor round it, gone when it is welcomed
+    const pall = (() => {
+      const geo = new THREE.CircleGeometry(5.5, 40);
+      geo.rotateX(-Math.PI / 2);
+      const m = keepAlpha(new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, fog: false }));
+      const rr = length(uv().sub(0.5)).mul(2);
+      m.colorNode = vec4(vec3(0.004, 0.002, 0.006), smoothstep(1, 0.2, rr).mul(0.82).mul(float(1).sub(uHeart)));
+      const mesh = new THREE.Mesh(geo, m);
+      mesh.renderOrder = 2;
+      g.add(mesh);
+      ours.push(geo, m);
+      return mesh;
+    })();
     const travelerAt = new THREE.Vector3(1.7, 0, CRU_C.z + 3.2);
     {
-      const n = 1600;
-      const sm = pointCloud(n, 0.55);
+      const n = 2600;
+      const sm = pointCloud(n, 0.75);
       for (let i = 0; i < n; i++) sm.k.set([R(), R(), R(), R()], i * 4);
       touch(sm.cloud);
       const K = sm.cloud.nodes.aK;
       const life = fract(K.x.add(clock.u.mul(float(0.05).add(K.y.mul(0.05)))));
       const a = K.z.mul(6.283).add(life.mul(2));
-      const r = float(0.5).add(life.mul(1.8)).mul(K.w.add(0.4));
-      sm.material.positionNode = shadowAt.add(vec3(T.cos(a).mul(r), float(0.3).add(life.mul(5.5)).add(K.w.mul(1.5)), sin(a).mul(r)));
+      const r = float(0.7).add(life.mul(2.6)).mul(K.w.add(0.4));
+      sm.material.positionNode = shadowAt.add(vec3(T.cos(a).mul(r), float(0.3).add(life.mul(7)).add(K.w.mul(2)), sin(a).mul(r)));
       sm.material.blending = THREE.NormalBlending;
-      const col = mix(vec3(0.05, 0.02, 0.08), vec3(1, 0.5, 0.28), uHeart.mul(K.y.mul(0.8)));
-      sm.material.colorNode = vec4(col, sm.round.mul(smoothstep(0, 0.15, life)).mul(float(1).sub(life)).mul(float(0.5).sub(uHeart.mul(0.25))));
+      const col = mix(vec3(0.008, 0.004, 0.012), vec3(1, 0.5, 0.28), uHeart.mul(K.y.mul(0.8)));
+      sm.material.colorNode = vec4(col, sm.round.mul(smoothstep(0, 0.15, life)).mul(float(1).sub(life)).mul(float(0.78).sub(uHeart.mul(0.5))));
       g.add(sm.cloud.sprite);
       ours.push(sm.material);
       tickers.push(() => (sm.cloud.sprite.visible = shadowGo));
@@ -396,7 +436,20 @@ export function createCrucibleScene(scene: THREE.Scene, narration: LessonCtx["na
         shadowAt.value.copy(shadow.root.position);
         shadow.root.visible = shadowGo;
         // welcomed, its darkness warms (but it stays itself)
-        shadow.mat.emissive.setRGB(0.32, 0.2, 0.5).lerp(warmTint, uHeart.value * 0.55);
+        if (!shadowDressed) {
+          shadow.root.traverse((o) => {
+            const mesh = o as THREE.Mesh;
+            if (mesh.isMesh) mesh.material = shadowMat;
+          });
+          shadowDressed = true;
+        }
+        pall.visible = shadowGo;
+        pall.position.set(shadow.root.position.x, 0.04, shadow.root.position.z);
+        // its eyes: at its head, facing the way it walks (toward +x), a little apart
+        const hy = 1.62 * 2.8;
+        eyes[0].position.set(shadow.root.position.x + 0.32, hy, shadow.root.position.z - 0.1);
+        eyes[1].position.set(shadow.root.position.x + 0.32, hy, shadow.root.position.z + 0.1);
+        for (const e of eyes) e.visible = shadowGo;
       }
       if (light && uHeart.value > 0.5 && !welcomed) (welcomed = true), light.act("reach", 0.6);
       if (light) light.root.rotation.y = shadowGo ? -Math.PI / 2 : -Math.PI / 2 - 0.3 + Math.sin(clock.u.value * 0.2) * 0.1;

@@ -143,20 +143,38 @@ export function createPyramidsScene(scene: THREE.Scene, narration: LessonCtx["na
     // up and inward to its heart, where it gathers into a core that burns brighter the longer it holds
     {
       const heart = new THREE.Vector3(PYR.x, PYR_H * 0.38, PYR.z);
-      const n = 3200;
-      const sp = pointCloud(n, 0.35);
-      for (let i = 0; i < n; i++) sp.k.set([Math.random(), Math.random(), Math.random(), Math.random()], i * 4);
+      // three deliberate arms (the three spirals), each a continuous band wound twice round the
+      // pyramid from the sand to its heart, light running inward along them in pulses
+      const n = 6000;
+      const sp = pointCloud(n, 0.5);
+      for (let i = 0; i < n; i++) sp.k.set([Math.random(), (i % 3) / 3, Math.random(), Math.random()], i * 4);
       touch(sp.cloud);
       const K = sp.cloud.nodes.aK;
-      const f = fract(K.x.add(t.mul(0.05)));
-      const a = K.y.mul(6.283).add(f.mul(9));
-      const r = float(PYR_HALF * 1.6).mul(float(1).sub(f)).mul(K.z.mul(0.4).add(0.8));
-      const y = mix(float(1), float(heart.y), pow(f, 0.7));
+      const f = K.x;
+      const a = K.y.mul(6.283).add(f.mul(Math.PI * 4)).add(t.mul(0.12));
+      const r = float(PYR_HALF * 1.7).mul(pow(float(1).sub(f), 0.9)).add(K.z.sub(0.5).mul(0.9));
+      const y = mix(float(0.6), float(heart.y), pow(f, 0.8)).add(K.w.sub(0.5).mul(0.5));
       sp.material.positionNode = vec3(float(heart.x).add(T.cos(a).mul(r)), y, float(heart.z).add(sin(a).mul(r)));
-      sp.material.colorNode = vec4(vec3(1, 0.72, 0.38).mul(sp.round).mul(smoothstep(0, 0.1, f)).mul(f.mul(1.5).add(0.3)).mul(uChamber).mul(0.55), 1);
+      // drawn from the sand inward as the chamber wakes, then held, the light running inward
+      const drawn_ = smoothstep(f.sub(0.05), f, uChamber.mul(1.8));
+      const run = pow(sin(f.mul(28).sub(t.mul(2.2))).mul(0.5).add(0.5), 3);
+      sp.material.colorNode = vec4(vec3(1, 0.72, 0.38).mul(sp.round).mul(drawn_).mul(run.mul(0.9).add(0.35)).mul(f.mul(0.8).add(0.5)).mul(1.6), 1);
       sp.material.depthTest = false; // seen through the stone, as the heart's light is
       g.add(sp.cloud.sprite);
       ours.push(sp.material);
+      // and the third spiral: out of the apex like a candle's flame, widening as it rises
+      const m2 = 1800;
+      const fl = pointCloud(m2, 0.28);
+      for (let i = 0; i < m2; i++) fl.k.set([Math.random(), (i % 3) / 3, Math.random(), 0], i * 4);
+      touch(fl.cloud);
+      const FK = fl.cloud.nodes.aK;
+      const ff = fract(FK.x.add(t.mul(0.08)));
+      const fa = FK.y.mul(6.283).add(ff.mul(Math.PI * 5)).sub(t.mul(0.5));
+      const fr = ff.mul(7).add(FK.z.mul(0.4));
+      fl.material.positionNode = vec3(float(heart.x).add(T.cos(fa).mul(fr)), float(PYR_H + 0.5).add(ff.mul(34)), float(heart.z).add(sin(fa).mul(fr)));
+      fl.material.colorNode = vec4(vec3(1, 0.8, 0.5).mul(fl.round).mul(sin(ff.mul(Math.PI))).mul(smoothstep(0.4, 0.9, uChamber)).mul(0.8), 1);
+      g.add(fl.cloud.sprite);
+      ours.push(fl.material);
       const core = pointCloud(1, 16);
       core.pos.set([heart.x, heart.y, heart.z]);
       touch(core.cloud);
