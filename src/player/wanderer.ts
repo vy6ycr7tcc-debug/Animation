@@ -220,6 +220,7 @@ class Ribbon {
     this.mesh.frustumCulled = false;
   }
 
+  private wasQuiet = false;
   update(dt: number, head: THREE.Vector3, cam: THREE.Vector3, strength: number): void {
     for (let i = 0; i < this.ages.length; i++) this.ages[i] += dt;
     const last = this.pts[0];
@@ -268,9 +269,14 @@ class Ribbon {
       this.pos[k + 5] = pi.z - this.side.z * w;
       this.a[i * 2] = this.a[i * 2 + 1] = a;
     }
-    const g = this.mesh.geometry;
-    (g.attributes.position as THREE.BufferAttribute).needsUpdate = true;
-    (g.attributes.aA as THREE.BufferAttribute).needsUpdate = true;
+    // at rest (no strength, the trail faded) nothing is uploaded
+    const quiet = strength < 1e-3;
+    if (!quiet || !this.wasQuiet) {
+      const g = this.mesh.geometry;
+      (g.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+      (g.attributes.aA as THREE.BufferAttribute).needsUpdate = true;
+    }
+    this.wasQuiet = quiet;
   }
 }
 

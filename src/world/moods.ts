@@ -181,6 +181,7 @@ export class Moods {
   drift = 0;
   private cur: Mood = structuredCloneMood(NIGHT);
   private w = MOODS.map((_, i) => (i ? 0 : 1));
+  private lobes = new Float64Array(MOODS.length);
 
   constructor(private t: MoodTargets) {}
 
@@ -191,32 +192,48 @@ export class Moods {
     // the shore keeps its moonlit night; a short walk out, the sky already turns
     const away = THREE.MathUtils.smoothstep(dist, 80, 450);
     // each direction's mood is full where you head straight that way, and gone 45° off it
-    const lobes = MOODS.map(({ dir }) => (dir ? THREE.MathUtils.smoothstep((dx * dir[0] + dz * dir[1]) / dist, Math.SQRT1_2, 1) : 0));
-    const sum = lobes.reduce((a, b) => a + b, 0) || 1;
-    const want = lobes.map((l, i) => (i ? (l / sum) * away : 1 - away));
+    const lobes = this.lobes;
+    let sum = 0;
+    for (let i = 0; i < MOODS.length; i++) {
+      const dir = MOODS[i].dir;
+      lobes[i] = dir ? THREE.MathUtils.smoothstep((dx * dir[0] + dz * dir[1]) / dist, Math.SQRT1_2, 1) : 0;
+      sum += lobes[i];
+    }
+    sum = sum || 1;
     const k = Math.min(1, dt * 0.6);
     for (let i = 0; i < MOODS.length; i++) {
+      const want = i ? (lobes[i] / sum) * away : 1 - away;
       const before = this.w[i];
-      this.w[i] += (want[i] - this.w[i]) * k;
+      this.w[i] += (want - this.w[i]) * k;
       this.drift += Math.abs(this.w[i] - before);
+      this.weights[i] = this.w[i];
     }
-    this.weights = [...this.w];
     this.blend();
     this.apply();
   }
 
+  /** Every frame: the moods mixed by weight, into the colours already held (nothing allocated). */
   private blend(): void {
-    const ms = MOODS.map((x) => x.mood), w = this.w, m = this.cur;
-    const colours: (keyof Mood)[] = ["zen", "mid", "hor", "fog", "glow", "sunCol", "light", "hemiSky", "hemiGround", "cloudShade", "cloudLight"];
-    for (const key of colours) {
+    const w = this.w, m = this.cur;
+    for (const key of BLEND_COLOURS) {
       const out = m[key] as THREE.Color;
-      out.setRGB(0, 0, 0);
-      ms.forEach((x, i) => out.add((x[key] as THREE.Color).clone().multiplyScalar(w[i])));
+      let r = 0, g = 0, b = 0;
+      for (let i = 0; i < MOOD_LIST.length; i++) {
+        const c = MOOD_LIST[i][key] as THREE.Color, k = w[i];
+        r += c.r * k;
+        g += c.g * k;
+        b += c.b * k;
+      }
+      out.setRGB(r, g, b);
     }
-    for (const key of ["sunK", "stars", "deep", "moonK", "hemi", "env", "density"] as const) m[key] = ms.reduce((s, x, i) => s + x[key] * w[i], 0);
+    for (const key of BLEND_NUMBERS) {
+      let v = 0;
+      for (let i = 0; i < MOOD_LIST.length; i++) v += MOOD_LIST[i][key] * w[i];
+      m[key] = v;
+    }
     // the low sun stands where the dawn or the dusk is strongest
     m.sun.copy(SUNRISE.sun).multiplyScalar(1e-3);
-    ms.forEach((x, i) => m.sun.addScaledVector(x.sun, w[i] * x.sunK));
+    for (let i = 0; i < MOOD_LIST.length; i++) m.sun.addScaledVector(MOOD_LIST[i].sun, w[i] * MOOD_LIST[i].sunK);
     m.sun.normalize();
   }
 
@@ -270,6 +287,10 @@ export class Moods {
     this.t.scene.environmentIntensity = m.env * 0.7; // a quieter sheen of sky on the land
   }
 }
+
+const MOOD_LIST = MOODS.map((x) => x.mood);
+const BLEND_COLOURS = ["zen", "mid", "hor", "fog", "glow", "sunCol", "light", "hemiSky", "hemiGround", "cloudShade", "cloudLight"] as const;
+const BLEND_NUMBERS = ["sunK", "stars", "deep", "moonK", "hemi", "env", "density"] as const;
 
 function structuredCloneMood(m: Mood): Mood {
   const out = {} as Record<string, unknown>;

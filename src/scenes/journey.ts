@@ -250,6 +250,7 @@ export class Journey {
       const o = h.outside(); // asked before the world returns (it clears how you came in)
       this.restoreWorld();
       h.place(o.x, o.y, o.z, o.heading);
+      await h.settle(); // the world's shaders, in the dark (its first frame back hitched)
     } else {
       if (!this.inside) this.hideWorld();
       try {
@@ -346,6 +347,9 @@ export class Journey {
       room.onSit(); // its recording begins, and its beats with it
       if (s.track) void h.narration.play(s.track);
     }
+    // the next room's recording starts downloading while this one plays
+    const next = this.stages[i + 1]?.track;
+    if (next) h.narration.preload([next]);
     if (s.title) h.whisper(s.title, 4200);
   }
 

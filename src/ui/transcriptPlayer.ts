@@ -323,16 +323,22 @@ export class TranscriptPlayer {
     if (on) (document.getElementById("tp-source-close") as HTMLButtonElement).focus();
   }
 
+  private posAt = -1e9;
   /** Each frame: subtitles in step with the voice, the half-moon's progress, the lock screen's. */
   update(): void {
     if (!this.current) return;
     const t = this.media.currentTime, dur = this.media.duration;
     if (isFinite(dur) && dur > 0) {
       if (!this.mini.hidden) this.arc.style.strokeDashoffset = String(ARC * (1 - Math.min(1, t / dur)));
-      try {
-        navigator.mediaSession?.setPositionState?.({ duration: dur, position: Math.min(t, dur), playbackRate: 1 });
-      } catch {
-        /* not offered */
+      // the lock screen's position, about once a second (it runs on its own between)
+      const now = performance.now();
+      if (now - this.posAt > 1000) {
+        this.posAt = now;
+        try {
+          navigator.mediaSession?.setPositionState?.({ duration: dur, position: Math.min(t, dur), playbackRate: 1 });
+        } catch {
+          /* not offered */
+        }
       }
     }
     this.media.volume = Math.min(1, this.audio.volume / 0.8);

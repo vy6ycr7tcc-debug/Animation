@@ -23,6 +23,7 @@ import * as THREE from "three/webgpu";
 import { T, worldPoints, type N } from "../gpu/tsl";
 import { scan, type ScanName } from "./temple";
 import { landStone } from "./stoneworks";
+import { release } from "../core/residency";
 import { PYRAMID } from "./terrain";
 import { Duat, DUAT_PATH, duatHeight } from "./duat";
 
@@ -252,7 +253,8 @@ export class Pyramid {
   roomsGroup: THREE.Group = new THREE.Group();
   /** The Duat (duat.ts), in its own group: child of `inside`, shown with the interior. */
   duat: THREE.Group = new THREE.Group();
-  private night!: Duat;
+  /** The Duat: built on going into the pyramid, freed on coming out (residency). */
+  private night: Duat | null = null;
   /** Its way (Duat-local): the hidden door, the six hours, the dawn (main.ts reads it). */
   readonly PATH = DUAT_PATH;
   private lastT = 0;
@@ -422,10 +424,10 @@ export class Pyramid {
 
   /** The Duat's hours (Duat-local), for the tour; and one hour's story told again from its start. */
   duatHours(): ReturnType<Duat["hours"]> {
-    return this.night.hours();
+    return this.night?.hours() ?? [];
   }
   duatRestart(k: number): void {
-    this.night.restart(k);
+    this.night?.restart(k);
   }
 
   /** The ceiling over (x, z), pyramid-local (the room's floor there and its height). */
@@ -563,10 +565,8 @@ export class Pyramid {
       this.seven.push(s);
     }
     this.buildHiddenDoor();
-    // the Duat: its own place below the pyramid (duat.ts)
-    this.night = new Duat((text, ms) => this.say(text, ms));
+    // the Duat: its own place below the pyramid (duat.ts), built when you go in (`show`)
     this.duat.position.copy(DUAT_ORIGIN).sub(PYR_ORIGIN);
-    this.duat.add(this.night.group);
     this.inside.add(this.duat);
   
   }
@@ -670,6 +670,17 @@ export class Pyramid {
   show(inside: boolean): void {
     this.isInside = inside;
     this.inside.visible = inside;
+    if (inside && !this.night) {
+      this.night = new Duat((text, ms) => this.say(text, ms));
+      this.duat.add(this.night.group);
+    } else if (!inside && this.night) {
+      // its stages, scenes, forms and stone are freed with it
+      const g = this.night.group;
+      this.duat.remove(g);
+      const scene = this.world.parent as THREE.Scene | null;
+      if (scene) release(scene, [g]);
+      this.night = null;
+    }
   }
 
   /** Each frame. `pit`, `crystal`: 0–1 how awake the pit's light and the crystal are. */
@@ -699,7 +710,7 @@ export class Pyramid {
     this.duat.visible = inDuatSpace;
     const dt = Math.min(0.1, Math.max(0, t - this.lastT));
     this.lastT = t;
-    if (inDuatSpace && this.playerPos) this.night.update(t, dt, this.local.copy(this.playerPos).sub(DUAT_ORIGIN), reduced);
+    if (inDuatSpace && this.playerPos) this.night?.update(t, dt, this.local.copy(this.playerPos).sub(DUAT_ORIGIN), reduced);
 
     this.uPit.value += (pit - this.uPit.value) * 0.05;
     this.uCrystal.value = crystal;

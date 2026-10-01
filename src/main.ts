@@ -4,6 +4,7 @@
    forms (beam, veil, garden, throne, arch, rings) stand as landmarks to wander toward.
    Narration plays in the background the whole time, one recording after another.
    States: intro (title over the night water) → play → rest (after Leave) → play … */
+import { loadFailed } from "./core/assets";
 import { EgyptGate } from "./world/egyptGate";
 import { CUES, FINALE_T, TRACK_ID as TEMPLE_TRACK } from "./scenes/templeTour";
 import "./gpu/compat";
@@ -43,7 +44,7 @@ import { Vessels } from "./world/vessels";
 import { TranscriptPlayer } from "./ui/transcriptPlayer";
 import { StartMap, type Choice, type Place } from "./ui/map";
 import { buildSky, skyUniforms, starDirection } from "./world/sky";
-import { floorHook, groundUniforms, heightAt, LANDMARK_SITES, MONUMENT, PEAKS, SPAWN, Terrain, WATER_Y } from "./world/terrain";
+import { floorHook, groundUniforms, heightAt, heightCoarse, LANDMARK_SITES, MONUMENT, PEAKS, SPAWN, Terrain, WATER_Y } from "./world/terrain";
 import { Temple } from "./world/temple";
 import { Autofly } from "./player/autofly";
 import { Genesis } from "./world/genesis";
@@ -59,7 +60,6 @@ import { cloudUniforms } from "./world/atmosphere";
 import { NO_MIRROR_LAYER, Water } from "./world/water";
 import { FOG } from "./world/fog";
 import { MOOD_NAMES, Moods } from "./world/moods";
-import { lightField } from "./world/lightfield";
 import { Forest } from "./world/forest";
 import { RisingFlowers } from "./world/blooms";
 import { Wilds } from "./world/wilds";
@@ -238,7 +238,7 @@ star.shadow.radius = 3;
 scene.add(star, star.target, starSource);
 
 const water = new Water();
-scene.add(water.mesh, water.mirror.target);
+scene.add(water.mesh);
 water.excludeFromMirror(camera);
 const terrain = new Terrain();
 scene.add(terrain.group);
@@ -359,7 +359,6 @@ function resize(): void {
   renderer.setPixelRatio(dpr);
   renderer.setSize(w, h, false);
   // the lakes' mirror: half the drawing buffer (its long side stays above 1024 on a phone)
-  water.mirror.reflector.resolutionScale = Math.max(0.5, Math.min(1, 1100 / (Math.max(w, h) * dpr)));
   camera.aspect = w / h;
   camera.fov = h > w ? 66 : 55;
   camera.updateProjectionMatrix();
@@ -375,7 +374,6 @@ function applyTier(t: Tier, i: number = quality.tier): void {
   post.configure({ ao: t.ao, rays: t.rays, bloom: t.bloom, aa: AA });
   // no mirrored world in the lakes: the water reflects only the sky (Samuel: "better to not
   // have any reflecting… but incredible skies when you look at them")
-  water.setReflection(false);
   // the shadow map follows mapSize by itself (no dispose, as WebGL needed)
   star.shadow.mapSize.set(t.shadow, t.shadow);
   motes.setCount(Math.round(t.particles / 2));
@@ -467,6 +465,11 @@ function say(m: string): void {
   window.setTimeout(() => (l.textContent = m), 50);
 }
 let whisperTimer = 0;
+// a model that cannot load is said, not silently missing (its name, quietly; once each)
+loadFailed.hook = (path) => {
+  const name = path.replace(/^models\//, "").replace(/\.glb$/, "").replace(/[-_/]/g, " ");
+  window.setTimeout(() => whisper(`Something could not load (${name}). It will be there next time.`, 6000), 1500);
+};
 function whisper(text: string, ms = 5000): void {
   const w = $("#whisper");
   w.textContent = text;
@@ -593,14 +596,22 @@ function setInside(inside: boolean): void {
   follow.snapTo(player.pos);
   quality.hold(3);
 }
+/** A place apart's shaders compile while the crossing is dark, never for long (whatever isn't
+    ready compiles on its first draw instead). */
+function compileInDark(): Promise<unknown> {
+  return Promise.race([renderer.compileAsync(scene, camera).catch(() => undefined), new Promise((r) => window.setTimeout(r, 4000))]);
+}
 function crossTemple(inside: boolean): void {
   if (crossing) return;
   crossing = true;
   if (autofly.active) setAutofly(false);
   fadeEl.classList.add("on");
   audio.bell(inside ? 330 : 396, 0.12, 6);
-  window.setTimeout(() => {
-    setInside(inside);
+  window.setTimeout(async () => {
+    if (inside) busy(1.5);
+    setInside(inside); // the temple is built as you go in, and freed as you come out
+    // its shaders compile in the dark, never for long (whatever isn't ready compiles on its first draw)
+    await compileInDark(); // in, the temple's shaders; out, the world's (its first frame back hitched)
     if (inside) whisper("The temple. The Mind on your left, the Body on your right; the Spirit beyond the gateway. The door behind you leads out.", 8000);
     window.setTimeout(() => {
       fadeEl.classList.remove("on");
@@ -1566,8 +1577,9 @@ function crossDeep(inside: boolean): void {
   crossing = true;
   fadeEl.classList.add("on");
   audio.bell(inside ? 264 : 352, 0.1, 6);
-  window.setTimeout(() => {
+  window.setTimeout(async () => {
     setDeep(inside);
+    await compileInDark();
     if (inside) whisper("The Archive of the Deeper Self. All you have heard and met is kept here. Touch a light to hear it again.", 8000);
     window.setTimeout(() => {
       fadeEl.classList.remove("on");
@@ -2206,8 +2218,10 @@ function crossPyr(inside: boolean): void {
   if (autofly.active) setAutofly(false);
   fadeEl.classList.add("on");
   audio.bell(inside ? 293.66 : 440, 0.1, 6);
-  window.setTimeout(() => {
-    setPyr(inside);
+  window.setTimeout(async () => {
+    if (inside) busy(1.5);
+    setPyr(inside); // the Duat is built as you go in, and freed as you come out
+    await compileInDark();
     if (inside) whisper("Ra's pyramid, built from thought of living stone, for healing and for initiation, one work. Later its power was kept by a few, which was never meant. Enter as one who seeks.", 10000);
     else whisper("Ra called such shapes training wheels: in time the heart holds, without them, what they gather.", 8000);
     window.setTimeout(() => {
@@ -2884,7 +2898,7 @@ function readings(): string {
     `fps ${stats.fps.toFixed(1)} · avg ${stats.avgMs.toFixed(1)} ms · worst ${stats.worstMs.toFixed(0)} ms`,
     `tier ${quality.current.name} · dpr ${dpr.toFixed(2)} of ${devicePixelRatio} · scale ${quality.scale.toFixed(1)} · ${px}`,
     `${quality.reason} · ${shadersReady ? "shaders ready" : "compiling shaders…"}`,
-    `${frameDraws} draws · ${(ri.triangles / 1000).toFixed(0)}k tris`, // this frame's (calls counts since the start)
+    `${frameDraws} draws · ${(ri.triangles / 1000).toFixed(0)}k tris · cpu ${cpuMs.toFixed(2)} ms · gpu mem ${renderer.info.memory.geometries} geo ${renderer.info.memory.textures} tex`, // this frame's (calls counts since the start)
     `audio ${audio.ctx?.state ?? "off"} · session ${audio.sessionType} · voice ${narration.current ?? "-"}`,
     `sky ${MOOD_NAMES.map((n, i) => `${n} ${(moods.weights[i] * 100).toFixed(0)}`).filter((x) => !x.endsWith(" 0")).join(" · ")}`,
     `pos ${player.pos.x.toFixed(1)}, ${player.pos.y.toFixed(1)}, ${player.pos.z.toFixed(1)} · ${player.pose} · lanterns ${lanterns.litCount}`,
@@ -3132,7 +3146,7 @@ function update(dt: number): void {
 
   // The starlight's shadow follows the wanderer, and stays on the land below them when they fly
   // high (up there its small box hung in the air, and the ground beneath went dark and speckled).
-  const below = Math.max(heightAt(player.pos.x, player.pos.z), WATER_Y);
+  const below = Math.max(heightCoarse(player.pos.x, player.pos.z), WATER_Y);
   shadowAt.set(player.pos.x, Math.min(player.pos.y, below + 12), player.pos.z);
   star.target.position.copy(shadowAt);
   star.position.copy(shadowAt).addScaledVector(starDir, 60);
@@ -3171,15 +3185,16 @@ function frame(now: number): void {
   }
   // a failure in one frame's life (a room, an effect) must never stop the picture: the frame is
   // still drawn, and the controls still answer
+  const c0 = performance.now();
   try {
     update(dt);
   } catch (e) {
     frameFault(e);
   }
+  cpuMs += (performance.now() - c0 - cpuMs) * 0.05; // the frame's own work on the CPU, smoothed
   renderer.info.reset();
   gpuDiagStart();
   try {
-    water.renderMirror(renderer, scene, camera);
     post.render();
     drawFaults = 0;
   } catch (e) {
@@ -3190,7 +3205,7 @@ function frame(now: number): void {
   gpuDiagEnd();
   frameDraws = renderer.info.render.drawCalls;
 }
-let drawFaults = 0, lastFault = "", faultAt = 0;
+let drawFaults = 0, lastFault = "", faultAt = 0, cpuMs = 0;
 function frameFault(e: unknown): void {
   const m = String((e as Error)?.message ?? e);
   if (m === lastFault && performance.now() - faultAt < 5000) return; // once, not sixty times a second
@@ -3339,7 +3354,6 @@ renderer
         update,
         draw: () => {
           renderer.info.reset();
-          water.renderMirror(renderer, scene, camera);
           post.render();
         },
       });
@@ -3375,4 +3389,4 @@ function endLoading(): void {
   }, wait);
 }
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall } });

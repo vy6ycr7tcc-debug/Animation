@@ -68,10 +68,13 @@ export class Sparks {
       this.tint.set([color.r, color.g, color.b], i * 3);
     }
   }
+  private wasAlive = true;
   update(dt: number, dpr: number): void {
     this.uDpr.value = dpr;
+    let alive = 0;
     for (let i = 0; i < this.n; i++) {
       if (this.life[i] <= 0) continue;
+      alive++;
       this.life[i] = Math.max(0, this.life[i] - dt * 0.7);
       const j = i * 3;
       this.vel[j + 1] -= dt * 0.35;
@@ -81,8 +84,12 @@ export class Sparks {
       this.pos[j + 1] += this.vel[j + 1] * dt;
       this.pos[j + 2] += this.vel[j + 2] * dt;
     }
-    const A = this.cloud.attrs;
-    A.position.needsUpdate = A.aLife.needsUpdate = A.aTint.needsUpdate = true;
+    // uploaded only while sparks live (and once more as the last goes out)
+    if (alive || this.wasAlive) {
+      const A = this.cloud.attrs;
+      A.position.needsUpdate = A.aLife.needsUpdate = A.aTint.needsUpdate = true;
+    }
+    this.wasAlive = alive > 0;
   }
 }
 
@@ -345,10 +352,12 @@ export class Flowers {
   update(f: LifeFrame): void {
     this.uT.value = f.t;
     const cx = Math.floor(f.player.x / CELL), cz = Math.floor(f.player.z / CELL);
+    let dirty = false;
     if (cx !== this.cx || cz !== this.cz) {
       this.cx = cx;
       this.cz = cz;
       this.list = [];
+      dirty = true;
       for (let i = -FLOWER_RING; i <= FLOWER_RING; i++)
         for (let j = -FLOWER_RING; j <= FLOWER_RING; j++) {
           const fl = this.flowerAt(cx + i, cz + j);
@@ -365,7 +374,9 @@ export class Flowers {
         this.sparks.emit(this.tmp.set(fl.x, fl.y + 0.4, fl.z), 7, new THREE.Color(1, 0.85, 0.6), 0.5);
       }
       const want = f.t - fl.openedAt < 22 ? 1 : 0;
+      const was = fl.open;
       fl.open += (want - fl.open) * Math.min(1, f.dt * (want ? 3 : 0.25));
+      if (Math.abs(fl.open - was) > 1e-4) dirty = true;
       pos[n * 4] = fl.x;
       pos[n * 4 + 1] = fl.y;
       pos[n * 4 + 2] = fl.z;
@@ -373,8 +384,8 @@ export class Flowers {
       st[n] = fl.open;
     });
     this.geo.instanceCount = this.list.length;
-    this.aPos.needsUpdate = true;
-    this.aState.needsUpdate = true;
+    // uploaded only when the ring of flowers moved or one is opening or closing
+    if (dirty) this.aPos.needsUpdate = this.aState.needsUpdate = true;
   }
 
   /** Each light this casts on the ground: (x, z, reach in metres, colour, strength). */
@@ -409,6 +420,7 @@ interface Cluster {
 }
 const LANTERN_LIGHT = new THREE.Color(1.0, 0.72, 0.42);
 export class Lanterns {
+  private lastN = 0;
   points: THREE.Sprite;
   private clusters = new Map<string, Cluster | null>();
   private active: Cluster[] = [];
@@ -505,7 +517,8 @@ export class Lanterns {
       }
     }
     this.cloud.setCount(n);
-    this.cloud.attrs.position.needsUpdate = this.cloud.attrs.aGlow.needsUpdate = true;
+    if (n || this.lastN) this.cloud.attrs.position.needsUpdate = this.cloud.attrs.aGlow.needsUpdate = true;
+    this.lastN = n;
   }
 
   /** Each light this casts on the ground: (x, z, reach in metres, colour, strength). */

@@ -66,8 +66,17 @@ export class Narration {
   preload(ids: string[]): void {
     for (const id of ids) {
       const t = trackFor(id);
-      if (this.raw.has(id) || !t) continue;
+      if (!t) continue;
+      const had = this.raw.get(id);
+      if (had) {
+        // most recently wanted last
+        this.raw.delete(id);
+        this.raw.set(id, had);
+        continue;
+      }
       this.raw.set(id, loadBytes(fileFor(t)));
+      // the downloaded bytes are kept for the last few tracks only (a long recording is megabytes)
+      while (this.raw.size > 8) this.raw.delete(this.raw.keys().next().value!);
     }
   }
 
@@ -97,9 +106,21 @@ export class Narration {
     return p;
   }
 
-  /** Whether a track has playable audio (female-voice copies may not exist yet). */
-  async available(id: string): Promise<boolean> {
-    return (await this.buffer(id)) !== null;
+  /** Whether a track has playable audio (female-voice copies may not exist yet): asked of the
+      server (HEAD, remembered), never by downloading and decoding it. */
+  private exists = new Map<string, Promise<boolean>>();
+  available(id: string): Promise<boolean> {
+    const t = trackFor(id);
+    if (!t) return Promise.resolve(false);
+    const f = fileFor(t);
+    let p = this.exists.get(f);
+    if (!p) {
+      p = fetch(`./${f}`, { method: "HEAD" })
+        .then((r) => r.ok)
+        .catch(() => true); // offline: let playing it find out
+      this.exists.set(f, p);
+    }
+    return p;
   }
 
   /** Debug still-frame hook (?shot): when set, time() reads this instead of the audio clock. */

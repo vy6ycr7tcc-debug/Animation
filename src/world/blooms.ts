@@ -206,10 +206,12 @@ export class RisingFlowers {
   update(f: LifeFrame): void {
     this.uT.value = f.reduced ? f.t * 0.4 : f.t;
     const cx = Math.floor(f.player.x / PCELL), cz = Math.floor(f.player.z / PCELL);
+    let dirty = false;
     if (cx !== this.cx || cz !== this.cz) {
       this.cx = cx;
       this.cz = cz;
       this.active = [];
+      dirty = true;
       for (let i = -PRING; i <= PRING; i++)
         for (let j = -PRING; j <= PRING; j++) {
           const p = this.patchAt(cx + i, cz + j);
@@ -228,7 +230,9 @@ export class RisingFlowers {
         if (n >= MAX) break;
         const want = p.wokeAt >= 0 && (f.reduced || f.t - p.wokeAt > pl.delay) ? 1 : 0;
         // rising takes a couple of seconds; sinking back to rest, longer
+        const was = pl.rise;
         pl.rise += (want - pl.rise) * Math.min(1, f.dt * (want ? 0.9 : 0.2));
+        if (Math.abs(pl.rise - was) > 1e-4) dirty = true;
         base[n * 4] = pl.x;
         base[n * 4 + 1] = pl.y;
         base[n * 4 + 2] = pl.z;
@@ -241,8 +245,10 @@ export class RisingFlowers {
         n++;
       }
     }
+    if (n !== this.geo.instanceCount) dirty = true;
     this.geo.instanceCount = n;
-    this.aBase.needsUpdate = this.aShape.needsUpdate = this.aRise.needsUpdate = true;
+    // uploaded only when the patches around changed or a flower is rising or sinking
+    if (dirty) this.aBase.needsUpdate = this.aShape.needsUpdate = this.aRise.needsUpdate = true;
   }
 
   /** Each light this casts on the ground: a risen patch glows softly around its feet. */

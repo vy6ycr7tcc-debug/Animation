@@ -510,6 +510,38 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
     - The other hours keep their visions of light.
   - The tour (⋮ → Map → Tours → "The Duat, hour by hour"; `duatTourStart` in `main.ts`): it takes you into the Duat and walks you to the place before each hour's story, turned to it. The story begins for you and plays once through (`Duat.hours()`, `restart`), then the walk goes on by itself. At the end it climbs the stair into the dawn and onto the apex. Skip › and ✕ (the walk-through panel); the view frames the story (the gravity point). "walked ✓" once complete.
   - Room left for the owner's follow-up notes: the hours' content (and any recordings) can change without touching the tour.
+- 2026-10-01: performance, compartmentalized (the owner's GLM audit; each claim checked first; no visual compromise).
+  - Residency:
+    - The temple's interior is built on first going in and freed on coming out (`Temple.build`/`unbuild` through `release`); the pylon outside always stands.
+    - What outlasts it is kept: lit lamps (`litKept`), the wanderer's model. The cards' and shrines' names come from `ARCHETYPES`, not the built shrines.
+    - Its canvases (relief, ceiling stars, numerals) are painted once and kept; their GPU copies are freed and re-uploaded.
+    - The Duat is built on going into the pyramid and freed on leaving (`Pyramid.show`).
+    - Every crossing (temple, pyramid, deep archive, monuments) compiles shaders in the dark, both ways (`compileInDark`, 4 s cap).
+  - CPU:
+    - `moods` blends with no allocation (it cloned 88 Colors and built arrays every frame).
+    - Idle buffers aren't uploaded: sparks, flowers, lanterns, rising blooms, the hand ribbons.
+    - Birds: the mixer pauses past 200 m, and the ground under each is asked every 8th frame.
+    - `Landmarks` skips stations once hidden past 1100 m and reuses one frame object.
+    - `heightCoarse`, a bounded 4 m bilinear cache, serves the camera's ray, autofly's look ahead and the shadow's target.
+    - Vessel labels: visibility and text 10× a second, positions every frame, nothing allocated.
+    - Far figures reskin every 0.3 s within 100 m and every 0.8 s beyond. They stay visible to 160 m: shortening that would be a visual change.
+  - Audio and loading:
+    - `Narration.raw` is an LRU of 8 tracks.
+    - `available()` asks the server (HEAD, remembered) instead of downloading and decoding.
+    - The next background voice and the next room's recording are preloaded.
+    - The lock screen position updates at 1 Hz.
+    - `loadBytes` warns once, retries a network failure once, and says so on screen when a model can't load (`loadFailed`).
+  - Dead code gone:
+    - `world/lightfield.ts` (a 256² half-float target never rendered, `groundLight` returned 0);
+    - the water's reflector and its material (reflection is never on);
+    - `visionLesson()` and its `near=true` landmine (`seatStone` stays);
+    - `public/textures/temple/cards/` (22 orphaned PNGs, 7.3 MB; `assets.json` regenerated).
+  - Not done:
+    - KTX2 (no encoder in this environment, and the owner asked for an A/B of the hero scans on the iPhone first);
+    - GPU skinning;
+    - draw-call work (not measured as needed);
+    - the bloom mips and other fill-rate items (left for the owner).
+  - `#stats` now shows `cpu` (the frame's update time, smoothed) and the GPU's geometry and texture counts.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.

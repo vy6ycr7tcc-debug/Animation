@@ -8,7 +8,7 @@
    It steers itself: a heading that turns toward the next place at a gentle rate, and a height
    that eases toward the ground ahead (low) or the sky (high). The stick or the button takes over. */
 import * as THREE from "three/webgpu";
-import { heightAt, WATER_Y, WORLD_R } from "../world/terrain";
+import { heightAt, heightCoarse, WATER_Y, WORLD_R } from "../world/terrain";
 
 export interface Place {
   x: number;
@@ -98,7 +98,7 @@ export class Autofly {
     pos.z += fz * this.speed * dt;
     // height: over the ground ahead (the highest of the next ~40 m, so no hill is struck), or the sky
     let ground = -Infinity;
-    for (let s = 0; s <= 40; s += 8) ground = Math.max(ground, heightAt(pos.x + fx * s, pos.z + fz * s), WATER_Y);
+    for (let s = 0; s <= 40; s += 8) ground = Math.max(ground, heightCoarse(pos.x + fx * s, pos.z + fz * s), WATER_Y);
     const lowAlt = ground + LOW_CLEAR;
     const wantY = this.phase === "low" ? lowAlt : this.phase === "high" ? Math.max(lowAlt + 60, WATER_Y + HIGH_ALT) : this.phase === "rise" ? Math.max(lowAlt, WATER_Y + HIGH_ALT * Math.min(1, this.phaseT / this.phaseLen)) : lowAlt;
     const wantVy = THREE.MathUtils.clamp((wantY - pos.y) * 0.9, this.phase === "fall" ? -16 : -6, this.phase === "rise" ? 18 : 8);

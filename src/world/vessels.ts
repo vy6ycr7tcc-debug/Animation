@@ -400,12 +400,12 @@ export class Vessels {
   }
 
   /* ---------------------------------------------------------------- labels */
-  private label(key: object, html: string, cls: string): HTMLDivElement {
+  private label(key: object, html: () => string, cls: string): HTMLDivElement {
     let el = this.labelEls.get(key);
     if (!el) {
       el = document.createElement("div");
       el.className = `vlabel ${cls}`;
-      el.innerHTML = html;
+      el.innerHTML = html();
       this.labels.append(el);
       this.labelEls.set(key, el);
     }
@@ -424,43 +424,50 @@ export class Vessels {
     el.style.opacity = opacity.toFixed(2);
     el.style.transform = `translate(-50%,-100%) translate(${((this.v.x * 0.5 + 0.5) * innerWidth).toFixed(1)}px,${((-this.v.y * 0.5 + 0.5) * innerHeight).toFixed(1)}px)`;
   }
+  /** The labels in view: which are seen and how strongly is worked out ten times a second (the
+      distances, and a label's text the first time it shows); where each one seen stands on the
+      screen, every frame, so it never lags the view. Nothing is allocated per frame. */
+  private seen: { el: HTMLDivElement; at: (v: THREE.Vector3) => THREE.Vector3; k: number }[] = [];
+  private lastLabels = -1e9;
   private updateLabels(player: THREE.Vector3, camera: THREE.Camera, show: boolean): void {
     this.labels.hidden = !show;
     if (!show) return;
-    const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
-    const line = (n: Narration) => {
-      const s = n.sources[0];
-      return `<b>${esc(n.title)}</b>${s ? `<span>${esc(s.entity)} · ${esc(s.date)}</span>` : ""}`;
-    };
-    for (const st of this.stars) {
-      const d = player.distanceTo(st.vessel.pos);
-      const el = this.label(st, line(st.vessel.narration), "orb");
-      this.place(el, this.v.copy(st.vessel.pos).add(new THREE.Vector3(0, 6, 0)), camera, fade(d, 120, 260));
-    }
-    for (const o of this.orbs) {
-      const d = Math.max(0, player.distanceTo(o.vessel.pos) - o.vessel.radius);
-      const el = this.label(o, line(o.vessel.narration), "orb");
-      this.place(el, this.v.copy(o.vessel.pos).add(new THREE.Vector3(0, o.vessel.radius + 0.5, 0)), camera, o.vessel.radius > 2 ? fade(d, 150, 380) : fade(d, 18, 40));
-    }
-    for (const g of this.groves) {
-      const d = Math.hypot(player.x - g.site.x, player.z - g.site.z);
-      const el = this.label(g, `<b>${esc(g.site.grove.name)}</b>`, "grove");
-      this.place(el, g.labelAt, camera, fade(d, 70, 130) * (1 - 0.6 * fade(d, 8, 14)));
-      for (const f of g.fruits) {
-        const df = player.distanceTo(f.vessel.pos);
-        const fe = this.label(f, line(f.vessel.narration), "fruit");
-        this.place(fe, this.v.copy(f.vessel.pos).add(new THREE.Vector3(0, 0.55, 0)), camera, fade(df, 9, 16));
+    const now = performance.now();
+    if (now - this.lastLabels > 100) {
+      this.lastLabels = now;
+      for (const s of this.seen) s.el.style.opacity = "0";
+      this.seen.length = 0;
+      const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+      const line = (n: Narration) => () => {
+        const s = n.sources[0];
+        return `<b>${esc(n.title)}</b>${s ? `<span>${esc(s.entity)} · ${esc(s.date)}</span>` : ""}`;
+      };
+      const add = (key: object, html: () => string, cls: string, k: number, at: (v: THREE.Vector3) => THREE.Vector3) => {
+        if (k < 0.02) return;
+        this.seen.push({ el: this.label(key, html, cls), at, k });
+      };
+      for (const st of this.stars) {
+        const d = player.distanceTo(st.vessel.pos);
+        add(st, line(st.vessel.narration), "orb", fade(d, 120, 260), (v) => v.copy(st.vessel.pos).setY(st.vessel.pos.y + 6));
+      }
+      for (const o of this.orbs) {
+        const d = Math.max(0, player.distanceTo(o.vessel.pos) - o.vessel.radius);
+        add(o, line(o.vessel.narration), "orb", o.vessel.radius > 2 ? fade(d, 150, 380) : fade(d, 18, 40), (v) => v.copy(o.vessel.pos).setY(o.vessel.pos.y + o.vessel.radius + 0.5));
+      }
+      for (const g of this.groves) {
+        const d = Math.hypot(player.x - g.site.x, player.z - g.site.z);
+        add(g, () => `<b>${esc(g.site.grove.name)}</b>`, "grove", fade(d, 70, 130) * (1 - 0.6 * fade(d, 8, 14)), (v) => v.copy(g.labelAt));
+        if (d < 40)
+          for (const f of g.fruits) add(f, line(f.vessel.narration), "fruit", fade(player.distanceTo(f.vessel.pos), 9, 16), (v) => v.copy(f.vessel.pos).setY(f.vessel.pos.y + 0.55));
+      }
+      for (const g of this.gardens) {
+        const d = Math.hypot(player.x - g.site.x, player.z - g.site.z);
+        add(g, () => `<b>${esc(g.site.grove.name)}</b>`, "grove", fade(d, 70, 130) * (1 - 0.6 * fade(d, 8, 14)), (v) => v.copy(g.labelAt));
+        // close, or the ring's names crowd together
+        if (d < 30)
+          for (const c of g.crystals) add(c, line(c.vessel.narration), "fruit", fade(player.distanceTo(c.vessel.pos), 4.5, 7.5), (v) => v.copy(c.vessel.pos).setY(c.vessel.pos.y + 1.2));
       }
     }
-    for (const g of this.gardens) {
-      const d = Math.hypot(player.x - g.site.x, player.z - g.site.z);
-      const el = this.label(g, `<b>${esc(g.site.grove.name)}</b>`, "grove");
-      this.place(el, g.labelAt, camera, fade(d, 70, 130) * (1 - 0.6 * fade(d, 8, 14)));
-      for (const c of g.crystals) {
-        const dc = player.distanceTo(c.vessel.pos);
-        const ce = this.label(c, line(c.vessel.narration), "fruit");
-        this.place(ce, this.v.copy(c.vessel.pos).add(new THREE.Vector3(0, 1.2, 0)), camera, fade(dc, 4.5, 7.5)); // close, or the ring's names crowd together
-      }
-    }
+    for (const s of this.seen) this.place(s.el, s.at(this.v), camera, s.k);
   }
 }
