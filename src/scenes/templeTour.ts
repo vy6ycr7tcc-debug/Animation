@@ -263,6 +263,10 @@ export class TempleTour implements SceneModule {
   }
   /** The view's glide to the next stop: a smooth curve along the aisle, how far along it. */
   private glide: { curve: THREE.CatmullRomCurve3; L: number; s: number } | null = null;
+  /** This glide runs along one wall, the view held on the wall's shrines. */
+  private dolly = false;
+  /** Arrived, the part waits until the view has come round to its shrine (seconds waited). */
+  private framing = -1;
   /** Paused from the half-moon: the walking and the going on stand still. */
   held = false;
   /** It has come to its end (the Choice spoken; rest or stay offered). */
@@ -414,6 +418,7 @@ export class TempleTour implements SceneModule {
     this.rite(-1);
     this.index = k;
     this.phase = "leading";
+    this.framing = -1;
     if (k > 0) for (let g = 0; g < 3; g++) this.temple.kindleSign?.(g); // past the opening (or skipped): all named
     const s = this.stops[k], O = TEMPLE_ORIGIN;
     this.goal.set(s.x - O.x, s.z - O.z);
@@ -421,7 +426,11 @@ export class TempleTour implements SceneModule {
     this.temple.setFocus?.(-1);
     // the wanderer's way: the same aisle, from where it stands to the standing place
     const from = new THREE.Vector2(this.player.pos.x - O.x, this.player.pos.z - O.z);
-    this.walk = there ? [] : route(from, this.goal).map((p) => new THREE.Vector2(p.x + O.x, p.y + O.z));
+    // two shrines on the same wall of the hall: straight along the wall, facing it (a slow dolly
+    // past the niches), never out to the aisle and back in
+    this.dolly = from.y > GATE_Z && this.goal.y > GATE_Z && Math.sign(from.x) === Math.sign(this.goal.x) && Math.abs(from.x) > 3 && Math.abs(this.goal.x) > 3 && s.shrine >= 0;
+    const way = this.dolly ? [this.goal.clone()] : route(from, this.goal);
+    this.walk = there ? [] : way.map((p) => new THREE.Vector2(p.x + O.x, p.y + O.z));
     this.player.target = null;
     // no walking (the owner: "very artificial and silly"): the view glides on one smooth curve
     // through the same aisle, after the light
@@ -493,9 +502,16 @@ export class TempleTour implements SceneModule {
     this.temple.setFocus?.(s.shrine);
     this.temple.setGroup?.(s.intro ?? groupOf(s.shrine));
     if (s.intro !== undefined) this.temple.kindleSign?.(s.intro);
-    // its part of the recording
-    if (Number.isFinite(s.from)) void this.narration.play(TRACK_ID, s.from, s.to);
+    // its part of the recording, once the view has come round to it (or at once at the door)
+    this.framing = Number.isFinite(s.from) ? 0 : -1;
+    if (this.index === 0 || this.narration.debugTime !== null) this.speak();
     this.refresh();
+  }
+  private speak(): void {
+    const s = this.stops[this.index];
+    this.framing = -1;
+    this.spoke = 0;
+    if (Number.isFinite(s.from)) void this.narration.play(TRACK_ID, s.from, s.to);
   }
 
   private rite(i: number): void {
@@ -539,7 +555,13 @@ export class TempleTour implements SceneModule {
       this.player.pos.x = p.x;
       this.player.pos.z = p.z;
       this.player.target = null;
-      if (tan.lengthSq() > 1e-6) this.player.heading = Math.atan2(-tan.x, -tan.z);
+      if (this.dolly) this.player.heading = s.heading;
+      else if (tan.lengthSq() > 1e-6) {
+        // turned toward the shrine over the last part of the way, so it arrives facing it
+        const h = Math.atan2(-tan.x, -tan.z), w = smooth((u - 0.55) / 0.4);
+        const d = Math.atan2(Math.sin(s.heading - h), Math.cos(s.heading - h));
+        this.player.heading = s.shrine >= 0 || s.intro !== undefined ? h + d * w : h;
+      }
       const ahead = g.curve.getPointAt(Math.min(1, (g.s + 3.5) / Math.max(g.L, 1e-3)));
       this.lightAt.lerp(new THREE.Vector2(ahead.x - O.x, ahead.z - O.z), Math.min(1, step * 4));
       moving = true;
@@ -602,6 +624,10 @@ export class TempleTour implements SceneModule {
     // itself; never before the part is over, so nothing is cut
     if (held) {
       // paused: nothing goes on
+    } else if (this.phase === "speaking" && this.framing >= 0) {
+      // waiting for the view to face the shrine before its part begins (at most a few seconds)
+      this.framing += step;
+      if (Math.abs(dy) < 0.1 || this.framing > 2.5) this.speak();
     } else if (this.phase === "speaking") {
       this.spoke += Math.min(0.25, Math.max(0, dt)); // seconds as they pass, even when frames are slow
       const t = this.narration.time();
