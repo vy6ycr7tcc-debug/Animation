@@ -192,11 +192,13 @@ export class Narration {
     } else src.start(at, off);
     this.playing = { id, src, gain, start: at, scale, from: off / scale, end: Number.isFinite(to) ? to : buf.duration / scale };
     this.resumeHold = null;
+    this.last = null;
     this.partFrom = from;
     this.cueIndex = -1;
     this.audio.duck(true);
     src.onended = () => {
       if (this.playing?.src !== src) return;
+      this.last = { id, at: this.playing.end, end: this.playing.end, partFrom: this.partFrom };
       this.playing = null;
       this.finish(id);
     };
@@ -234,9 +236,28 @@ export class Narration {
     });
   }
 
+  /** The part that last played to its end (so ⟲ can go back into it), until another begins. */
+  private last: { id: string; at: number; end: number; partFrom: number } | null = null;
+  /** Back `secs` in the part speaking (or the one just ended), never before the part's own start;
+      paused (or `stayPaused`) stays paused. False when there is nothing to go back into. */
+  rewind(secs = 10, stayPaused = false): boolean {
+    if (this.debugTime !== null) return false;
+    if (this.held) {
+      this.held.at = Math.max(this.held.partFrom, this.held.at - secs);
+      return true;
+    }
+    const p = this.playing;
+    const q = p ? { id: p.id, at: this.time(), end: p.end, partFrom: this.partFrom } : (this.resumeHold ?? this.last);
+    if (!q) return false;
+    this.held = { ...q, at: Math.max(q.partFrom, q.at - secs) };
+    if (!stayPaused) this.resume();
+    return true;
+  }
+
   /** Fade the current track out (e.g. the wanderer walked away). */
   stop(fadeSecs = 2): void {
     this.held = null;
+    this.last = null;
     this.resumeHold = null;
     const p = this.playing;
     const ctx = this.audio.ctx;

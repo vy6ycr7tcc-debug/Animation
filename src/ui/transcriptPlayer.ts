@@ -73,13 +73,16 @@ export class TranscriptPlayer {
     });
     // on the touch itself, so they answer while the other thumb walks (a second finger's tap
     // makes no click on a phone); the click stays for the keyboard
+    // (a touch's own click is ignored, or a tap would act twice)
+    let downAt = -1e9;
     const tap = (id: string, fn: () => void) => {
       const el = document.getElementById(id)!;
       el.addEventListener("pointerdown", (e) => {
         e.preventDefault();
+        downAt = performance.now();
         fn();
       });
-      el.addEventListener("click", (e) => e.detail === 0 && fn());
+      el.addEventListener("click", (e) => e.detail === 0 && performance.now() - downAt > 700 && fn());
     };
     // with no archive narration of its own, the half-moon pauses whatever else is speaking or
     // leading (a room's voice, a lesson, a tour): its guest
@@ -156,6 +159,7 @@ export class TranscriptPlayer {
   /** Go back a little (to hear a passage again), playing or paused. */
   back(seconds: number): void {
     if (this.current) this.media.currentTime = Math.max(0, this.media.currentTime - seconds);
+    else if (this.guest?.active()) this.guest.back?.();
   }
 
   forward(seconds: number): void {
@@ -171,7 +175,7 @@ export class TranscriptPlayer {
   }
 
   /** Another voice the half-moon can pause and resume when the archive is quiet (main.ts). */
-  guest: { active(): boolean; paused(): boolean; toggle(): void; progress(): number } | null = null;
+  guest: { active(): boolean; paused(): boolean; toggle(): void; progress(): number; back?(): void } | null = null;
   private guestOn = false;
 
   /** On to the next narration now. */
