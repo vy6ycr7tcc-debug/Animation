@@ -2050,6 +2050,21 @@ async function walkEnterStop(): Promise<void> {
   walk.phase = "travel";
   walk.t = 0;
 }
+/** Each frame on the way somewhere by itself (a walk between places; the guide's "Walk me
+    there"): on foot when it is near, in flight when it is far, cruising ~14 m over the land and
+    coming down before it; a place in the air (`y` well above its ground) is flown to at its
+    height. Out of the water it rises into flight. True when there. */
+function driveTo(x: number, z: number, y: number | null, since: number): boolean {
+  const d = Math.hypot(x - player.pos.x, z - player.pos.z);
+  (player.target ??= new THREE.Vector2()).set(x, z);
+  const high = y !== null && y > Math.max(heightAt(x, z), WATER_Y) + 20;
+  const cruise = high ? y - 2 : Math.max(heightAt(player.pos.x, player.pos.z), WATER_Y) + 14;
+  const far = d > 45 || high;
+  if (far && !player.flying && !player.swimming && since > 0.6) player.jump(); // a jump, and in the air a second: flight
+  travelHold = player.swimming ? far : player.flying && (high || d > 40) && player.pos.y < cruise;
+  if (player.flying) player.landing = !high && d < 34;
+  return high ? d < 6 && player.pos.y > y - 12 : !player.flying && d < 2.2;
+}
 /** At the stop's door: in. */
 function walkArrive(): void {
   if (!walk) return;
@@ -2262,15 +2277,8 @@ function walkFrame(dt: number): void {
       walk.skip = false;
       return walkArrive();
     }
-    const d = Math.hypot(travelTo.x - player.pos.x, travelTo.y - player.pos.z);
-    (player.target ??= new THREE.Vector2()).copy(travelTo);
     tourGoal(travelTo.x, travelTo.y);
-    // far: up into the air and over the land; near: down, and on foot to the door
-    const above = player.pos.y - Math.max(heightAt(player.pos.x, player.pos.z), WATER_Y);
-    if (d > 45 && !player.flying && !player.swimming && walk.t > 0.6) player.jump(); // a jump, and in the air a second: flight
-    travelHold = player.flying && d > 40 && above < 14;
-    if (player.flying) player.landing = d < 34;
-    if ((!player.flying && d < 2.2) || walk.t > 150) walkArrive();
+    if (driveTo(travelTo.x, travelTo.y, null, walk.t) || walk.t > 150) walkArrive();
     return;
   }
   if (walk.phase === "place") {
@@ -2860,10 +2868,32 @@ function closeGuide(): void {
 }
 $("#guide-open").addEventListener("click", openGuide);
 $("#guide-close").addEventListener("click", closeGuide);
+/* "Walk me there" (the owner: "one click and it completes; the stick takes over"): the guide's
+   light goes ahead and the wanderer goes after it by itself, on foot or in flight (`driveTo`),
+   all the way; touching the stick or the round button gives you back the way, and the light
+   still leads. */
+let guideAuto: { since: number } | null = null;
+function stopGuideAuto(): void {
+  if (!guideAuto) return;
+  guideAuto = null;
+  travelHold = false;
+  player.target = null;
+}
+function guideAutoFrame(dt: number): void {
+  const g = guide.target;
+  if (!guideAuto) return;
+  if (!g || walk || duatTour || apart() || S.mode !== "play") return stopGuideAuto();
+  if (Math.hypot(input.move.x, input.move.y) > 0.25 || input.hold) return stopGuideAuto(); // the thumb takes over
+  guideAuto.since += dt;
+  if (driveTo(g.x, g.z, g.y, guideAuto.since)) stopGuideAuto();
+}
 $("#guide-walk").addEventListener("click", () => {
   if (!guideChoice) return;
+  if (autofly.active) setAutofly(false);
+  standUp();
   guide.lead(guideChoice, player.pos);
-  whisper(`Follow the light · ${guideChoice.label}`, 5000);
+  guideAuto = { since: 0 };
+  whisper(`On the way · ${guideChoice.label}. The stick takes over.`, 5000);
   closeGuide();
 });
 $("#guide-go").addEventListener("click", () => {
@@ -3186,10 +3216,11 @@ function update(dt: number): void {
   if (z !== 1) follow.zoom(z);
 
   if (S.mode === "play") {
+    guideAutoFrame(dt);
     if (wanderer.gesture !== "none" && Math.hypot(input.move.x, input.move.y) > 0.2 && wanderer.gesture === "sit") wanderer.setGesture("none");
     if (autofly.active && !isTv && (Math.hypot(input.move.x, input.move.y) > 0.25 || input.hold)) setAutofly(false); // the thumb takes over
     if (genesis.active || temple.cardsOpen || tourScenes.tour.active) player.update(dt, { x: 0, y: 0, glide: false, run: 0, hold: false, down: false, pitch: follow.pitch }, follow.yaw);
-    else if (walk?.phase === "travel") player.update(dt, { x: 0, y: 0, glide: false, run: 1, hold: travelHold, down: false, pitch: follow.pitch }, follow.yaw);
+    else if (walk?.phase === "travel" || guideAuto) player.update(dt, { x: 0, y: 0, glide: false, run: 1, hold: travelHold, down: false, pitch: follow.pitch }, follow.yaw);
     else if (autofly.active) {
       const r = autofly.update(dt, player.pos);
       Object.assign(player, { heading: r.heading, speed: r.speed, vy: r.vy, flying: true, landing: false, grounded: false, swimming: false, gliding: false, pose: "fly", target: null });
