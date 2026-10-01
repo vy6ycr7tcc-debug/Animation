@@ -68,15 +68,16 @@ function stage(ctx: StageCtx): Stage {
     const a0 = mix(arm.mul(Math.PI).add(T.log(r.add(0.6)).mul(2.6)).add(j2.sub(0.5).mul(0.9)), j2.mul(Math.PI * 2), isDisk);
     const a = a0.add(u.turn.mul(float(1.6).sub(f)));
     // pushed away, the arms scatter outward; drawn to the point, everything falls in
-    const push = float(1).add(u.push.mul(j1.mul(0.22).add(0.06)).mul(sin(t.mul(0.9).add(j2.mul(20))).mul(0.5).add(0.5)));
+    const push = float(1).add(u.push.mul(j1.mul(0.9).add(0.25)).mul(sin(t.mul(0.9).add(j2.mul(20))).mul(0.5).add(0.5)));
     const rr = r.mul(push).mul(float(1).sub(u.point.mul(0.999))).mul(sin(t.mul(0.25)).mul(0.02).add(1));
-    const h = j2.sub(0.5).mul(float(0.8).sub(f.mul(0.6))).mul(float(1).sub(u.point));
-    const coreP = vec3(G.c.nodes.position.y, j2.sub(0.5).mul(0.9), G.c.nodes.position.z).mul(float(0.9).add(u.space.mul(1.2))).mul(float(1).sub(u.point.mul(0.999)));
+    const h = j2.sub(0.5).mul(float(0.8).sub(f.mul(0.6)).add(u.push.mul(j1).mul(4.5))).mul(float(1).sub(u.point));
+    const coreRaw = vec3(G.c.nodes.position.y, j2.sub(0.5).mul(0.9), G.c.nodes.position.z);
+    const coreP = mix(coreRaw, T.normalize(coreRaw.add(vec3(1e-4, 0, 0))).mul(float(2.6).add(j1.mul(0.4))).mul(vec3(1, 0.3, 1)), u.space).mul(float(0.9).add(u.space.mul(0.3))).mul(float(1).sub(u.point.mul(0.999)));
     G.m.positionNode = mix(vec3(cos(a).mul(rr), h, sin(a).mul(rr)), coreP, isCore);
     const col = mix(mix(vec3(1, 0.9, 0.72), vec3(0.72, 0.8, 1), smoothstep(0.15, 0.6, f)), vec3(1, 0.72, 0.85), smoothstep(0.7, 1, j2).mul(f));
     const tw = sin(t.mul(float(0.6).add(j1)).add(j2.mul(60))).mul(0.25).add(0.75);
     const lum = mix(mix(float(0.55).add(float(1).sub(f).mul(0.5)), float(0.28), isDisk), float(1.3), isCore).mul(u.bright).mul(float(1).add(u.point.mul(2)));
-    G.m.colorNode = vec4(col.mul(G.round).mul(tw).mul(lum).mul(u.on).mul(0.75), 1);
+    G.m.colorNode = vec4(mix(col, vec3(1, 0.42, 0.3), u.push.mul(0.65)).mul(G.round).mul(tw).mul(lum).mul(u.on).mul(0.75), 1);
     gal.add(G.c.sprite);
     ours.push(G.m);
     const heart = cloud(1, 3.4, { aK: 4 });
@@ -87,14 +88,14 @@ function stage(ctx: StageCtx): Stage {
 
   /* ---------------- the rain it does not flinch from ---------------- */
   {
-    const n = 4000;
-    const Rn = cloud(n, 0.04, { aK: 4 });
+    const n = 7000;
+    const Rn = cloud(n, 0.07, { aK: 4 });
     for (let i = 0; i < n; i++) Rn.a.aK.set([R(), R(), R(), R()], i * 4);
     Rn.dirty();
     const K = Rn.c.nodes.aK;
     const fall = fract(K.x.add(t.mul(float(0.4).add(K.y.mul(0.2)))));
     Rn.m.positionNode = vec3(K.z.sub(0.5).mul(18), float(seatY + 20).sub(fall.mul(22)), K.w.mul(-18).add(4));
-    Rn.m.colorNode = vec4(vec3(0.6, 0.72, 0.95).mul(Rn.round).mul(u.rain).mul(u.on).mul(0.6), 1);
+    Rn.m.colorNode = vec4(vec3(0.6, 0.72, 0.95).mul(Rn.round).mul(u.rain).mul(u.on).mul(1.1), 1);
     g.add(Rn.c.sprite);
     ours.push(Rn.m);
   }
@@ -206,6 +207,8 @@ function stage(ctx: StageCtx): Stage {
       const rate = env(T0, [[0, 0.05], [210, 0.05], [230, 0.018], [480, 0.018], [600, 0.04]]) * (1 - u.point.value);
       turn += dt * rate * (0.4 + 0.6 * on);
       u.turn.value = turn;
+      // allowed, it turns its face toward you; drawn to the point it stands upright again
+      gal.rotation.x = 1.05 + 0.4 * env(T0, [[0, 0], [185, 0], [215, 1], [485, 1], [500, 0.4], [572, 0]]);
       door.visible = u.door.value > 0.005 || T0 > 480;
       leaf.rotation.y = -u.door.value * 1.7;
       doorLight.intensity = 90 * u.door.value;
