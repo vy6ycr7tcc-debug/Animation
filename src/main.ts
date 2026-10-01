@@ -4,6 +4,7 @@
    forms (beam, veil, garden, throne, arch, rings) stand as landmarks to wander toward.
    Narration plays in the background the whole time, one recording after another.
    States: intro (title over the night water) → play → rest (after Leave) → play … */
+import { CUES, FINALE_T, TRACK_ID as TEMPLE_TRACK } from "./scenes/templeTour";
 import "./gpu/compat";
 import { registerSW } from "virtual:pwa-register";
 import * as THREE from "three/webgpu";
@@ -764,7 +765,7 @@ function riteFrame(dt: number): void {
   if (!trite) {
     echo.k = Math.max(0, echo.k - dt * 0.8);
     if (echo.k === 0) echo.sig = null;
-    const i = temple.inside && !temple.cardsOpen && !crossing && !tourScenes.tour.active ? temple.nearShrine(player.pos) : -1;
+    const i = temple.inside && !temple.cardsOpen && !crossing && !tourScenes.tour.active && sitting.phase === "none" ? temple.nearShrine(player.pos) : -1;
     if (i !== shrineAt) {
       shrineAt = i;
       shrineEl.hidden = i < 0;
@@ -869,6 +870,45 @@ function cardsCamera(dt: number): void {
 }
 
 /** Each frame: through the pylon's door, in; out through the temple's door, out; the air inside. */
+/* The Choice's room: one shrine, one seat. Walking onto the seat sits you and the Choice's part of
+   the temple's recording plays through its landing; standing up stops it. Afterwards, a few quiet
+   questions, far apart (the owner's "what is your choice?"; the rest ours). */
+const CHOICE_ASK = ["What is your choice?", "How will you love?", "Stay as long as you like."];
+const choiceSit = { on: false, off: true, after: 0, asked: 0 };
+function choiceFrame(): void {
+  const seat = temple.choiceSeat();
+  if (choiceSit.on) {
+    if (sitting.phase !== "seated" || tourScenes.tour.active || !temple.inside) {
+      choiceSit.on = false;
+      choiceSit.off = false;
+      temple.setFocus(-1);
+      if (narration.current === TEMPLE_TRACK) narration.stop(1.5);
+      return;
+    }
+    if (narration.current !== TEMPLE_TRACK) {
+      if (!choiceSit.after) choiceSit.after = S.t;
+      else if (choiceSit.asked < CHOICE_ASK.length && S.t - choiceSit.after > 5 + choiceSit.asked * 30) whisper(CHOICE_ASK[choiceSit.asked++], 8000);
+    }
+    return;
+  }
+  if (tourScenes.tour.active || trite || sitting.phase !== "none") return;
+  const d = Math.hypot(player.pos.x - seat.x, player.pos.z - seat.z);
+  if (d > 1.3) choiceSit.off = true;
+  else if (choiceSit.off) {
+    Object.assign(choiceSit, { on: true, off: false, after: 0, asked: 0 });
+    const st = temple.standFor(21);
+    Object.assign(sitting, { phase: "seated", since: 0, asked: false });
+    player.pos.set(seat.x, seat.y, seat.z);
+    player.target = null;
+    player.vel.set(0, 0, 0);
+    player.heading = st.heading;
+    wanderer.setGesture("sit");
+    faceYaw = st.heading;
+    faceFor = 2.5;
+    temple.setFocus(21);
+    void narration.play(TEMPLE_TRACK, CUES[24].t, FINALE_T);
+  }
+}
 function templeFrame(dt: number): void {
   temple.update(S.wt, dt, player.pos, S.reduced);
   if (S.mode !== "play") return;
@@ -876,6 +916,7 @@ function templeFrame(dt: number): void {
     if (temple.confine(player.pos) && !crossing) crossTemple(false);
     if (player.flying) player.flying = false; // no flight in the temple: you walk here
     riteFrame(dt);
+    choiceFrame();
     $("#cards-offer").hidden = temple.cardsOpen || !temple.nearCards(player.pos) || crossing || shrineAt >= 0 || !!trite || tourScenes.tour.active;
     // the air inside: warm, dim, a little dust in the light
     fogUniforms.color.value.setRGB(0.09, 0.065, 0.045);
@@ -1812,7 +1853,7 @@ function lessonUxFrame(dt: number): void {
     }
   }
   // a monument's seated room (its recording waits for you to sit)
-  const hallSeat = S.mode === "play" && sitting.phase === "none" ? inHall()?.journey.seatAt() : null;
+  const hallSeat = S.mode === "play" && sitting.phase === "none" ? inHall()?.journey.seatAt() ?? (temple.inChoiceRoom(player.pos) && !tourScenes.tour.active ? temple.choiceSeat() : null) : null;
   if (hallSeat) near = { pos: hallSeat, d: player.pos.distanceTo(hallSeat) };
   const want = near ? THREE.MathUtils.smoothstep(18, 12, near.d) : 0;
   seatRing.k.value += (want * (0.55 + 0.25 * Math.sin(S.t * 2.2)) - seatRing.k.value) * Math.min(1, dt * 3);

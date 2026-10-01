@@ -13,6 +13,7 @@
    - Through a gateway, the sanctuary: the Spirit's seven (XV–XXI) in a ring, facing the centre,
      where the Choice (XXII) stands on a round dais in a shaft of light from an opening above.
    Walk back out through the door you came in by. */
+import { seatStone } from "../scenes/visionLesson";
 import * as THREE from "three/webgpu";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { Beings, type BeingModel } from "./beings";
@@ -32,6 +33,11 @@ const { clamp, dot, exp, float, length, mix, positionWorld, smoothstep, texture,
 export const TEMPLE_ORIGIN = new THREE.Vector3(30000, 1, 0);
 const HALL_X = 12, HALL_Z0 = 32, HALL_Z1 = -30; // the hall: x ±12, z from the door (+32) to the gateway (-30)
 const SANCT_X = 16, SANCT_Z1 = -58; // the sanctuary: x ±16, z -30 … -58
+/** The Choice's own room, off the sanctuary's right wall past the Spirit's last shrine: x 16 … 29,
+    z -33.5 … -46.5, its door in the wall at z -39 (3.2 m wide, 7 m high). Only the Choice and
+    one seat are in it. */
+const CH_X1 = 29, CH_ZA = -33.5, CH_ZB = -46.5, CH_DOOR_Z = -39.5, CH_DOOR_W = 3.2, CH_H = 10;
+const CHOICE_AT = new THREE.Vector3(26.2, 0.9, CH_DOOR_Z);
 const WALL_H = 13;
 const NICHE_Z = [25, 16.8, 8.6, 0.4, -7.8, -16, -24.2]; // the hall's shrines, door to gateway
 const COL_Z = [29, 20.9, 12.7, 4.5, -3.7, -11.9, -20.1, -27.6]; // between them
@@ -533,7 +539,27 @@ export class Temple {
     block(stone, 7.6, 0.6, T_ * 2.2, 0, 10.2, HALL_Z1 + 0.1); // its cornice
     // the sanctuary's walls (higher)
     const SH = WALL_H + 2;
-    for (const side of [-1, 1]) block(walls, T_, SH, HALL_Z1 - SANCT_Z1, side * (SANCT_X + T_ / 2), SH / 2, (HALL_Z1 + SANCT_Z1) / 2);
+    block(walls, T_, SH, HALL_Z1 - SANCT_Z1, -(SANCT_X + T_ / 2), SH / 2, (HALL_Z1 + SANCT_Z1) / 2);
+    {
+      // the right wall, broken by the Choice room's door
+      const x = SANCT_X + T_ / 2, d0 = CH_DOOR_Z + CH_DOOR_W / 2, d1 = CH_DOOR_Z - CH_DOOR_W / 2;
+      block(walls, T_, SH, HALL_Z1 - d0, x, SH / 2, (HALL_Z1 + d0) / 2);
+      block(walls, T_, SH, d1 - SANCT_Z1, x, SH / 2, (d1 + SANCT_Z1) / 2);
+      block(walls, T_, SH - 7, CH_DOOR_W, x, 7 + (SH - 7) / 2, CH_DOOR_Z);
+      block(stone, T_ * 1.8, 0.5, CH_DOOR_W + 1.4, x, 7.25, CH_DOOR_Z); // its lintel
+      // the room: three walls, a floor, a ceiling open over the Choice
+      const w = CH_X1 - SANCT_X;
+      block(walls, w + T_, CH_H, T_, SANCT_X + w / 2 + T_ / 2, CH_H / 2, CH_ZA + T_ / 2);
+      block(walls, w + T_, CH_H, T_, SANCT_X + w / 2 + T_ / 2, CH_H / 2, CH_ZB - T_ / 2);
+      block(walls, T_, CH_H, CH_ZA - CH_ZB + T_ * 2, CH_X1 + T_ / 2, CH_H / 2, (CH_ZA + CH_ZB) / 2);
+      block(floors, w + T_, 0.4, CH_ZA - CH_ZB, SANCT_X + w / 2, 0.1, (CH_ZA + CH_ZB) / 2, 4);
+      const gx0 = CHOICE_AT.x - 1.4, gx1 = CHOICE_AT.x + 1.4;
+      block(ceil, gx0 - SANCT_X, 0.6, CH_ZA - CH_ZB + 1, (SANCT_X + gx0) / 2, CH_H + 0.3, (CH_ZA + CH_ZB) / 2, 4);
+      block(ceil, CH_X1 + 1 - gx1, 0.6, CH_ZA - CH_ZB + 1, (gx1 + CH_X1 + 1) / 2, CH_H + 0.3, (CH_ZA + CH_ZB) / 2, 4);
+      for (const sz of [-1, 1]) block(ceil, gx1 - gx0, 0.6, (CH_ZA - CH_ZB) / 2 - 1.4 + 0.5, CHOICE_AT.x, CH_H + 0.3, CH_DOOR_Z + sz * ((CH_ZA - CH_ZB) / 4 + 0.7 + 0.25));
+      // the Choice's plinth, and one seat
+      block(stone, 2.6, 0.6, 3.6, CHOICE_AT.x, 0.6, CHOICE_AT.z);
+    }
     block(walls, SANCT_X * 2 + T_ * 2, SH, T_, 0, SH / 2, SANCT_Z1 - T_ / 2);
     // floors: the hall, and the sanctuary a step higher
     block(floors, HALL_X * 2 + 8, 0.4, HALL_Z0 - HALL_Z1 + 1, 0, -0.2, (HALL_Z0 + HALL_Z1) / 2, 4);
@@ -559,10 +585,6 @@ export class Temple {
       worldUV(d, 2);
       stone.push(d);
     }
-    // the Choice's platform at the back of the sanctuary, raised above the ring, with steps
-    block(stone, 9, 1.8, 5, CENTRE.x, 0.9, SANCT_Z1 + 2.6);
-    block(stone, 5, 0.6, 1.2, CENTRE.x, 0.3, SANCT_Z1 + 5.6);
-    block(stone, 5, 1.2, 1.0, CENTRE.x, 0.6, SANCT_Z1 + 5.0);
     // the altar at the centre, where the cards appear
     const alt = new THREE.CylinderGeometry(1.0, 1.15, 0.9, 48).toNonIndexed();
     alt.translate(CENTRE.x, 1.2 + 0.45, CENTRE.z);
@@ -692,16 +714,17 @@ export class Temple {
         }
     // and in the sanctuary, gathered by the walls
     for (let i = 0; i < 12; i++) {
-      const side = i % 2 ? 1 : -1, z = HALL_Z1 - 3 - r() * 22;
+      const side = i % 2 ? 1 : -1;
+      let z = HALL_Z1 - 3 - r() * 22;
+      if (side > 0 && Math.abs(z - CH_DOOR_Z) < CH_DOOR_W) z = CH_DOOR_Z - CH_DOOR_W - 1 - r() * 6; // clear of the Choice room's door
       const kind = kinds[Math.floor(r() * kinds.length)];
       spots[kind].push({ x: side * (SANCT_X - 0.9 - r() * 0.5), y: 0.3, z, ry: r() * 6, k: 0.8 + r() * 0.6 });
     }
     place("antique_ceramic_vase_01", 0.7, spots.antique_ceramic_vase_01);
     place("ceramic_vase_02", 0.55, spots.ceramic_vase_02);
     place("planter_pot_clay", 0.6, spots.planter_pot_clay);
-    // brass lamps on the Spirit's plinths, one before each, and two at the Choice's steps
+    // brass lamps on the Spirit's plinths, one before each
     const lamps = this.ringSpots().map(({ x, z, face }) => ({ x: x + Math.sin(face) * 1.25, y: 0.9, z: z + Math.cos(face) * 1.25, ry: face }));
-    lamps.push({ x: CENTRE.x - 2.2, y: 0.6, z: SANCT_Z1 + 5.2, ry: 0 }, { x: CENTRE.x + 2.2, y: 0.6, z: SANCT_Z1 + 5.2, ry: 0 });
     place("brass_diya_lantern", 0.42, lamps);
   }
 
@@ -776,11 +799,18 @@ export class Temple {
       this.group.add(label);
       this.collide(x, z, 1.9);
     });
-    const { label } = place(21, CENTRE.x, 1.8, SANCT_Z1 + 2.6, 0, 5.2);
+    // the Choice, alone in its room, facing the door; you sit before it
+    const { label } = place(21, CHOICE_AT.x, CHOICE_AT.y, CHOICE_AT.z, -Math.PI / 2, 5.0);
     label.scale.setScalar(0.6);
-    label.position.set(CENTRE.x, 2.6, SANCT_Z1 + 5.15);
+    label.position.set(CHOICE_AT.x - 1.32, 0.62, CHOICE_AT.z);
+    label.rotation.y = -Math.PI / 2;
     this.group.add(label);
-    this.collide(CENTRE.x, SANCT_Z1 + 2.6, 4.2);
+    this.collide(CHOICE_AT.x, CHOICE_AT.z, 1.7);
+    this.group.add(Object.assign(seatStone(new THREE.Vector3(this.spots[21].x, 0.3, this.spots[21].z)), { name: "choice-seat" }));
+    // its light: from the opening above, soft and clear, onto the Choice
+    const cl = new THREE.PointLight(0xfff2dc, 16, 13, 1.3);
+    cl.position.set(CHOICE_AT.x - 1.2, 6.5, CHOICE_AT.z);
+    this.group.add(cl);
     this.collide(CENTRE.x, CENTRE.z, 1.5); // the altar
     this.buildLamps();
     this.buildSigns();
@@ -824,7 +854,7 @@ export class Temple {
     const face = (sx: number, sz: number, tx: number, tz: number) => Math.atan2(-(tx - sx), -(tz - sz));
     // the Mind: a tall lamp-stand of bronze, a small oil lamp with a cool, clear flame
     {
-      const x = -9.2, z = 29.2;
+      const x = -8.0, z = 27.0;
       const stand = new THREE.Mesh(new THREE.LatheGeometry([[0.001, 0], [0.32, 0], [0.34, 0.05], [0.12, 0.14], [0.05, 0.3], [0.04, 2.0], [0.07, 2.08], [0.22, 2.16], [0.24, 2.24], [0.001, 2.2]].map(([r, y]) => new THREE.Vector2(r, y)), 20), bronze);
       stand.position.set(x, 0, z);
       stand.castShadow = true;
@@ -835,11 +865,11 @@ export class Temple {
       glow.position.copy(core.position);
       this.group.add(stand, core, glow);
       this.collide(x, z, 0.5);
-      this.signs.push({ k: 1, lit: 1, u, stand: { x: -6.7, z: 26.7, heading: face(-6.7, 26.7, x, z) } });
+      this.signs.push({ k: 1, lit: 1, u, stand: { x: -5.2, z: 24.8, heading: face(-5.2, 24.8, x, z) } });
     }
     // the Body: a fire burning in a wide bronze bowl on three legs
     {
-      const x = 9.2, z = 29.2;
+      const x = 8.0, z = 27.0;
       const bowl = new THREE.Mesh(new THREE.LatheGeometry([[0.001, 0.62], [0.45, 0.64], [0.62, 0.8], [0.66, 0.98], [0.6, 1.0], [0.001, 0.86]].map(([r, y]) => new THREE.Vector2(r, y)), 24), bronze);
       bowl.position.set(x, 0, z);
       for (let k = 0; k < 3; k++) {
@@ -869,7 +899,7 @@ export class Temple {
       glow.position.set(x, 1.4, z);
       this.group.add(bowl, fire, glow);
       this.collide(x, z, 0.8);
-      this.signs.push({ k: 1, lit: 1, u, stand: { x: 6.7, z: 26.7, heading: face(6.7, 26.7, x, z) } });
+      this.signs.push({ k: 1, lit: 1, u, stand: { x: 5.2, z: 24.8, heading: face(5.2, 24.8, x, z) } });
     }
     // the Spirit: in the darkness of the sanctuary, a single star over the altar
     {
@@ -882,6 +912,16 @@ export class Temple {
       this.group.add(core, glow);
       this.signs.push({ k: 1, lit: 1, u, stand: { x: 0, z: HALL_Z1 + 3.4, heading: 0 } });
     }
+  }
+
+  /** The Choice's seat (world), where you sit before it. */
+  choiceSeat(): THREE.Vector3 {
+    const s = this.spots[21];
+    return new THREE.Vector3(TEMPLE_ORIGIN.x + s.x, TEMPLE_ORIGIN.y + 0.3, TEMPLE_ORIGIN.z + s.z);
+  }
+  /** Inside the Choice's room. */
+  inChoiceRoom(p: THREE.Vector3): boolean {
+    return this.inside && p.x - TEMPLE_ORIGIN.x > SANCT_X + 0.5 && p.z - TEMPLE_ORIGIN.z < HALL_Z1;
   }
 
   /** Where to stand before room `g`'s sign (0 the Mind, 1 the Body, 2 the Spirit), facing it. */
@@ -1439,6 +1479,15 @@ export class Temple {
     const inDoor = Math.abs(l.x) < 2.4;
     if (l.z > HALL_Z0 - 0.9 && inDoor) return true; // stepping into the doorway is enough
     const inSanct = l.z < HALL_Z1 + 0.6;
+    // the Choice's room: in through its door only
+    const atChDoor = Math.abs(l.z - CH_DOOR_Z) < CH_DOOR_W / 2 - 0.45;
+    if (inSanct && (l.x > SANCT_X + 0.3 || (l.x > SANCT_X - 0.7 && atChDoor))) {
+      if (l.x < SANCT_X + 1.3) l.z = THREE.MathUtils.clamp(l.z, CH_DOOR_Z - CH_DOOR_W / 2 + 0.45, CH_DOOR_Z + CH_DOOR_W / 2 - 0.45);
+      else l.z = THREE.MathUtils.clamp(l.z, CH_ZB + 0.6, CH_ZA - 0.6);
+      l.x = Math.min(l.x, CH_X1 - 0.6);
+      p.copy(l).add(TEMPLE_ORIGIN);
+      return false;
+    }
     const xMax = inSanct ? SANCT_X - 0.6 : HALL_X - 0.6;
     // the gateway: pass only through its door
     if (Math.abs(l.z - HALL_Z1) < 1.4 && Math.abs(l.x) > 2.6) l.z = l.z > HALL_Z1 ? HALL_Z1 + 1.4 : HALL_Z1 - 1.4;

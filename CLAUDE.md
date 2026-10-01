@@ -485,6 +485,13 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - the Spirit: a single star with fine rays, violet-white, over the altar in the sanctuary's dark.
   - The tour: at the door the opening kindles each sign as it names it (8.0, 13.3 and 21.5 s, measured from the recording). Each room then begins at its sign: the Mind's lamp is a quiet 6 s moment (the recording has no words of its own for it); the Body's fire and the Spirit's star carry the recorded passages into them (the "mind → body" and "body → spirit" marks, which used to be spoken at VIII and XV). Then come its seven shrines, then the Choice.
   - While the tour is in a room, its sign burns brighter and its wall's niches take its light (cool silver-blue for the Mind, amber for the Body; `wash`). The columns weren't rebuilt.
+- 2026-10-01: the Choice has a room of its own (the owner: "only the Choice… one shrine, one seat").
+  - The raised platform at the back of the sanctuary and its two brass lamps are gone. The Choice stands alone on a plinth in a small room off the sanctuary's right wall (x 16–29, z −33.5 to −46.5), reached by a door at z −39.5, just past XXI, the last Spirit shrine. A door in the back wall would have stood behind XVIII.
+  - In it: the Choice, one stone seat facing it, and soft light from an opening above.
+  - Walking onto the seat sits you, and the Choice's part of the temple recording plays through its landing (578.35 s → `FINALE_T`); standing up stops it (`choiceFrame` in `main.ts`). The card glows while you sit.
+  - When the part has ended, three quiet lines come far apart: "What is your choice?" (the owner's), "How will you love?" (the Choice's existing question), "Stay as long as you like." No other words were added.
+  - The tour's last stop is the same seat. The shrine panel doesn't show while you sit.
+  - Also fixed: the Mind's lamp and the Body's fire stood inside the fallen drum and block by the door; they now stand clear (x ±8, z 27).
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.
