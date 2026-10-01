@@ -14,7 +14,10 @@ import { T, hash2, vnoise, type N } from "../../gpu/tsl";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
 import { lightBodyMaterial, tickLightBody } from "../../player/lightBody";
 import { loadBeingModel } from "../../world/beings";
-import { applyAir, damp, keepAlpha, pointCloud, roomClock, scannedGround, seeded, skyDome, touch, type Air, roomPos } from "./roomKit";
+import { applyAir, damp, keepAlpha, merge, pointCloud, roomClock, scannedGround, seeded, skyDome, touch, type Air, roomPos } from "./roomKit";
+import { GlassFolk } from "../glassFolk";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { landStone, stoneBlock } from "../../world/stoneworks";
 
 const { attribute, exp, float, floor, fract, length, max, mix, positionGeometry, pow, sin, smoothstep, step, uniform, uv, vec2, vec3, vec4 } = T;
 
@@ -233,6 +236,82 @@ export function createDensityRoom4Scene(
       g.add(dusk, dusk.target);
     }
 
+    /* ---------------- the village: small houses round the plaza, their windows lit ---------------- */
+    // (the owner: "build a village, small houses, kids running"): the fourth density lives
+    // together, so its people have homes round the common heart, low and warm, lamps in the
+    // windows; the way to the door ahead stays open
+    {
+      const walls: THREE.BufferGeometry[] = [], roofs: THREE.BufferGeometry[] = [], panes: THREE.BufferGeometry[] = [];
+      const towersAt: [number, number, number][] = [[-18, -30, 3.2], [19, -34, 4.2], [-30, -12, 2.4], [30, -8, 2.8], [-9, -52, 2.2], [11, -58, 3.4], [-24, 12, 2.6], [26, 16, 3]];
+      let placed = 0;
+      for (let i = 0; i < 44 && placed < 24; i++) {
+        const a = (i / 44) * Math.PI * 2 + R() * 0.1, rad = 15 + R() * 6;
+        const x = Math.cos(a) * rad, z = -14 + Math.sin(a) * rad;
+        if (Math.abs(x) < 6 && z < -22) continue; // the way to the door
+        if (z > -2 && Math.abs(x) < 9) continue; // where you stand
+        if (towersAt.some(([tx, tz, tr]) => Math.hypot(x - tx, z - tz) < tr + 5)) continue;
+        if (R() < 0.2) continue;
+        placed++;
+        const w = 3.2 + R() * 1.6, d = 2.8 + R() * 1.2, h = 2.3 + R() * 0.6;
+        const face = Math.atan2(-x, -14 - z); // the door toward the plaza's heart
+        const m4 = new THREE.Matrix4().makeRotationY(face).setPosition(x, 0, z);
+        const body = stoneBlock(w, h, d, 300 + i);
+        body.translate(0, h / 2, 0);
+        body.applyMatrix4(m4);
+        walls.push(body);
+        // a pitched roof
+        const tri = new THREE.Shape([new THREE.Vector2(-w / 2 - 0.35, 0), new THREE.Vector2(w / 2 + 0.35, 0), new THREE.Vector2(0, 1.3 + R() * 0.4)]);
+        const roof = new THREE.ExtrudeGeometry(tri, { depth: d + 0.5, bevelEnabled: false });
+        roof.translate(0, h, -(d + 0.5) / 2);
+        roof.applyMatrix4(m4);
+        roofs.push(roof);
+        // windows and a door, toward the heart: lamps lit within
+        for (const [px, py, pw, ph] of [[-w * 0.28, h * 0.55, 0.55, 0.6], [w * 0.28, h * 0.55, 0.55, 0.6], [0, 0.85, 0.8, 1.6]] as const) {
+          const pane = new THREE.PlaneGeometry(pw, ph);
+          pane.translate(px, py, d / 2 + 0.02);
+          pane.applyMatrix4(m4);
+          const n = pane.attributes.position.count;
+          pane.setAttribute("aPh", new THREE.BufferAttribute(new Float32Array(n).fill(R()), 1));
+          panes.push(pane);
+        }
+      }
+      const wm = landStone("sandstone_cracks", 0, 1.6, [0.86, 0.78, 0.74], { course: 0.5, block: 0.9 });
+      const rm = new THREE.MeshStandardNodeMaterial({ roughness: 0.8, metalness: 0, color: new THREE.Color(0.42, 0.2, 0.14) });
+      const wmesh = new THREE.Mesh(merge(walls), wm), rmesh = new THREE.Mesh(merge(roofs), rm);
+      wmesh.castShadow = wmesh.receiveShadow = rmesh.castShadow = true;
+      g.add(wmesh, rmesh);
+      ours.push(wmesh.geometry, rmesh.geometry, wm, rm);
+      const pg = mergeGeometries(panes)!; // (merge() keeps only position and normal; the panes need their phase)
+      const pm = new THREE.MeshBasicNodeMaterial({ fog: true, side: THREE.DoubleSide });
+      const ph = attribute("aPh", "float");
+      const flick = sin(t.mul(float(1.3).add(ph.mul(2))).add(ph.mul(40))).mul(0.08).add(0.92);
+      pm.colorNode = vec4(vec3(1, 0.5, 0.16).mul(flick).mul(float(0.85).add(uThreads.mul(0.35))), 1);
+      g.add(new THREE.Mesh(pg, pm));
+      ours.push(pg, pm);
+    }
+    // the children: small figures of light running and chasing round in two little bands
+    const kidsHue = [0.08, 0.15, 0.55, 0.85, 0.32, 0.62];
+    const kids = new GlassFolk(
+      kidsHue.map((h, i) => ({ x: 0, z: -14, face: 0, act: "run" as const, tint: new THREE.Color().setHSL(h, 0.6, 0.75), scale: 0.66 + (i % 3) * 0.06 })),
+      44,
+    );
+    g.add(kids.group);
+    const bands: { c: [number, number]; r: number; sp: number }[] = [{ c: [-2.6, -4.6], r: 2.2, sp: 0.85 }, { c: [5.4, -7.6], r: 2.6, sp: -0.7 }];
+    tickers.push((dt: number) => {
+      const d = Math.min(0.05, Math.max(0, dt));
+      kids.bodies.forEach((b, i) => {
+        const band = bands[i % 2], k = Math.floor(i / 2);
+        // a chase: each a little behind the one before, the radius breathing as they swerve
+        const a = clock.u.value * band.sp + k * 1.9;
+        const rr = band.r + Math.sin(clock.u.value * 1.3 + k) * 0.5;
+        b.root.position.set(band.c[0] + Math.cos(a) * rr, 0, band.c[1] + Math.sin(a) * rr);
+        const vx = -Math.sin(a) * Math.sign(band.sp), vz = Math.cos(a) * Math.sign(band.sp);
+        b.root.rotation.y = Math.atan2(-vx, -vz);
+      });
+      kids.update(d);
+    });
+    const peopleLoaded = kids.loaded;
+
     /* ---------------- the people, and the threads between them ---------------- */
     const people: Person[] = [
       { x: -3.2, z: -9, face: 0.6, act: "idle" }, { x: -1.9, z: -10.2, face: -2.4, act: "idle" }, { x: -4.3, z: -10.8, face: 1.4, act: "reach" },
@@ -307,7 +386,7 @@ export function createDensityRoom4Scene(
     };
     writeThreads();
 
-    loaded = loadBeingModel("models/wanderer.glb").then((model) => {
+    loaded = Promise.all([peopleLoaded, loadBeingModel("models/wanderer.glb")]).then(([, model]) => {
       if (!model) return;
       const want: Record<string, string> = { idle: "Idle_Loop", sit: "Sitting_Idle_Loop", walk: "Walk_Loop", reach: "Spell_Simple_Idle_Loop" };
       people.forEach((p, i) => {
@@ -409,5 +488,6 @@ export function createDensityRoom4Scene(
     ours.length = 0;
     tickers.length = 0;
   };
-  return Object.assign(lesson, { loaded });
+  // built later than this returns: whoever waits on it reads the promise as it is then
+  return Object.defineProperty(lesson, "loaded", { get: () => loaded }) as typeof lesson & { loaded: Promise<void> };
 }
