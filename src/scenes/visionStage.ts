@@ -36,6 +36,8 @@ export interface StageOpts {
   forms: Record<string, Maker>;
   keys: Key[];
   seedNum: number;
+  /** A point's size in metres at 1 m (default 0.042): a stage drawn larger wants larger points. */
+  pointSize?: number;
 }
 
 // the game's canon (docs/style/STYLE_GUIDE.md §1)
@@ -85,7 +87,7 @@ export class VisionStage {
       const { position, aCol, aSeed } = this.cloud.nodes;
       const worldPos = T.modelWorldMatrix.mul(vec4(position, 1)).xyz;
       const depth = viewDepth(worldPos);
-      mat.sizeNode = clamp(gpuUniforms.px.mul(0.042).mul(aSeed.mul(0.8).add(0.6)).div(max(depth, 1.2)), float(1).div(gpuUniforms.dpr), 5);
+      mat.sizeNode = clamp(gpuUniforms.px.mul(opts.pointSize ?? 0.042).mul(aSeed.mul(0.8).add(0.6)).div(max(depth, 1.2)), float(1).div(gpuUniforms.dpr), 5);
       const flick = sin(this.uT.mul(aSeed.mul(9).add(12)).add(aSeed.mul(97))).mul(0.12).add(0.88);
       const dy = position.y.sub(this.uScan);
       const scan = exp(dy.mul(dy).mul(-2.5)).mul(0.7);
