@@ -15,7 +15,7 @@ import type { SceneModule } from "./lessonKit";
 export { TEMPLE_ORIGIN };
 
 export const TRACK_ID = "TEMPLE";
-export const FINALE_T = 636.08;
+export const FINALE_T = 636.6;
 
 export interface TourHooks {
   whisper: (text: string, ms?: number) => void;
@@ -46,34 +46,37 @@ export interface CueDef {
   label: string;
 }
 
-/** The narration's own marks: timing only, never reworded, never moved. */
+/** The narration's own marks: timing only, never reworded. Each sits 0.3 s before its part's
+    first word, in the ~2 s pause that opens it, measured from the recording itself (ffmpeg
+    silencedetect, −40 dB): the first marks drifted up to 1.2 s late, so a part began mid-word and
+    the one before it spoke that word's start. */
 export const CUES: CueDef[] = [
   { t: 0.0, label: "opening" },
-  { t: 41.84, label: "I — The Magician" },
-  { t: 74.41, label: "II — The High Priestess" },
-  { t: 104.45, label: "III — The Empress" },
-  { t: 129.0, label: "IV — The Emperor" },
-  { t: 151.74, label: "V — The Hierophant" },
-  { t: 175.93, label: "VI — The Lovers" },
-  { t: 205.81, label: "VII — The Chariot" },
-  { t: 232.16, label: "transition: mind → body" },
-  { t: 239.85, label: "VIII — Strength" },
-  { t: 262.93, label: "IX — The Hermit" },
-  { t: 287.05, label: "X — The Wheel of Fortune" },
-  { t: 313.3, label: "XI — Justice" },
-  { t: 337.3, label: "XII — The Hanged Man" },
-  { t: 361.92, label: "XIII — Death" },
-  { t: 385.29, label: "XIV — Temperance" },
-  { t: 411.83, label: "transition: body → spirit" },
-  { t: 418.82, label: "XV — The Devil" },
-  { t: 444.95, label: "XVI — The Tower" },
-  { t: 466.62, label: "XVII — The Star" },
-  { t: 489.2, label: "XVIII — The Moon" },
-  { t: 511.42, label: "XIX — The Sun" },
-  { t: 531.38, label: "XX — Judgement" },
-  { t: 551.68, label: "XXI — The World" },
-  { t: 579.54, label: "XXII — The Fool (The Choice)" },
-  { t: 612.14, label: "landing" },
+  { t: 41.67, label: "I — The Magician" },
+  { t: 74.17, label: "II — The High Priestess" },
+  { t: 104.16, label: "III — The Empress" },
+  { t: 128.66, label: "IV — The Emperor" },
+  { t: 151.38, label: "V — The Hierophant" },
+  { t: 175.57, label: "VI — The Lovers" },
+  { t: 205.31, label: "VII — The Chariot" },
+  { t: 231.64, label: "transition: mind → body" },
+  { t: 239.32, label: "VIII — Strength" },
+  { t: 262.35, label: "IX — The Hermit" },
+  { t: 286.48, label: "X — The Wheel of Fortune" },
+  { t: 312.65, label: "XI — Justice" },
+  { t: 336.59, label: "XII — The Hanged Man" },
+  { t: 361.18, label: "XIII — Death" },
+  { t: 384.46, label: "XIV — Temperance" },
+  { t: 410.98, label: "transition: body → spirit" },
+  { t: 417.95, label: "XV — The Devil" },
+  { t: 444.03, label: "XVI — The Tower" },
+  { t: 465.68, label: "XVII — The Star" },
+  { t: 488.2, label: "XVIII — The Moon" },
+  { t: 510.38, label: "XIX — The Sun" },
+  { t: 530.33, label: "XX — Judgement" },
+  { t: 550.55, label: "XXI — The World" },
+  { t: 578.35, label: "XXII — The Fool (The Choice)" },
+  { t: 610.92, label: "landing" },
 ];
 
 const smooth = (x: number) => {
