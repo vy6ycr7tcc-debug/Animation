@@ -42,6 +42,7 @@ import { Communion } from "./world/communion";
 import { Creatures } from "./world/creatures";
 import { Vessels } from "./world/vessels";
 import { TranscriptPlayer } from "./ui/transcriptPlayer";
+import { tourBar, type TourBarOwner } from "./ui/tourBar";
 import { StartMap, type Choice, type Place } from "./ui/map";
 import { buildSky, skyUniforms, starDirection } from "./world/sky";
 import { floorHook, groundUniforms, heightAt, heightCoarse, LANDMARK_SITES, MONUMENT, PEAKS, SPAWN, Terrain, WATER_Y } from "./world/terrain";
@@ -1956,27 +1957,25 @@ try {
 } catch {
   /* nothing walked yet */
 }
-const walkPanel = Object.assign(document.createElement("div"), { id: "walk-panel", hidden: true });
-{
-  const mk = (text: string, cls: string, label: string) => {
-    const b = Object.assign(document.createElement("button"), { type: "button", textContent: text, className: cls });
-    b.setAttribute("aria-label", label);
-    return b;
-  };
-  const mid = Object.assign(document.createElement("div"), { className: "mid" });
-  mid.append(Object.assign(document.createElement("p"), { className: "title" }), Object.assign(document.createElement("p"), { className: "hint" }));
-  const skip = mk("Skip ›", "step next", "Go on to the next room");
-  const end = mk("✕", "end", "End the walk-through");
-  skip.addEventListener("pointerdown", (e) => (e.stopPropagation(), duatTour ? (duatTour.skip = true) : walkSkip()));
-  end.addEventListener("pointerdown", (e) => (e.stopPropagation(), duatTour ? duatTourEnd(false) : walkEnd(false)));
-  walkPanel.append(mid, skip, end);
-  document.body.append(walkPanel);
-}
-let walk: { id: string; label: string; stops: WalkStop[]; i: number; phase: "enter" | "listen" | "linger" | "go"; t: number; heard: boolean; skip: boolean; tries: number } | null = null;
-const walkTitle = (t: string, hint: string) => {
-  (walkPanel.querySelector(".title") as HTMLElement).textContent = t;
-  (walkPanel.querySelector(".hint") as HTMLElement).textContent = hint;
+/* The walk-throughs and the Duat tour share the tour bar (ui/tourBar.ts) with the temple tour:
+   ⟲ ten seconds back (near a room's start, or a voiceless one, the stop before), ❚❚/▶, » on, ✕. */
+const walkBar: TourBarOwner = {
+  back: () => (duatTour ? duatTourBack() : walkBack()),
+  next: () => (duatTour ? (duatTour.skip = true) : walkSkip()),
+  end: () => (duatTour ? duatTourEnd(false) : walkEnd(false)),
+  progress: () => {
+    if (duatTour) {
+      const h = pyramid.duatHours()[duatTour.i];
+      return h && duatTour.phase === "watch" ? duatTour.t / (h.cycle + 1.5) : duatTour.i >= pyramid.duatHours().length ? 1 : 0;
+    }
+    if (!walk) return 0;
+    if (walk.phase === "linger" || walk.phase === "go") return 1;
+    const pr = narration.progress();
+    return pr ? pr.t / pr.total : 0;
+  },
 };
+let walk: { id: string; label: string; stops: WalkStop[]; i: number; phase: "enter" | "listen" | "linger" | "go"; t: number; heard: boolean; skip: boolean; tries: number } | null = null;
+const walkTitle = (t: string, hint: string) => tourBar().set(t, hint);
 function walkStart(id: string): void {
   const w = WALKS.find((x) => x.id === id);
   if (!w) return;
@@ -1986,7 +1985,7 @@ function walkStart(id: string): void {
   if (cur && cur.journey !== halls[w.stops()[0].hall].journey) cur.journey.leaveNow();
   walk = { id, label: w.label, stops: w.stops(), i: 0, phase: "enter", t: 0, heard: false, skip: false, tries: 0 };
   document.body.classList.add("touring");
-  walkPanel.hidden = false;
+  tourBar().show(walkBar);
   walkTitle(w.label, "Beginning…");
   void walkEnterStop();
 }
@@ -2026,7 +2025,12 @@ tp.guest = {
     const pr = narration.progress();
     return pr ? pr.t / pr.total : 0;
   },
+  // ↺ outside a tour (a room, a lesson, a seated telling): fifteen seconds back in what is speaking, as for the archive
+  back: () => void narration.rewind(15, tourHeld),
 };
+
+tourBar().togglePause = () => tp.guest?.toggle();
+tourBar().isPaused = () => narration.paused || tourHeld;
 
 /* The Duat, hour by hour (⋮ → Map → Tours): the auto-advance pattern. A guide's walk from hour to
    hour: you are walked to the place before each story and turned to it; the story begins for you
@@ -2041,7 +2045,7 @@ function duatTourStart(): void {
   if (temple.inside) setInside(false);
   duatTour = { i: 0, phase: "enter", t: 0, skip: false };
   document.body.classList.add("touring");
-  walkPanel.hidden = false;
+  tourBar().show(walkBar);
   walkTitle("The Duat, hour by hour", "Beginning…");
   if (!pyramid.duatActive) {
     if (!pyramid.isInside) setPyr(true);
@@ -2054,7 +2058,7 @@ function duatTourEnd(done: boolean): void {
   duatTour = null;
   player.target = null;
   document.body.classList.remove("touring");
-  walkPanel.hidden = true;
+  tourBar().hide(walkBar);
   if (done) {
     walked.add("duat");
     try {
@@ -2106,6 +2110,37 @@ function duatTourFrame(dt: number): void {
     }
   } else if (d.t > h.cycle + 1.5) Object.assign(d, { i: d.i + 1, phase: "walk", t: 0 });
 }
+/** ⟲ in a walk-through: ten seconds back in the room's telling (back into it if it has just
+    ended); near its start or in a room without a voice, the room before. */
+function walkBack(): void {
+  if (!walk) return;
+  const s = walk.stops[walk.i], j = halls[s.hall].journey;
+  if (j.crossing || walk.phase === "enter") return;
+  const pr = narration.progress();
+  if (j.voiced && (pr ? pr.t > 3 : walk.heard) && narration.rewind(10, tourHeld)) {
+    if (walk.phase !== "listen") {
+      player.target = null;
+      walk.phase = "listen";
+      walk.t = 0;
+    }
+    return;
+  }
+  if (walk.i === 0) return;
+  walk.i--;
+  walk.tries = 0;
+  void walkEnterStop();
+}
+/** ⟲ in the Duat: the hour's story again from its beginning; near its start, the hour before. */
+function duatTourBack(): void {
+  const d = duatTour;
+  if (!d || !pyramid.duatActive) return;
+  if (d.phase === "watch" && d.t > 3 && d.i < pyramid.duatHours().length) {
+    pyramid.duatRestart(d.i);
+    d.t = 0;
+    return;
+  }
+  Object.assign(d, { i: Math.max(0, d.i - 1), phase: "walk", t: 0 });
+}
 function walkSkip(): void {
   if (!walk) return;
   if (inHall()?.journey.crossing) walk.skip = true;
@@ -2125,7 +2160,7 @@ function walkEnd(done: boolean): void {
   walk = null;
   player.target = null;
   document.body.classList.remove("touring");
-  walkPanel.hidden = true;
+  tourBar().hide(walkBar);
   if (done) {
     walked.add(w.id);
     try {
@@ -3070,6 +3105,7 @@ function update(dt: number): void {
   tp.subtitlesOn = narration.subtitlesOn;
   tp.update();
   tp.guestFrame();
+  tourBar().frame();
   // nothing left to pause (the tour ended, the voice finished): the hold goes with it
   if (tourHeld && !tp.guest?.active()) tourHeld = tourScenes.tour.held = false;
   if (world) updateStillness(dt, wt);

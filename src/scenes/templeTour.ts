@@ -4,14 +4,16 @@
    shrine is lit (a warm spot on the being, the hall dimming round it; `Temple.setFocus`), the
    archetype wakes into its rite (player/gestures.ts), and its part of the temple's narration
    (TEMPLE, 26 marks) is spoken. When it has been spoken the light glides on by itself to the next
-   shrine (no click); "Next ›" skips ahead, "‹" goes back, ✕ ends the tour and gives you the stick
-   again. The order is the narration's: the door, the Mind down the left wall, the Body
+   shrine (no click). Its controls are the shared tour bar (ui/tourBar.ts): ⟲ ten seconds back
+   (near a part's start, the stop before), ❚❚/▶, » on to the next, ✕ ends the tour and gives you
+   the stick again. The order is the narration's: the door, the Mind down the left wall, the Body
    down the right, the Spirit round the sanctuary, and the Choice at the back; after it, rest at
    the tree of life or stay. */
 import * as THREE from "three/webgpu";
 import type { Narration } from "../core/narration";
 import { TEMPLE_ORIGIN } from "../world/temple";
 import type { SceneModule } from "./lessonKit";
+import { tourBar, type TourBarOwner } from "../ui/tourBar";
 
 export { TEMPLE_ORIGIN };
 
@@ -209,11 +211,12 @@ export class TempleTour implements SceneModule {
   private halo: THREE.Sprite;
   private lightMat: THREE.SpriteMaterial;
   private haloMat: THREE.SpriteMaterial;
-  private panel: HTMLDivElement;
-  private titleEl: HTMLElement;
-  private hintEl: HTMLElement;
-  private prevBtn: HTMLButtonElement;
-  private nextBtn: HTMLButtonElement;
+  private bar: TourBarOwner = {
+    back: () => this.back(),
+    next: () => this.next(),
+    end: () => this.exit(),
+    progress: () => this.progress(),
+  };
   private choice: HTMLDivElement;
   private goal = new THREE.Vector2();
   private readonly dir = new THREE.Vector2();
@@ -252,19 +255,7 @@ export class TempleTour implements SceneModule {
     this.light.visible = this.halo.visible = false;
     scene.add(this.light, this.halo);
 
-    // the guide's panel: back, where you are going, next; and ✕ to end the tour
     const btn = (text: string, cls: string, label: string) => Object.assign(document.createElement("button"), { type: "button", textContent: text, className: cls, ariaLabel: label });
-    this.panel = Object.assign(document.createElement("div"), { id: "tour-panel", hidden: true });
-    this.prevBtn = btn("‹", "step", "Back");
-    this.nextBtn = btn("Next ›", "step next", "Next");
-    const end = btn("✕", "end", "End the tour");
-    const mid = document.createElement("div");
-    mid.className = "mid";
-    this.titleEl = Object.assign(document.createElement("p"), { className: "title" });
-    this.hintEl = Object.assign(document.createElement("p"), { className: "hint" });
-    mid.append(this.titleEl, this.hintEl);
-    this.panel.append(this.prevBtn, mid, this.nextBtn, end);
-    document.body.append(this.panel);
     // the end: rest at the tree, or stay
     this.choice = Object.assign(document.createElement("div"), { id: "tour-choice", hidden: true });
     const rest = btn("Rest at the tree of life", "", "Rest at the tree of life");
@@ -273,17 +264,17 @@ export class TempleTour implements SceneModule {
     document.body.append(this.choice);
     // on the touch itself (a phone sends no click while the other thumb holds the stick);
     // a keyboard's Enter or Space still clicks
+    // (a touch's own click is ignored, or each tap would act twice)
+    let downAt = -1e9;
     const act = (b: HTMLButtonElement, fn: () => void) => {
       b.addEventListener("pointerdown", (e) => {
         e.preventDefault();
         e.stopPropagation();
+        downAt = performance.now();
         fn();
       });
-      b.addEventListener("click", (e) => (e as MouseEvent).detail === 0 && fn());
+      b.addEventListener("click", (e) => (e as MouseEvent).detail === 0 && performance.now() - downAt > 700 && fn());
     };
-    act(this.prevBtn, () => this.go(this.index - 1));
-    act(this.nextBtn, () => this.next());
-    act(end, () => this.exit());
     act(rest, () => this.choose("rest"));
     act(stay, () => this.choose("stay"));
   }
@@ -297,7 +288,7 @@ export class TempleTour implements SceneModule {
     this.stops = buildStops(this.temple);
     this.lifeT = 0;
     this.choice.hidden = true;
-    this.panel.hidden = false;
+    tourBar().show(this.bar);
     this.light.visible = this.halo.visible = true;
     this.temple.signsLit?.(false); // the opening kindles them as it names them
     const O = TEMPLE_ORIGIN;
@@ -328,7 +319,7 @@ export class TempleTour implements SceneModule {
     this.follow.pitch = this.view.pitch;
     if (this.narration.current === TRACK_ID) this.narration.stop(1.5);
     this.light.visible = this.halo.visible = false;
-    this.panel.hidden = true;
+    tourBar().hide(this.bar);
     this.choice.hidden = true;
     this.rite(-1);
   }
@@ -351,6 +342,38 @@ export class TempleTour implements SceneModule {
     this.player.target = null;
     if (there || k === 0) this.arrive();
     this.refresh();
+  }
+
+  /** ⟲: ten seconds back in the part being told; near its start (or walking there, or a quiet
+      stop), the stop before, told again from its beginning. */
+  private back(): void {
+    const s = this.stops[this.index];
+    const pr = this.narration.current === TRACK_ID || this.narration.paused ? this.narration.progress() : null;
+    if (this.phase !== "leading" && Number.isFinite(s.from) && (pr ? pr.t > 3 : this.phase === "done")) {
+      if (this.narration.rewind(10, this.held)) {
+        this.phase = "speaking";
+        this.spoke = Math.max(this.spoke, (s.hold ?? 1.5) + 0.1);
+        this.refresh();
+        return;
+      }
+    }
+    if (this.phase !== "leading" && !Number.isFinite(s.from) && this.spoke > 3) {
+      this.phase = "speaking";
+      this.spoke = 0;
+      this.refresh();
+      return;
+    }
+    this.go(Math.max(0, this.index - 1));
+  }
+
+  /** How far the stop has been told (a quiet stop: its moment). */
+  private progress(): number {
+    const s = this.stops[this.index];
+    if (this.phase === "leading") return 0;
+    if (this.phase === "done") return 1;
+    if (!Number.isFinite(s.from)) return Math.min(1, this.spoke / (s.hold ?? 6));
+    const pr = this.narration.progress();
+    return pr && (this.narration.current === TRACK_ID || this.narration.paused) ? pr.t / pr.total : 0;
   }
 
   private next(): void {
@@ -388,11 +411,10 @@ export class TempleTour implements SceneModule {
 
   private refresh(): void {
     const s = this.stops[this.index];
-    this.titleEl.textContent = s.title;
-    this.hintEl.textContent = this.phase === "leading" ? "Walking there…" : this.phase === "speaking" ? "Listen" : this.index === this.stops.length - 1 ? "The end of the tour" : "Going on…";
-    this.prevBtn.disabled = this.index === 0;
-    this.nextBtn.textContent = this.index === this.stops.length - 1 ? "Finish ›" : "Next ›";
-    this.nextBtn.classList.toggle("ready", this.phase === "done");
+    const n = this.stops.length;
+    const hint = this.phase === "leading" ? "Walking there…" : this.phase === "done" ? (this.index === n - 1 ? "The end of the tour" : "Going on…") : `${this.index + 1} of ${n}`;
+    tourBar().set(s.title, hint);
+    tourBar().ready(this.phase === "done");
   }
 
   update(dt: number): void {
@@ -471,7 +493,7 @@ export class TempleTour implements SceneModule {
   }
 
   private showChoice(): void {
-    this.panel.hidden = true;
+    tourBar().hide(this.bar);
     this.choice.hidden = false;
     this.rite(-1);
   }
@@ -499,7 +521,6 @@ export class TempleTour implements SceneModule {
     this.lightMat.map?.dispose();
     this.lightMat.dispose();
     this.haloMat.dispose();
-    this.panel.remove();
     this.choice.remove();
   }
 }
