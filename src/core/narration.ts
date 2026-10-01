@@ -129,6 +129,8 @@ export class Narration {
   /** Seconds into the current track, on the audio clock (0 when nothing plays). */
   time(): number {
     if (this.debugTime !== null) return this.debugTime;
+    const h = this.held ?? this.resumeHold;
+    if (h) return h.at;
     const p = this.playing;
     const ctx = this.audio.ctx;
     if (!p || !ctx) return 0;
@@ -139,6 +141,11 @@ export class Narration {
   /** How far the voice speaking has come through what it was asked to say (a part of a track
       counts from its own start), in seconds; null while none speaks. */
   progress(): { t: number; total: number } | null {
+    const q = this.held ?? this.resumeHold;
+    if (q) {
+      const total = Math.max(0.1, q.end - q.partFrom);
+      return { t: Math.min(total, Math.max(0, q.at - q.partFrom)), total };
+    }
     const p = this.playing;
     if (!p) return null;
     const total = Math.max(0.1, p.end - this.partFrom);
@@ -184,6 +191,7 @@ export class Narration {
       src.start(at, off, dur);
     } else src.start(at, off);
     this.playing = { id, src, gain, start: at, scale, from: off / scale, end: Number.isFinite(to) ? to : buf.duration / scale };
+    this.resumeHold = null;
     this.partFrom = from;
     this.cueIndex = -1;
     this.audio.duck(true);
@@ -194,8 +202,42 @@ export class Narration {
     };
   }
 
+  /** Paused where it was (the half-moon's ❚❚): its clock stands still, and so does everything
+      that follows it (rooms, lessons, tours); `resume` goes on from the same moment. */
+  private held: { id: string; at: number; end: number; partFrom: number } | null = null;
+  get paused(): boolean {
+    return !!this.held;
+  }
+  pause(): void {
+    const p = this.playing, ctx = this.audio.ctx;
+    if (!p || this.held || !ctx) return;
+    this.held = { id: p.id, at: this.time(), end: p.end, partFrom: this.partFrom };
+    this.playing = null;
+    this.token++;
+    const t = ctx.currentTime;
+    p.gain.gain.cancelScheduledValues(t);
+    p.gain.gain.setValueAtTime(p.gain.gain.value, t);
+    p.gain.gain.linearRampToValueAtTime(0, t + 0.15);
+    p.src.stop(t + 0.2);
+    this.audio.duck(false);
+  }
+  /** Between resuming and the voice sounding again, the clock still reads where it stood. */
+  private resumeHold: { id: string; at: number; end: number; partFrom: number } | null = null;
+  resume(): void {
+    const q = this.held;
+    if (!q) return;
+    this.held = null;
+    const p = this.play(q.id, q.at, q.end);
+    this.resumeHold = q;
+    void p.then(() => {
+      if (this.current === q.id) this.partFrom = q.partFrom; // the part's own progress, not from here
+    });
+  }
+
   /** Fade the current track out (e.g. the wanderer walked away). */
   stop(fadeSecs = 2): void {
+    this.held = null;
+    this.resumeHold = null;
     const p = this.playing;
     const ctx = this.audio.ctx;
     this.playing = null;

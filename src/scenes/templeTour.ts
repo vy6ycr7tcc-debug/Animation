@@ -191,6 +191,8 @@ type Phase = "leading" | "speaking" | "done";
 export class TempleTour implements SceneModule {
   readonly id = "tour";
   active = false;
+  /** Paused from the half-moon: the walking and the going on stand still. */
+  held = false;
   onRest: (() => void) | null = null;
   camera: THREE.Camera | null = null;
 
@@ -421,7 +423,11 @@ export class TempleTour implements SceneModule {
 
     // the wanderer walks its way, point after point, and arrives at the standing place
     const px = this.player.pos.x - O.x, pz = this.player.pos.z - O.z;
-    if (this.phase === "leading") {
+    const held = this.held || this.narration.paused;
+    if (held) {
+      this.player.target = null;
+      this.doneT = performance.now();
+    } else if (this.phase === "leading") {
       while (this.walk.length && Math.hypot(this.player.pos.x - this.walk[0].x, this.player.pos.z - this.walk[0].y) < 0.7) this.walk.shift();
       if (this.walk.length) this.player.target = this.walk[0].clone();
       if (!this.walk.length && Math.hypot(px - this.goal.x, pz - this.goal.y) < ARRIVE_R * 0.5) this.arrive();
@@ -443,7 +449,9 @@ export class TempleTour implements SceneModule {
     if (this.follow.dist !== undefined) this.follow.dist += ((at ? 4.4 : 6) - this.follow.dist) * Math.min(1, step * 1.5);
     // its part spoken to its end (or no voice to speak it): a breath, then the light goes on by
     // itself; never before the part is over, so nothing is cut
-    if (this.phase === "speaking") {
+    if (held) {
+      // paused: nothing goes on
+    } else if (this.phase === "speaking") {
       this.spoke += Math.min(0.25, Math.max(0, dt)); // seconds as they pass, even when frames are slow
       const t = this.narration.time();
       // the opening kindles each room's sign as it names it

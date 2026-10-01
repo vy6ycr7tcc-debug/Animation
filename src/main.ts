@@ -1994,6 +1994,30 @@ async function walkEnterStop(): Promise<void> {
   await j.enter(s.stage);
 }
 /** Skip always answers: mid-crossing it is kept and taken as soon as the crossing ends. */
+/* Pause (the half-moon's ❚❚ while the archive is quiet): the voice speaking stops where it is,
+   and with it its clock, so rooms, lessons and the tours' advance all stand still; play goes on
+   from the same moment. A tour with no voice (the Duat) pauses its own advance. */
+let tourHeld = false;
+tp.guest = {
+  active: () => S.mode === "play" && (!!narration.current || narration.paused || tourScenes.tour.active || !!walk || !!duatTour),
+  paused: () => narration.paused || tourHeld,
+  toggle: () => {
+    if (narration.paused || tourHeld) {
+      tourHeld = false;
+      tourScenes.tour.held = false;
+      narration.resume();
+    } else {
+      if (narration.current) narration.pause();
+      tourHeld = !!(duatTour || walk || tourScenes.tour.active);
+    }
+    tourScenes.tour.held = tourHeld;
+  },
+  progress: () => {
+    const pr = narration.progress();
+    return pr ? pr.t / pr.total : 0;
+  },
+};
+
 /* The Duat, hour by hour (⋮ → Map → Tours): the auto-advance pattern. A guide's walk from hour to
    hour: you are walked to the place before each story and turned to it; the story begins for you
    and tells itself once through, beat by beat; then on to the next, and at the end up the stair
@@ -2034,7 +2058,7 @@ function duatTourEnd(done: boolean): void {
 const duatTo = new THREE.Vector2();
 function duatTourFrame(dt: number): void {
   const d = duatTour;
-  if (!d) return;
+  if (!d || tourHeld) return;
   d.t += dt;
   if (d.phase === "enter") {
     if (pyramid.duatActive && !crossing) Object.assign(d, { phase: "walk", t: 0 });
@@ -2106,7 +2130,7 @@ function walkEnd(done: boolean): void {
 }
 const walkTo = new THREE.Vector2();
 function walkFrame(dt: number): void {
-  if (!walk) return;
+  if (!walk || tourHeld || narration.paused) return;
   const s = walk.stops[walk.i], j = halls[s.hall].journey;
   walk.t += dt;
   const crossing = !!inHall()?.journey.crossing || j.crossing;
@@ -3035,6 +3059,9 @@ function update(dt: number): void {
   if (world) vessels.update(wt, player.pos, camera, S.reduced, S.mode === "play" && !startMap.isOpen);
   tp.subtitlesOn = narration.subtitlesOn;
   tp.update();
+  tp.guestFrame();
+  // nothing left to pause (the tour ended, the voice finished): the hold goes with it
+  if (tourHeld && !tp.guest?.active()) tourHeld = tourScenes.tour.held = false;
   if (world) updateStillness(dt, wt);
   if (S.mode === "play") {
     const letGo = Math.hypot(input.move.x, input.move.y) > 0.2 || input.hold || (touch.phase === "touching" && !!player.target) ||

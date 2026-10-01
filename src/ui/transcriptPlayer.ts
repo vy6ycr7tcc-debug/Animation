@@ -81,7 +81,9 @@ export class TranscriptPlayer {
       });
       el.addEventListener("click", (e) => e.detail === 0 && fn());
     };
-    const toggle = () => (this.playing ? this.pause() : this.current ? this.resume() : this.startFirst());
+    // with no archive narration of its own, the half-moon pauses whatever else is speaking or
+    // leading (a room's voice, a lesson, a tour): its guest
+    const toggle = () => (this.current ? (this.playing ? this.pause() : this.resume()) : this.guest?.active() ? this.guest.toggle() : this.startFirst());
     tap("tp-pause", toggle);
     tap("tp-back", () => this.back(15));
     tap("tp-next", () => this.skip());
@@ -168,8 +170,13 @@ export class TranscriptPlayer {
     b.setAttribute("aria-pressed", String(on));
   }
 
+  /** Another voice the half-moon can pause and resume when the archive is quiet (main.ts). */
+  guest: { active(): boolean; paused(): boolean; toggle(): void; progress(): number } | null = null;
+  private guestOn = false;
+
   /** On to the next narration now. */
   skip(): void {
+    if (!this.current && this.guest?.active()) return; // a room's voice or a tour: no skipping from here
     if (!this.current) return this.startFirst();
     const n = this.next?.(this.current);
     if (n) this.play(n);
@@ -324,6 +331,24 @@ export class TranscriptPlayer {
   }
 
   private posAt = -1e9;
+  /** Each frame: the half-moon follows its guest while the archive is quiet. */
+  guestFrame(): void {
+    if (this.current) return;
+    const on = !!this.guest?.active();
+    if (on !== this.guestOn) {
+      this.guestOn = on;
+      this.mini.classList.toggle("guest", on);
+      if (on) {
+        this.mini.hidden = false;
+        this.mini.classList.remove("idle");
+      } else this.setResting(this.resting);
+    }
+    if (!on || !this.guest) return;
+    const paused = this.guest.paused();
+    this.miniPlay.classList.toggle("paused", paused);
+    this.miniPlay.setAttribute("aria-label", paused ? "Resume" : "Pause");
+    this.arc.style.strokeDashoffset = String(ARC * (1 - Math.min(1, Math.max(0, this.guest.progress()))));
+  }
   /** Each frame: subtitles in step with the voice, the half-moon's progress, the lock screen's. */
   update(): void {
     if (!this.current) return;
