@@ -195,6 +195,8 @@ export class TempleTour implements SceneModule {
   active = false;
   /** Paused from the half-moon: the walking and the going on stand still. */
   held = false;
+  /** It has come to its end (the Choice spoken; rest or stay offered). */
+  completed = false;
   onRest: (() => void) | null = null;
   camera: THREE.Camera | null = null;
 
@@ -287,6 +289,7 @@ export class TempleTour implements SceneModule {
     document.body.classList.add("touring");
     this.stops = buildStops(this.temple);
     this.lifeT = 0;
+    this.completed = false;
     this.choice.hidden = true;
     tourBar().show(this.bar);
     this.light.visible = this.halo.visible = true;
@@ -493,6 +496,7 @@ export class TempleTour implements SceneModule {
   }
 
   private showChoice(): void {
+    this.completed = true;
     tourBar().hide(this.bar);
     this.choice.hidden = false;
     this.rite(-1);
