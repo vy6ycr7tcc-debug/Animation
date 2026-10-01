@@ -9,7 +9,7 @@
 import * as THREE from "three/webgpu";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
-import { T, fogUniforms, type N } from "../gpu/tsl";
+import { T, fogUniforms, gpuUniforms, type N } from "../gpu/tsl";
 import { scan, type ScanName } from "./temple";
 
 const { abs, float, mix, smoothstep, vec3 } = T;
@@ -203,7 +203,26 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
   m.colorNode = T.vec4(c, 1);
   m.roughnessNode = rough;
   m.normalNode = T.normalize(T.normalView.add(T.cameraViewMatrix.mul(T.vec4(dn, 0)).xyz));
+  m.maskNode = seeThrough(n);
   return m;
+}
+
+/** A wall standing between the camera and the wanderer steps out of sight (the owner: going into a
+    building, or a tour taking you in, "you are blinded by the walls"): its fragments near the line
+    from the camera to the wanderer's chest thin away in a fine dither, so the view looks through
+    to them; floors and ceilings stay (only upright faces), and so does all stone beyond the
+    wanderer or right at its feet. Every building's stone is this material, so it holds for all of
+    them: the monuments outside, their lobbies and rooms, the pyramid's chambers. */
+function seeThrough(n: N): N {
+  const a = T.cameraPosition, b = gpuUniforms.player.add(vec3(0, 1.2, 0)), ab = b.sub(a);
+  const p = T.positionWorld;
+  const t = T.dot(p.sub(a), ab).div(T.max(T.dot(ab, ab), 1e-3));
+  const d = T.length(p.sub(a.add(ab.mul(T.clamp(t, 0, 1)))));
+  const between = smoothstep(-0.05, 0.05, t).mul(smoothstep(0.96, 0.84, t));
+  const upright = float(1).sub(smoothstep(0.55, 0.85, abs(n.y)));
+  const hide = smoothstep(1.9, 1.0, d).mul(between).mul(upright).mul(0.97);
+  const dither = T.fract(T.sin(T.dot(T.screenCoordinate.xy, T.vec2(12.9898, 78.233))).mul(43758.5453));
+  return float(1).sub(hide).greaterThan(dither);
 }
 
 /** Contact shadow where a building meets the ground: a soft darkening laid on the ground round
