@@ -47,21 +47,25 @@ function triplanar(set: ScanName, tile: number, origin?: THREE.Vector3): { col: 
 function limestone(uT: N, tint: [number, number, number], alive = 1, tile = 2.4): THREE.MeshStandardNodeMaterial {
   const m = new THREE.MeshStandardNodeMaterial({ metalness: 0, roughness: 0.8 });
   const { col, arm, w } = triplanar("sandstone_blocks_05", tile);
-  const c = col.mul(vec3(...tint)).mul(T.mix(float(0.55), float(1), arm.r));
-  m.colorNode = vec4(c, 1);
-  m.roughnessNode = T.clamp(arm.g, 0.45, 1);
   const pw = T.positionWorld;
-  // courses: level joints every 1.3 m, upright joints staggered every 1.8 m
+  // courses: level joints every 1.3 m, upright joints staggered every 1.8 m, drawn as fine dark
+  // hairlines (never glowing: a grid of light read as a wireframe, "Minecraft"), and each block
+  // its own tone, so the faces read as laid stone rather than a pattern
   const cy = fract(pw.y.div(1.3));
   const row = floor(pw.y.div(1.3));
   const along = pw.x.add(pw.z).add(row.mul(0.9));
   const jH = smoothstep(0.03, 0.0, cy.sub(0.5).abs().sub(0.47).abs());
   const jV = smoothstep(0.02, 0.0, fract(along.div(1.8)).sub(0.5).abs().sub(0.48).abs()).mul(float(1).sub(w.y));
   const joint = jH.max(jV);
-  // the light moves upward through the courses, slowly, like a heartbeat carried in stone
+  const block = floor(along.div(1.8)).add(row.mul(17.3));
+  const tone = fract(sin(block.mul(12.9898)).mul(43758.5453)).mul(0.18).add(0.9);
+  const c = col.mul(vec3(...tint)).mul(T.mix(float(0.55), float(1), arm.r)).mul(tone).mul(float(1).sub(joint.mul(0.3)));
+  m.colorNode = vec4(c, 1);
+  m.roughnessNode = T.clamp(arm.g, 0.45, 1);
+  // "the stones are alive": a slow swell of warm light rising through the stone, not lines
   const wave = sin(pw.y.mul(0.35).sub(uT.mul(0.9))).mul(0.5).add(0.5);
   const beat = T.pow(sin(uT.mul(1.1)).mul(0.5).add(0.5), 6);
-  m.emissiveNode = vec3(1.0, 0.8, 0.5).mul(joint.mul(wave.mul(0.18).add(beat.mul(0.08)).mul(alive))).add(c.mul(0.05));
+  m.emissiveNode = vec3(1.0, 0.8, 0.5).mul(wave.mul(0.045).add(beat.mul(0.02)).mul(alive)).add(c.mul(0.05));
   return m;
 }
 /** The chambers' limestone: the game's cut masonry (courses, flagstones, recessed joints seen in

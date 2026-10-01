@@ -26,7 +26,7 @@ import { Tells, flutedColumn, gold, marble, seatedRoom, starField } from "./kit"
 const { abs, exp, float, fract, length, max, mix, normalize, pow, sin, cos, smoothstep, uv, vec2, vec3, vec4 } = T;
 
 /** Room frame: the seat at the origin looking toward −z; the island out to sea. */
-const ISLE = new THREE.Vector3(0, 0, -190);
+const ISLE = new THREE.Vector3(0, 0, -122); // close: it fills the view (the owner: "city closer")
 const SEA_Y = -1.3;
 const MOON = new THREE.Vector3(-0.35, 0.22, -0.9).normalize();
 const SOUTH = new THREE.Vector3(-170, 0, -430);
@@ -47,6 +47,7 @@ export function createAtlantisScene(scene: THREE.Scene, narration: Narration, wh
         bells: [[0.02, 0], [0.04, 1], [0.15, 1], [0.19, 0], [0.9, 0], [0.925, 1], [1, 1]],
         deep: [[0.06, 0], [0.1, 0.7], [0.16, 0.7], [0.2, 0], [0.7, 0], [0.76, 0.8], [1, 0.9]],
         rise: [[0.17, 0], [0.235, 1]],
+        pour: [[0.205, 0], [0.225, 1], [0.27, 1], [0.31, 0]],
         lights: [[0.2, 0], [0.24, 1], [0.34, 1], [0.44, 0.45], [0.5, 0]],
         beams: [[0.225, 0], [0.25, 1], [0.335, 1], [0.36, 0]],
         inward: [[0.34, 0], [0.37, 1], [0.47, 1], [0.5, 0]],
@@ -59,6 +60,9 @@ export function createAtlantisScene(scene: THREE.Scene, narration: Narration, wh
         swell: [[0.885, 0], [0.905, 1], [0.95, 0.3]],
       });
       const u = tl.u;
+      /** Seconds since the island broke (0 before): the burst, the shockwave, the steam. */
+      const uBoom = T.uniform(0);
+      const BOOM_AT = 0.47, LEN = 158.9;
       const air: Air = {
         color: new THREE.Color(0.1, 0.08, 0.13),
         glow: new THREE.Color(0.22, 0.16, 0.24),
@@ -104,6 +108,14 @@ export function createAtlantisScene(scene: THREE.Scene, narration: Narration, wh
         // the bells: rings of light running out over the water from the drowned city
         const ring = pow(sin(d.mul(0.09).sub(t.mul(0.9))).mul(0.5).add(0.5), 22).mul(exp(d.mul(-0.006)));
         c = c.add(vec3(0.55, 0.8, 1).mul(ring).mul(u.bells).mul(1.3));
+        // the break: a ring of light racing out over the sea from the island, and the water lit
+        // from beneath where it burst
+        const live = smoothstep(0, 0.05, uBoom);
+        const front = uBoom.mul(48);
+        const wave1 = exp(d.sub(front).mul(d.sub(front)).mul(-0.004)).mul(exp(uBoom.mul(-0.22)));
+        const wave2 = exp(d.sub(front.mul(0.62)).mul(d.sub(front.mul(0.62))).mul(-0.01)).mul(exp(uBoom.mul(-0.35))).mul(0.6);
+        c = c.add(vec3(1, 0.62, 0.32).mul(wave1.add(wave2)).mul(live).mul(1.6));
+        c = c.add(vec3(1, 0.35, 0.1).mul(exp(d.mul(d).mul(-0.00025))).mul(exp(uBoom.mul(-0.4))).mul(live).mul(0.8));
         // the city under the water: its rings as a faint glow
         const plan = smoothstep(0.35, 0.0, abs(fract(d.div(14)).sub(0.5))).mul(smoothstep(80, 10, d));
         c = c.add(vec3(0.25, 0.6, 0.85).mul(plan.mul(0.5).add(exp(d.mul(d).mul(-0.0004)).mul(0.5))).mul(u.deep).mul(0.35));
@@ -343,6 +355,84 @@ export function createAtlantisScene(scene: THREE.Scene, narration: Narration, wh
         }
       }
 
+      /* ---------------- rising: the sea pours off the island's rings as it comes up ---------------- */
+      {
+        const n = 7000;
+        const W = pointCloud(n, 0.6);
+        const radii = [14, 22, 34, 44, 58, 70, 86];
+        const aE = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) {
+          const rr = radii[i % radii.length] + (R() - 0.5) * 0.6, a = R() * Math.PI * 2;
+          aE.set([Math.cos(a) * rr, rr < 20 ? 4 : 3.2 - (rr / 86) * 1.6, Math.sin(a) * rr], i * 3);
+          W.k.set([R(), R(), R(), R()], i * 4);
+        }
+        const bE = new THREE.InstancedBufferAttribute(aE, 3);
+        W.cloud.sprite.geometry.setAttribute("aE", bE);
+        touch(W.cloud);
+        const K = W.cloud.nodes.aK, E = T.instancedBufferAttribute(bE);
+        const s = fract(K.x.add(t.mul(float(0.45).add(K.y.mul(0.3)))));
+        const out = normalize(vec3(E.x, 0, E.z)).mul(s.mul(2.5));
+        W.material.positionNode = E.add(out).add(vec3(0, s.mul(s).mul(-16), 0));
+        // only while it rises (most as it breaks the surface), fading as each drop falls
+        const pouring = u.pour; // from when its rings break the surface until the sea has run off
+        W.material.colorNode = vec4(vec3(0.62, 0.82, 1).mul(W.round).mul(float(1).sub(s)).mul(pouring).mul(1.1), 1);
+        isle.add(W.cloud.sprite);
+        ours.push(W.material);
+      }
+
+      /* ---------------- the break: the great crystal bursts ---------------- */
+      {
+        // a burst of light in thousands of sparks, white-hot to gold to ember, flung out in arcs
+        // under their own weight; a flash; and steam rising slowly where the island goes down
+        const n = 16000;
+        const X = pointCloud(n, 0.8);
+        const aV = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) {
+          const a = R() * Math.PI * 2, up = 0.15 + Math.pow(R(), 0.7) * 0.85;
+          const h = Math.sqrt(1 - up * up), sp = 14 + Math.pow(R(), 2.2) * 80;
+          aV.set([Math.cos(a) * h * sp, up * sp, Math.sin(a) * h * sp], i * 3);
+          X.k.set([R(), R(), R(), R()], i * 4);
+        }
+        const bV = new THREE.InstancedBufferAttribute(aV, 3);
+        X.cloud.sprite.geometry.setAttribute("aV", bV);
+        touch(X.cloud);
+        const K = X.cloud.nodes.aK, V = T.instancedBufferAttribute(bV);
+        const tau = max(uBoom.sub(K.x.mul(0.6)), 0); // a few go a moment later: it keeps breaking
+        const drag = float(1).sub(exp(tau.mul(-0.9))).div(0.9);
+        const o = vec3(ISLE.x, 30, ISLE.z).add(vec3(K.z.sub(0.5), K.w.sub(0.5), K.y.sub(0.5)).mul(6));
+        const p = o.add(V.mul(drag)).add(vec3(0, tau.mul(tau).mul(-4.2), 0));
+        X.material.positionNode = p;
+        const life = float(3).add(K.y.mul(6));
+        const age = tau.div(life);
+        const alive = smoothstep(1, 0.8, age).mul(smoothstep(0, 0.02, uBoom)).mul(smoothstep(SEA_Y - 1, SEA_Y + 1, p.y));
+        const hot = mix(mix(vec3(1, 0.96, 0.85), vec3(1, 0.62, 0.18), smoothstep(0, 0.3, age)), vec3(0.75, 0.12, 0.03), smoothstep(0.3, 0.85, age));
+        X.material.colorNode = vec4(hot.mul(X.round).mul(alive).mul(pow(float(1).sub(age).max(0), 1.2)).mul(1.1), 1);
+        g.add(X.cloud.sprite);
+        ours.push(X.material);
+        // the flash, over in a moment
+        const fm = keepAlpha(new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false, fog: false }));
+        const rr = length(uv().sub(0.5)).mul(2);
+        fm.colorNode = vec4(vec3(1, 0.85, 0.65).mul(exp(rr.mul(rr).mul(-5))).mul(exp(uBoom.mul(-1.6))).mul(smoothstep(0, 0.04, uBoom)).mul(1.6), 1);
+        const flash = new THREE.Sprite(fm);
+        flash.position.set(ISLE.x, 30, ISLE.z);
+        flash.scale.setScalar(90);
+        g.add(flash);
+        ours.push(fm);
+        // steam: pale and slow, rising where the sea closes over it
+        const m = 1400;
+        const St = pointCloud(m, 2.6);
+        for (let i = 0; i < m; i++) St.k.set([R(), R(), R(), R()], i * 4);
+        touch(St.cloud);
+        const Ks = St.cloud.nodes.aK;
+        const sa = Ks.x.mul(6.28), sr = Ks.y.mul(80);
+        const rise = fract(Ks.z.add(t.mul(0.05)));
+        St.material.positionNode = vec3(ISLE.x, SEA_Y, ISLE.z).add(vec3(cos(sa).mul(sr), rise.mul(24), sin(sa).mul(sr))).add(vec3(sin(t.mul(0.2).add(Ks.w.mul(9))).mul(rise.mul(6)), 0, 0));
+        const steam = smoothstep(0.5, 4, uBoom).mul(smoothstep(60, 20, uBoom));
+        St.material.colorNode = vec4(vec3(0.5, 0.5, 0.6).mul(St.round).mul(float(1).sub(rise)).mul(steam).mul(0.09), 1);
+        g.add(St.cloud.sprite);
+        ours.push(St.material);
+      }
+
       /* ---------------- not everyone drowned: two streams of warm lights over the water ---------------- */
       {
         const n = 900;
@@ -381,8 +471,11 @@ export function createAtlantisScene(scene: THREE.Scene, narration: Narration, wh
           applyAir(air);
           tl.step(f, dt, still);
           const v = tl.v;
+          uBoom.value = Math.max(0, (f - BOOM_AT) * LEN);
           // risen out of the sea, then broken and sunk
           ud.isle.position.y = ISLE.y - 70 * (1 - v.rise) - 80 * v.sink;
+          const shake = v.sink > 0 && v.sink < 0.9 ? (1 - v.sink) * 0.5 : 0;
+          ud.isle.position.x = ISLE.x + Math.sin(f * LEN * 31) * shake;
           ud.isle.rotation.z = v.sink * 0.06;
           ud.isle.rotation.x = -v.sink * 0.04;
           ud.isle.visible = v.rise > 0.01 && v.sink < 0.995;

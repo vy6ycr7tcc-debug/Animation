@@ -20,6 +20,7 @@ import { landStone, stoneBlock } from "../../world/stoneworks";
 import type { Narration } from "../../core/narration";
 import type { Room } from "../journey";
 import { Tells, seatedRoom, starField } from "./kit";
+import { GlassFolk } from "../glassFolk";
 
 const { abs, cos, exp, float, fract, length, max, mix, normalize, pow, sin, smoothstep, uv, vec2, vec3, vec4 } = T;
 
@@ -48,7 +49,11 @@ const smooth = (e0: number, e1: number, x: number) => {
 };
 
 export function createEgyptScene(scene: THREE.Scene, narration: Narration, whisper: (t: string, ms?: number) => void): Room {
-  return seatedRoom(scene, narration, whisper, {
+  // the ruler who threw the doors open: a tall figure of gold light on the causeway, facing the
+  // door with arms raised as it opens
+  const dz0 = PYR.z + HALF + 0.8;
+  const ruler = new GlassFolk([{ x: 0, z: -26, face: 0, act: "reach", tint: new THREE.Color(1, 0.78, 0.4), scale: 2, glow: { inner: 0.9, edge: 1.2, body: 0.75 } }], 31);
+  const room = seatedRoom(scene, narration, whisper, {
     id: "past_egypt",
     track: "audio/past/past_egypt.mp3",
     len: 157.8,
@@ -68,6 +73,8 @@ export function createEgyptScene(scene: THREE.Scene, narration: Narration, whisp
         sing: [[0.34, 0], [0.355, 1], [0.37, 1], [0.39, 0], [0.95, 0], [0.97, 1]],
         leak: [[0.47, 0], [0.5, 1], [0.56, 1], [0.6, 0]],
         wheel: [[0.655, 0], [0.745, 1]],
+        ruler: [[0.285, 0], [0.305, 1], [0.375, 1], [0.405, 0]],
+        wind: [[0.64, 0], [0.665, 1], [0.74, 1], [0.775, 0]],
         align: [[0.72, 0], [0.745, 1], [0.86, 1], [0.9, 0.6], [1, 0.8]],
       });
       const u = tl.u;
@@ -139,10 +146,27 @@ export function createEgyptScene(scene: THREE.Scene, narration: Narration, whisp
 
       /* ---------------- the pyramid, its door facing you ---------------- */
       {
-        const geo = new THREE.ConeGeometry(HALF * Math.SQRT2, HEIGHT, 4, 12);
-        geo.rotateY(Math.PI / 4);
-        geo.translate(PYR.x, HEIGHT / 2, PYR.z);
-        const m = landStone("sandstone_blocks_05", 0, 3.4, [1.12, 1.06, 0.96], { course: 1.3, block: 2.2 });
+        // not a smooth cone with a grid drawn on it: the stepped core of weathered courses, as the
+        // pyramids stand now, a remnant of the smooth casing near the top
+        const CH = 1.3, n = Math.round((HEIGHT * 0.8) / CH);
+        const courses: THREE.BufferGeometry[] = [];
+        for (let k = 0; k < n; k++) {
+          const y0 = k * CH, half = HALF * (1 - y0 / HEIGHT) - (k % 3 === 1 ? 0.12 : 0);
+          const c = stoneBlock(half * 2, CH - 0.05, half * 2, k + 11);
+          c.translate(PYR.x, y0 + CH / 2, PYR.z);
+          courses.push(c);
+        }
+        const geo = merge(courses);
+        const capY = n * CH, capH = HEIGHT - capY, capHalf = HALF * (1 - capY / HEIGHT);
+        const casing = new THREE.ConeGeometry(capHalf * Math.SQRT2 + 0.35, capH + 0.4, 4, 1);
+        casing.rotateY(Math.PI / 4);
+        casing.translate(PYR.x, capY - 0.2 + (capH + 0.4) / 2, PYR.z);
+        const cm = landStone("sandstone_cracks", 0, 2.2, [1.2, 1.14, 1.02]);
+        const cap = new THREE.Mesh(casing, cm);
+        cap.castShadow = cap.receiveShadow = true;
+        g.add(cap);
+        ours.push(casing, cm);
+        const m = landStone("sandstone_blocks_05", 0, 3.4, [1.08, 1.0, 0.88], { course: CH, block: 2.6 });
         // the stone sings: rings of light climbing its faces
         const y = roomPos.y;
         const band = pow(sin(y.mul(0.45).sub(t.mul(2.2))).mul(0.5).add(0.5), 16);
@@ -183,6 +207,94 @@ export function createEgyptScene(scene: THREE.Scene, narration: Narration, whisp
         warm.position.set(0, 2.5, dz + 3);
         g.add(warm);
         (g.userData as { warm?: THREE.PointLight }).warm = warm;
+      }
+
+      /* ---------------- the royal complex round it: a causeway, obelisks, queens' pyramids, the
+         valley temple's pylons half under the sand ---------------- */
+      {
+        const parts: THREE.BufferGeometry[] = [];
+        // the causeway from the valley to the door, following the sand, its parapets broken
+        for (let z = -16; z > dz0 + 1; z -= 3) {
+          const y = egyptFloor(0, z);
+          const seg = stoneBlock(7, 1.0, 3.04, Math.round(-z));
+          seg.translate(0, y + 0.2, z - 1.5);
+          parts.push(seg);
+          for (const x of [-3.3, 3.3])
+            if (R() > 0.22) {
+              const h = 0.6 + R() * 0.7;
+              const w = stoneBlock(0.55, h, 2.9, Math.round(-z * 3 + x));
+              w.translate(x, y + 0.7 + h / 2, z - 1.5);
+              parts.push(w);
+            }
+        }
+        // the valley temple: two battered pylons, half buried, framing the causeway's start
+        for (const [x, h] of [[-10.5, 7.5], [10.5, 5.6]] as const) {
+          const p = stoneBlock(6, h, 3, x > 0 ? 41 : 42);
+          const q = p.attributes.position as THREE.BufferAttribute;
+          for (let i = 0; i < q.count; i++) {
+            const k = (q.getY(i) + h / 2) / h; // battered: narrowing as it rises
+            q.setX(i, q.getX(i) * (1 - 0.18 * k));
+            q.setZ(i, q.getZ(i) * (1 - 0.2 * k));
+          }
+          p.computeVertexNormals();
+          p.translate(x, egyptFloor(x, -24) + h / 2 - 1.6, -24);
+          parts.push(p);
+        }
+        // three queens' pyramids to the left, stepped and worn
+        for (const [qx, qz, qh] of [[-64, -62, 12], [-66, -86, 10], [-63, -108, 8.5]] as const) {
+          const qn = Math.round(qh / 1.1), qhalf = qh * 0.8;
+          for (let k = 0; k < qn; k++) {
+            const y0 = k * 1.1, hh = qhalf * (1 - y0 / qh);
+            const c = stoneBlock(hh * 2, 1.05, hh * 2, k * 7 + qx);
+            c.translate(qx, egyptFloor(qx, qz) - 0.5 + y0 + 0.55, qz);
+            parts.push(c);
+          }
+        }
+        const sm = landStone("sandstone_cracks", 0, 1.8, [1.0, 0.9, 0.74]);
+        const mesh = new THREE.Mesh(merge(parts), sm);
+        mesh.castShadow = mesh.receiveShadow = true;
+        g.add(mesh);
+        ours.push(mesh.geometry, sm);
+        // two obelisks of red granite before the door, their tips once gilded
+        const ob: THREE.BufferGeometry[] = [];
+        const tips: THREE.BufferGeometry[] = [];
+        for (const x of [-7.5, 7.5]) {
+          const shaft = new THREE.CylinderGeometry(0.62, 0.95, 13, 4, 6);
+          shaft.rotateY(Math.PI / 4);
+          shaft.translate(x, 6.5 + 0.3, dz0 + 9);
+          ob.push(shaft);
+          const base = stoneBlock(2.4, 0.6, 2.4, x > 0 ? 51 : 52);
+          base.translate(x, 0.3, dz0 + 9);
+          ob.push(base);
+          const tip = new THREE.ConeGeometry(0.88, 1.3, 4, 1);
+          tip.rotateY(Math.PI / 4);
+          tip.translate(x, 13.3 + 0.65, dz0 + 9);
+          tips.push(tip);
+        }
+        const om = landStone("sandstone_cracks", 0, 1.2, [0.66, 0.44, 0.4]);
+        const omesh = new THREE.Mesh(merge(ob), om);
+        omesh.castShadow = true;
+        g.add(omesh);
+        ours.push(omesh.geometry, om);
+        const tm = new THREE.MeshStandardNodeMaterial({ metalness: 0.3, roughness: 0.4, color: new THREE.Color(0.62, 0.48, 0.24) });
+        g.add(new THREE.Mesh(merge(tips), tm));
+        ours.push(tm);
+      }
+
+      /* ---------------- four thousand years of wind: sand streaming over the desert as the stars wheel ---------------- */
+      {
+        const n = 6000;
+        const W = pointCloud(n, 0.3);
+        for (let i = 0; i < n; i++) W.k.set([R(), R(), R(), R()], i * 4);
+        touch(W.cloud);
+        const K = W.cloud.nodes.aK;
+        const s = fract(K.x.add(t.mul(float(0.12).add(K.y.mul(0.08)))));
+        const x = s.mul(260).sub(130), z = K.z.mul(-180).sub(4);
+        const y = K.w.mul(K.w).mul(7).add(sin(s.mul(18).add(K.y.mul(30))).mul(0.6)).add(0.3);
+        W.material.positionNode = vec3(x, y.add(egyptFloorN(x, z).max(0)), z);
+        W.material.colorNode = vec4(vec3(0.78, 0.66, 0.5).mul(W.round).mul(u.wind).mul(smoothstep(0, 0.1, s).mul(smoothstep(1, 0.9, s))).mul(0.28), 1);
+        g.add(W.cloud.sprite);
+        ours.push(W.material);
       }
 
       /* ---------------- the chamber at its heart, seen through the stone ---------------- */
@@ -311,6 +423,7 @@ export function createEgyptScene(scene: THREE.Scene, narration: Narration, whisp
         ours.push(lg, lm);
       }
 
+      g.add(ruler.group);
       const ud = g.userData as { slab?: THREE.Mesh; warm?: THREE.PointLight };
       return {
         update(dt, f, _on, still) {
@@ -325,13 +438,22 @@ export function createEgyptScene(scene: THREE.Scene, narration: Narration, whisp
           // the stars wheel once round (thousands of years in a few breaths), and come back to
           // where the apex points
           sky.mesh.rotation.y = v.wheel * Math.PI * 2;
+          // the ruler: there while the doors are open, gone when he dies
+          for (const b of ruler.bodies) {
+            b.root.visible = v.ruler > 0.02;
+            b.mat.opacity = v.ruler;
+            b.root.position.y = egyptFloor(b.spec.x, b.spec.z) + 0.7; // on the causeway
+          }
+          ruler.update(dt);
         },
         dispose() {
+          ruler.dispose();
           for (const o of ours) o.dispose();
         },
       };
     },
   });
+  return Object.assign(room, { loaded: ruler.loaded });
 }
 
 /** The dunes on the GPU (the same shape as `egyptFloor`), for things that walk on them. */
