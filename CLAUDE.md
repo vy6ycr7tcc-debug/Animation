@@ -493,6 +493,14 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - The tour's last stop is the same seat. The shrine panel doesn't show while you sit.
   - Also fixed: the Mind's lamp and the Body's fire stood inside the fallen drum and block by the door; they now stand clear (x ±8, z 27).
 - 2026-10-01: Egypt reachable from the pyramid (the owner). A small gateway of cut sandstone (`world/egyptGate.ts`) stands on the pyramid's plaza, 16 m east of its north door and 14 m out, warm light standing in its opening and spilling both ways; "The telling of Egypt" whispers once near it. Walking through it enters the Monument of Past Choices' Egypt room directly (`Journey.via`); Egypt's door then leads back out to the plaza before the gate, not to the monument's lobby (a door home to the lobby goes out when `via`; `outside()` is asked before the world returns). Why outside rather than a hidden room: the telling looks *at* the pyramid from the desert, and the interior stays Ra's chambers and the way to the Duat. The content is unchanged.
+- 2026-10-01: the pyramid's interior de-Minecrafted (the owner).
+  - The chambers are now the game's cut masonry (`innerStone` in `pyramid.ts` over the shared `landStone`): courses and flagstones, recessed joints seen in depth, worn arrises, each stone its own tone. The old block scan's bricks, which fought the drawn joints, are gone.
+  - "The stones are alive" is now a soft swell of warm light rising through the stone, not glowing white joint lines (they read as a wireframe).
+  - `Masonry` gains `origin` (a place apart lays its stone in its own frame: at 50 km the world position starved the scan lookups and hashes) and `interior` (no lichen, no rain streaks).
+  - The King's Chamber granite rendered as big blocky squares: its fleck hash took `sin` of world positions near 1.3 million. It is now laid in the pyramid's frame, with round grains (pale feldspar, dark mica) from noise.
+  - Light with a source: five oil lamps hang on fine chains (bronze bowl, a licking flame), each the source of its pool of light and flickering with it. The Grand Gallery's lamp casts shadows (512 px), so its corbelled walls move with the flame.
+  - The King's Chamber's light is rose-gold and breathes slowly; a pale beam falls from a small square air-shaft high in its south wall onto the floor beside the coffer.
+  - Ambient light is down to 0.28, so the lamps model the stone.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.
