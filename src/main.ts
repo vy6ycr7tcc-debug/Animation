@@ -1772,6 +1772,7 @@ try {
 const INWARD_AFTER = 15000;
 /** Sitting at a lesson's seat or a monument room's (not with an archetype, whose panel is open). */
 const lessonSeated = (): boolean => sitting.phase === "seated" && (!!tourScenes.seatedId || !!inHall()?.journey.sitting);
+let tourWatchK = 0;
 function contemplationFrame(dt: number): void {
   const idle = performance.now() - lastTouch > INWARD_AFTER && Math.hypot(input.move.x, input.move.y) < 0.05 && !input.hold;
   const want = inwardOn && idle && S.mode === "play" && !startMap.isOpen && $("#menu").hidden && player.speed < 0.3 &&
@@ -1780,7 +1781,11 @@ function contemplationFrame(dt: number): void {
   inwardK += ((want ? 1 : 0) - inwardK) * Math.min(1, dt * (want ? 0.35 : 3));
   if (inwardK < 0.002 && !want) inwardK = 0;
   follow.inward = inwardK;
-  wanderer.presence = hallPresence * (1 - inwardK);
+  // the temple tour: while a shrine is spoken the wanderer fades away, so nothing stands between
+  // you and the carving (the owner: "sitting on the floor or the character disappears while watching")
+  const watch = tourScenes.tour.watching ? 1 : 0;
+  tourWatchK += (watch - tourWatchK) * Math.min(1, dt * (watch ? 1.2 : 2.5));
+  wanderer.presence = hallPresence * (1 - inwardK) * (1 - tourWatchK);
   if (want && inwardK > 0.5 && !toldInward) {
     toldInward = true;
     whisper("Contemplation: touch anywhere to return", 6000);

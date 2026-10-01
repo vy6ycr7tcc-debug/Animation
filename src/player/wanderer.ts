@@ -506,7 +506,7 @@ export class Wanderer {
     this.orb.scale.setScalar(Math.max(0.001, orbK * (1 + (reduced ? 0 : Math.sin(t * 2.2) * 0.05))));
     this.orb.position.y = 1.22 + (reduced ? 0 : Math.sin(t * 1.3) * 0.04);
     this.orbCore.opacity = orbK;
-    this.motes.points.visible = water < 0.5 && flameK < 0.5;
+    this.motes.points.visible = water < 0.5 && flameK < 0.5 && this.presence > 0.3;
     this.light.intensity = 0;
 
     // Place the fluid body along the skeleton.
