@@ -56,53 +56,54 @@ button:focus-visible, input:focus-visible { outline: 1px solid var(--gold); outl
 }
 @keyframes touch-mark { from { opacity: 0.9; transform: scale(0.4); } to { opacity: 0; transform: scale(1.6); } }
 
-/* ---- loading: a seed of light drawing itself, and a line to sit with ---- */
+/* ---- loading: the dark, and in its lower right corner a ring of light that pulses round the
+   seed, with how far the loading has come beside it (the owner: "move to a corner; a pulsing
+   glowing ring"). While the game boots, the page's own thread is busy for seconds (the code,
+   the world, the shaders), so anything it has to animate stands still: every movement here is a
+   transform or an opacity the compositor runs by itself. ---- */
 #loading {
   position: fixed; inset: 0; z-index: 60;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2.2rem;
-  padding: 0 28px; text-align: center;
   background: radial-gradient(ellipse at 50% 42%, #17143a 0%, var(--night) 62%);
   transition: opacity 1.6s ease;
 }
 #loading.done { opacity: 0; pointer-events: none; }
 #loading.dawn { transition-duration: 4s; }
-/* While the game boots, the page's own thread is busy for seconds (the code, the world, the
-   shaders), so anything it has to animate stands still. The seed is therefore drawn whole, and
-   all the movement is transforms the compositor runs by itself: the seed turning, and a thin
-   ring of gold spinning round it until the world is ready. */
-#loading .seed-wrap {
-  position: relative; width: min(34vw, 150px); aspect-ratio: 1;
-  animation: seed-turn 40s linear infinite; will-change: transform;
+#loading .corner {
+  position: absolute; right: calc(22px + env(safe-area-inset-right, 0px)); bottom: calc(26px + env(safe-area-inset-bottom, 0px));
+  display: flex; align-items: center; gap: 14px; flex-direction: row-reverse;
 }
-#loading .seed { width: 100%; height: 100%; overflow: visible; display: block; }
+#loading .seed-wrap { position: relative; width: 46px; height: 46px; flex: none; }
+#loading .seed { position: absolute; inset: 9px; width: 28px; height: 28px; overflow: visible; display: block; animation: seed-turn 40s linear infinite; will-change: transform; }
 #loading .seed circle:not(.heart), #loading .seed polygon {
-  fill: none; stroke: var(--gold); stroke-width: 0.5; stroke-linecap: round;
+  fill: none; stroke: var(--gold); stroke-width: 1.4; stroke-linecap: round;
 }
 #loading .seed .ring { stroke-opacity: 0.45; }
 #loading .seed .hex { stroke: #a9c4e8; stroke-opacity: 0.5; }
 #loading .seed .petal { stroke-opacity: 0.75; }
 #loading .seed .heart { fill: #fff3d6; }
-#loading .boot-ring {
-  position: absolute; inset: -16%; border-radius: 50%;
-  border: 1.5px solid rgba(226, 191, 126, 0.12); border-top-color: rgba(255, 226, 170, 0.9);
-  animation: boot-spin 1.3s linear infinite; will-change: transform; transition: opacity 1.2s ease;
+/* the ring: a thin circle of light breathing out and in, its glow swelling with it */
+#loading .boot-ring, #busy .ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  border: 1.5px solid rgba(255, 226, 170, 0.85);
+  box-shadow: 0 0 10px rgba(255, 210, 140, 0.55), inset 0 0 8px rgba(255, 210, 140, 0.3);
+  animation: ring-pulse 1.8s ease-in-out infinite; will-change: transform, opacity; transition: opacity 1.2s ease;
 }
 #loading.done .boot-ring { opacity: 0; }
-@keyframes boot-spin { to { transform: rotate(360deg); } }
+@keyframes ring-pulse { 0%, 100% { transform: scale(0.82); opacity: 0.45; } 50% { transform: scale(1.06); opacity: 1; } }
 #loading .seed .heart { animation: seed-breathe 5s ease-in-out infinite; transform-origin: 0 0; }
 body.loading #title h1, body.loading #title p { animation-play-state: paused; }
 @keyframes seed-turn { to { transform: rotate(360deg); } }
 /* how far the loading has come: a hairline of gold filling (a transform: it moves while the page
-   is busy), and the number beneath */
-#boot-progress { display: flex; flex-direction: column; align-items: center; gap: 10px; width: min(56vw, 220px); transition: opacity 0.8s; }
-#boot-bar { width: 100%; height: 2px; border-radius: 1px; background: rgba(226, 191, 126, 0.16); overflow: hidden; }
+   is busy), and its stage above it, right-aligned to the ring */
+#boot-progress { display: flex; flex-direction: column; align-items: flex-end; gap: 7px; width: min(44vw, 170px); transition: opacity 0.8s; }
+#boot-bar { width: 100%; height: 2px; border-radius: 1px; background: rgba(226, 191, 126, 0.16); overflow: hidden; order: 2; }
 #boot-bar i { display: block; height: 100%; background: var(--gold); transform: scaleX(0.02); transform-origin: left; transition: transform 0.6s cubic-bezier(0.2, 0.6, 0.3, 1); box-shadow: 0 0 6px rgba(255, 215, 150, 0.6); }
-#boot-pct { margin: 0; font-size: 13px; font-style: italic; letter-spacing: 0.04em; color: var(--dim); font-variant-numeric: tabular-nums; }
+#boot-pct { margin: 0; font-size: 12px; font-style: italic; letter-spacing: 0.04em; color: var(--dim); font-variant-numeric: tabular-nums; order: 1; }
 #loading.done #boot-progress { opacity: 0; }
 @keyframes seed-breathe { 0%, 100% { opacity: 0.55; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.25); } }
 @media (prefers-reduced-motion: reduce) {
-  #loading .seed-wrap { animation: none; }
-  #loading .boot-ring { animation-duration: 4s; }
+  #loading .seed { animation: none; }
+  #loading .boot-ring, #busy .ring { animation-duration: 4s; }
 }
 
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
@@ -297,19 +298,18 @@ body.touring #nprog { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
 }
 #journal textarea:focus-visible { outline: 1px solid var(--gold); }
 /* slow dissolves instead of cuts */
-/* the loading mark: a small turning seed of light, bottom centre, while something arrives */
+/* the loading mark, while something arrives (a crossing, the land catching up, a recording
+   buffering): the boot's pulsing ring of light, small, in the lower right corner, out of the way */
 #busy {
-  position: fixed; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px;
-  z-index: 45; pointer-events: none; opacity: 0; transition: opacity 0.8s ease;
-  border-radius: 50%; background: radial-gradient(circle, rgba(20, 16, 40, 0.55) 0, rgba(20, 16, 40, 0) 70%);
+  position: fixed; right: calc(22px + env(safe-area-inset-right, 0px)); bottom: calc(26px + env(safe-area-inset-bottom, 0px));
+  width: 34px; height: 34px; z-index: 45; pointer-events: none; opacity: 0; transition: opacity 0.8s ease;
 }
 /* it appears at once (a fade-in would never play while the page is held still by the work it
    announces), and fades away gently */
 #busy.on { opacity: 1; transition: none; }
-#busy svg { width: 100%; height: 100%; animation: seed-turn 3.5s linear infinite; filter: drop-shadow(0 0 4px rgba(255, 215, 150, 0.55)); }
-#busy circle { fill: none; stroke: var(--gold); stroke-width: 1.5; stroke-opacity: 0.95; }
-#busy .dot { fill: #fff3d6; stroke: none; animation: seed-breathe 1.6s ease-in-out infinite; transform-origin: 0 0; }
-@media (prefers-reduced-motion: reduce) { #busy svg { animation: none; } }
+body.touring #busy { bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+#busy .dot { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: #fff3d6; box-shadow: 0 0 6px rgba(255, 220, 160, 0.8); animation: seed-breathe 1.8s ease-in-out infinite; }
+
 
 /* the Queen's Chamber: the dark in which the senses rest; then a point of light grows */
 #rite-veil {
