@@ -7,6 +7,8 @@
      ❚❚ pause / ▶ play (the voice, its clock and the tour's walking stand still together)
      the place, "n of N" and a hairline of the part's progress
      »  on to the next stop
+     ◉  record mode: every control, hint and word fades, leaving the world, the companion and
+        the animations (to screen-record); a long press anywhere brings them back
      ✕  end the tour
 
    Whoever runs a tour `show`s the bar with its own handlers and `hide`s it; pause is shared (the
@@ -31,6 +33,8 @@ class TourBar {
   /** The game's pause (set by main): toggle it, and read it. */
   togglePause: () => void = () => {};
   isPaused: () => boolean = () => false;
+  /** Record mode (set by main): everything but the world, the companion and the animations goes. */
+  onRecord: () => void = () => {};
 
   constructor() {
     const btn = (text: string, cls: string, label: string) => {
@@ -45,6 +49,7 @@ class TourBar {
     this.playBtn = btn("", "ctl play", "Pause the tour");
     this.playBtn.append(document.createElement("span"));
     this.nextBtn = btn("»", "ctl next", "On to the next");
+    const rec = btn("◉", "rec", "Record mode: hide everything but the world");
     const end = btn("✕", "end", "End the tour");
     const mid = Object.assign(document.createElement("div"), { className: "mid" });
     this.titleEl = Object.assign(document.createElement("p"), { className: "title" });
@@ -53,7 +58,7 @@ class TourBar {
     this.fill = document.createElement("i");
     line.append(this.fill);
     mid.append(this.titleEl, this.hintEl, line);
-    this.el.append(back, this.playBtn, mid, this.nextBtn, end);
+    this.el.append(back, this.playBtn, mid, this.nextBtn, rec, end);
     document.body.append(this.el);
     // on the touch itself (a phone sends no click while the other thumb holds the stick); a
     // keyboard's Enter or Space still clicks
@@ -71,6 +76,7 @@ class TourBar {
     act(back, () => this.owner?.back());
     act(this.playBtn, () => (this.togglePause(), this.frame()));
     act(this.nextBtn, () => this.owner?.next());
+    act(rec, () => this.onRecord());
     act(end, () => this.owner?.end());
   }
 
