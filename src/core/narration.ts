@@ -180,13 +180,17 @@ export class Narration {
     const scale = buf.duration / (track.duration || buf.duration);
     const gain = ctx.createGain();
     const at = ctx.currentTime + handoff;
+    // in at once (a 40 ms ramp only keeps it from clicking): every recording's first word starts
+    // ~0.16–0.27 s in, and the old 0.4 s fade-in swallowed its start. Resuming mid-word, softer.
+    const fadeIn = this.softStart ? 0.12 : 0.04;
+    this.softStart = false;
     gain.gain.setValueAtTime(0, at);
-    gain.gain.linearRampToValueAtTime(1, at + 0.4);
+    gain.gain.linearRampToValueAtTime(1, at + fadeIn);
     src.connect(gain).connect(this.audio.voice);
     const off = Math.max(0, Math.min(buf.duration - 0.05, from * scale));
     const dur = Number.isFinite(to) ? Math.max(0.5, (to - from) * scale) : undefined;
     if (dur !== undefined) {
-      gain.gain.setValueAtTime(1, at + Math.max(0.4, dur - 0.5));
+      gain.gain.setValueAtTime(1, at + Math.max(fadeIn, dur - 0.5));
       gain.gain.linearRampToValueAtTime(0, at + dur);
       src.start(at, off, dur);
     } else src.start(at, off);
@@ -224,11 +228,14 @@ export class Narration {
     this.audio.duck(false);
   }
   /** Between resuming and the voice sounding again, the clock still reads where it stood. */
+  /** The next play resumes mid-speech: a slightly softer start. */
+  private softStart = false;
   private resumeHold: { id: string; at: number; end: number; partFrom: number } | null = null;
   resume(): void {
     const q = this.held;
     if (!q) return;
     this.held = null;
+    this.softStart = true;
     const p = this.play(q.id, q.at, q.end);
     this.resumeHold = q;
     void p.then(() => {
