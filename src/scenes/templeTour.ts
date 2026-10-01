@@ -3,8 +3,9 @@
    to the next shrine, turns to face it, and the view comes round behind to frame it. There the
    shrine is lit (a warm spot on the being, the hall dimming round it; `Temple.setFocus`), the
    archetype wakes into its rite (player/gestures.ts), and its part of the temple's narration
-   (TEMPLE, 26 marks) is spoken. "Next ›" walks on, "‹" goes back, ✕ ends the tour and gives you
-   the stick again. The order is the narration's: the door, the Mind down the left wall, the Body
+   (TEMPLE, 26 marks) is spoken. When it has been spoken the light glides on by itself to the next
+   shrine (no click); "Next ›" skips ahead, "‹" goes back, ✕ ends the tour and gives you the stick
+   again. The order is the narration's: the door, the Mind down the left wall, the Body
    down the right, the Spirit round the sanctuary, and the Choice at the back; after it, rest at
    the tree of life or stay. */
 import * as THREE from "three/webgpu";
@@ -89,6 +90,8 @@ const CENTRE = new THREE.Vector2(0, -44);
 const GATE_Z = -30;
 const ARRIVE_R = 2.4;
 const LIGHT_SPEED = 3.4;
+/** After a part has been spoken, a breath of stillness before the light goes on. */
+const AUTO_AFTER = 2.2;
 
 /* ---------------------------------------------------------------- the stops */
 interface Stop {
@@ -171,6 +174,7 @@ export class TempleTour implements SceneModule {
   private phase: Phase = "leading";
   private riteOn = -1;
   private spoke = 0;
+  private doneT = 0;
   private lifeT = 0;
   private path: THREE.Vector2[] = [];
   private lightAt = new THREE.Vector2();
@@ -350,7 +354,7 @@ export class TempleTour implements SceneModule {
   private refresh(): void {
     const s = this.stops[this.index];
     this.titleEl.textContent = s.title;
-    this.hintEl.textContent = this.phase === "leading" ? "Walking there…" : this.phase === "speaking" ? "Listen" : this.index === this.stops.length - 1 ? "The end of the tour" : "Next when you are ready";
+    this.hintEl.textContent = this.phase === "leading" ? "Walking there…" : this.phase === "speaking" ? "Listen" : this.index === this.stops.length - 1 ? "The end of the tour" : "Going on…";
     this.prevBtn.disabled = this.index === 0;
     this.nextBtn.textContent = this.index === this.stops.length - 1 ? "Finish ›" : "Next ›";
     this.nextBtn.classList.toggle("ready", this.phase === "done");
@@ -405,16 +409,18 @@ export class TempleTour implements SceneModule {
     this.follow.yaw += dy * Math.min(1, step * (at ? 1.4 : 2));
     this.follow.pitch += ((at ? 0.14 : 0.3) - this.follow.pitch) * Math.min(1, step * 1.5);
     if (this.follow.dist !== undefined) this.follow.dist += ((at ? 4.4 : 6) - this.follow.dist) * Math.min(1, step * 1.5);
-    // its part spoken (or no voice to speak it): the light asks for Next
+    // its part spoken to its end (or no voice to speak it): a breath, then the light goes on by
+    // itself; never before the part is over, so nothing is cut
     if (this.phase === "speaking") {
-      this.spoke += step;
+      this.spoke += Math.min(0.25, Math.max(0, dt)); // seconds as they pass, even when frames are slow
       const t = this.narration.time();
       const ended = this.narration.debugTime === null && this.spoke > 1.5 && (this.narration.current !== TRACK_ID || t >= s.to - 0.15);
       if (ended) {
         this.phase = "done";
+        this.doneT = performance.now();
         this.refresh();
       }
-    }
+    } else if (this.phase === "done" && this.choice.hidden && (performance.now() - this.doneT) / 1000 > AUTO_AFTER) this.next();
   }
 
   private showChoice(): void {
