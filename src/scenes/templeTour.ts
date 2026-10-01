@@ -198,6 +198,10 @@ type Phase = "leading" | "speaking" | "done";
 export class TempleTour implements SceneModule {
   readonly id = "tour";
   active = false;
+  /** Standing before a shrine while it speaks (or after): the wanderer steps out of the view. */
+  get watching(): boolean {
+    return this.active && this.phase !== "leading";
+  }
   /** Paused from the half-moon: the walking and the going on stand still. */
   held = false;
   /** It has come to its end (the Choice spoken; rest or stay offered). */
