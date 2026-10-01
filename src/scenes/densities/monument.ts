@@ -447,7 +447,8 @@ export function densityStages(seen: () => Set<string>): Stage[] {
     },
     {
       id: "room5",
-      focus: [[0, 16, -31], [0, 1.2, -31], [0, 1, -12]],
+      focus: [[0, 4, -12], [0, 5.6, -12], [-6.5, 6.5, -15]],
+      centre: [0, 4, -12], // the magician and the writing round it
       title: "The fifth density",
       make: mk(() => import("./room_5"), "createDensity5Scene"),
       start: { x: 0, z: 0, heading: 0 },
