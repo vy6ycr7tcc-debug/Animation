@@ -423,6 +423,15 @@ export class Temple {
   private focus = { i: -1, k: 0, glow: [] as number[], hall: [] as { l: THREE.Light; base: number }[] };
   private shafts: THREE.MeshBasicNodeMaterial[] = [];
   private uT = uniform(0);
+  /** The three rooms' signs, from the narration's opening ("in the first room, a lamp is lit…
+      in the second, a fire is burning… in the third… a star"): the Mind's lamp by the door on the
+      left wall, the Body's fire by the door on the right, the Spirit's star over the dark
+      sanctuary. Each glows (`lit`, eased into `k`), and while the tour is in a room that room's
+      niches take its light (`wash`). */
+  private signs: { k: number; lit: number; u: ReturnType<typeof uniform>; stand: { x: number; z: number; heading: number } }[] = [];
+  private wash = [uniform(0), uniform(0), uniform(0)];
+  private washK = [0, 0, 0];
+  private group_ = -1;
   private local = new THREE.Vector3();
   private myColliders: Collider[] = [];
 
@@ -746,7 +755,10 @@ export class Temple {
       const gm = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
       const q = uv().sub(vec3(0.5, 0.42, 0).xy);
       const glowK = exp(length(q.mul(vec3(1.4, 1, 0).xy)).mul(-4.5));
-      gm.colorNode = vec4(vec3(tint.r, tint.g, tint.b).mul(glowK.mul(0.1)), 1);
+      // and while its room is the tour's, the room's own light washes every niche of that wall
+      const roomTint = side < 0 ? vec3(0.55, 0.7, 1.0) : vec3(1.0, 0.58, 0.26);
+      const w = this.wash[side < 0 ? 0 : 1];
+      gm.colorNode = vec4(vec3(tint.r, tint.g, tint.b).mul(glowK.mul(w.mul(0.12).add(0.1))).add(roomTint.mul(glowK.mul(w.mul(0.14)))), 1);
       const back = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 7), gm);
       back.position.set(side * (HALL_X + 3.15), 3.6, nz);
       back.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
@@ -771,6 +783,126 @@ export class Temple {
     this.collide(CENTRE.x, SANCT_Z1 + 2.6, 4.2);
     this.collide(CENTRE.x, CENTRE.z, 1.5); // the altar
     this.buildLamps();
+    this.buildSigns();
+  }
+
+  private buildSigns(): void {
+    const glowTex = (rays: boolean) => {
+      const [c, g] = canvas(128, 128);
+      const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+      grd.addColorStop(0, "rgba(255,255,255,1)");
+      grd.addColorStop(0.12, "rgba(255,255,255,0.55)");
+      grd.addColorStop(0.4, "rgba(255,255,255,0.08)");
+      grd.addColorStop(1, "rgba(255,255,255,0)");
+      g.fillStyle = grd;
+      g.fillRect(0, 0, 128, 128);
+      if (rays) {
+        // four fine rays, thin as a hair, fading out
+        g.globalCompositeOperation = "lighter";
+        for (const [dx, dy] of [[1, 0], [0, 1]]) {
+          const lg = g.createLinearGradient(64 - dx * 64, 64 - dy * 64, 64 + dx * 64, 64 + dy * 64);
+          lg.addColorStop(0, "rgba(255,255,255,0)");
+          lg.addColorStop(0.5, "rgba(255,255,255,0.9)");
+          lg.addColorStop(1, "rgba(255,255,255,0)");
+          g.fillStyle = lg;
+          if (dx) g.fillRect(0, 63, 128, 2);
+          else g.fillRect(63, 0, 2, 128);
+        }
+      }
+      return canvasTexture(c, false);
+    };
+    const soft = glowTex(false), star = glowTex(true);
+    const sprite = (tex: THREE.Texture, color: THREE.Color, u: ReturnType<typeof uniform>, flick: boolean, size: [number, number]) => {
+      const m = new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
+      const f = flick ? float(0.88).add(T.sin(this.uT.mul(11.3)).mul(0.07)).add(T.sin(this.uT.mul(6.1)).mul(0.05)) : T.sin(this.uT.mul(0.6)).mul(0.08).add(0.92);
+      m.colorNode = vec4(vec3(color.r, color.g, color.b).mul(texture(tex).a).mul(f).mul(u), 1); // the canvas is white where clear: its alpha is the light
+      const sp = new THREE.Sprite(m);
+      sp.scale.set(size[0], size[1], 1);
+      return sp;
+    };
+    const bronze = new THREE.MeshStandardNodeMaterial({ color: 0x8a6a3a, roughness: 0.42, metalness: 0.75 });
+    const face = (sx: number, sz: number, tx: number, tz: number) => Math.atan2(-(tx - sx), -(tz - sz));
+    // the Mind: a tall lamp-stand of bronze, a small oil lamp with a cool, clear flame
+    {
+      const x = -9.2, z = 29.2;
+      const stand = new THREE.Mesh(new THREE.LatheGeometry([[0.001, 0], [0.32, 0], [0.34, 0.05], [0.12, 0.14], [0.05, 0.3], [0.04, 2.0], [0.07, 2.08], [0.22, 2.16], [0.24, 2.24], [0.001, 2.2]].map(([r, y]) => new THREE.Vector2(r, y)), 20), bronze);
+      stand.position.set(x, 0, z);
+      stand.castShadow = true;
+      const u = uniform(1);
+      const core = sprite(soft, new THREE.Color(0.85, 0.92, 1.0), u, true, [0.26, 0.42]);
+      core.position.set(x, 2.42, z);
+      const glow = sprite(soft, new THREE.Color(0.35, 0.5, 0.9), u, false, [2.4, 2.4]);
+      glow.position.copy(core.position);
+      this.group.add(stand, core, glow);
+      this.collide(x, z, 0.5);
+      this.signs.push({ k: 1, lit: 1, u, stand: { x: -6.7, z: 26.7, heading: face(-6.7, 26.7, x, z) } });
+    }
+    // the Body: a fire burning in a wide bronze bowl on three legs
+    {
+      const x = 9.2, z = 29.2;
+      const bowl = new THREE.Mesh(new THREE.LatheGeometry([[0.001, 0.62], [0.45, 0.64], [0.62, 0.8], [0.66, 0.98], [0.6, 1.0], [0.001, 0.86]].map(([r, y]) => new THREE.Vector2(r, y)), 24), bronze);
+      bowl.position.set(x, 0, z);
+      for (let k = 0; k < 3; k++) {
+        const a = (k / 3) * Math.PI * 2;
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.72, 8), bronze);
+        leg.position.set(x + Math.cos(a) * 0.42, 0.36, z + Math.sin(a) * 0.42);
+        leg.rotation.set(Math.sin(a) * 0.22, 0, -Math.cos(a) * 0.22);
+        this.group.add(leg);
+      }
+      const u = uniform(1);
+      // a flame, not a ball: a tongue narrowing upward, licking and leaning, white-gold at its root
+      const fm = new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
+      {
+        const q = uv(), y = q.y;
+        const sway = T.sin(this.uT.mul(5.3).add(y.mul(4))).mul(0.05).add(T.sin(this.uT.mul(9.1).add(y.mul(7))).mul(0.03)).mul(y);
+        const xx = q.x.sub(0.5).sub(sway);
+        const w = T.pow(float(1).sub(y), float(0.85)).mul(0.3).add(0.015);
+        const body = exp(xx.div(w).mul(xx.div(w)).negate()).mul(smoothstep(0, 0.12, y)).mul(smoothstep(1, 0.45, y.add(T.sin(this.uT.mul(7.7)).mul(0.06))));
+        const core = exp(xx.div(w.mul(0.45)).pow(2).negate()).mul(smoothstep(0.65, 0.1, y));
+        fm.colorNode = vec4(T.mix(vec3(1.0, 0.42, 0.12), vec3(1.0, 0.88, 0.6), core).mul(body).mul(1.3).mul(u), 1);
+      }
+      const fire = new THREE.Sprite(fm);
+      fire.scale.set(0.9, 1.7, 1);
+      fire.position.set(x, 1.0 + 0.85 - 0.05, z);
+      fire.center.set(0.5, 0.5);
+      const glow = sprite(soft, new THREE.Color(0.9, 0.4, 0.12), u, false, [3.6, 3.6]);
+      glow.position.set(x, 1.4, z);
+      this.group.add(bowl, fire, glow);
+      this.collide(x, z, 0.8);
+      this.signs.push({ k: 1, lit: 1, u, stand: { x: 6.7, z: 26.7, heading: face(6.7, 26.7, x, z) } });
+    }
+    // the Spirit: in the darkness of the sanctuary, a single star over the altar
+    {
+      const u = uniform(1);
+      const core = sprite(star, new THREE.Color(0.92, 0.88, 1.0), u, false, [1.6, 1.6]);
+      core.position.set(CENTRE.x, 6.4, CENTRE.z);
+      const glow = sprite(soft, new THREE.Color(0.45, 0.32, 0.85), u, false, [4.2, 4.2]);
+      glow.position.copy(core.position);
+      core.renderOrder = glow.renderOrder = 6;
+      this.group.add(core, glow);
+      this.signs.push({ k: 1, lit: 1, u, stand: { x: 0, z: HALL_Z1 + 3.4, heading: 0 } });
+    }
+  }
+
+  /** Where to stand before room `g`'s sign (0 the Mind, 1 the Body, 2 the Spirit), facing it. */
+  introFor(g: number): { x: number; z: number; heading: number } {
+    const s = this.signs[g].stand;
+    return { x: TEMPLE_ORIGIN.x + s.x, z: TEMPLE_ORIGIN.z + s.z, heading: s.heading };
+  }
+  /** The signs dark (the tour's opening kindles them as they are named), or all lit. */
+  signsLit(on: boolean): void {
+    for (const s of this.signs) s.lit = on ? 1 : 0;
+  }
+  /** Kindle room `g`'s sign. */
+  kindleSign(g: number): void {
+    const s = this.signs[g];
+    if (!s || s.lit) return;
+    s.lit = 1;
+    this.sparks.emit(new THREE.Vector3(TEMPLE_ORIGIN.x + s.stand.x, TEMPLE_ORIGIN.y + 2, TEMPLE_ORIGIN.z + s.stand.z), 12, g === 0 ? new THREE.Color(0.7, 0.8, 1) : g === 1 ? new THREE.Color(1, 0.6, 0.3) : new THREE.Color(0.8, 0.7, 1), 0.6);
+  }
+  /** The room the tour is in (−1: none): its sign burns brighter and its light washes its niches. */
+  setGroup(g: number): void {
+    this.group_ = g;
   }
 
   /** A small lamp on the floor before each shrine, between you and it: a dim ember until its
@@ -1329,6 +1461,14 @@ export class Temple {
       const f = this.focus;
       f.k += ((f.i >= 0 ? 1 : 0) - f.k) * Math.min(1, dt * 1.2);
       for (const h of f.hall) h.l.intensity = h.base * (1 - 0.55 * f.k);
+      // the signs kindle and settle; the room the tour is in burns brighter, its niches washed
+      this.signs.forEach((sg, g) => {
+        const goal = sg.lit * (this.group_ === g ? 1.6 : this.group_ >= 0 ? 0.7 : 1);
+        sg.k += (goal - sg.k) * Math.min(1, dt * 1.4);
+        sg.u.value = sg.k;
+        this.washK[g] += ((this.group_ === g ? 1 : 0) - this.washK[g]) * Math.min(1, dt * 0.9);
+        this.wash[g].value = this.washK[g];
+      });
       // each shrine's own glow eases toward its focus (one fading as the next wakes)
       this.shrines.forEach((sh, j) => {
         const g = sh.beings.list[0]?.glyph;
