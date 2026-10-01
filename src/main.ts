@@ -3416,6 +3416,7 @@ renderer
         tour: tourScenes,
         S,
         terrain,
+        gate: egyptGate.at,
         setInside,
         ready: bodyForms(),
         settle: glyphsLoaded,
