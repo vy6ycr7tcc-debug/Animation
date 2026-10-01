@@ -940,7 +940,7 @@ function choiceFrame(): void {
 function templeFrame(dt: number): void {
   temple.update(S.wt, dt, player.pos, S.reduced);
   // the view never stands behind a wall (the temple's walls as they are now: it is rebuilt per visit)
-  follow.blockers = temple.inside ? temple.blockers : NO_BLOCKERS;
+  follow.blockers = temple.inside ? temple.blockers : apart() ? apartBlockers() : NO_BLOCKERS;
   if (S.mode !== "play") return;
   if (temple.inside) {
     if (temple.confine(player.pos) && !crossing) crossTemple(false);
@@ -1873,6 +1873,33 @@ function gravityFrame(dt: number): void {
 }
 let gravityVel = 0;
 const NO_BLOCKERS: THREE.Object3D[] = [];
+/* In a place apart (a monument's lobby or room, the pyramid, the deep archive) the view never
+   stands outside a wall looking back in through it (the owner: "you are blinded by the walls"):
+   every solid surface there (opaque meshes, the door sheets included, not the far sky shells or
+   the points of light) keeps the camera in front of it. Gathered once a second, not each frame. */
+let apartList: THREE.Object3D[] = [];
+let apartAt = -1e9;
+function apartBlockers(): THREE.Object3D[] {
+  const now = performance.now();
+  if (now - apartAt < 1000) return apartList;
+  apartAt = now;
+  const out: THREE.Object3D[] = [];
+  const v = new THREE.Vector3();
+  scene.traverseVisible((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || (m as unknown as THREE.SkinnedMesh).isSkinnedMesh) return;
+    const mat = m.material as THREE.Material | THREE.Material[];
+    if (Array.isArray(mat) || mat.transparent || mat.blending === THREE.AdditiveBlending) return;
+    const g = m.geometry;
+    if (!g.boundingSphere) g.computeBoundingSphere();
+    const r = (g.boundingSphere?.radius ?? 0) * m.matrixWorld.getMaxScaleOnAxis();
+    if (r > 80) return; // a sky shell or a far backdrop: never between you and the camera
+    if (v.copy(g.boundingSphere!.center).applyMatrix4(m.matrixWorld).distanceTo(player.pos) > r + 40) return;
+    out.push(m);
+  });
+  apartList = out;
+  return out;
+}
 
 /* The lessons' seats and the narration's progress (the owner: nobody knew a stone seat starts a
    lesson, had to hunt for the show after sitting, or could tell how much of a narration was left).

@@ -36,6 +36,8 @@ export class FollowCamera {
   frameHold = 1;
   /** Walls a place apart sets: the view never stands behind one (it draws in before it). */
   blockers: THREE.Object3D[] = [];
+  private blockT = 0;
+  private blockAt = Infinity;
   private ray = new THREE.Raycaster();
   private hits: THREE.Intersection[] = [];
   private rayDir = new THREE.Vector3();
@@ -93,14 +95,20 @@ export class FollowCamera {
       }
     }
     // and when a wall would come between the camera and the wanderer, in front of the wall
+    // (cast ten times a second: the walls of a room can be many triangles, and the view eases anyway)
     if (this.blockers.length) {
-      this.rayDir.set(-fx * cp, sp, -fz * cp).normalize();
-      this.ray.set(this.target, this.rayDir);
-      this.ray.far = dist + 0.5;
-      this.hits.length = 0;
-      this.ray.intersectObjects(this.blockers, false, this.hits);
-      if (this.hits.length) clear = Math.min(clear, Math.max(1.1, this.hits[0].distance - 0.45));
-    }
+      this.blockT -= dt;
+      if (this.blockT <= 0) {
+        this.blockT = 0.1;
+        this.rayDir.set(-fx * cp, sp, -fz * cp).normalize();
+        this.ray.set(this.target, this.rayDir);
+        this.ray.far = dist + 0.5;
+        this.hits.length = 0;
+        this.ray.intersectObjects(this.blockers, false, this.hits);
+        this.blockAt = this.hits.length ? Math.max(1.1, this.hits[0].distance - 0.45) : Infinity;
+      }
+      clear = Math.min(clear, this.blockAt);
+    } else this.blockAt = Infinity;
     this.effDist += (clear - this.effDist) * Math.min(1, dt * (clear < this.effDist ? 10 : 2));
     const ed = this.effDist;
     const followPos = new THREE.Vector3(this.target.x - fx * cp * ed, this.target.y + sp * ed, this.target.z - fz * cp * ed);
