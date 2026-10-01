@@ -312,7 +312,7 @@ const creation = new Creation(sparks);
 // the forests beyond, out to half a kilometre
 const forest = new Forest(creation);
 scene.add(forest.mesh);
-const spirits = new Spirits(creation, MOBILE ? 10 : 14);
+const spirits = new Spirits(creation, MOBILE ? 3 : 4); // few, and special (the owner)
 scene.add(creation.group, spirits.group);
 const seaLife = new SeaLife();
 scene.add(seaLife.group);

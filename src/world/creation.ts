@@ -1163,11 +1163,17 @@ interface Spirit {
   phase: number;
   hist: THREE.Vector3[];
   lastHist: number;
+  /** A passage under way (seconds left), and where it began and turns. */
+  pass: number;
+  passFrom: THREE.Vector3;
+  passA: number;
 }
 
 const SPIRIT_BLUE = new THREE.Color(0.8, 0.9, 1.0), SPIRIT_GOLD = new THREE.Color(1.0, 0.86, 0.66), SPIRIT_ROSE = new THREE.Color(1.0, 0.8, 1.0);
-/** Wisps of light with flowing veils. They drift among trees and crystals, and now and then
-    one comes to keep the wanderer company. */
+/** Wisps of light with flowing veils: few, and large (the owner: "far fewer, more special").
+    They drift among trees and crystals, and now and then one comes to keep the wanderer company.
+    And now and then, rarely, one makes a passage: it rises from where it was, sweeps once in a
+    wide arc over the wanderer, and climbs away into the sky, its veil long behind it. */
 export class Spirits {
   group = new THREE.Group();
   private list: Spirit[] = [];
@@ -1178,17 +1184,19 @@ export class Spirits {
   private tmp = new V();
   private side = new V();
   private tan = new V();
+  /** When the next passage may come (world seconds). */
+  private nextPass = 60 + Math.random() * 60;
 
   constructor(
     private creation: Creation,
     count = 12,
   ) {
     for (let i = 0; i < count; i++) {
-      const great = i < 2;
       this.list.push({
         p: new V(), v: new V(), home: new V(),
-        curious: 0, size: great ? 1.6 : 0.7 + Math.random() * 0.5, hue: Math.random(), phase: Math.random() * 100,
+        curious: 0, size: 1.5 + Math.random() * 0.7, hue: (i + Math.random() * 0.5) / count, phase: Math.random() * 100,
         hist: Array.from({ length: TRAIL }, () => new V()), lastHist: 0,
+        pass: 0, passFrom: new V(), passA: 0,
       });
     }
     // veils: one unbroken ribbon of soft light along each spirit's recent path, rippling as it
@@ -1237,7 +1245,7 @@ export class Spirits {
       const vC = mix(mix(vec3(0.8, 0.9, 1.0), vec3(1.0, 0.86, 0.66), step(0.4, aHue)), vec3(1.0, 0.8, 1.0), step(0.75, aHue)).mul(outOfTheWay(position));
       mat.sizeNode = clamp(aSize.mul(0.7).mul(U.uPx).div(max(vD, 0.5)), 2, 70).div(T.screenDPR);
       const r = length(pointUV.sub(0.5)).mul(2);
-      const a = exp(r.mul(r).mul(-10)).mul(0.8).add(smoothstep(0.25, 0, r).mul(1.4)); // contained
+      const a = exp(r.mul(r).mul(-10)).mul(0.95).add(smoothstep(0.25, 0, r).mul(1.6)); // contained, a little brighter for being rare
       mat.colorNode = vec4(vC.mul(a).mul(float(1).sub(fogF(vD))), 1);
     }
     this.group.add(this.veil, this.heads.sprite);
@@ -1275,14 +1283,40 @@ export class Spirits {
     const tp = this.veil.geometry.attributes.aTan as THREE.BufferAttribute;
     const ha = hp.array as Float32Array, va = vp.array as Float32Array, ta = tp.array as Float32Array;
     const cam = camera.position, t0 = f.t;
+    // a passage: rarely (every two to four minutes), the one farthest from keeping you company
+    if (f.t > this.nextPass && this.list.length) {
+      this.nextPass = f.t + 120 + Math.random() * 120;
+      const s = this.list.reduce((a, b) => (b.curious < a.curious ? b : a));
+      if (s.pass <= 0 && s.p.distanceTo(f.player) < 75) {
+        s.pass = 26;
+        s.passFrom.copy(s.p);
+        s.passA = Math.atan2(s.p.z - f.player.z, s.p.x - f.player.x);
+        s.curious = 0;
+      }
+    }
     this.list.forEach((s, i) => {
       const far = s.p.distanceTo(f.player);
-      if (s.home.lengthSq() === 0 || far > 75) this.placeNear(s, f.player);
+      if (s.pass > 0) {
+        // rising, a wide sweep over the wanderer, then up and away into the sky
+        s.pass -= f.dt;
+        const k = 1 - s.pass / 26;
+        const a = s.passA + k * Math.PI * 1.6;
+        const r = 22 - 8 * Math.sin(k * Math.PI);
+        const up = 6 + 14 * Math.min(1, k * 2.5) + Math.max(0, k - 0.62) * 260;
+        this.tmp.set(f.player.x + Math.cos(a) * r, Math.max(f.player.y, heightAt(f.player.x, f.player.z)) + up, f.player.z + Math.sin(a) * r);
+        s.v.addScaledVector(this.tmp.sub(s.p), f.dt * 0.8).multiplyScalar(1 - f.dt * 0.6);
+        const vl = s.v.length(), vmax = 4 + k * 14;
+        if (vl > vmax) s.v.multiplyScalar(vmax / vl);
+        s.p.addScaledVector(s.v, f.dt);
+        if (s.pass <= 0) this.placeNear(s, f.player); // gone; another comes to the trees in time
+      } else if (s.home.lengthSq() === 0 || far > 75) this.placeNear(s, f.player);
       // near the wanderer, one may decide to come along for a while
       if (far < 10 && s.curious <= 0 && Math.random() < f.dt * 0.08) s.curious = 14 + Math.random() * 16;
       s.curious -= f.dt;
       const t = f.t * (0.35 + (i % 5) * 0.06) + s.phase;
-      if (s.curious > 0) {
+      if (s.pass > 0) {
+        // its course is set above
+      } else if (s.curious > 0) {
         // keeping company: a slow ring above and around the head, clear of the view
         const a = f.t * 0.35 + i * 2.1;
         this.tmp.set(f.player.x + Math.cos(a) * 3.4, f.player.y + 2.8 + Math.sin(f.t * 0.6 + i) * 0.4, f.player.z + Math.sin(a) * 3.4);
@@ -1292,11 +1326,13 @@ export class Spirits {
         this.tmp.set(s.home.x + Math.cos(t) * r, s.home.y + Math.sin(t * 1.7) * 1.2, s.home.z + Math.sin(t * 0.8) * r);
         if (Math.random() < f.dt * 0.01) this.placeNear(s, f.player);
       }
-      s.v.addScaledVector(this.tmp.sub(s.p), f.dt * 0.9).multiplyScalar(1 - f.dt * 0.9);
-      // they drift, never streak: called from far away, they take their time coming
-      const vmax = s.curious > 0 ? 3 : 2.2, vl = s.v.length();
-      if (vl > vmax) s.v.multiplyScalar(vmax / vl);
-      s.p.addScaledVector(s.v, f.dt);
+      if (s.pass <= 0) {
+        s.v.addScaledVector(this.tmp.sub(s.p), f.dt * 0.9).multiplyScalar(1 - f.dt * 0.9);
+        // they drift, never streak: called from far away, they take their time coming
+        const vmax = s.curious > 0 ? 3 : 2.2, vl = s.v.length();
+        if (vl > vmax) s.v.multiplyScalar(vmax / vl);
+        s.p.addScaledVector(s.v, f.dt);
+      }
       s.p.y = Math.max(s.p.y, Math.max(heightAt(s.p.x, s.p.z), WATER_Y) + 0.6);
       // the veil remembers where it has been
       if (f.t - s.lastHist > 0.1) {

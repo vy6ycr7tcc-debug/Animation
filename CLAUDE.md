@@ -542,6 +542,7 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
     - draw-call work (not measured as needed);
     - the bloom mips and other fill-rate items (left for the owner).
   - `#stats` now shows `cpu` (the frame's update time, smoothed) and the GPU's geometry and texture counts.
+- 2026-10-01: the flying spirits, far fewer and more special (the owner). Three on a phone, four on desktop (they were 10 and 14). Each is great now (size 1.5–2.2, hues spread so each has its own), its head a little brighter (still contained). The event: every two to four minutes one makes a passage (26 s): it rises from where it was, sweeps once in a wide arc over the wanderer, and climbs away into the sky, its veil long behind it; then another comes to the trees in time (`Spirits.update`, `pass`). Cost: the veils are rebuilt on the CPU each frame, 64 points × 2 per spirit, so this is about 70% less. The stale `life.ts` header (butterflies, gliders) is corrected.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.
