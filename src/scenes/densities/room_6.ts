@@ -39,6 +39,10 @@ export function createDensityRoom6Scene(
   const uOne = uniform(0); // the radiant point
   const uHole = uniform(0); // the collapse: the black hole
   const uDoor = uniform(0.25); // the white door
+  // unfolding events (the owner: "add unfolding events"): waves of recognition sweeping through
+  // the souls from one of them, and meetings flaring where two meet (more often as they gather)
+  const uWaveAt = uniform(new THREE.Vector3(0, 0, 0)), uWaveT = uniform(99);
+  const uWave2At = uniform(new THREE.Vector3(0, 0, 0)), uWave2T = uniform(99);
   const goal = { conv: 0, one: 0, hole: 0, door: 0.25 };
   // pitch black: no fog to lift it, no colour in the air
   const air: Air = {
@@ -102,10 +106,70 @@ export function createDensityRoom6Scene(
       const hue = mix(mix(vec3(0.75, 0.85, 1.0), vec3(1.0, 0.8, 0.55), K.z), vec3(1.0, 0.72, 0.9), smoothstep(0.7, 0.95, K.w));
       const breathe = sin(t.mul(float(0.5).add(K.w.mul(0.8))).add(K.x.mul(60))).mul(0.35).add(0.65);
       const gone = float(1).sub(smoothstep(0.93, 1.0, k).mul(uOne.mul(0.6).add(0.4)));
-      s.material.colorNode = vec4(hue.mul(s.round).mul(breathe).mul(k.mul(0.8).add(0.6)).mul(gone).mul(float(1).sub(uHole.mul(0.85))).mul(0.9), 1);
+      // a wave of recognition passing through: brighter and warmer as its front crosses each soul
+      const at = c.add(home).add(drift.mul(float(1).sub(k)));
+      const front = (W: typeof uWaveAt, Tt: typeof uWaveT) => {
+        const dd = length(at.sub(W)), f = Tt.mul(13);
+        return exp(dd.sub(f).mul(dd.sub(f)).mul(-0.25)).mul(exp(Tt.mul(-0.18)));
+      };
+      const wave = front(uWaveAt, uWaveT).add(front(uWave2At, uWave2T)).min(1.2);
+      const lit = mix(hue, vec3(1, 0.85, 0.55), wave.mul(0.6));
+      s.material.colorNode = vec4(lit.mul(s.round).mul(breathe.add(wave.mul(1.4))).mul(k.mul(0.8).add(0.6)).mul(gone).mul(float(1).sub(uHole.mul(0.85))).mul(0.9), 1);
       g.add(s.cloud.sprite);
       ours.push(s.material);
     }
+
+    /* ---------------- meetings: where two souls meet, a soft flare and a ring of light ---------------- */
+    const meets: { sp: THREE.Sprite; age: ReturnType<typeof uniform>; t: number }[] = [];
+    for (let i = 0; i < 10; i++) {
+      const age = uniform(99);
+      const m = keepAlpha(new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false, fog: false }));
+      const r = length(uv().sub(0.5)).mul(2);
+      const ring = exp(r.sub(age.mul(0.5)).mul(r.sub(age.mul(0.5))).mul(-90)).mul(0.5);
+      const flare = exp(r.mul(r).mul(-60)).mul(exp(age.mul(-1.6))).mul(2.2);
+      m.colorNode = vec4(vec3(1, 0.9, 0.75).mul(ring.add(flare)).mul(smoothstep(1.8, 0.6, age)).mul(float(1).sub(uHole)), 1);
+      const sp = new THREE.Sprite(m);
+      sp.scale.setScalar(5);
+      sp.visible = false;
+      g.add(sp);
+      ours.push(m);
+      meets.push({ sp, age, t: 99 });
+    }
+    let nextWave = 4, waveFlip = false, nextMeet = 2;
+    const pick = (out: THREE.Vector3) => {
+      // somewhere among the souls (gathering inward as they return)
+      const r = (7 + R() * 30) * (1 - uConv.value * 0.85), a = R() * Math.PI * 2, y = (R() - 0.5) * 14 * (1 - uConv.value);
+      return out.set(C.x + Math.cos(a) * r, C.y + y, C.z + Math.sin(a) * r);
+    };
+    tickers.push((dt: number) => {
+      const d = Math.min(0.05, Math.max(0, dt));
+      uWaveT.value += d;
+      uWave2T.value += d;
+      if (uOne.value < 0.5) {
+        nextWave -= d;
+        if (nextWave <= 0) {
+          nextWave = 6 + R() * 5;
+          waveFlip = !waveFlip;
+          if (waveFlip) (pick(uWaveAt.value), (uWaveT.value = 0));
+          else (pick(uWave2At.value), (uWave2T.value = 0));
+        }
+        nextMeet -= d * (0.4 + uConv.value * 1.4);
+        if (nextMeet <= 0) {
+          nextMeet = 1.2 + R() * 2;
+          const m = meets.find((x) => x.t > 2.2);
+          if (m) {
+            m.t = 0;
+            pick(m.sp.position);
+            m.sp.visible = true;
+          }
+        }
+      }
+      for (const m of meets) {
+        m.t += d;
+        m.age.value = m.t;
+        if (m.t > 2.2) m.sp.visible = false;
+      }
+    });
 
     /* ---------------- the one: a single radiant point ---------------- */
     const one = keepAlpha(new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false, fog: false }));
