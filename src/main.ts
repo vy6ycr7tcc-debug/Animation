@@ -289,7 +289,9 @@ scene.add(beings.group);
 // The temple: a pylon near the shore, and through its door a place apart (world/temple.ts)
 const temple = new Temple(sparks, {
   onMeet: (numeral, name) => {
-    // only the name: inside, it is silent but for your steps and the far chant (Samuel)
+    // only the name: inside, it is silent but for your steps and the far chant (Samuel). Not on
+    // the tour: its view glides past the next shrines, which named themselves before their turn
+    if (document.body.classList.contains("touring")) return;
     whisper(`${numeral} · ${name}`, 4000);
   },
 });
@@ -1229,9 +1231,11 @@ function arriveNow(c: Choice, first: boolean): void {
   tp.setResting(true);
   if (MOBILE) $("#act").hidden = $("#joy").hidden = false;
   say(`You wake near ${c.place.label.replace(/^The /, "the ")}. Wander anywhere; the land answers as you pass.`);
-  window.setTimeout(() => whisper(MOBILE ? "Put your thumb down anywhere on the lower left to walk" : "Click where you want to go, or use W A S D", 6500), 4000);
-  window.setTimeout(() => whisper(MOBILE ? "Tap the round button to jump, tap again to fly; hold it to rise" : "Space to jump, again to fly; hold it to rise", 6000), 26000);
-  window.setTimeout(() => whisper(MOBILE ? "Push the stick further to run" : "Hold Shift to run", 6000), 50000);
+  // the controls' first tips: not while a tour moves you (they name controls that rest then)
+  const tip = (text: string) => !document.body.classList.contains("touring") && whisper(text, 6000);
+  window.setTimeout(() => tip(MOBILE ? "Put your thumb down anywhere on the lower left to walk" : "Click where you want to go, or use W A S D"), 4000);
+  window.setTimeout(() => tip(MOBILE ? "Tap the round button to jump, tap again to fly; hold it to rise" : "Space to jump, again to fly; hold it to rise"), 26000);
+  window.setTimeout(() => tip(MOBILE ? "Push the stick further to run" : "Hold Shift to run"), 50000);
 }
 $("#begin").addEventListener("click", begin);
 const startMap = new StartMap();
