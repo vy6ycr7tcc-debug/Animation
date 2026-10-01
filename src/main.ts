@@ -352,9 +352,21 @@ for (const o of [grass.mesh, blooms.mesh, ...creation.noReflect]) o.layers.set(N
 /* ============ QUALITY ============ */
 let dpr = 1;
 const quality: AdaptiveQuality = new AdaptiveQuality(applyTier);
+/** The screen's real height in CSS pixels. On the Home Screen iOS reports a window (and so
+    100vh/100lvh) short of the screen, which left a dark band at the foot: there, the screen's
+    own size is the truth (its long side in portrait). Elsewhere the largest the page reports. */
+function fullHeight(): number {
+  const standalone = matchMedia("(display-mode: standalone)").matches || (navigator as { standalone?: boolean }).standalone === true;
+  let h = Math.max(innerHeight, document.documentElement.clientHeight, visualViewport?.height ?? 0);
+  if (standalone && screen?.width && screen?.height) {
+    const portrait = innerHeight >= innerWidth;
+    h = Math.max(h, portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height));
+  }
+  return Math.round(h);
+}
 function resize(): void {
-  // the canvas is sized by CSS to the whole screen (on the Home Screen iOS may report a window
-  // height short of it, which left a dark band at the foot); its drawing size follows the canvas
+  document.documentElement.style.setProperty("--fh", `${fullHeight()}px`);
+  // the canvas is sized by CSS to the whole screen; its drawing size follows the canvas
   const el = renderer.domElement;
   const w = el.clientWidth || innerWidth, h = el.clientHeight || innerHeight;
   dpr = quality.dpr;
@@ -3065,10 +3077,14 @@ function applyReduced(): void {
 }
 applyReduced();
 
-$("#leave").addEventListener("click", () => {
+/** Rest: the world waits behind the water screen ("Touch the water to return"), the place kept.
+    `fromAway`: coming back to the game after a while, the title stands over it as at the start
+    (the owner: the game must always open on "touch the water", never on a panel left open). */
+function rest(fromAway = false): void {
   persist();
   awake.rest();
   setMenu(false);
+  for (const id of ["#howto", "#guide"]) $(id).hidden = true;
   S.mode = "rest";
   input.enabled = false;
   narration.stop(2);
@@ -3079,8 +3095,11 @@ $("#leave").addEventListener("click", () => {
   $("#menu-btn").hidden = true;
   tp.setResting(false);
   $<HTMLButtonElement>("#return").focus();
+  $("#rest").classList.toggle("away", fromAway);
+  if (fromAway) $("#title").classList.remove("gone");
   say("Your place is kept.");
-});
+}
+$("#leave").addEventListener("click", () => rest());
 // Begin again: asks once more before forgetting (position and kindled lanterns).
 let restartArmed = 0;
 $("#restart").addEventListener("click", () => {
@@ -3109,6 +3128,7 @@ $("#return").addEventListener("click", () => {
   S.mode = "play";
   input.enabled = true;
   $("#rest").hidden = true;
+  $("#title").classList.add("gone");
   $("#menu-btn").hidden = false;
   tp.setResting(true);
   if (MOBILE || input.touchUsed) $("#act").hidden = $("#joy").hidden = false;
@@ -3181,12 +3201,20 @@ const center = new THREE.Vector3();
 const glow = new THREE.Vector3();
 const life: LifeFrame = { t: 0, dt: 0, player: player.pos, speed: 0, reduced: false, dpr: 1 };
 
+let hiddenAt = 0;
 document.addEventListener("visibilitychange", () => {
   S.hidden = document.hidden;
   if (document.hidden) {
     persist();
     audio.suspend();
+    hiddenAt = performance.now();
   } else {
+    // back after a while: open on the water, never on a panel left open (an archive narration
+    // still playing through the lock screen, or a guided walk, carries on as it was)
+    const away = performance.now() - hiddenAt > 45000;
+    setMenu(false);
+    $("#howto").hidden = true;
+    if (away && S.mode === "play" && !tp.active && !walk && !tourScenes.tour.active) rest(true);
     if (S.mode !== "intro") audio.resume();
     last = performance.now();
   }

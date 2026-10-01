@@ -685,3 +685,16 @@ body.calm #joy, body.calm #act, body.calm #ctx, body.calm #menu-btn, body.calm #
   animation: calm-out 1.4s ease forwards;
 }
 @keyframes calm-out { to { opacity: 0; } }
+
+/* The whole screen, truly (the owner's screenshot: a dark band at the foot on the Home Screen).
+   iOS reports a layout viewport short of the screen there, so CSS's own units fall short; the
+   game measures the screen and sets --fh (main.ts `fullHeight`), and everything that covers the
+   screen takes that height from the top. */
+:root { --fh: 100lvh; }
+html, body { height: var(--fh); min-height: 100%; }
+canvas, #gl, #surface { height: var(--fh); }
+#begin, #loading, #rest, #fade, #ending, #map, #labels, #rite-veil { bottom: auto; height: var(--fh); }
+/* back after a while: the start's own screen (the title and "Touch the water"), the whole screen the button */
+#rest.away { background: transparent; }
+#rest.away p { display: none; }
+#rest.away #return { position: fixed; left: 0; top: 0; width: 100%; height: var(--fh); opacity: 0; }

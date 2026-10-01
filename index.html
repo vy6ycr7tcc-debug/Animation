@@ -24,6 +24,17 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://vy6ycr7tcc-debug.github.io/Animation/og.jpg">
 <link rel="stylesheet" href="./src/style.css">
+<script>
+  /* the screen's real height before anything draws (on the Home Screen iOS reports less: main.ts `fullHeight`) */
+  (function () {
+    try {
+      var sa = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+      var h = Math.max(innerHeight, document.documentElement.clientHeight);
+      if (sa && screen.width && screen.height) h = Math.max(h, innerHeight >= innerWidth ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height));
+      document.documentElement.style.setProperty("--fh", Math.round(h) + "px");
+    } catch (e) {}
+  })();
+</script>
 </head>
 <body class="loading">
 <!-- While the world is built and its shaders compile: the dark, and in its corner a pulsing ring
