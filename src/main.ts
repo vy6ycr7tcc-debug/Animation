@@ -290,7 +290,8 @@ const temple = new Temple(sparks, {
   },
 });
 scene.add(temple.group, temple.gate);
-floorHook.fn = (x, z) => (inJourney(x) ? (inHall()?.journey.floorAt(x, z) ?? 0) : x > 45000 ? pyramid.floorAt(x, z) : x > 35000 ? depths.floorAt() : temple.floorAt(x, z));
+let hallsReady = false; // the halls are made further down; until then their floor is level
+floorHook.fn = (x, z) => (inJourney(x) ? (hallsReady ? (inHall()?.journey.floorAt(x, z) ?? 0) : 0) : x > 45000 ? pyramid.floorAt(x, z) : x > 35000 ? depths.floorAt() : temple.floorAt(x, z));
 void beings.load("models/wanderer.glb").then((m) => m && temple.attach(m));
 // the voices of the archive, present while they speak
 const presences = new Presences();
@@ -391,6 +392,9 @@ for (const ms of [500, 2000]) window.setTimeout(resize, ms);
 const saved = load();
 const awake = new Awake();
 awake.on = saved?.settings?.awake ?? true;
+// a place apart (the temple, the halls, x > 20 km) is never a place to wake in: those are
+// saved as the place outside their door; an older save that holds one wakes at the shore
+if (saved && !(Math.abs(saved.pos[0]) < 20000 && saved.pos.every(Number.isFinite))) (saved.pos = [SPAWN.x, spawnY + 0.13, SPAWN.z]), (saved.heading = SPAWN.heading);
 if (saved) {
   const [x, y, z] = saved.pos;
   player.pos.set(x, Math.max(y, heightAt(x, z)), z);
@@ -1600,6 +1604,7 @@ const halls: { hall: Hall; journey: Journey; lit: number }[] = [];
   halls.push({ hall: densityHall, journey: dj, lit: -1 }, { hall: adeptHall, journey: aj, lit: -1 }, { hall: pastHall, journey: pj, lit: -1 });
 }
 /** The journey you are in (null out in the world). */
+hallsReady = true;
 const inHall = (): { hall: Hall; journey: Journey } | null => halls.find((h) => h.journey.inside || h.journey.crossing) ?? null;
 const hearAgain = $("#hear-again") as HTMLButtonElement;
 hearAgain.addEventListener("pointerdown", (e) => {
@@ -1888,7 +1893,7 @@ const walkPanel = Object.assign(document.createElement("div"), { id: "walk-panel
   walkPanel.append(mid, skip, end);
   document.body.append(walkPanel);
 }
-let walk: { id: string; label: string; stops: WalkStop[]; i: number; phase: "enter" | "listen" | "linger" | "go"; t: number; heard: boolean } | null = null;
+let walk: { id: string; label: string; stops: WalkStop[]; i: number; phase: "enter" | "listen" | "linger" | "go"; t: number; heard: boolean; skip: boolean; tries: number } | null = null;
 const walkTitle = (t: string, hint: string) => {
   (walkPanel.querySelector(".title") as HTMLElement).textContent = t;
   (walkPanel.querySelector(".hint") as HTMLElement).textContent = hint;
@@ -1900,7 +1905,7 @@ function walkStart(id: string): void {
   standUp();
   const cur = inHall();
   if (cur && cur.journey !== halls[w.stops()[0].hall].journey) cur.journey.leaveNow();
-  walk = { id, label: w.label, stops: w.stops(), i: 0, phase: "enter", t: 0, heard: false };
+  walk = { id, label: w.label, stops: w.stops(), i: 0, phase: "enter", t: 0, heard: false, skip: false, tries: 0 };
   document.body.classList.add("touring");
   walkPanel.hidden = false;
   walkTitle(w.label, "Beginning…");
@@ -1916,14 +1921,19 @@ async function walkEnterStop(): Promise<void> {
   walk.phase = "enter";
   walk.t = 0;
   walk.heard = false;
+  walk.tries++;
   await j.enter(s.stage);
 }
+/** Skip always answers: mid-crossing it is kept and taken as soon as the crossing ends. */
 function walkSkip(): void {
-  if (!walk || walk.phase === "enter") return;
-  walkNext();
+  if (!walk) return;
+  if (inHall()?.journey.crossing) walk.skip = true;
+  else walkNext();
 }
 function walkNext(): void {
   if (!walk) return;
+  walk.skip = false;
+  walk.tries = 0;
   walk.i++;
   if (walk.i >= walk.stops.length) return walkEnd(true);
   void walkEnterStop();
@@ -1952,10 +1962,19 @@ function walkFrame(dt: number): void {
   if (!walk) return;
   const s = walk.stops[walk.i], j = halls[s.hall].journey;
   walk.t += dt;
+  const crossing = !!inHall()?.journey.crossing || j.crossing;
+  if (walk.skip && !crossing) return walkNext();
   if (walk.phase === "enter") {
-    if (j.inside && !j.crossing && j.at === s.stage) {
+    if (j.inside && !crossing && j.at === s.stage) {
       walk.phase = "listen";
       walk.t = 0;
+    } else if (!crossing && j.failed === s.stage) {
+      walkNext(); // the room would not open (said so): on to the next
+      return;
+    } else if (!crossing && walk.t > 4) {
+      // the way in was taken by another crossing: try again once, then go on
+      if (walk.tries < 2) void walkEnterStop();
+      else return walkNext();
     }
     walkTitle(walk.label, `${walk.i + 1} of ${walk.stops.length}`);
     return;
@@ -3014,13 +3033,69 @@ function frame(now: number): void {
     if (S.mode !== "intro") quality.window(stats);
     if (showStats) $("#stats-text").textContent = readings();
   }
-  update(dt);
+  // a failure in one frame's life (a room, an effect) must never stop the picture: the frame is
+  // still drawn, and the controls still answer
+  try {
+    update(dt);
+  } catch (e) {
+    frameFault(e);
+  }
   renderer.info.reset();
   gpuDiagStart();
-  water.renderMirror(renderer, scene, camera);
-  post.render();
+  try {
+    water.renderMirror(renderer, scene, camera);
+    post.render();
+    drawFaults = 0;
+  } catch (e) {
+    frameFault(e);
+    // the GPU was taken away (memory pressure on the phone): every draw now fails the same way
+    if (++drawFaults > 3 || /command ?encoder|device (was )?lost|lost device|context lost/i.test(String((e as Error)?.message ?? e))) gpuLost();
+  }
   gpuDiagEnd();
   frameDraws = renderer.info.render.drawCalls;
+}
+let drawFaults = 0, lastFault = "", faultAt = 0;
+function frameFault(e: unknown): void {
+  const m = String((e as Error)?.message ?? e);
+  if (m === lastFault && performance.now() - faultAt < 5000) return; // once, not sixty times a second
+  lastFault = m;
+  faultAt = performance.now();
+  console.error(e);
+  showProblem(m);
+}
+/** The GPU is gone (the phone took it back, or the driver reset): keep your place, say so
+    plainly, and start the light again (at once, or when you come back to the game). */
+let losing = false;
+function gpuLost(): void {
+  if (losing) return;
+  losing = true;
+  try {
+    persist();
+  } catch {
+    /* the place outside is saved where it can be */
+  }
+  const note = document.createElement("div");
+  note.id = "lost";
+  note.setAttribute("role", "status");
+  note.textContent = "The light went out for a moment. Waking it again…";
+  note.style.cssText = "position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;background:#03040a;color:#e9dcc0;font:italic 17px/1.5 Georgia,serif;letter-spacing:.02em";
+  document.body.append(note);
+  // never a loop of reloads: a third loss within two minutes waits for a touch
+  let recent: number[] = [];
+  try {
+    recent = (JSON.parse(sessionStorage.getItem("inward-journey:lost") || "[]") as number[]).filter((t) => Date.now() - t < 120000);
+    sessionStorage.setItem("inward-journey:lost", JSON.stringify([...recent, Date.now()]));
+  } catch {
+    /* fine */
+  }
+  if (recent.length >= 2) {
+    note.textContent = "The light went out. Touch to wake it again.";
+    note.addEventListener("pointerdown", () => location.reload(), { once: true });
+    return;
+  }
+  const go = () => window.setTimeout(() => location.reload(), 900);
+  if (document.hidden) addEventListener("visibilitychange", go, { once: true });
+  else go();
 }
 // WebGPU starts asynchronously (it asks the browser for the GPU); the world is built meanwhile.
 bootProgress(0.55, "Waking the light");
@@ -3030,11 +3105,9 @@ renderer
     nameRenderer();
     // if the phone takes the GPU away (memory pressure, a long time in the background), start
     // again where you were instead of freezing on an error
-    renderer.onDeviceLost = () => {
-      persist();
-      if (document.hidden) addEventListener("visibilitychange", () => location.reload(), { once: true });
-      else location.reload();
-    };
+    renderer.onDeviceLost = () => gpuLost();
+    // the WebGL fallback loses its context the same way
+    renderer.domElement.addEventListener("webglcontextlost", (e) => (e.preventDefault(), gpuLost()));
     // Root-cause diagnostic: grab the WebGPU device for per-frame validation error scopes.
     try {
       gpuDiagDevice =

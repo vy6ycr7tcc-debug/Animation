@@ -8,6 +8,7 @@
    The rooms are the factory modules in scenes/densities (and later the adept's, past choices',
    the visions'), built as they are: each is placed here by moving whatever it added to the scene;
    nothing inside a room is changed. A room that brings no air of its own gets a quiet one. */
+import { release } from "../core/residency";
 import * as THREE from "three/webgpu";
 import type { SceneModule } from "./lessonKit";
 import type { Narration } from "../core/narration";
@@ -148,6 +149,10 @@ export class Journey {
       standing (so standing up never sits you straight back down). */
   sitting = false;
   private offSeat = true;
+  /** A stage that failed to open (−1 none): you are taken on instead of being left in the dark. */
+  failed = -1;
+  /** The room's own life threw: it rests (its doors and walls still work) rather than freezing the game. */
+  private broken = false;
 
   constructor(
     readonly name: string,
@@ -245,9 +250,24 @@ export class Journey {
     } else {
       if (!this.inside) this.hideWorld();
       try {
+        this.failed = -1;
         await this.build(to, at);
       } catch (e) {
         console.error(e);
+        // never leave anyone in the dark: say so, and go back to the lobby (or out, if the lobby
+        // itself would not open)
+        this.takeDown();
+        this.failed = to;
+        h.whisper("This room could not open. Going on.", 5000);
+        try {
+          if (to !== 0) await this.build(0);
+          else throw e;
+        } catch {
+          this.takeDown();
+          this.restoreWorld();
+          const o = h.outside();
+          h.place(o.x, o.y, o.z, o.heading);
+        }
       }
     }
     await wait(dark * 1000);
@@ -278,10 +298,12 @@ export class Journey {
     }
     this.host.narration.stop(1);
     for (const o of this.objs) o.parent?.remove(o);
+    release(this.host.scene, this.objs); // whatever slipped past the room's own dispose
     for (const m of this.marks) m.dispose();
     this.objs = [];
     this.marks = [];
     this.room = null;
+    this.broken = false;
     this.sitting = false;
     this.offSeat = true;
     roomOrigin.value.set(0, 0, 0);
@@ -365,8 +387,17 @@ export class Journey {
     if (!this.inside) return false;
     const r = this.room, s = this.stage;
     if (!r || !s) return true;
-    r.update(dt);
-    this.host.presence?.(r.presence ? r.presence() : 1);
+    if (!this.broken) {
+      try {
+        r.update(dt);
+        this.host.presence?.(r.presence ? r.presence() : 1);
+      } catch (e) {
+        console.error(e);
+        this.broken = true;
+        this.host.presence?.(1);
+        this.host.whisper("Something in this room stopped. Its doors still lead on.", 6000);
+      }
+    }
     // rooms without air of their own keep this one (the others set theirs in their update)
     if (this.airNow) applyAir(this.airNow);
     if (this.crossing) return true;
