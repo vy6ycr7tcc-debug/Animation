@@ -131,10 +131,13 @@ const groupOf = (shrine: number) => (shrine < 0 ? -1 : shrine < 7 ? 0 : shrine <
 /** When, in the opening, each room's sign is named ("a lamp is lit", "a fire is burning", "a
     star"): measured from the recording. */
 const NAMED = [8.0, 13.3, 21.5];
+/** The opening's line that names the Mind's room: where the tour plays it again at the Mind's lamp
+    (measured, ffmpeg silencedetect −40 dB: speech 6.45–10.54 s, pauses before and after). */
+const MIND_LINE: [number, number] = [6.15, 11.2];
 
 /** The stops: the door (the opening, where all three signs kindle as they are named); then each
-    room in turn: its sign (the Mind's lamp a quiet moment, as the recording has no words of its
-    own for it; the Body's fire and the Spirit's star with the recorded passages into them), then
+    room in turn: its sign (the Mind's lamp with the opening's own line for it, "In the first room,
+    a lamp is lit…"; the Body's fire and the Spirit's star with the recorded passages into them), then
     its seven shrines; then the Choice. */
 function buildStops(temple: TempleLike): Stop[] {
   const door = temple.entry();
@@ -144,7 +147,9 @@ function buildStops(temple: TempleLike): Stop[] {
     if (s) stops.push({ shrine: -1, intro: g, x: s.x, z: s.z, heading: s.heading, from, to, title, hold: 6 });
   };
   for (let i = 0; i < 22; i++) {
-    if (i === 0) intro(0, NaN, NaN, "The Mind");
+    // the Mind's own line, from the recording's opening ("In the first room, a lamp is lit. That
+    // is the mind.", 6.45–10.54 s), from inside the pauses on either side
+    if (i === 0) intro(0, MIND_LINE[0], MIND_LINE[1], "The Mind");
     if (i === 7) intro(1, CUES[8].t, CUES[9].t, "The Body");
     if (i === 14) intro(2, CUES[16].t, CUES[17].t, "The Spirit");
     const s = temple.standFor(i), k = cueFor(i);
@@ -400,7 +405,7 @@ export class TempleTour implements SceneModule {
     this.temple.setFocus?.(s.shrine);
     this.temple.setGroup?.(s.intro ?? groupOf(s.shrine));
     if (s.intro !== undefined) this.temple.kindleSign?.(s.intro);
-    // a part of the recording, or (the Mind's sign) a quiet moment
+    // its part of the recording
     if (Number.isFinite(s.from)) void this.narration.play(TRACK_ID, s.from, s.to);
     this.refresh();
   }
