@@ -501,6 +501,15 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - Light with a source: five oil lamps hang on fine chains (bronze bowl, a licking flame), each the source of its pool of light and flickering with it. The Grand Gallery's lamp casts shadows (512 px), so its corbelled walls move with the flame.
   - The King's Chamber's light is rose-gold and breathes slowly; a pale beam falls from a small square air-shaft high in its south wall onto the floor beside the coffer.
   - Ambient light is down to 0.28, so the lamps model the stone.
+- 2026-10-01: the Duat animated, and its tour (the owner).
+  - Audio inventory: there is no Duat audio at all (none in `public/audio`, none in the catalogues). Only place names are spoken (whispers); nothing was invented or synthesized. To be voiced it needs recordings: an entry, the six hours, and the dawn.
+  - Three key moments animated (`world/duatScenes.ts`), each on its hour's own clock (it runs only while you are with it; the tour starts it from its beginning as you arrive):
+    - The barque: the sun's boat of thin gold light (hull with tall papyrus ends, a cabin, the sun-disc in two rings, a glow on the water) sails the dark river through all six hours, slowing at each and fading in and out at the ends of the river.
+    - Apophis (hour 4, 30 s, replacing that hour's particle vision): a serpent of dark obsidian scales with faint ember bands rises from the sand, its head first. It wraps itself round the sun in coils that tighten as the sun dims, then rears with ember eyes. A blade of light cuts it (16 s); the halves fall apart into the sand and the sun burns free, brighter and higher.
+    - The weighing (hour 5, 36 s, replacing that hour's vision): a balance of gold; the heart (a rose light) comes down onto the left pan and the beam tips, swings and settles level against Ma'at's feather (pale light on the right pan); a ring of light spreads from the fulcrum; the heart rises away as light.
+    - The other hours keep their visions of light.
+  - The tour (⋮ → Map → Tours → "The Duat, hour by hour"; `duatTourStart` in `main.ts`): it takes you into the Duat and walks you to the place before each hour's story, turned to it. The story begins for you and plays once through (`Duat.hours()`, `restart`), then the walk goes on by itself. At the end it climbs the stair into the dawn and onto the apex. Skip › and ✕ (the walk-through panel); the view frames the story (the gravity point). "walked ✓" once complete.
+  - Room left for the owner's follow-up notes: the hours' content (and any recordings) can change without touching the tour.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.
