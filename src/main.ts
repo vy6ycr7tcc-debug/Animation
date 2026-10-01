@@ -923,6 +923,8 @@ function choiceFrame(): void {
 }
 function templeFrame(dt: number): void {
   temple.update(S.wt, dt, player.pos, S.reduced);
+  // the view never stands behind a wall (the temple's walls as they are now: it is rebuilt per visit)
+  follow.blockers = temple.inside ? temple.blockers : NO_BLOCKERS;
   if (S.mode !== "play") return;
   if (temple.inside) {
     if (temple.confine(player.pos) && !crossing) crossTemple(false);
@@ -1833,13 +1835,21 @@ function gravityFrame(dt: number): void {
   if (!g) return;
   const idle = performance.now() - lastTouch > GRAVITY_AFTER && Math.hypot(input.move.x, input.move.y) < 0.05 && !input.hold;
   follow.frameHold = idle ? 1 : 0.35;
-  if (!idle || player.speed > 0.3 || faceFor > 0) return;
-  // swing round behind the wanderer, on the line to the animation
+  if (!idle || player.speed > 0.3 || faceFor > 0) {
+    gravityVel = 0;
+    return;
+  }
+  // swing round behind the wanderer, on the line to the animation: a critically damped spring,
+  // so the move eases in and eases out as a camera operator would, never a constant-rate turn
   const want = Math.atan2(-(g.x - player.pos.x), -(g.z - player.pos.z));
   const d = Math.atan2(Math.sin(want - follow.yaw), Math.cos(want - follow.yaw));
-  follow.yaw += d * Math.min(1, dt * 0.7);
+  const k = 0.9, h = Math.min(0.05, dt);
+  gravityVel += (d * k * k - 2 * k * gravityVel) * h;
+  follow.yaw += gravityVel * h;
   follow.pitch += (0.12 - follow.pitch) * Math.min(1, dt * 0.6);
 }
+let gravityVel = 0;
+const NO_BLOCKERS: THREE.Object3D[] = [];
 
 /* The lessons' seats and the narration's progress (the owner: nobody knew a stone seat starts a
    lesson, had to hunt for the show after sitting, or could tell how much of a narration was left).
