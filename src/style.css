@@ -299,15 +299,16 @@ body.touring #nprog { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
 #journal textarea:focus-visible { outline: 1px solid var(--gold); }
 /* slow dissolves instead of cuts */
 /* the loading mark, while something arrives (a crossing, the land catching up, a recording
-   buffering): the boot's pulsing ring of light, small, in the lower right corner, out of the way */
+   buffering): the boot's pulsing ring of light, small, low on the right, out of the way: just left
+   of the round button and level with its centre (on it, the owner saw it cover the button) */
 #busy {
-  position: fixed; right: calc(22px + env(safe-area-inset-right, 0px)); bottom: calc(26px + env(safe-area-inset-bottom, 0px));
+  position: fixed; right: calc(104px + env(safe-area-inset-right, 0px)); bottom: calc(49px + env(safe-area-inset-bottom, 0px));
   width: 34px; height: 34px; z-index: 45; pointer-events: none; opacity: 0; transition: opacity 0.8s ease;
 }
 /* it appears at once (a fade-in would never play while the page is held still by the work it
    announces), and fades away gently */
 #busy.on { opacity: 1; transition: none; }
-body.touring #busy { bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+body.touring #busy { right: calc(22px + env(safe-area-inset-right, 0px)); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
 #busy .dot { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: #fff3d6; box-shadow: 0 0 6px rgba(255, 220, 160, 0.8); animation: seed-breathe 1.8s ease-in-out infinite; }
 
 
