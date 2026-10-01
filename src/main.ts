@@ -323,7 +323,7 @@ scene.add(communion.group);
 // The archive's vessels: orbs and groves, and the quiet player for their narrations.
 const vessels = new Vessels();
 scene.add(vessels.group);
-const creatures = new Creatures(MOBILE ? 7 : 9, MOBILE ? 15 : 21);
+const creatures = new Creatures(MOBILE ? 6 : 8, MOBILE ? 12 : 18); // modest herds and flocks
 scene.add(creatures.group);
 
 /** Glow materials add light but leave alpha alone, so they don't punch dark squares into

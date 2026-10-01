@@ -23,10 +23,16 @@ export interface Animal {
 }
 
 /** Load a model and its motion; make `n` copies of it in light of the given colours. */
-export async function herdOf(path: string, n: number, height: number, tints: THREE.Color[], faceZ: 1 | -1): Promise<Animal[]> {
+export async function herdOf(path: string, n: number, height: number, tints: THREE.Color[], faceZ: 1 | -1, glow?: { inner: number; edge: number; body: number }): Promise<Animal[]> {
   const bytes = await loadBytes(path);
   if (!bytes) return [];
-  const gltf = await new GLTFLoader().parseAsync(bytes, "");
+  let gltf: Awaited<ReturnType<GLTFLoader["parseAsync"]>>;
+  try {
+    gltf = await new GLTFLoader().parseAsync(bytes, "");
+  } catch (e) {
+    console.warn(`Could not read ${path}:`, e); // never a silent absence
+    return [];
+  }
   const src = gltf.scene.getObjectByProperty("type", "Mesh") as THREE.Mesh | undefined;
   const clip = gltf.animations[0];
   if (!src || !clip) return [];
@@ -36,7 +42,7 @@ export async function herdOf(path: string, n: number, height: number, tints: THR
   geo.computeBoundingBox();
   const bb = geo.boundingBox!;
   const k = height / Math.max(1e-3, bb.max.y - bb.min.y);
-  const mats = tints.map((t) => lightBodyMaterial(t));
+  const mats = tints.map((t) => lightBodyMaterial(t, glow));
   const out: Animal[] = [];
   for (let i = 0; i < n; i++) {
     const mesh = new THREE.Mesh(geo, mats[i % mats.length]);
@@ -92,13 +98,16 @@ export class Creatures {
 
   private async load(): Promise<void> {
     const pale = new THREE.Color(1.05, 1.15, 1.35), gold = new THREE.Color(1.35, 1.1, 0.8), rose = new THREE.Color(1.35, 0.95, 1.1);
-    const horses = await herdOf("models/animals/horse.glb", this.horseCount, 2.1, [pale, pale, gold], 1);
+    // in the world they glow a little more than the wanderer (glass light at 30 m in the night
+    // all but vanished), and the birds are true to size (a stork about a metre, not a hand)
+    const seen = { inner: 0.32, edge: 1.0, body: 0.5 };
+    const horses = await herdOf("models/animals/horse.glb", this.horseCount, 2.1, [pale, pale, gold], 1, seen);
     this.horses = horses.map((a) => ({ ...a, p: new THREE.Vector3(), heading: Math.random() * 6.28, home: new THREE.Vector3(), goal: new THREE.Vector3(), speed: 0, nextGoal: 0, breathe: Math.random() * 6 }));
     const per = Math.ceil(this.birdCount / 3);
     const flocks = await Promise.all([
-      herdOf("models/animals/stork.glb", per, 0.35, [new THREE.Color(1.0, 0.97, 0.92)], 1),
-      herdOf("models/animals/flamingo.glb", per, 0.45, [rose], 1),
-      herdOf("models/animals/parrot.glb", per, 0.3, [new THREE.Color(0.7, 1.0, 0.92), gold], 1),
+      herdOf("models/animals/stork.glb", per, 0.9, [new THREE.Color(1.0, 0.97, 0.92)], 1, seen),
+      herdOf("models/animals/flamingo.glb", per, 1.0, [rose], 1, seen),
+      herdOf("models/animals/parrot.glb", per, 0.55, [new THREE.Color(0.7, 1.0, 0.92), gold], 1, seen),
     ]);
     flocks.forEach((f, flock) =>
       f.forEach((a) => {
@@ -116,7 +125,7 @@ export class Creatures {
   /** Find open meadow near a point, for a herd to roam. */
   private meadowNear(x: number, z: number, seed: number): THREE.Vector3 | null {
     for (let k = 0; k < 30; k++) {
-      const a = hash(seed, k, 1) * 6.28, r = 30 + hash(seed, k, 2) * 70;
+      const a = hash(seed, k, 1) * 6.28, r = 18 + hash(seed, k, 2) * 32; // near enough to be met
       const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r;
       const h = heightAt(px, pz);
       if (h > WATER_Y + 0.6 && h < 30 && groundKind(px, pz, h).stone < 0.3) return new THREE.Vector3(px, h, pz);
@@ -197,10 +206,10 @@ export class Creatures {
       // the ground under it changes slowly: asked every 8th frame, each bird on its own frame
       if ((this.frameN + i) % 8 === 0 || b.ground === undefined) b.ground = Math.max(heightAt(b.p.x, b.p.z), WATER_Y);
       const a = t * (0.07 + b.flock * 0.018) + b.flock * 2.1;
-      const r = 45 + b.flock * 24;
+      const r = 30 + b.flock * 14;
       this.tmp.set(
         player.x + Math.cos(a) * r + Math.sin(i * 1.3) * 6,
-        b.ground + 24 + b.flock * 10 + Math.sin(t * 0.3 + b.phase) * 4,
+        b.ground + 14 + b.flock * 6 + Math.sin(t * 0.3 + b.phase) * 3,
         player.z + Math.sin(a) * r + Math.cos(i * 2.1) * 6,
       );
       b.v.addScaledVector(this.tmp.sub(b.p), dt * 0.3).multiplyScalar(1 - dt * 0.22);
