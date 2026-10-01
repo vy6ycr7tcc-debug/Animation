@@ -1802,6 +1802,10 @@ function contemplationFrame(dt: number): void {
    is on the screen it never fights the hand, and a couple of seconds after you let go it eases
    back. */
 function gravityPoint(): THREE.Vector3 | null {
+  if (S.mode === "play" && duatTour?.phase === "watch") {
+    const h = pyramid.duatHours()[duatTour.i];
+    if (h) return DUAT_ORIGIN.clone().add(h.at).add(new THREE.Vector3(0, 3, 0));
+  }
   if (S.mode !== "play" || !narration.progress()) return null;
   const h = inHall();
   if (h) return h.journey.inside && !h.journey.crossing ? h.journey.centre() : null;
@@ -1812,7 +1816,7 @@ function gravityPoint(): THREE.Vector3 | null {
 }
 const GRAVITY_AFTER = 2500;
 function gravityFrame(dt: number): void {
-  const g = document.body.classList.contains("touring") && !walk ? null : gravityPoint();
+  const g = document.body.classList.contains("touring") && !walk && !duatTour ? null : gravityPoint();
   follow.frame = g;
   if (!g) return;
   const idle = performance.now() - lastTouch > GRAVITY_AFTER && Math.hypot(input.move.x, input.move.y) < 0.05 && !input.hold;
@@ -1941,8 +1945,8 @@ const walkPanel = Object.assign(document.createElement("div"), { id: "walk-panel
   mid.append(Object.assign(document.createElement("p"), { className: "title" }), Object.assign(document.createElement("p"), { className: "hint" }));
   const skip = mk("Skip ›", "step next", "Go on to the next room");
   const end = mk("✕", "end", "End the walk-through");
-  skip.addEventListener("pointerdown", (e) => (e.stopPropagation(), walkSkip()));
-  end.addEventListener("pointerdown", (e) => (e.stopPropagation(), walkEnd(false)));
+  skip.addEventListener("pointerdown", (e) => (e.stopPropagation(), duatTour ? (duatTour.skip = true) : walkSkip()));
+  end.addEventListener("pointerdown", (e) => (e.stopPropagation(), duatTour ? duatTourEnd(false) : walkEnd(false)));
   walkPanel.append(mid, skip, end);
   document.body.append(walkPanel);
 }
@@ -1978,6 +1982,84 @@ async function walkEnterStop(): Promise<void> {
   await j.enter(s.stage);
 }
 /** Skip always answers: mid-crossing it is kept and taken as soon as the crossing ends. */
+/* The Duat, hour by hour (⋮ → Map → Tours): the auto-advance pattern. A guide's walk from hour to
+   hour: you are walked to the place before each story and turned to it; the story begins for you
+   and tells itself once through, beat by beat; then on to the next, and at the end up the stair
+   into the dawn. Skip › goes on, ✕ ends it. No words but the places' names. */
+let duatTour: { i: number; phase: "enter" | "walk" | "watch"; t: number; skip: boolean } | null = null;
+function duatTourStart(): void {
+  if (autofly.active) setAutofly(false);
+  standUp();
+  if (walk) walkEnd(false);
+  inHall()?.journey.leaveNow();
+  if (temple.inside) setInside(false);
+  duatTour = { i: 0, phase: "enter", t: 0, skip: false };
+  document.body.classList.add("touring");
+  walkPanel.hidden = false;
+  walkTitle("The Duat, hour by hour", "Beginning…");
+  if (!pyramid.duatActive) {
+    if (!pyramid.isInside) setPyr(true);
+    crossing = false;
+    enterDuatCrossing();
+  }
+}
+function duatTourEnd(done: boolean): void {
+  if (!duatTour) return;
+  duatTour = null;
+  player.target = null;
+  document.body.classList.remove("touring");
+  walkPanel.hidden = true;
+  if (done) {
+    walked.add("duat");
+    try {
+      localStorage.setItem("inward-journey:walked", JSON.stringify([...walked]));
+    } catch {
+      /* fine */
+    }
+    whisper("The walk is complete", 5000);
+  }
+}
+const duatTo = new THREE.Vector2();
+function duatTourFrame(dt: number): void {
+  const d = duatTour;
+  if (!d) return;
+  d.t += dt;
+  if (d.phase === "enter") {
+    if (pyramid.duatActive && !crossing) Object.assign(d, { phase: "walk", t: 0 });
+    else if (d.t > 12) duatTourEnd(false);
+    return;
+  }
+  if (!pyramid.duatActive) return void (crossing ? 0 : duatTourEnd(d.i >= pyramid.duatHours().length));
+  const hs = pyramid.duatHours(), O = DUAT_ORIGIN;
+  if (d.skip && !crossing) {
+    d.skip = false;
+    if (d.i < hs.length) Object.assign(d, { i: d.i + 1, phase: "walk", t: 0 });
+  }
+  if (d.i >= hs.length) {
+    // the last: up the stair into the dawn (leaving the Duat ends the tour)
+    const p7 = pyramid.PATH[pyramid.PATH.length - 1];
+    duatTo.set(O.x + p7.x, O.z + p7.z);
+    player.target = duatTo.clone();
+    walkTitle("Dawn", `${hs.length} of ${hs.length}`);
+    return;
+  }
+  const h = hs[d.i], sx = O.x + h.stand.x, sz = O.z + h.stand.z;
+  walkTitle(h.name, `${d.i + 1} of ${hs.length}`);
+  if (d.phase === "walk") {
+    duatTo.set(sx, sz);
+    player.target = duatTo.clone();
+    if (Math.hypot(player.pos.x - sx, player.pos.z - sz) < 0.9 || d.t > 45) {
+      player.target = null;
+      player.pos.x = sx;
+      player.pos.z = sz;
+      player.heading = h.heading;
+      faceYaw = h.heading;
+      faceFor = 2.5;
+      pyramid.duatRestart(d.i);
+      Object.assign(d, { phase: "watch", t: 0 });
+    }
+  } else if (d.t > h.cycle + 1.5) Object.assign(d, { i: d.i + 1, phase: "walk", t: 0 });
+}
 function walkSkip(): void {
   if (!walk) return;
   if (inHall()?.journey.crossing) walk.skip = true;
@@ -2548,12 +2630,12 @@ $("#guide-go").addEventListener("click", () => {
   guide.lead(d, player.pos);
 });
 startMap.onGuide = openGuide;
-startMap.onTour = (id) => walkStart(id);
+startMap.onTour = (id) => (id === "duat" ? duatTourStart() : walkStart(id));
 
 $("#map-open").addEventListener("click", () => {
   setMenu(false);
   input.enabled = false;
-  startMap.tours = WALKS.map((w) => ({ id: w.id, label: w.label, walked: walked.has(w.id) }));
+  startMap.tours = [...WALKS.map((w) => ({ id: w.id, label: w.label, walked: walked.has(w.id) })), { id: "duat", label: "The Duat, hour by hour", walked: walked.has("duat") }];
   void startMap.open(places(), { x: player.pos.x, z: player.pos.z }, true).then((c) => {
     input.enabled = true;
     if (c) arrive(c, false);
@@ -3030,6 +3112,7 @@ function update(dt: number): void {
   contemplationFrame(realDt);
   lessonUxFrame(realDt);
   walkFrame(realDt);
+  duatTourFrame(realDt);
   if (!apart()) {
     const vd = player.pos.distanceTo(vision.group.position);
     vision.update(dt, vd < 420, S.reduced);
@@ -3292,4 +3375,4 @@ function endLoading(): void {
   }, wait);
 }
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, moods, fauna, presences, guide, terrain, water, grass, seaLife, lightField, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall } });

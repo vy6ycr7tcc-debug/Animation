@@ -420,6 +420,14 @@ export class Pyramid {
     this.motes = { pos: pts.position, seed };
   }
 
+  /** The Duat's hours (Duat-local), for the tour; and one hour's story told again from its start. */
+  duatHours(): ReturnType<Duat["hours"]> {
+    return this.night.hours();
+  }
+  duatRestart(k: number): void {
+    this.night.restart(k);
+  }
+
   /** The ceiling over (x, z), pyramid-local (the room's floor there and its height). */
   private ceilingAt(x: number, z: number): number {
     const r = ROOMS.find((r) => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1);

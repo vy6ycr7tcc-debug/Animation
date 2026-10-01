@@ -19,6 +19,7 @@ import { GOLD, PALE, PEARL, ROSE, EMBER, VisionStage, type Key, type Maker } fro
 import { combine, cord, FORM_H, rock, shift, sphere, sun, turnY, type Rand } from "./forms";
 import { landStone } from "./stoneworks";
 import { surface } from "./textures";
+import { ApophisScene, Barque, WeighingScene, type HourScene } from "./duatScenes";
 
 const { exp, float, fract, mix, sin, smoothstep, uv, vec2, vec3, vec4 } = T;
 const V = THREE.Vector3;
@@ -374,7 +375,9 @@ export class Duat {
   /** For still frames (?shot=duat-<k>&t=): every hour's clock reads this. */
   static clockOverride: number | null = null;
   group = new THREE.Group();
-  private stages: { stage: VisionStage; at: THREE.Vector3; clock: number; named: boolean; name: string }[] = [];
+  private stages: { stage: VisionStage | HourScene; at: THREE.Vector3; stand: THREE.Vector3; face: number; cycle: number; clock: number; named: boolean; name: string }[] = [];
+  private river: THREE.CatmullRomCurve3 | null = null;
+  private barque: Barque | null = null;
   private flames: { sprite: THREE.Sprite; base: number; phase: number }[] = [];
   private uT = T.uniform(0);
 
@@ -386,6 +389,11 @@ export class Duat {
     this.buildStair();
     this.buildLamps();
     this.buildHours();
+    // the sun's barque, sailing the river through the hours
+    if (this.river) {
+      this.barque = new Barque(this.river, this.stages.map((s) => s.at), (x, z) => duatHeight(x, z));
+      this.group.add(this.barque.group);
+    }
     // the light of the night: faint and blue from above, warm from the lamps; a dawn in the east
     this.group.add(new THREE.HemisphereLight(0x5a6aa8, 0x2a1c10, 0.7));
     const moon = new THREE.DirectionalLight(0x9fb0e0, 0.6);
@@ -454,7 +462,8 @@ export class Duat {
     for (const q of DUAT_PATH.slice(0, 7)) c.add(q);
     c.multiplyScalar(1 / 7);
     const left: number[] = [], idx: number[] = [], along: number[] = [];
-    const pts = new THREE.CatmullRomCurve3(DUAT_PATH.slice(0, 7).map((q) => q.clone().lerp(c, 0.28).setY(0)), false, "centripetal").getSpacedPoints(160);
+    this.river = new THREE.CatmullRomCurve3(DUAT_PATH.slice(0, 7).map((q) => q.clone().lerp(c, 0.28).setY(0)), false, "centripetal");
+    const pts = this.river.getSpacedPoints(160);
     pts.forEach((q, i) => {
       const nxt = pts[Math.min(pts.length - 1, i + 1)], prv = pts[Math.max(0, i - 1)];
       const dir = new V().subVectors(nxt, prv).normalize(), side = new V(-dir.z, 0, dir.x);
@@ -596,14 +605,32 @@ export class Duat {
       // the story, standing on the way beyond the gate, facing whoever comes through
       const sp = at.clone();
       sp.y = duatHeight(sp.x, sp.z);
-      const stage = new VisionStage({ at: sp, face: face + Math.PI, forms: h.forms, keys: keysFor(h), seedNum: 700 + h.at * 13 });
+      // Apophis and the weighing are told as animated scenes (duatScenes.ts); the others in light
+      const stage: VisionStage | HourScene =
+        h.at === 4 ? new ApophisScene(sp, face + Math.PI) : h.at === 5 ? new WeighingScene(sp, face + Math.PI) : new VisionStage({ at: sp, face: face + Math.PI, forms: h.forms, keys: keysFor(h), seedNum: 700 + h.at * 13 });
       this.group.add(stage.group);
-      this.stages.push({ stage, at: sp, clock: 0, named: false, name: h.name });
+      const cycle = "cycle" in stage ? stage.cycle : h.cycle.length * HOLD;
+      // where to stand to watch it: on the way, past the gate, 6 m before it
+      const stand = sp.clone().addScaledVector(dir, -6);
+      stand.y = duatHeight(stand.x, stand.z);
+      this.stages.push({ stage, at: sp, stand, face, cycle, clock: 0, named: false, name: h.name });
       // a warm light on the gate's stone
       const lamp = new THREE.PointLight(0xffb070, 8, 14, 1.8);
       lamp.position.set(gp.x, gate.position.y + 3, gp.z).addScaledVector(dir, -2);
       this.group.add(lamp);
     }
+  }
+
+  /** The hours, for the tour (Duat-local): where to stand and which way to face, the story's
+      place, one telling's length, the place's name. */
+  hours(): { stand: THREE.Vector3; heading: number; at: THREE.Vector3; cycle: number; name: string }[] {
+    return this.stages.map((s) => ({ stand: s.stand, heading: s.face + Math.PI, at: s.at, cycle: s.cycle, name: s.name }));
+  }
+
+  /** Hour `k`'s story from its beginning (the tour arrives, and it begins for you). */
+  restart(k: number): void {
+    const s = this.stages[k];
+    if (s) s.clock = 0;
   }
 
   /** Each frame, with the wanderer's position (Duat-local). */
@@ -613,6 +640,8 @@ export class Duat {
       const k = reduced ? 1 : 0.85 + 0.1 * Math.sin(t * 9 + f.phase) + 0.05 * Math.sin(t * 23 + f.phase * 2);
       f.sprite.scale.setScalar(f.base * k);
     }
+    if (Duat.clockOverride !== null) this.barque?.seek(0.08 + Duat.clockOverride / 400);
+    this.barque?.update(Duat.clockOverride !== null ? 0 : Math.min(0.1, dt), t);
     for (const s of this.stages) {
       const d = Math.hypot(local.x - s.at.x, local.z - s.at.z);
       const near = d < 30;
