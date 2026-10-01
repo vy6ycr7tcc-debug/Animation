@@ -31,6 +31,11 @@ export interface Masonry {
   block?: number;
   flag?: number;
   trim?: { base: number; every?: number; top?: number };
+  /** A place apart far from the world's centre (the pyramid's rooms at 50 km): the stone is laid
+      in its own frame, so the scan's lookups and the stones' hashes keep their precision. */
+  origin?: THREE.Vector3;
+  /** Indoors: no lichen on what faces up, no rain streaks. */
+  interior?: boolean;
 }
 /** Each scan's colour over the grain scan's (their mean colours), so a swap keeps the tone. */
 const GRAIN_TINT: Record<string, [number, number, number]> = {
@@ -48,7 +53,9 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
     set = "sandstone_cracks";
   }
   const S = scan(set);
-  const pw = T.positionWorld, n = T.normalWorldGeometry;
+  const pw = masonry?.origin ? T.positionWorld.sub(vec3(masonry.origin.x, masonry.origin.y, masonry.origin.z)) : T.positionWorld;
+  const n = T.normalWorldGeometry;
+  const dry = masonry?.interior ? 0 : 1;
   const wp = T.pow(abs(n), vec3(4));
   const w = wp.div(wp.x.add(wp.y).add(wp.z));
   const h = (v: N) => T.fract(T.sin(T.dot(v, T.vec2(12.9898, 78.233))).mul(43758.5453));
@@ -130,12 +137,12 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
   c = c.mul(mix(float(0.86), float(1.08), nz(pw.mul(0.09).add(2.2))));
   // lichen and moss on what faces the sky, in patches
   const up = smoothstep(0.45, 0.9, n.y);
-  const lichen = up.mul(smoothstep(0.55, 0.78, nz(pw.mul(1.3).add(3.1)))).mul(marble ? 0.12 : 0.7);
+  const lichen = up.mul(smoothstep(0.55, 0.78, nz(pw.mul(1.3).add(3.1)))).mul(marble ? 0.12 : 0.7).mul(dry);
   c = mix(c, vec3(0.34, 0.38, 0.24).mul(nz(pw.mul(7)).mul(0.5).add(0.7)), lichen);
   // soil and damp at the foot, streaks where rain runs down the faces
   const above = pw.y.sub(base);
   const foot = smoothstep(0.9, 0.0, above).mul(0.55);
-  const streak = smoothstep(0.6, 0.85, nz(vec3(pw.x.mul(3.1), pw.y.mul(0.2), pw.z.mul(3.1)))).mul(float(1).sub(up)).mul(0.3);
+  const streak = smoothstep(0.6, 0.85, nz(vec3(pw.x.mul(3.1), pw.y.mul(0.2), pw.z.mul(3.1)))).mul(float(1).sub(up)).mul(0.3 * dry);
   c = c.mul(float(1).sub(foot)).mul(float(1).sub(streak));
   // contact and occlusion: shadowed where the stone meets the ground, under every overhang
   // (the faces turned down: soffits, cornices, lintels), and grime gathered in the lowest course
@@ -159,7 +166,7 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
     // a joint only where the lip on its side lets it: elsewhere the joint lies in shadow.
     const tU = T.select(wall.greaterThan(0.5), hAxis, vec3(1, 0, 0)), tV = T.select(wall.greaterThan(0.5), vec3(0, 1, 0), vec3(0, 0, 1));
     const flatN = T.normalize(n);
-    const V = T.normalize(T.cameraPosition.sub(pw));
+    const V = T.normalize(T.cameraPosition.sub(T.positionWorld));
     const Lk = fogUniforms.glowDir;
     const inPlane = (d: N) => tU.mul(T.dot(d, tU)).add(tV.mul(T.dot(d, tV))).div(T.max(T.dot(d, flatN), 0.18));
     const seenSide = joint.mul(float(1).sub(jointOf(cellAt(pw.sub(inPlane(V).mul(depth))))));

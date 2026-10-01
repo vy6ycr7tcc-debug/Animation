@@ -22,19 +22,20 @@
 import * as THREE from "three/webgpu";
 import { T, worldPoints, type N } from "../gpu/tsl";
 import { scan, type ScanName } from "./temple";
+import { landStone } from "./stoneworks";
 import { PYRAMID } from "./terrain";
 import { Duat, DUAT_PATH, duatHeight } from "./duat";
 
-const { abs, cos, float, floor, fract, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
+const { abs, cos, float, floor, fract, mix, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
 const V = THREE.Vector3;
 
 export const PYR_ORIGIN = new THREE.Vector3(50000, 14, 0); // high enough that its lowest chamber (−9) stays above the water line
 export const DUAT_ORIGIN = PYR_ORIGIN.clone().add(new THREE.Vector3(-140, -30, 60)); // world origin of the Duat: pyramid-local (−140, −30, 60), clear of the rooms (x ∈ [−34, 47.5])
 
 /* ---------------------------------------------------------------- stone */
-function triplanar(set: ScanName, tile: number): { col: N; arm: N; w: N } {
+function triplanar(set: ScanName, tile: number, origin?: THREE.Vector3): { col: N; arm: N; w: N } {
   const S = scan(set);
-  const pw = T.positionWorld, n = T.normalWorldGeometry;
+  const pw = origin ? T.positionWorld.sub(vec3(origin.x, origin.y, origin.z)) : T.positionWorld, n = T.normalWorldGeometry;
   const wp = T.pow(abs(n), vec3(4));
   const w = wp.div(wp.x.add(wp.y).add(wp.z));
   const tri = (t: THREE.Texture) =>
@@ -62,16 +63,31 @@ function limestone(uT: N, tint: [number, number, number], alive = 1, tile = 2.4)
   m.emissiveNode = vec3(1.0, 0.8, 0.5).mul(joint.mul(wave.mul(0.18).add(beat.mul(0.08)).mul(alive))).add(c.mul(0.05));
   return m;
 }
+/** The chambers' limestone: the game's cut masonry (courses, flagstones, recessed joints seen in
+    depth, worn arrises), laid in the pyramid's own frame and dry (no lichen, no streaks). The
+    stones are alive: a slow swell of warm light rises through them, never drawn as lines. */
+function innerStone(uT: N, alive = 1): THREE.MeshStandardNodeMaterial {
+  const m = landStone("sandstone_blocks_05", -1e4, 2.4, [1.22, 1.16, 1.05], { course: 1.3, block: 1.8, flag: 1.5, origin: PYR_ORIGIN, interior: true });
+  const pw = T.positionWorld.sub(vec3(PYR_ORIGIN.x, PYR_ORIGIN.y, PYR_ORIGIN.z));
+  const wave = sin(pw.y.mul(0.35).sub(uT.mul(0.9))).mul(0.5).add(0.5);
+  const beat = T.pow(sin(uT.mul(1.1)).mul(0.5).add(0.5), 6);
+  m.emissiveNode = vec3(1.0, 0.78, 0.5).mul(wave.mul(0.035).add(beat.mul(0.02)).mul(alive));
+  return m;
+}
 /** Rose granite (the capstone, the King's Chamber, the coffer): dark, flecked, with crystal glints. */
-function granite(uT: N): THREE.MeshStandardNodeMaterial {
+function granite(uT: N, origin?: THREE.Vector3): THREE.MeshStandardNodeMaterial {
   const m = new THREE.MeshStandardNodeMaterial({ metalness: 0.05, roughness: 0.5 });
-  const { col } = triplanar("red_sandstone_pavement", 1.6);
-  const pw = T.positionWorld;
+  // laid in its own frame (inside, 50 km out, world positions broke the hashes into blocky squares)
+  const { col } = triplanar("red_sandstone_pavement", 1.6, origin);
+  const pw = origin ? T.positionWorld.sub(vec3(origin.x, origin.y, origin.z)) : T.positionWorld;
   const h = (p: N) => fract(sin(T.dot(p, vec3(12.9898, 78.233, 37.719))).mul(43758.5453));
+  // the crystals in granite: round grains (pale feldspar, dark mica), not square cells
+  const g = T.mx_noise_float(pw.mul(34)), g2 = T.mx_noise_float(pw.mul(61).add(3.3));
+  const tone = mix(float(1), float(1.5), smoothstep(0.32, 0.5, g)).mul(mix(float(1), float(0.45), smoothstep(0.38, 0.55, g2)));
+  const c = col.mul(vec3(0.72, 0.46, 0.44)).mul(tone);
+  m.colorNode = vec4(c, 1);
   const cell = floor(pw.mul(26));
   const fleck = h(cell);
-  const c = col.mul(vec3(0.72, 0.46, 0.44)).mul(fleck.lessThan(0.18).select(float(0.45), fleck.greaterThan(0.9).select(float(1.6), float(1))));
-  m.colorNode = vec4(c, 1);
   const glint = smoothstep(0.994, 1.0, h(cell.add(7))).mul(sin(uT.mul(1.7).add(fleck.mul(40))).mul(0.5).add(0.5));
   m.emissiveNode = vec3(1.0, 0.9, 0.8).mul(glint.mul(0.9)).add(c.mul(0.04));
   return m;
@@ -221,6 +237,8 @@ export class Pyramid {
   private motes!: { pos: THREE.InstancedBufferAttribute; seed: Float32Array };
   private gallery!: { pos: THREE.InstancedBufferAttribute; seed: Float32Array };
   private uPit = uniform(0);
+  private lamps: { light: THREE.PointLight; base: number; phase: number }[] = [];
+  private kingLight: THREE.PointLight | null = null;
   private uCrystal = uniform(0);
   private local = new THREE.Vector3();
   /** The seven colours of the King's Chamber, lit one by one on the wanderer (main.ts). */
@@ -402,23 +420,29 @@ export class Pyramid {
     this.motes = { pos: pts.position, seed };
   }
 
+  /** The ceiling over (x, z), pyramid-local (the room's floor there and its height). */
+  private ceilingAt(x: number, z: number): number {
+    const r = ROOMS.find((r) => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1);
+    return r ? floorOf(r, x) + r.h : 3;
+  }
+
   private buildInside(): void {
     this.inside.position.copy(PYR_ORIGIN);
     const lime = new Shell(), gran = new Shell();
     for (const r of ROOMS) buildRoom(r, r.granite ? gran : lime);
-    const limeM = limestone(this.uT, [1.25, 1.2, 1.1], 1.4);
+    const limeM = innerStone(this.uT, 1.4);
     limeM.side = THREE.FrontSide;
     this.roomsGroup = new THREE.Group();
-    this.roomsGroup.add(
-      new THREE.Mesh(lime.geometry(), limeM),
-      new THREE.Mesh(gran.geometry(), granite(this.uT))
-    );
+    const limeMesh = new THREE.Mesh(lime.geometry(), limeM), granMesh = new THREE.Mesh(gran.geometry(), granite(this.uT, PYR_ORIGIN));
+    limeMesh.receiveShadow = granMesh.receiveShadow = true;
+    this.roomsGroup.add(limeMesh, granMesh);
     this.inside.add(this.roomsGroup);
     // the coffer: a lidless box of granite
-    const gm = granite(this.uT);
+    const gm = granite(this.uT, PYR_ORIGIN);
     const box = (w: number, h: number, d: number, x: number, y: number, z: number) => {
       const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), gm);
       m.position.set(x, y, z);
+      m.castShadow = m.receiveShadow = true;
       this.inside.add(m);
     };
     const C = COFFER;
@@ -444,13 +468,73 @@ export class Pyramid {
     rim.rotation.x = -Math.PI / 2;
     rim.position.set(PIT.x, PIT.y + 0.05, PIT.z);
     this.inside.add(pit, rim);
-    // light inside: dim, warm, a little
-    const hemi = new THREE.HemisphereLight(0xffe2c0, 0x201810, 0.35);
+    // light inside: dim and warm. Every pool of light has its source: an oil lamp hanging on a
+    // fine chain, its small flame licking and its light flickering with it (`lamps`); the one in
+    // the Grand Gallery throws moving shadows. The King's Chamber's light is rose-gold, and a
+    // pale beam falls through its air-shaft.
+    const hemi = new THREE.HemisphereLight(0xffe2c0, 0x201810, 0.28);
     this.inside.add(hemi);
-    for (const [x, y, z, k] of [[0, 2.8, 4, 10], [-28, -6, 8, 14], [0, 3.6, 42.7, 10], [18, 11, 15.7, 16], [42, 17.4, 15.7, 14]] as const) {
-      const l = new THREE.PointLight(0xffc88a, k, 22, 1.6);
-      l.position.set(x, y, z);
+    const bronze = new THREE.MeshStandardNodeMaterial({ color: 0x7a5a30, roughness: 0.45, metalness: 0.75 });
+    const bowlGeo = new THREE.LatheGeometry([[0.001, -0.06], [0.1, -0.05], [0.14, 0.0], [0.13, 0.04], [0.001, 0.02]].map(([r, y]) => new THREE.Vector2(r, y)), 18);
+    const flameMat = new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
+    {
+      const q = uv(), y = q.y;
+      const sway = sin(this.uT.mul(6.1).add(y.mul(5))).mul(0.06).mul(y);
+      const xx = q.x.sub(0.5).sub(sway);
+      const w = T.pow(float(1).sub(y), float(0.8)).mul(0.28).add(0.02);
+      const body = T.exp(xx.div(w).mul(xx.div(w)).negate()).mul(smoothstep(0, 0.16, y)).mul(smoothstep(1, 0.5, y.add(sin(this.uT.mul(9.3)).mul(0.05))));
+      const core = T.exp(xx.div(w.mul(0.45)).pow(2).negate()).mul(smoothstep(0.6, 0.1, y));
+      flameMat.colorNode = vec4(mix(vec3(1.0, 0.45, 0.14), vec3(1.0, 0.9, 0.65), core).mul(body).mul(1.4), 1);
+    }
+    const lampAt: [number, number, number, number, number][] = [[0, 2.6, 4, 9, 0], [-28, -6.2, 8, 12, 1.3], [0, 3.2, 42.7, 9, 2.1], [18, 10.6, 15.7, 15, 0.7], [-8, -0.5, 7.7, 6, 3.4]];
+    for (const [x, y, z, k, ph] of lampAt) {
+      const ceil = this.ceilingAt(x, z);
+      const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, Math.max(0.1, ceil - y), 4), bronze);
+      chain.position.set(x, (ceil + y) / 2, z);
+      const bowl = new THREE.Mesh(bowlGeo, bronze);
+      bowl.position.set(x, y, z);
+      const f = new THREE.Sprite(flameMat);
+      f.scale.set(0.16, 0.3, 1);
+      f.position.set(x, y + 0.17, z);
+      const l = new THREE.PointLight(0xffb870, k, 20, 1.6);
+      l.position.set(x, y + 0.25, z);
+      if (x === 18) {
+        // the Gallery's lamp throws moving shadows along its corbelled walls
+        l.castShadow = true;
+        l.shadow.mapSize.set(512, 512);
+        l.shadow.bias = -0.004;
+      }
+      this.inside.add(chain, bowl, f, l);
+      this.lamps.push({ light: l, base: k, phase: ph });
+    }
+    {
+      // the King's Chamber: rose-gold, breathing slowly over the coffer
+      const l = new THREE.PointLight(0xffb49a, 12, 18, 1.5);
+      l.position.set(42, 17.2, 15.7);
       this.inside.add(l);
+      this.kingLight = l;
+      // its air-shaft: a small square of daylight high in the south wall, a pale beam slanting down
+      const sm = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.FrontSide, fog: false });
+      const vdir = T.normalize(T.cameraPosition.sub(T.positionWorld));
+      const through = T.pow(abs(T.dot(T.normalWorld, vdir)), 1.5);
+      const along = smoothstep(0, 0.15, uv().y).mul(smoothstep(1, 0.55, uv().y).mul(0.6).add(0.4));
+      const dust = T.mx_noise_float(vec3(uv().x.mul(8), uv().y.mul(6).sub(this.uT.mul(0.04)), 0)).mul(0.3).add(0.7);
+      sm.colorNode = vec4(vec3(1.0, 0.9, 0.72).mul(through.mul(along).mul(dust).mul(0.32)), 1);
+      const len = 6.2;
+      const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.42, len, 18, 1, true), sm);
+      const top = new THREE.Vector3(44.5, 18.3, 18.75), foot = new THREE.Vector3(43.4, 13.05, 15.2);
+      beam.position.copy(top).add(foot).multiplyScalar(0.5);
+      beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), top.clone().sub(foot).normalize());
+      beam.scale.y = top.distanceTo(foot) / len;
+      const hole = new THREE.Mesh(new THREE.PlaneGeometry(0.28, 0.28), new THREE.MeshBasicNodeMaterial({ color: new THREE.Color(1.0, 0.92, 0.75), fog: false }));
+      hole.position.set(44.5, 18.3, 18.78);
+      hole.rotation.y = Math.PI;
+      const pool = new THREE.Mesh(new THREE.CircleGeometry(0.55, 28), new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+      (pool.material as THREE.MeshBasicNodeMaterial).colorNode = vec4(vec3(1.0, 0.86, 0.66).mul(smoothstep(1, 0.2, T.length(uv().sub(0.5)).mul(2)).mul(0.22)), 1);
+      pool.rotation.x = -Math.PI / 2;
+      pool.position.set(foot.x, 13.03, foot.z);
+      pool.scale.set(1, 1.6, 1);
+      this.inside.add(beam, hole, pool);
     }
     // motes rising along the gallery (light spiralling upward), and around the coffer
     const N = 160;
@@ -583,6 +667,11 @@ export class Pyramid {
   /** Each frame. `pit`, `crystal`: 0–1 how awake the pit's light and the crystal are. */
   update(t: number, near: boolean, pit: number, crystal: number, flame: number, reduced: boolean): void {
     this.uT.value = reduced ? t * 0.4 : t;
+    if (this.isInside) {
+      // the lamps flicker with their flames; the King's Chamber breathes
+      for (const l of this.lamps) l.light.intensity = l.base * (0.86 + Math.sin(t * 9.3 + l.phase) * 0.05 + Math.sin(t * 6.1 + l.phase * 2.3) * 0.06 + Math.sin(t * 17.7 + l.phase) * 0.03);
+      if (this.kingLight) this.kingLight.intensity = 12 * (0.85 + 0.15 * Math.sin(t * 0.55));
+    }
     if (this.isInside && !this.doorFound && this.playerPos) {
       const dx = this.playerPos.x - (this.doorPos.x + PYR_ORIGIN.x);
       const dy = this.playerPos.y - (this.doorPos.y + PYR_ORIGIN.y);
