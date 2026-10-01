@@ -149,6 +149,9 @@ export class Journey {
       standing (so standing up never sits you straight back down). */
   sitting = false;
   private offSeat = true;
+  /** Come in by another way (the pyramid's gate into Egypt): doors home to the lobby lead out,
+      back where you came in. Cleared on leaving. */
+  via = false;
   /** A stage that failed to open (−1 none): you are taken on instead of being left in the dark. */
   failed = -1;
   /** The room's own life threw: it rests (its doors and walls still work) rather than freezing the game. */
@@ -244,8 +247,8 @@ export class Journey {
     await wait(40); // the black and the mark are painted before the heavy work
     this.takeDown();
     if (to === "out") {
+      const o = h.outside(); // asked before the world returns (it clears how you came in)
       this.restoreWorld();
-      const o = h.outside();
       h.place(o.x, o.y, o.z, o.heading);
     } else {
       if (!this.inside) this.hideWorld();
@@ -260,12 +263,12 @@ export class Journey {
         this.failed = to;
         h.whisper("This room could not open. Going on.", 5000);
         try {
-          if (to !== 0) await this.build(0);
+          if (to !== 0 && !this.via) await this.build(0);
           else throw e;
         } catch {
           this.takeDown();
-          this.restoreWorld();
           const o = h.outside();
+          this.restoreWorld();
           h.place(o.x, o.y, o.z, o.heading);
         }
       }
@@ -287,6 +290,7 @@ export class Journey {
     this.hidden = [];
     this.inside = false;
     this.at = -1;
+    this.via = false;
     this.host.apart(false);
   }
 
@@ -408,7 +412,7 @@ export class Journey {
     pos.z = JOURNEY_ORIGIN.z + l.z;
     for (const e of s.exits)
       if (Math.hypot(l.x - e.x, l.z - e.z) < e.r) {
-        if (e.to === "out") void this.leave();
+        if (e.to === "out" || (this.via && e.to === 0)) void this.leave();
         else void this.go(e.to, e.dark ?? 1, e.at);
         break;
       }
