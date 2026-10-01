@@ -79,6 +79,8 @@ export interface ShotCtx {
   tour: TourApi;
   S: { mode: string; t: number; wt: number };
   terrain: { update(x: number, z: number, force?: boolean): void };
+  /** The gateway into the telling of Egypt (world). */
+  gate?: { x: number; y: number; z: number };
   setInside(inside: boolean): void;
   /** Begin genesis where the wanderer stands, at time t of the sequence; returns the feet. */
   genesisAt?(t: number): XYZ;
@@ -232,6 +234,12 @@ export function runShot(ctx: ShotCtx): void {
     base = [px, Math.max(gy, 0) + (above ? top - gy + 90 : 40), pz];
     view = above ? { eye: [0, 0, 0], look: [pk.x - px, top - base[1], pk.z - pz] } : { eye: [0, 0, 0], look: [pk.x - px, top * 0.7 - base[1], pk.z - pz] };
     ctx.player.pos.set(base[0], base[1], base[2]);
+  } else if ((id === "egypt-gate" || id === "egypt-gate-near") && ctx.gate) {
+    // the gateway on the pyramid's plaza, from the plaza (its opening faces ±z)
+    const g = ctx.gate;
+    base = [g.x, g.y, g.z];
+    view = id.endsWith("near") ? { eye: [2.2, 1.7, -6], look: [0, 2.3, 0] } : { eye: [5, 2.8, -12], look: [0, 2.2, 0] };
+    ctx.player.pos.set(g.x + 7, heightAt(g.x + 7, g.z - 9), g.z - 9);
   } else if (/^(density|adept|past)-hall(-near)?$/.test(id)) {
     // a monument from the approach, its door toward the shore
     const H = id.startsWith("adept") ? ADEPT_HALL : id.startsWith("past") ? PAST_HALL : DENSITY_HALL;
