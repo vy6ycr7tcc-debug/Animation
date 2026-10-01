@@ -27,6 +27,12 @@ export interface TempleLike {
   setRite(i: number, on: boolean): void;
   /** Light shrine `i` for the tour (−1: none). */
   setFocus?(i: number): void;
+  /** The three rooms' signs: where to stand before room `g`'s (0 Mind, 1 Body, 2 Spirit), the
+      room the tour is in, the signs dark or lit, and one kindled as it is named. */
+  introFor?(g: number): { x: number; z: number; heading: number };
+  setGroup?(g: number): void;
+  signsLit?(on: boolean): void;
+  kindleSign?(g: number): void;
   entry(): { x: number; z: number; heading: number };
   floorAt(x: number, z: number): number;
 }
@@ -95,8 +101,12 @@ const AUTO_AFTER = 2.2;
 
 /* ---------------------------------------------------------------- the stops */
 interface Stop {
-  /** The archetype whose shrine this is (0–21), or −1 for the door. */
+  /** The archetype whose shrine this is (0–21), or −1 for the door or a room's sign. */
   shrine: number;
+  /** A room's opening (0 the Mind, 1 the Body, 2 the Spirit): you stand before its sign. */
+  intro?: number;
+  /** Stay at least this long (seconds), voiced or not. */
+  hold?: number;
   /** Where to stand, world x, z, and the heading that faces the shrine. */
   x: number;
   z: number;
@@ -108,21 +118,36 @@ interface Stop {
   title: string;
 }
 
-/** The cue each shrine's part begins at: the Mind's seven follow the opening; the Body's first
-    begins with the passage from the Mind, the Spirit's first with the passage from the Body. */
+/** The cue each shrine's part begins at: the Mind's seven follow the opening; each later room's
+    first shrine follows its passage (spoken before that room's sign), which has its own mark. */
 function cueFor(shrine: number): number {
   if (shrine < 7) return shrine + 1;
-  if (shrine < 14) return shrine === 7 ? 8 : shrine + 2;
-  return shrine === 14 ? 16 : shrine + 3;
+  if (shrine < 14) return shrine + 2;
+  return shrine + 3;
 }
+const groupOf = (shrine: number) => (shrine < 0 ? -1 : shrine < 7 ? 0 : shrine < 14 ? 1 : 2);
+/** When, in the opening, each room's sign is named ("a lamp is lit", "a fire is burning", "a
+    star"): measured from the recording. */
+const NAMED = [8.0, 13.3, 21.5];
 
+/** The stops: the door (the opening, where all three signs kindle as they are named); then each
+    room in turn: its sign (the Mind's lamp a quiet moment, as the recording has no words of its
+    own for it; the Body's fire and the Spirit's star with the recorded passages into them), then
+    its seven shrines; then the Choice. */
 function buildStops(temple: TempleLike): Stop[] {
   const door = temple.entry();
   const stops: Stop[] = [{ shrine: -1, x: door.x, z: door.z, heading: door.heading, from: 0, to: CUES[1].t, title: "The temple" }];
+  const intro = (g: number, from: number, to: number, title: string) => {
+    const s = temple.introFor?.(g);
+    if (s) stops.push({ shrine: -1, intro: g, x: s.x, z: s.z, heading: s.heading, from, to, title, hold: 6 });
+  };
   for (let i = 0; i < 22; i++) {
+    if (i === 0) intro(0, NaN, NaN, "The Mind");
+    if (i === 7) intro(1, CUES[8].t, CUES[9].t, "The Body");
+    if (i === 14) intro(2, CUES[16].t, CUES[17].t, "The Spirit");
     const s = temple.standFor(i), k = cueFor(i);
-    const label = CUES[i === 7 ? 9 : i === 14 ? 17 : k].label.replace(" — ", " · ").replace(" (The Choice)", "");
-    stops.push({ shrine: i, x: s.x, z: s.z, heading: s.heading, from: CUES[k].t, to: i === 21 ? FINALE_T : CUES[cueFor(i + 1)].t, title: i === 21 ? "XXII · The Choice" : label });
+    const label = CUES[k].label.replace(" — ", " · ").replace(" (The Choice)", "");
+    stops.push({ shrine: i, x: s.x, z: s.z, heading: s.heading, from: CUES[k].t, to: i === 21 ? FINALE_T : CUES[k + 1].t, title: i === 21 ? "XXII · The Choice" : label });
   }
   return stops;
 }
@@ -271,6 +296,7 @@ export class TempleTour implements SceneModule {
     this.choice.hidden = true;
     this.panel.hidden = false;
     this.light.visible = this.halo.visible = true;
+    this.temple.signsLit?.(false); // the opening kindles them as it names them
     const O = TEMPLE_ORIGIN;
     this.lightAt.set(this.player.pos.x - O.x, this.player.pos.z - O.z - 3);
     // a still frame (?shot) lands on the stop that time belongs to, already there
@@ -292,6 +318,8 @@ export class TempleTour implements SceneModule {
     this.player.target = null;
     this.walk = [];
     this.temple.setFocus?.(-1);
+    this.temple.setGroup?.(-1);
+    this.temple.signsLit?.(true);
     document.body.classList.remove("touring");
     if (this.follow.dist !== undefined) this.follow.dist = this.view.dist;
     this.follow.pitch = this.view.pitch;
@@ -309,6 +337,7 @@ export class TempleTour implements SceneModule {
     this.rite(-1);
     this.index = k;
     this.phase = "leading";
+    if (k > 0) for (let g = 0; g < 3; g++) this.temple.kindleSign?.(g); // past the opening (or skipped): all named
     const s = this.stops[k], O = TEMPLE_ORIGIN;
     this.goal.set(s.x - O.x, s.z - O.z);
     this.path = route(this.lightAt, this.waitPoint(s));
@@ -340,7 +369,10 @@ export class TempleTour implements SceneModule {
     this.walk = [];
     this.rite(s.shrine);
     this.temple.setFocus?.(s.shrine);
-    void this.narration.play(TRACK_ID, s.from, s.to);
+    this.temple.setGroup?.(s.intro ?? groupOf(s.shrine));
+    if (s.intro !== undefined) this.temple.kindleSign?.(s.intro);
+    // a part of the recording, or (the Mind's sign) a quiet moment
+    if (Number.isFinite(s.from)) void this.narration.play(TRACK_ID, s.from, s.to);
     this.refresh();
   }
 
@@ -397,7 +429,7 @@ export class TempleTour implements SceneModule {
     }
     // the view: behind the wanderer while it walks; at a shrine it comes round and draws a
     // little closer, framing the archetype over the wanderer's shoulder
-    const at = this.phase !== "leading" && s.shrine >= 0;
+    const at = this.phase !== "leading" && (s.shrine >= 0 || s.intro !== undefined);
     if (at) {
       let dh = s.heading - this.player.heading;
       dh = Math.atan2(Math.sin(dh), Math.cos(dh));
@@ -414,7 +446,9 @@ export class TempleTour implements SceneModule {
     if (this.phase === "speaking") {
       this.spoke += Math.min(0.25, Math.max(0, dt)); // seconds as they pass, even when frames are slow
       const t = this.narration.time();
-      const ended = this.narration.debugTime === null && this.spoke > 1.5 && (this.narration.current !== TRACK_ID || t >= s.to - 0.15);
+      // the opening kindles each room's sign as it names it
+      if (this.index === 0 && this.narration.current === TRACK_ID) NAMED.forEach((n, g) => t >= n && this.temple.kindleSign?.(g));
+      const ended = this.narration.debugTime === null && this.spoke > (s.hold ?? 1.5) && (this.narration.current !== TRACK_ID || t >= s.to - 0.15);
       if (ended) {
         this.phase = "done";
         this.doneT = performance.now();
