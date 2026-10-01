@@ -543,6 +543,11 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
     - the bloom mips and other fill-rate items (left for the owner).
   - `#stats` now shows `cpu` (the frame's update time, smoothed) and the GPU's geometry and texture counts.
 - 2026-10-01: the flying spirits, far fewer and more special (the owner). Three on a phone, four on desktop (they were 10 and 14). Each is great now (size 1.5–2.2, hues spread so each has its own), its head a little brighter (still contained). The event: every two to four minutes one makes a passage (26 s): it rises from where it was, sweeps once in a wide arc over the wanderer, and climbs away into the sky, its veil long behind it; then another comes to the trees in time (`Spirits.update`, `pass`). Cost: the veils are rebuilt on the CPU each frame, 64 points × 2 per spirit, so this is about 70% less. The stale `life.ts` header (butterflies, gliders) is corrected.
+- 2026-10-01: the animals, verified and restored (the owner). All four models load and spawn: horses in two herds, birds in three flocks. They were hard to see, not gone:
+  - the glass light at 30–100 m in the night all but vanished;
+  - the birds were 0.3–0.45 m models circling 45–100 m out and 24 m up.
+  - Now: modest counts (6 horses and 12 birds on a phone, 8 and 18 on desktop), a little more glow than the wanderer (`herdOf`'s `glow`), herds roaming 18–50 m from you, birds true to size (stork 0.9 m, flamingo 1.0, parrot 0.55) circling 30–58 m out and 14–26 m up.
+  - A model that fails to parse is reported (it rejected silently, taking every creature with it), as is a failed load (`loadBytes`).
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.
