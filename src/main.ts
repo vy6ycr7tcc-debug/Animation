@@ -2405,29 +2405,28 @@ function companionFrame(dt: number): void {
 }
 
 /* Record mode (the tour bar's ◉; the owner records the tours for the TV app): every control,
-   hint, line and word fades, leaving the world, the companion and the animations. A long press
+   hint, line and word fades, leaving the world, the companion and the animations. A touch
    anywhere brings them back; the end of the walk does too. */
 function setRecording(on: boolean): void {
   if (document.body.classList.contains("recording") === on) return;
   document.body.classList.toggle("recording", on);
 }
 tourBar().onRecord = () => {
-  whisper("Record mode: everything but the world fades. Hold anywhere to bring the controls back.", 2600);
+  whisper("Record mode: everything but the world fades. Touch anywhere to bring the controls back.", 2600);
   window.setTimeout(() => (walk || duatTour || tourScenes.tour.active) && setRecording(true), 2800);
 };
+// a touch anywhere (or any key) brings the controls back. A long press never arrived: with every
+// layer let go of touch, the phone took the press as its own gesture and cancelled it (the owner:
+// "there is no way to exit it"). The touch that ends record mode does nothing else.
 {
-  let holdTimer = 0;
-  const clear = (): void => window.clearTimeout(holdTimer);
-  window.addEventListener(
-    "pointerdown",
-    () => {
-      if (!document.body.classList.contains("recording")) return;
-      clear();
-      holdTimer = window.setTimeout(() => setRecording(false), 1000);
-    },
-    { capture: true },
-  );
-  for (const ev of ["pointerup", "pointercancel"]) window.addEventListener(ev, clear, { capture: true });
+  const end = (e: Event): void => {
+    if (!document.body.classList.contains("recording")) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setRecording(false);
+  };
+  window.addEventListener("pointerdown", end, { capture: true });
+  window.addEventListener("keydown", end, { capture: true });
 }
 
 /** In a place apart (the temple, the deep archive, the pyramid): the open world rests. */
