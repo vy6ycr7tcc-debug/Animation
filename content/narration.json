@@ -440,7 +440,7 @@
    "title": "One Road, Twenty-Two Stations",
    "voice": "female",
    "file": "audio/temple-tour.mp3",
-   "duration": 636.08,
+   "duration": 636.89,
    "trigger": "temple-tour",
    "cues": [
     {
