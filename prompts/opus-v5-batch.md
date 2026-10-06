@@ -137,3 +137,62 @@ The owner's verdict on the current first-density animation: "a bit meh." Two thi
 In the Egypt pyramid area (the past-choices Egypt room), add **visual references to Aton** — the sun disk with rays ending in **arms/hands reaching down** (Amarna-period iconography). These read as wall illustrations/carvings in the pyramid's visual language: the disk above, the ray-arms extending downward toward the world.
 
 **Constraints:** render in the game's existing illustration idiom (no new art style); keep it as illustration/carving detail within the architecture, not a new interactive element. Verify with `?shot=` stills against the visual bar. One branch + one PR.
+
+## 10. Remove entity-naming archive episodes (planets, trees, crystals) — DONE via PR #191
+
+**Status (2026-10-06): owner-authorized and executed directly — [PR #191](https://github.com/vy6ycr7tcc-debug/Animation/pull/191), awaiting owner merge. Do not re-implement.** 67 narrations removed (orb-05 + 66 grove episodes, JSON entries + MP3s); 19 clean narrations kept; JSON re-verified with zero entity-name matches. Original spec retained below for the record.
+
+The owner wants **all archive narrations that name channeled entities or quote them word-for-word removed from the game**. Audit of `content/transcript_orbs.json` (2026-10-06): 67 of 86 narrations violate the locked narration rules — they name Hatonn, Latwii, Q'uo, Laitos, Oxal (e.g. "I am Latwii…", "I am Hatonn…", verbatim "We of Latwii…" passages) and read as direct entity quotes rather than composed/paraphrased narration.
+
+**Remove (67) — exact list, audited 2026-10-06 by entity-name regex over the shipped transcripts:**
+- Orb `orb-05` "The Veil" (`ep05_the_veil.mp3`) — Latwii.
+- tree-01: ep10 Gratitude (Hatonn), ep14 Sorrow (Hatonn), ep15 Anger (Hatonn, Latwii).
+- tree-02: ep11 Present Moment (Hatonn), ep18 Free Will (Hatonn, Latwii), ep26 Discernment (Latwii), ep34 Seeking (Hatonn).
+- tree-03: ep17 Know Yourself (Hatonn, Latwii), ep21 The Heart (Hatonn), ep22 Balance (Hatonn).
+- tree-04: ep19 Prayer (Hatonn), ep20 Healing (Hatonn, Laitos), ep23 Faith (Hatonn).
+- tree-05: ep28 Other Selves (Latwii).
+- tree-06: ep31 Nature (Hatonn), ep32 Beauty (Hatonn).
+- tree-07: ep35 Wonder (Q'uo, Latwii), ep36 Music (Hatonn), ep39 Night Sky (Q'uo, Hatonn), ep55 Water (Hatonn, Latwii, Oxal), ep56 Light (Hatonn).
+- tree-08: ep42 Begin Again (Q'uo, Hatonn), ep43 Letting Go (Hatonn), ep44 Surrender (Hatonn, Latwii), ep47 Guilt (Hatonn, Latwii).
+- tree-09: ep45 Inner Child (Q'uo, Laitos), ep46 Shadow (Hatonn, Latwii), ep48 Courage (Hatonn), ep49 Perseverance (Hatonn, Latwii).
+- tree-10: ep38 Work As Worship (Q'uo), ep50 Devotion (Hatonn, Latwii), ep52 Sacred Ordinary (Hatonn, Latwii).
+- tree-11: ep37 Breath (Hatonn, Laitos), ep40 Compassion (Hatonn, Laitos), ep41 Listening (Hatonn, Oxal), ep60 Rest (Hatonn, Latwii).
+- tree-12: ep53 Morning (Hatonn), ep57 Darkness (Hatonn, Latwii), ep58 Senses (Hatonn, Oxal), ep59 Tears (Hatonn).
+- tree-13: ep61 Kindness (Q'uo, Laitos), ep73 Generosity (Q'uo, Hatonn), ep74 Hospitality (Q'uo), ep75 Stranger (Hatonn).
+- tree-14: ep62 Play (Q'uo), ep63 Solitude (Q'uo, Hatonn), ep64 Community (Q'uo, Hatonn), ep65 Ancestors (Q'uo).
+- tree-15: ep66 Teachers (Ra, Hatonn), ep67 Student (Ra, Hatonn, Latwii), ep68 Questions (Hatonn), ep69 Mystery (Ra, Latwii, Confederation), ep70 Paradox (Ra, Hatonn, Latwii).
+- tree-16: ep71 Simplicity (Hatonn), ep72 Enough (Hatonn, Latwii), ep76 Animals (Hatonn, Oxal), ep77 Earth (Q'uo).
+- tree-17: ep78 Cosmos (Q'uo, Hatonn), ep79 Time (Hatonn, Latwii), ep80 Eternity (Hatonn), ep81 Death (Hatonn, Latwii), ep82 Remembrance (Hatonn).
+- tree-18: ep83 Hands (Hatonn, Latwii), ep84 Voice (Hatonn, Laitos, Oxal), ep85 Becoming (Hatonn, Latwii), ep86 Circle (Hatonn).
+
+**Keep (19, verified clean — no entity names):**
+- Orbs: orb-01, orb-02, orb-03, orb-04, orb-06, orb-07, orb-08.
+- Tree episodes: ep09 Forgiveness, ep12 Patience, ep13 Joy And Laughter, ep16 Acceptance Of Self, ep24 Hope, ep25 Humility, ep27 Service In Daily Life, ep29 Loneliness, ep30 The Body, ep33 Dark Night, ep51 Reverence, ep54 Evening.
+
+**How:**
+- Delete the 67 entries from `content/transcript_orbs.json` and their 67 MP3s from `public/audio/orbs/`. Update the file's `note` to reflect the new counts.
+- Trees left with zero episodes need no code change — `src/world/sites.ts:169` already filters out episode-less trees (10 trees go quiet: 07, 08, 09, 11, 13, 14, 15, 16, 17, 18). One fewer orb means one fewer planet in the sky — expected.
+- Verify by re-running the entity-name regex over the shipped JSON: expect zero matches for Ra, Q'uo/Quo, Hatonn, Latwii, Laitos, Oxal, Confederation. Boot the game to confirm no dangling references or empty-vessel errors.
+- **No replacement content.** Quiet vessels stay quiet — the owner decides later whether to refill them. Do not invent new narrations.
+
+## 11. Temple card voices — re-voice to Aria
+
+The owner reports the temple card audios are in "a weird voice" — audit confirms why: the card answers are the owner's own recordings (`src/core/dialogues.ts`: `voice: "female", // Samuel's own recordings: played as they are`), not Aria. The owner wants **all temple card audio in Aria's voice** for consistency with the rest of the game.
+
+**Scope:** ~242 files — 176 Q&A answers (`public/audio/answers/<numeral>/<id>.mp3`, transcripts in the answers JSON) + 66 tunnel beats (`public/audio/archetype_qa/AxxQy.mp3`, transcripts in `content/archetype_qa.json`: threshold/walk/heart per archetype).
+
+**How:** re-render from the existing transcripts with Aria (avocado_v2:MAI_01, speed 92) via the narrations pipeline — same QC as all game narration (amplitude verify, declick, transcribe-verify loop-free). Swap the files in place (same paths/names); no code changes expected. Verify a sample in-game per card type (answer, threshold, walk, heart).
+
+**Note:** this is a large narrations job — the pipeline should batch it and report per-card QC. Do not launch until the owner confirms (batch is collecting).
+
+## 12. Temple three-room redesign — APPROVED by owner 2026-10-06, ready to implement
+
+**Status: approved.** Design treatment: `~/workspace/your_files/opus-temple-rooms-redesign.md` (also staged in-repo as `prompts/opus-temple-rooms-redesign.md`). Implement from the design doc.
+
+The owner wants the temple's three rooms (Mind / Body / Spirit) **redesigned properly**, each with **an intro moment on entry**. His sketch: a pre-room for the Mind, then into the temple where the cards are. He is unsure about the ordering (Matrix/Potentiator/Catalyst progression) and whether three separate rooms is even the right structure.
+
+**What the approved design covers:** three re-conceived rooms (Mind pre-room, Body hearth room, Spirit dawn room), per-room intro beats, flow/ordering (Mind → Body → Spirit recommended), the Choice at the Spirit ring's heart, free navigation + sit-with-any-card guaranteed, and the entrance sequence fixed (Vestibule of Arrival replaces the lame lamp). **Intro narration scripts come from the owner — never invent final dialogue.** The doc's open-decisions list was approved as specified: implement the recommended options (ordering Mind → Body → Spirit, Choice at ring heart, walk-back exit) unless a `[INVENTION]` flag gives you pause — then flag it in the PR.
+
+Also tracked here from the same conversation:
+- **Card voices → Aria** (item 11): the card audios are the owner's own recordings, not Aria. Re-render ~242 files via the narrations pipeline, swap in place.
+- **Sit with any card / free navigation**: guaranteed in the redesign (see above). If the current build blocks free movement between shrines, that is a bug — the redesign must not.
