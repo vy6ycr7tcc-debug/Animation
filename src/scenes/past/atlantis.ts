@@ -14,6 +14,7 @@
    kindle and then go underground, like seeds, glowing faintly under the soil. The drowned city's
    glow under the sea; on the far horizon a line of lights of our own age; the sea's slow swell. At
    the end the bells again, and the seeds on both shores rising into warm light. */
+import { keyShadow } from "../../gpu/lightRig";
 import * as THREE from "three/webgpu";
 import { T, vnoise, type N } from "../../gpu/tsl";
 import { applyAir, boulderGeometry, fbmN, keepAlpha, merge, pointCloud, roomPos, seeded, skyDome, spireGeometry, touch, type Air } from "../densities/roomKit";
@@ -183,7 +184,7 @@ export function createAtlantisScene(scene: THREE.Scene, narration: Narration, wh
         ours.push(gm);
         const moon = new THREE.DirectionalLight(0xd8dcff, 1.1);
         moon.position.copy(MOON).multiplyScalar(60);
-        moon.castShadow = true;
+        keyShadow(moon, 40);
         g.add(moon, moon.target);
         g.add(new THREE.HemisphereLight(0x6a5a8a, 0x080a12, 0.45));
       }

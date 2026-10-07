@@ -21,6 +21,7 @@
    7 the laying down: a small glade, a ring of swords of light laid on the ground, dimming; then
        the angel gestures to the way home and comes apart into motes; the path leads out.
    Frame: the room's own, the start at the origin facing −z. */
+import { keyShadow } from "../../gpu/lightRig";
 import * as THREE from "three/webgpu";
 import { T, gpuUniforms, vnoise, type N } from "../../gpu/tsl";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
@@ -240,11 +241,7 @@ export function createAfterVeil(scene: THREE.Scene, narration: Narration, whispe
   // the light: a low warm key along the way, a cool fill from the sky
   const key = new THREE.DirectionalLight(0xffe2b8, 0.9);
   key.position.set(40, 60, 30);
-  key.castShadow = true;
-  key.shadow.mapSize.set(1024, 1024);
-  key.shadow.camera.left = key.shadow.camera.bottom = -60;
-  key.shadow.camera.right = key.shadow.camera.top = 60;
-  key.shadow.bias = -0.0005;
+  keyShadow(key, 60);
   g.add(key, key.target);
   const hemi = new THREE.HemisphereLight(0x8a90b8, 0x241a10, 0.35);
   g.add(hemi);

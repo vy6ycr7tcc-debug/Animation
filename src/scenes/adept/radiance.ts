@@ -12,6 +12,7 @@
    light walks in and sits beside the first. At the end, one small light leaves the terrace and
    travels away over the clouds toward the dark side of the world: toward someone awake at three in
    the morning. */
+import { keyShadow } from "../../gpu/lightRig";
 import * as THREE from "three/webgpu";
 import { LessonScene } from "../lessonKit";
 import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
@@ -343,7 +344,7 @@ export function createRadianceScene(scene: THREE.Scene, narration: LessonCtx["na
     const sun = new THREE.DirectionalLight(0xffd2a0, 0.6);
     sun.position.set(SUN.x * 100, 22, SUN.z * 100);
     sun.target.position.set(0, 0, 0);
-    sun.castShadow = true;
+    keyShadow(sun, 30);
     g.add(sun, sun.target);
     tickers.push(() => (sun.intensity = 0.5 + 2.4 * uDawn.value + 0.8 * uSun.value));
 

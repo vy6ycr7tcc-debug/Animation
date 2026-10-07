@@ -11,6 +11,7 @@
    burning reaches the stone of the terrace under you. The memorial: the river brightens, light
    reading along it like a line of text. At the end one small warm light kindles in the river where
    the world was, and grows: it is not too late. */
+import { keyShadow } from "../../gpu/lightRig";
 import * as THREE from "three/webgpu";
 import { T, hash3, type N } from "../../gpu/tsl";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
@@ -202,6 +203,7 @@ export function createMaldekScene(scene: THREE.Scene, narration: Narration, whis
         // the far sun's light on the terrace, and a low cold fill
         const sun = new THREE.DirectionalLight(0xffe0c0, 1.4);
         sun.position.copy(SUN).multiplyScalar(60);
+        keyShadow(sun, 30);
         g.add(sun, sun.target);
         const fill = new THREE.HemisphereLight(0x6a6090, 0x0a0812, 0.35);
         g.add(fill);

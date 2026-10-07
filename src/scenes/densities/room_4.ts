@@ -6,6 +6,7 @@
    other by a thread of light, heart to heart, arcing between them, a slow pulse travelling each
    thread: the social memory complex, no one a stranger. The threads wake as the narration speaks
    of minds joined; by its end they burn together. The way on: an arch of crystal. */
+import { keyShadow } from "../../gpu/lightRig";
 import type { Solid } from "../journey";
 import * as THREE from "three/webgpu";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
@@ -230,13 +231,7 @@ export function createDensityRoom4Scene(
       const dusk = new THREE.DirectionalLight(0xffa860, 0.9);
       dusk.position.set(PLANET.x * 90, 16, PLANET.z * 90 - 14);
       dusk.target.position.set(0, 0, -14);
-      dusk.castShadow = true;
-      dusk.shadow.mapSize.set(2048, 2048);
-      const sc = dusk.shadow.camera as THREE.OrthographicCamera;
-      sc.left = sc.bottom = -60;
-      sc.right = sc.top = 60;
-      sc.far = 220;
-      dusk.shadow.bias = -0.0005;
+      keyShadow(dusk, 60);
       g.add(dusk, dusk.target);
     }
 

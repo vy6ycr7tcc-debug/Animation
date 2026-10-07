@@ -11,6 +11,7 @@
    tall cone, a circle of standing stones, a spiral laid on the ground. Then fine arcs of light join
    each to the great pyramid: one grammar. At the end the great pyramid quiets and the small chamber
    round the figure is the brightest thing in the desert: the climber, not the mountain. */
+import { keyShadow } from "../../gpu/lightRig";
 import * as THREE from "three/webgpu";
 import { LessonScene } from "../lessonKit";
 import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
@@ -354,7 +355,7 @@ export function createPyramidsScene(scene: THREE.Scene, narration: LessonCtx["na
     const sun = new THREE.DirectionalLight(0xffd8a8, 1.5);
     sun.position.set(SUN.x * 200, 40, SUN.z * 200);
     sun.target.position.set(0, 0, -20);
-    sun.castShadow = true;
+    keyShadow(sun, 50);
     g.add(sun, sun.target);
 
     tickers.push((dt: number) => {

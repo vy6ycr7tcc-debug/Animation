@@ -12,6 +12,7 @@
    red. The fist grows with every war and strikes, a ring of dust running out over the ground; light
    poured into it falls through (a fist cannot hold anything); it cools grey, flares once more with
    the old reflex, and at the end, slowly, it opens. */
+import { keyShadow } from "../../gpu/lightRig";
 import * as THREE from "three/webgpu";
 import { T, vnoise, type N } from "../../gpu/tsl";
 import { applyAir, boulderGeometry, fbmN, keepAlpha, merge, pointCloud, roomPos, roughBlock, scannedGround, seeded, touch, type Air } from "../densities/roomKit";
@@ -192,7 +193,7 @@ export function createMarsScene(scene: THREE.Scene, narration: Narration, whispe
       }
       const sun = new THREE.DirectionalLight(0xfff0dc, 2.2);
       sun.position.copy(SUN).multiplyScalar(80);
-      sun.castShadow = true;
+      keyShadow(sun, 45);
       g.add(sun, sun.target);
       const hemi = new THREE.HemisphereLight(0x9ab6ff, 0x3a1a10, 0.5);
       g.add(hemi);
