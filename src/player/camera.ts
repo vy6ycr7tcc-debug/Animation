@@ -43,6 +43,11 @@ export class FollowCamera {
   private rayDir = new THREE.Vector3();
   private frameK = 0;
   private frameAt = new THREE.Vector3();
+  /** 0..1: a room whose beauty is its breadth (the first density): the gravity point and
+      contemplation draw the view back and up to reveal the whole, rather than in toward one thing.
+      While it holds, contemplation keeps the view behind the wanderer (no first person). */
+  wide = 0;
+  private wideK = 0;
 
   constructor(public cam: THREE.PerspectiveCamera) {}
 
@@ -82,7 +87,10 @@ export class FollowCamera {
     this.target.lerp(new THREE.Vector3(player.x, player.y + 1.3, player.z), Math.min(1, dt * 5));
 
     const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
-    const pitch = this.pitch + (0.98 - this.pitch) * this.lift, dist = this.dist * (1 + 4.5 * this.lift);
+    // the wide reveal eases in slowly (a camera drawing back on a crane), out a little quicker
+    this.wideK += (this.wide - this.wideK) * Math.min(1, dt * (this.wide > this.wideK ? 0.35 : 0.8));
+    const w = THREE.MathUtils.smoothstep(this.wideK, 0, 1);
+    const pitch = this.pitch + (0.98 - this.pitch) * this.lift + 0.1 * w, dist = this.dist * (1 + 4.5 * this.lift) * (1 + 1.3 * w);
     const cp = Math.cos(pitch), sp = Math.sin(pitch);
     // Pull in when the ground would come between the camera and the wanderer.
     let clear = dist;
@@ -145,7 +153,7 @@ export class FollowCamera {
     if (this.frameK > 0.001 && this.seatK < 0.5) {
       const cp = this.cam.position, d = look.distanceTo(cp);
       const toT = look.clone().sub(cp).normalize(), toG = this.frameAt.clone().sub(cp).normalize();
-      look.copy(cp).addScaledVector(toT.lerp(toG, THREE.MathUtils.smoothstep(this.frameK, 0, 1) * 0.62).normalize(), d);
+      look.copy(cp).addScaledVector(toT.lerp(toG, THREE.MathUtils.smoothstep(this.frameK, 0, 1) * (0.62 + 0.18 * w)).normalize(), d);
     }
     if (this.inward > 0.001) {
       const eye = new THREE.Vector3(player.x, player.y + 1.6, player.z);
@@ -154,7 +162,8 @@ export class FollowCamera {
       // the gaze glides from one thing to the next, never snaps
       this.gazeAt.lerp(this.gaze ?? ahead, Math.min(1, dt * 0.4));
       const s = THREE.MathUtils.smoothstep(this.inward, 0, 1);
-      this.cam.position.lerp(eye, s);
+      // wide: the view stays drawn back (the whole is the thing to see), only the gaze turns
+      this.cam.position.lerp(eye, s * (1 - w));
       look.lerp(this.gazeAt, s);
     } else this.gazeHeld = false;
     this.cam.lookAt(look);

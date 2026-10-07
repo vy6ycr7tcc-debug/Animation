@@ -68,6 +68,10 @@ export interface Stage {
   focus?: [number, number, number][];
   /** The animation's centre, the gravity point while its narration plays (default the first focus). */
   centre?: [number, number, number];
+  /** How the gravity point frames it: "near" (default) turns the view onto the centre; "wide"
+      draws the view back and up to reveal the whole room, the centre held in the middle distance
+      (the owner, of the first density: "the wide view is prettier… pull back to reveal it"). */
+  framing?: "near" | "wide";
   /** The room was drawn around its seat, somewhere else: move it so the seat is at the origin. */
   centreOnSeat?: boolean;
   /** What stands solid in the room (its own frame), beyond what `confine` keeps you within. */
@@ -192,6 +196,10 @@ export class Journey {
     if (!this.inside || !c) return null;
     const x = JOURNEY_ORIGIN.x + c[0], z = JOURNEY_ORIGIN.z + c[2];
     return new THREE.Vector3(x, this.floorAt(x, z) + c[1], z);
+  }
+  /** The room's framing while you are inside it (see `Stage.framing`). */
+  framing(): "near" | "wide" {
+    return this.inside && !this.crossing ? (this.stage?.framing ?? "near") : "near";
   }
   get stage(): Stage | null {
     return this.at >= 0 ? this.stages[this.at] : null;
