@@ -4,6 +4,7 @@
    forms (beam, veil, garden, throne, arch, rings) stand as landmarks to wander toward.
    Narration plays in the background the whole time, one recording after another.
    States: intro (title over the night water) → play → rest (after Leave) → play … */
+import { setShadowSize } from "./gpu/lightRig";
 import { loadFailed } from "./core/assets";
 import { EgyptGate } from "./world/egyptGate";
 import { CUES, FINALE_T, TRACK_ID as TEMPLE_TRACK } from "./scenes/templeTour";
@@ -405,6 +406,7 @@ function applyTier(t: Tier, i: number = quality.tier): void {
   // have any reflecting… but incredible skies when you look at them")
   // the shadow map follows mapSize by itself (no dispose, as WebGL needed)
   star.shadow.mapSize.set(t.shadow, t.shadow);
+  setShadowSize(t.shadow); // every room's key light follows the moon's map (gpu/lightRig.ts)
   motes.setCount(Math.round(t.particles / 2));
   creation.setQuality(Math.max(0, i - 1));
   forest.mesh.visible = i <= 2; // the forests beyond rest on the two lowest tiers

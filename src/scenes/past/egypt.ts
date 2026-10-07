@@ -12,6 +12,7 @@
    wheel (thousands of years), the fence crumbles into dust and blows away, and a thin line runs
    from the apex to the star it still points at. The light, patient, returns to the chamber; the
    door opens again, and everyone who waited walks in; the spiral climbs, the stone sings. */
+import { keyShadow } from "../../gpu/lightRig";
 import * as THREE from "three/webgpu";
 import { T, type N } from "../../gpu/tsl";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
@@ -136,10 +137,8 @@ export function createEgyptScene(scene: THREE.Scene, narration: Narration, whisp
       }
       const moon = new THREE.DirectionalLight(0xcfd8ff, 1.3);
       moon.position.copy(MOON).multiplyScalar(120);
-      moon.castShadow = true;
-      moon.shadow.camera.left = moon.shadow.camera.bottom = -90;
-      moon.shadow.camera.right = moon.shadow.camera.top = 90;
       moon.target.position.set(0, 0, -60);
+      keyShadow(moon, 90);
       g.add(moon, moon.target);
       g.add(new THREE.HemisphereLight(0x3a4870, 0x1a140c, 0.4));
 
