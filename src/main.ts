@@ -45,7 +45,7 @@ import { TranscriptPlayer } from "./ui/transcriptPlayer";
 import { tourBar, type TourBarOwner } from "./ui/tourBar";
 import { StartMap, type Choice, type Place } from "./ui/map";
 import { buildSky, skyUniforms, starDirection } from "./world/sky";
-import { floorHook, GOBEKLI, gobekliAt, NAN_MADOL, nanMadolAt, groundUniforms, heightAt, heightCoarse, LANDMARK_SITES, MONUMENT, PEAKS, SPAWN, Terrain, WATER_Y } from "./world/terrain";
+import { floorHook, GOBEKLI, gobekliAt, NAN_MADOL, nanMadolAt, groundUniforms, heightAt, heightCoarse, LANDMARK_SITES, MONUMENT, PEAKS, SPAWN, standAt, Terrain, WATER_Y } from "./world/terrain";
 import { Temple } from "./world/temple";
 import { Autofly } from "./player/autofly";
 import { Autorun } from "./player/autorun";
@@ -3645,6 +3645,13 @@ function update(dt: number): void {
 
   wanderer.root.position.copy(player.pos);
   wanderer.root.rotation.y = player.heading;
+  {
+    // the ground under the wanderer, for its contact shadow (on its slope)
+    const px = player.pos.x, pz = player.pos.z;
+    wanderer.groundY = player.grounded ? player.pos.y : standAt(px, pz);
+    const hx = standAt(px + 0.4, pz) - standAt(px - 0.4, pz), hz = standAt(px, pz + 0.4) - standAt(px, pz - 0.4);
+    wanderer.groundNormal.set(-hx / 0.8, 1, -hz / 0.8).normalize();
+  }
   wanderer.root.visible = S.mode !== "intro";
   wanderer.animate(dt, player.pose, player.speed, t, S.reduced, dpr);
   wanderer.fx.visible = wanderer.root.visible;
