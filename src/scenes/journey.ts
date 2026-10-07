@@ -27,6 +27,9 @@ export type Room = SceneModule & {
   solids?: () => Solid[];
   /** The room's own gravity point now (its frame), when what the voice speaks of moves about. */
   centre?: () => THREE.Vector3 | null;
+  /** A guided walk's next place (its frame): where the guide is going, or null while it speaks
+      (and once the way is walked). Set by rooms walked as one path (the veil, the descent). */
+  lead?: () => { x: number; z: number } | null;
 };
 /** Something solid in a room (its own frame): a circle (`r`) or a box (`hx`, `hz`, turned by
     `ang`), `h` metres tall from the floor. The journey makes it a collider while the room stands. */
@@ -206,6 +209,12 @@ export class Journey {
     if (!this.inside || !c) return null;
     const x = JOURNEY_ORIGIN.x + c[0], z = JOURNEY_ORIGIN.z + c[2];
     return new THREE.Vector3(x, this.floorAt(x, z) + c[1], z);
+  }
+  /** A guided walk's next place (world x, z), or null: see `Room.lead`. */
+  lead(): { x: number; z: number } | null {
+    if (!this.inside || this.crossing) return null;
+    const p = this.room?.lead?.();
+    return p ? { x: JOURNEY_ORIGIN.x + p.x, z: JOURNEY_ORIGIN.z + p.z } : null;
   }
   /** The room's framing while you are inside it (see `Stage.framing`). */
   framing(): "near" | "wide" {
