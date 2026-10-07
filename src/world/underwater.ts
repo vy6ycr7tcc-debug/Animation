@@ -40,11 +40,16 @@ export class UnderwaterEffect {
     uCamWorld: uniform(new THREE.Matrix4()),
     /** 1 under a roof of stone (the deep archive): no sky overhead, no moonlight shafts. */
     uRoof: uniform(0),
+    /** The water's own colour and its shafts of light, as a drowned city nearby colours them
+        (world/ancient): 1 is the open lakes' water. */
+    uTint: uniform(new THREE.Vector3(1, 1, 1)),
+    uShaft: uniform(1),
+    uShaftCol: uniform(new THREE.Vector3(0.3, 0.55, 0.62)),
   };
 
   /** `color`: the scene's colour; `depth`: its depth texture node. */
   node(color: N, depth: N): N {
-    const { uT, uDepth, uCam, uOrb, uProjInv, uCamWorld, uRoof } = this.u;
+    const { uT, uDepth, uCam, uOrb, uProjInv, uCamWorld, uRoof, uTint, uShaft, uShaftCol } = this.u;
     return Fn(() => {
       const q0 = uv();
       const d = depth.sample(q0).r;
@@ -60,7 +65,7 @@ export class UnderwaterEffect {
       // absorption (red first) and the glow of the water itself, darker the deeper you are
       const Tr = exp(vec3(0.075, 0.021, 0.014).negate().mul(dist)); // clear, open water: forms read to ~60 m
       const deep = smoothstep(0, 60, uDepth);
-      const glowW = mix(vec3(0.045, 0.13, 0.17), vec3(0.01, 0.03, 0.06), deep).mul(max(0, ray.y).mul(float(1).sub(deep.mul(0.6))).mul(0.9).add(0.55));
+      const glowW = mix(vec3(0.045, 0.13, 0.17), vec3(0.01, 0.03, 0.06), deep).mul(uTint).mul(max(0, ray.y).mul(float(1).sub(deep.mul(0.6))).mul(0.9).add(0.55));
       const c = color.rgb.mul(Tr).add(glowW.mul(float(1).sub(Tr))).toVar();
       // the sky through the surface: a bright window straight overhead (Snell's window),
       // rippling, with a brighter rim, fading as you go deeper
@@ -84,7 +89,7 @@ export class UnderwaterEffect {
         const pat = pow(smoothstep(0.52, 0.9, pat0), 2);
         shafts.addAssign(pat.mul(exp(below.mul(-0.07).sub(s.mul(0.06)))));
       }
-      c.addAssign(vec3(0.3, 0.55, 0.62).mul(shafts).div(6).mul(1.1).mul(float(1).sub(deep.mul(0.7))).mul(float(1).sub(uRoof)));
+      c.addAssign(uShaftCol.mul(shafts).div(6).mul(uShaft.mul(1.1)).mul(float(1).sub(deep.mul(0.7))).mul(float(1).sub(uRoof)));
       // the orb: a lantern in the murk (light scattered along the ray, after Macklin)
       const oq = uCam.sub(uOrb);
       const b = dot(ray, oq), cc = dot(oq, oq);

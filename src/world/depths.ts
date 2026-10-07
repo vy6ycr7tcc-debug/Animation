@@ -18,7 +18,7 @@ import { T, worldPoints, type N } from "../gpu/tsl";
 import { etchedStone } from "./etching";
 import { columnGeometry, scan, type ScanName } from "./temple";
 import { surface } from "./textures";
-import { colliders, heightAt, LANDMARK_KINDS, LANDMARK_SITES, SPAWN, WATER_Y } from "./terrain";
+import { colliders, heightAt, LANDMARK_KINDS, LANDMARK_SITES, levelGround, SPAWN, WATER_Y } from "./terrain";
 
 const { abs, atan, cos, float, fract, length, max, mix, positionGeometry, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
 const V = THREE.Vector3;
@@ -34,7 +34,18 @@ function rng(seed: number): () => number {
 
 /* ---------------------------------------------------------------- where */
 export type RuinKind = "rotunda" | "terraces" | "tower" | "arcade" | "portals";
-export interface RuinSite { x: number; z: number; y: number; kind: RuinKind; rot: number }
+export interface RuinSite {
+  x: number;
+  z: number;
+  y: number;
+  kind: RuinKind;
+  rot: number;
+  /** A drowned city stands here instead of a ruin (world/ancient), under its own name. */
+  area?: AreaId;
+  name?: string;
+}
+/** The drowned cities of the ancient tellings (world/ancient), each at one of the ruin sites. */
+export type AreaId = "mayan";
 export interface SpotSite { x: number; z: number; y: number; r: number }
 export interface MouthSite { x: number; z: number; y: number; face: number }
 
@@ -82,13 +93,33 @@ export const RUIN_SITES: RuinSite[] = (() => {
   return out;
 })();
 
+/** Which ruin sites hold a drowned city, and how much floor each levels round it. The owner's
+    brief: the cities stand at the world's own ruin sites (no new geography). The Maya city takes
+    the deepest (its nine-terraced pyramid stands ~17 m and wants the most water over it). */
+export const AREA_SIZE: Record<AreaId, { inner: number; outer: number; name: string }> = {
+  mayan: { inner: 50, outer: 78, name: "The drowned Maya city" },
+};
+export const AREA_SITES: Partial<Record<AreaId, RuinSite>> = (() => {
+  const out: Partial<Record<AreaId, RuinSite>> = {};
+  const free = () => RUIN_SITES.filter((r) => !r.area);
+  const take = (id: AreaId, r: RuinSite | undefined) => {
+    if (!r) return;
+    r.area = id;
+    r.name = AREA_SIZE[id].name;
+    out[id] = r;
+    levelGround(r.x, r.z, r.y, AREA_SIZE[id].inner, AREA_SIZE[id].outer);
+  };
+  take("mayan", free().sort((a, b) => a.y - b.y)[0]);
+  return out;
+})();
+
 /** A ring of stillness beside each ruin (on the floor, a little way off). */
 export const SPOT_SITES: SpotSite[] = RUIN_SITES.map((r, i) => {
   const a = r.rot + 2.2 + hash(i, 1, 12);
   const d = r.kind === "rotunda" ? 0 : r.kind === "terraces" ? 18 : 13; // the rotunda holds its own at the centre, under the dome
   const x = r.x + Math.cos(a) * d, z = r.z + Math.sin(a) * d;
   return { x, z, y: heightAt(x, z), r: 2.6 };
-});
+}).filter((_, i) => !RUIN_SITES[i].area);
 
 /** Cave mouths in the steep slopes under the water, facing down the slope into open water. */
 export const MOUTH_SITES: MouthSite[] = (() => {
@@ -106,7 +137,7 @@ export const MOUTH_SITES: MouthSite[] = (() => {
     const fx = x + Math.cos(face) * 8, fz = z + Math.sin(face) * 8;
     if (heightAt(fx, fz) > h - 0.5 || heightAt(fx, fz) > -7) continue;
     if (deepHomes.some(([lx, lz]) => Math.hypot(x - lx, z - lz) < 60)) continue;
-    if (RUIN_SITES.some((o) => Math.hypot(o.x - x, o.z - z) < 40)) continue;
+    if (RUIN_SITES.some((o) => Math.hypot(o.x - x, o.z - z) < (o.area ? AREA_SIZE[o.area].outer + 10 : 40))) continue;
     if (out.some((o) => Math.hypot(o.x - x, o.z - z) < 300)) continue;
     out.push({ x, z, y: h, face });
   }
@@ -622,6 +653,7 @@ export class Depths {
     // each ruin's own pieces merged apart from the others, so only the ruins near you are drawn
     // (merged together, all nine were drawn whenever you were in the water)
     for (const r of RUIN_SITES) {
+      if (r.area) continue; // a drowned city stands here (world/ancient)
       const mg = new Merge();
       buildRuin(s, mg, r, lights);
       const g = new THREE.Group();

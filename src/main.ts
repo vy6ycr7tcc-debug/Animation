@@ -53,6 +53,7 @@ import { BreathGuide } from "./world/breath";
 import { Genesis } from "./world/genesis";
 import { Touch } from "./world/touch";
 import { Depths, RUIN_NAMES, RUIN_SITES } from "./world/depths";
+import { Ancients } from "./world/ancient";
 import { Pyramid, DUAT_ORIGIN } from "./world/pyramid";
 import { DUAT_TRACKS } from "./world/duat";
 import { Companion } from "./world/companion";
@@ -1250,9 +1251,9 @@ function places(): Place[] {
     // beneath the water: the sunken ruins, and the cave that leads to the deep archive (you wake
     // on the water above; dive, and swim down to them)
     ...RUIN_SITES.map((r) => {
-      const same = RUIN_SITES.filter((q) => q.kind === r.kind);
-      let label = RUIN_NAMES[r.kind];
-      if (same.length > 1) {
+      const same = RUIN_SITES.filter((q) => q.kind === r.kind && !q.name);
+      let label = r.name ?? RUIN_NAMES[r.kind];
+      if (!r.name && same.length > 1) {
         const dir = compass(r.x, r.z), d = Math.hypot(r.x - SPAWN.x, r.z - SPAWN.z);
         const twin = same.some((q) => q !== r && compass(q.x, q.z) === dir && Math.hypot(q.x - SPAWN.x, q.z - SPAWN.z) < d);
         label += `, ${twin ? "further " : ""}${dir}`;
@@ -1635,6 +1636,8 @@ const depths = new Depths(
   beings.list.map((b) => ({ numeral: b.spec.numeral, name: b.spec.name, tint: new THREE.Color(...b.spec.tint) })),
 );
 scene.add(depths.group, depths.grotto);
+const ancients = new Ancients();
+scene.add(ancients.group);
 {
   // inside the grotto the scene's own lights rest with the world: its stone has its own
   const hemi = new THREE.HemisphereLight(0x9fc4ff, 0x1a1420, 0.9);
@@ -2951,6 +2954,14 @@ function pyramidFrame(dt: number): void {
 function deepFrame(dt: number, wt: number, inWater: boolean): void {
   const nearWater = heightAt(player.pos.x, player.pos.z) < WATER_Y - 2 && player.pos.y < 12;
   const ring = depths.update(wt, player.pos, inWater, nearWater);
+  // the drowned cities: each begins its telling the first time you come into it, and it plays
+  // on wherever you go (not while the voices rest, nor over an archive narration)
+  if (!depths.inside)
+    ancients.update(dt, wt, player.pos, S.reduced, underwater, (id) => {
+      if (S.mode !== "play" || !playlist.on || tp.playing) return false;
+      void narration.play(id);
+      return true;
+    });
   if (S.mode !== "play") return;
   if (depths.inside) {
     if (!player.swimming) player.placeUnder();
@@ -3996,4 +4007,4 @@ function endLoading(): void {
   }, wait);
 }
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall } });
