@@ -331,12 +331,12 @@ const HOURS: Hour[] = [
     ],
   },
 ];
-const HOLD = 9; // seconds each moment of an hour holds
+const HOLD = 6; // seconds each moment of an hour holds (9 left a still form on screen ~13 s: "dead stretches")
 
 /** Keys for many turns of an hour's cycle (its clock runs only while you are near). */
 function keysFor(h: Hour): Key[] {
   const keys: Key[] = [];
-  for (let k = 0; k < 40; k++) h.cycle.forEach((c, i) => keys.push({ ...c, t: 0.5 + (k * h.cycle.length + i) * HOLD, dur: 4.5 }));
+  for (let k = 0; k < 40; k++) h.cycle.forEach((c, i) => keys.push({ ...c, t: 0.5 + (k * h.cycle.length + i) * HOLD, dur: 3.5 }));
   return keys;
 }
 
@@ -448,11 +448,24 @@ export class Duat {
     const p = g.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < p.count; i++) p.setY(i, duatHeight(p.getX(i), p.getZ(i)));
     g.computeVertexNormals();
+    // The sand: the scan read in the Duat's own frame (its world position is ~50 km out, where
+    // lookups lose their fine digits), at two scales so no tile repeats, a fine third layer near,
+    // its occlusion, and its relief at the same scales. (Its normal map used to be read through the
+    // plane's own UVs, one tile stretched over the whole 112 m: the dunes read as mud.)
     const S = surface("sand");
     const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.95, metalness: 0 });
-    const w = T.positionWorld.xz.div(2.6);
-    m.colorNode = T.texture(S.diff, w).rgb.mul(vec3(0.62, 0.58, 0.6)).mul(T.mix(float(0.5), float(1), T.texture(S.arm, w).r));
-    m.normalMap = S.nor;
+    const P = T.positionGeometry.xz;
+    const u1 = P.div(2.6), u2 = P.div(6.8).add(vec2(0.37, 0.71)), u3 = P.div(0.9).add(vec2(0.13, 0.52));
+    const camD = T.length(T.cameraPosition.sub(T.positionWorld));
+    const near = float(1).sub(smoothstep(6, 22, camD));
+    const d = T.texture(S.diff, u1).rgb.mul(0.55).add(T.texture(S.diff, u2).rgb.mul(0.45));
+    const ao = mix(T.texture(S.arm, u1).r.mul(0.6).add(T.texture(S.arm, u2).r.mul(0.4)), T.texture(S.arm, u3).r, near.mul(0.35));
+    // broad drifts of lighter and darker sand over the dunes, so far ground is never one flat tone
+    const drift = T.sin(P.x.mul(0.11).add(T.sin(P.y.mul(0.07)).mul(2.1))).mul(0.5).add(0.5);
+    m.colorNode = d.mul(vec3(0.62, 0.58, 0.6)).mul(mix(float(0.45), float(1.02), ao)).mul(mix(float(0.86), float(1.1), drift));
+    const n1 = T.texture(S.nor, u1).xy.mul(2).sub(1), n2 = T.texture(S.nor, u2).xy.mul(2).sub(1), n3 = T.texture(S.nor, u3).xy.mul(2).sub(1);
+    const n = n1.mul(0.55).add(n2.mul(0.45)).mul(1.5).add(n3.mul(near.mul(0.8)));
+    m.normalNode = T.normalize(T.normalView.add(T.cameraViewMatrix.mul(vec4(n.x, 0, n.y.negate(), 0)).xyz));
     const ground = new THREE.Mesh(g, m);
     ground.receiveShadow = true;
     this.group.add(ground);
@@ -460,7 +473,7 @@ export class Duat {
 
   /** The gorge: a ring of broken cliffs round it all, in the scanned stone. */
   private buildGorge(): void {
-    const g = new THREE.CylinderGeometry(RIM + 4, RIM + 9, 30, 160, 14, true);
+    const g = new THREE.CylinderGeometry(RIM + 4, RIM + 9, 30, 200, 44, true); // (14 rows made 2 m facets: flat, blurry walls)
     const p = g.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i), y = p.getY(i), z = p.getZ(i), a = Math.atan2(z, x);
@@ -627,6 +640,14 @@ export class Duat {
       this.group.add(gate);
       // the story, standing on the way beyond the gate, facing whoever comes through
       const sp = at.clone();
+      // the last hour stands where the stair climbs: its reeds were laid over the stair's blocks and
+      // grew up through the steps. It is told beside the stair instead, on the sand, outward from
+      // the gorge's heart (the river runs on the inner side)
+      if (h.at === 6) {
+        const side = new V(dir.z, 0, -dir.x);
+        if (side.x * sp.x + side.z * sp.z < 0) side.negate();
+        sp.addScaledVector(side, 6.5);
+      }
       sp.y = duatHeight(sp.x, sp.z);
       // Apophis and the weighing are told as animated scenes (duatScenes.ts); the others in light
       const stage: VisionStage | HourScene =
@@ -647,7 +668,8 @@ export class Duat {
   /** The hours, for the tour (Duat-local): where to stand and which way to face, the story's
       place, one telling's length, the place's name. */
   hours(): { stand: THREE.Vector3; heading: number; at: THREE.Vector3; cycle: number; name: string }[] {
-    return this.stages.map((s) => ({ stand: s.stand, heading: s.face + Math.PI, at: s.at, cycle: s.cycle, name: s.name }));
+    // turned to the story itself (one hour's story stands beside the way)
+    return this.stages.map((s) => ({ stand: s.stand, heading: Math.atan2(-(s.at.x - s.stand.x), -(s.at.z - s.stand.z)), at: s.at, cycle: s.cycle, name: s.name }));
   }
 
   /** Hour `k`'s story from its beginning (the tour arrives, and it begins for you). */
