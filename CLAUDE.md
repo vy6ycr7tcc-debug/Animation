@@ -772,6 +772,26 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
     - a soft contact shadow round the foot.
   - Stills: `?shot=pyramid-foot|pyramid-door|pyramid-corner|pyramid-calm`.
   - Fixed on the way: `THREE.MathUtils.smoothstep(x, min, max)` was called with its edges reversed. This affected the doors' nearness and breath tone (every door counted as near), the drowned cities' water tint, the Maya stelae's glow (it should come only within 4–12 m) and the ancient figures' fade (now 60–110 m). Rule: for a fall-off, write `1 − smoothstep(d, near, far)`; never reverse the edges.
+- 2026-10-07: Göbekli Tepe (the owner's brief; the telling `GOBEKLI`, Aria, `audio/ancient-civs/gobekli.mp3`, 331.44 s decoded, cues embedded; used as delivered; never merged here). The one ancient telling under the open sky, after the drowned cities.
+  - The site (`GOBEKLI` in `terrain.ts`): the world's highest dry hill toward the golden hour (east by north-east, 1–1.9 km out), with dry ground all round, a plain below and the snowy massif beyond. Its top is levelled. Four enclosures are dug 2.5 m into it, and the unexcavated tells are raised over it (all as pads, before any ground is built). Three sister hills stand 380–700 m out on the plain, each with a pillar head on its crown. Trees and caves keep clear. On the map as "Göbekli Tepe".
+  - The enclosures (`world/ancient/gobekli.ts`): rings of dry-stone wall (the masonry in small rough courses, stones along the top), D and C with a gap where a boardwalk ramp comes down.
+    - Each ring has T-pillars set into the wall facing in, and two taller ones at its centre, side by side, facing the gap.
+    - The pillars are figures: the T's head is the shoulders, arms are carved down the broad sides to hands meeting over the belly, with a belt and a fox pelt hanging from it.
+    - Some carry animals in low relief: fox, boar, lion, snake, scorpion, birds.
+    - In D, just inside its gap and turned to the ramp, is the vulture stone: the great bird with its wing out over the disc, the scorpion below, the headless man, small birds, three bags along its head.
+    - Walls and pillars are solid; you enter by the ramps.
+  - Around them:
+    - the tells under grass, some with pillar heads breaking the turf (still: their stillness against the moving grass is the effect);
+    - boardwalks on posts with rope rails: a spine across the top, ramps down into D and C, a ring round C's rim, lookouts over B and A (walked on: `standHooks`);
+    - the quarry at the hill's edge: a shelf of bedrock with a pillar half cut from it, lying in its trench, the work stopped;
+    - limestone breaking the turf.
+  - Life:
+    - dry grass over the hilltop in waves of wind (off the plain), a few wild flowers in it;
+    - dust turning in the low light over the rings, and seed heads blown along the ground;
+    - swifts circling high: the game's small bird model, darkened. There is no swift model (real models or nothing); the owner to judge.
+  - Two builders (`GOBEKLI_BUILDER`, the temple figures' particle idiom; undyed wool, ochre, stone grey): one standing still between D's central pillars facing in with the stones, one walking C's rim pausing at its pillars. None on the mounds or at the quarry. No dialogue, no collision.
+  - The telling begins once, the first time you come onto the hilltop, and plays on wherever you go.
+  - Stills: `?shot=gobekli-a` … `gobekli-g` (approach, into D, D's central pair, the vulture stone, C and its rim walk, the quarry, from the air).
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.

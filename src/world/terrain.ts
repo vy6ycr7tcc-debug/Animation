@@ -317,6 +317,96 @@ export function levelGround(x: number, z: number, h: number, inner: number, oute
   PADS.push({ x, z, h, outer, inner });
   coarse.clear();
 }
+/** Göbekli Tepe (world/ancient/gobekli.ts): the highest dry hill toward the golden hour (east by
+    north-east, 1–1.9 km out, where the sky is the low warm sun), its ground above the plain all
+    round and clear of every home, monument, the pyramid and the peaks. Its top is levelled, its
+    four enclosures dug down into it, its unexcavated tells raised over it; three sister hills
+    stand out on the plain. `face`: the heading from it toward the shore (the way you come). */
+export const GOBEKLI = (() => {
+  let best = { x: 1680, z: -610, h: 21 }, bestScore = -Infinity;
+  for (let r = 1000; r <= 1900; r += 20)
+    for (let k = -14; k <= 14; k++) {
+      const a = 1.95 + k * 0.03, x = SPAWN.x + Math.sin(a) * r, z = SPAWN.z + Math.cos(a) * r;
+      const h = rawHeight(x, z);
+      if (h < 8 || h > 60) continue;
+      if (LANDMARK_SITES.some(([lx, lz]) => Math.hypot(x - lx, z - lz) < 160)) continue;
+      if (MONUMENT_SITES.some((m) => Math.hypot(x - m.x, z - m.z) < m.r + 160)) continue;
+      if (Math.hypot(x - PYRAMID.x, z - PYRAMID.z) < 320) continue;
+      if (PEAKS.some((p) => Math.hypot(x - p.x, z - p.z) < p.r + 60)) continue;
+      let ring = 0, low = Infinity, rough = 0;
+      for (let j = 0; j < 12; j++) {
+        const b = (j / 12) * Math.PI * 2;
+        const hh = rawHeight(x + Math.cos(b) * 170, z + Math.sin(b) * 170);
+        ring += hh / 12;
+        low = Math.min(low, hh);
+        for (const rr of [15, 32]) rough = Math.max(rough, Math.abs(rawHeight(x + Math.cos(b) * rr, z + Math.sin(b) * rr) - h));
+      }
+      if (low < 1) continue; // dry ground all round: a plain below, not a lake
+      const score = h - ring - rough * 1.5;
+      if (score > bestScore) (bestScore = score), (best = { x, z, h });
+    }
+  return { x: best.x, z: best.z, y: best.h, face: Math.atan2(SPAWN.x - best.x, SPAWN.z - best.z) };
+})();
+/** The site's plan in its own frame (+z toward the shore, the way you arrive), metres. */
+export const GOBEKLI_PLAN = {
+  /** How deep the enclosures are dug below the hilltop. */
+  depth: 2.5,
+  /** The enclosures: centre, radius of the wall's inner face, and the way its gap opens (radians,
+      the game's heading in the site's frame). D holds the vulture stone. */
+  enclosures: [
+    { id: "D", x: -13.5, z: 4, r: 10, gap: Math.PI / 2 },
+    { id: "C", x: 14.5, z: -8, r: 11, gap: -Math.PI / 2 },
+    { id: "B", x: -11, z: -25, r: 8, gap: Math.PI / 2 },
+    { id: "A", x: 11.5, z: 20, r: 7.5, gap: -Math.PI / 2 },
+  ],
+  /** The tells not yet dug: grass over buried rings; some show the tops of their pillars. */
+  mounds: [
+    { x: 27, z: 36, r: 13, h: 2.3, tops: 2 },
+    { x: -28, z: 24, r: 10, h: 1.8, tops: 1 },
+    { x: -30, z: -8, r: 9, h: 1.6, tops: 0 },
+    { x: 30, z: -32, r: 12, h: 2.4, tops: 3 },
+    { x: 4, z: -44, r: 10, h: 1.9, tops: 1 },
+  ],
+  /** The quarry: a shelf of bedrock at the hill's edge with a pillar half cut from it. */
+  quarry: { x: -38, z: -36, face: Math.PI * 0.25 },
+};
+/** A point of the site's plan in the world. */
+export function gobekliAt(lx: number, lz: number): [number, number] {
+  const c = Math.cos(GOBEKLI.face), s = Math.sin(GOBEKLI.face);
+  return [GOBEKLI.x + lx * c + lz * s, GOBEKLI.z - lx * s + lz * c];
+}
+/** The sister hills: three tells out on the plain, 380–700 m off (the eleven other sites). */
+export const GOBEKLI_SISTERS: { x: number; z: number; y: number }[] = (() => {
+  const out: { x: number; z: number; y: number }[] = [];
+  for (let i = 0; i < 24 && out.length < 3; i++) {
+    const a = GOBEKLI.face + Math.PI + (i % 2 ? 1 : -1) * (0.35 + (i >> 1) * 0.21), r = 380 + ((i * 0.618) % 1) * 320;
+    const x = GOBEKLI.x + Math.sin(a) * r, z = GOBEKLI.z + Math.cos(a) * r;
+    const h = rawHeight(x, z);
+    if (h < 4 || h > 70) continue;
+    if (LANDMARK_SITES.some(([lx, lz]) => Math.hypot(x - lx, z - lz) < 120)) continue;
+    if (MONUMENT_SITES.some((m) => Math.hypot(x - m.x, z - m.z) < m.r + 120)) continue;
+    if (out.some((o) => Math.hypot(o.x - x, o.z - z) < 200)) continue;
+    out.push({ x, z, y: h + 9 });
+  }
+  return out;
+})();
+{
+  const G = GOBEKLI, P = GOBEKLI_PLAN;
+  PADS.push({ x: G.x, z: G.z, h: G.y, inner: 46, outer: 90 });
+  // the unexcavated tells, raised over the top
+  for (const m of P.mounds) {
+    const [x, z] = gobekliAt(m.x, m.z);
+    PADS.push({ x, z, h: G.y + m.h, inner: 1.5, outer: m.r });
+  }
+  // the enclosures dug down into it: the earth stands steep behind each wall
+  for (const e of P.enclosures) {
+    const [x, z] = gobekliAt(e.x, e.z);
+    PADS.push({ x, z, h: G.y - P.depth, inner: e.r + 0.7, outer: e.r + 1.6 });
+  }
+  for (const s of GOBEKLI_SISTERS) PADS.push({ x: s.x, z: s.z, h: s.y, inner: 8, outer: 70 });
+  KEEP_CLEAR.push({ x: G.x, z: G.z, r: 72 });
+  for (const s of GOBEKLI_SISTERS) KEEP_CLEAR.push({ x: s.x, z: s.z, r: 20 });
+}
 /** Its platform's rise at distance `d` from its centre (walked up; scenes/past/monument.ts). */
 const pastRise = (d: number): number => (d < 12.4 ? 1.3 : d < 22 ? 0.9 : d < 23 ? 0.6 : d < 24 ? 0.3 : 0);
 /** The stepped platform's rise at distance `d` from a monument's centre (three steps of 0.45 m). */
@@ -393,6 +483,7 @@ export const CAVE_SITES: { x: number; z: number; y: number; face: number }[] = (
         const gx = heightAt(x + 8, z) - heightAt(x - 8, z), gz = heightAt(x, z + 8) - heightAt(x, z - 8);
         if (Math.hypot(gx, gz) < 5) continue; // a real slope: the cave runs into the hill
         if (LANDMARK_SITES.some(([lx, lz]) => Math.hypot(x - lx, z - lz) < 80)) continue;
+        if (Math.hypot(x - GOBEKLI.x, z - GOBEKLI.z) < 180) continue;
         if (out.some((c) => Math.hypot(c.x - x, c.z - z) < 400)) continue;
         out.push({ x, z, y: h, face: Math.atan2(-gz, -gx) });
         break search;
@@ -406,7 +497,10 @@ export const CAVE_SITES: { x: number; z: number; y: number; face: number }[] = (
 export function groundKind(x: number, z: number, h = heightAt(x, z)): { meadow: number; sand: number; stone: number } {
   const sand = smooth(1.2, 0.2, h);
   const stone = smooth(9, 16, h) * smooth(0.35, 0.65, fbm(x * 0.01 + 50, z * 0.01));
-  const meadow = Math.max(0, 1 - sand - stone) * smooth(0.25, 0.5, fbm(x * 0.02 - 20, z * 0.02 + 40));
+  let meadow = Math.max(0, 1 - sand - stone) * smooth(0.25, 0.5, fbm(x * 0.02 - 20, z * 0.02 + 40));
+  // Göbekli Tepe's hill: dry soil over the top and its slopes (the stone shows only in its works)
+  const gk = smooth(150, 90, Math.hypot(x - GOBEKLI.x, z - GOBEKLI.z));
+  if (gk > 0) return { meadow: meadow + (1 - sand - meadow) * gk * 0.9, sand, stone: stone * (1 - gk * 0.9) };
   return { meadow, sand, stone };
 }
 

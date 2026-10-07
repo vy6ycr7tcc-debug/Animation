@@ -4,7 +4,7 @@
 import { SITES } from "../scenes/sites";
 import { DUAT_ORIGIN } from "../world/pyramid";
 import { AREA_SITES, RUIN_SITES, type AreaId } from "../world/depths";
-import { ADEPT_HALL, DENSITY_HALL, LANDMARK_SITES, PAST_HALL, PEAKS, PYRAMID, SPAWN, heightAt } from "../world/terrain";
+import { ADEPT_HALL, DENSITY_HALL, GOBEKLI, GOBEKLI_PLAN, gobekliAt, LANDMARK_SITES, PAST_HALL, PEAKS, PYRAMID, SPAWN, heightAt } from "../world/terrain";
 import { JOURNEY_ORIGIN } from "../scenes/journey";
 
 export interface Shot {
@@ -365,6 +365,24 @@ export function runShot(ctx: ShotCtx): void {
     const p = ctx.player.pos, fx = -Math.sin(ctx.player.heading), fz = -Math.cos(ctx.player.heading);
     base = [p.x, p.y, p.z];
     view = { eye: [-fx * 5, 3, -fz * 5], look: [fx * 6, 2.2, fz * 6] };
+  } else if (/^gobekli-[a-g]$/.test(id)) {
+    // Göbekli Tepe, in the site's own frame (+z toward the shore): [eye, look] as plan x, z, height
+    const T0 = GOBEKLI.y, F = GOBEKLI.y - GOBEKLI_PLAN.depth;
+    const V7: Record<string, [[number, number, number], [number, number, number]]> = {
+      a: [[0, 46, T0 + 2.4], [-6, 2, T0 - 0.5]], // the ridge, from the approach
+      b: [[-1.4, 7, T0 + 2.2], [-13.5, 4, F + 2.2]], // down into D from the ramp
+      c: [[-7.5, 2.5, F + 1.6], [-14.5, 5.5, F + 3.2]], // in D, the central pair
+      d: [[-4.0, 0.5, F + 1.8], [-5.6, -1.7, F + 1.7]], // the vulture stone
+      e: [[30, 10, T0 + 3.5], [14.5, -8, F + 1.5]], // C and the rim walk
+      f: [[-29, -26, T0 + 2.0], [-38, -36, T0 - 1.5]], // the quarry
+      g: [[45, 70, T0 + 48], [0, -2, T0]], // from the air
+    };
+    const [e, l] = V7[id.slice(8)];
+    const [ex, ez] = gobekliAt(e[0], e[1]), [lx, lz] = gobekliAt(l[0], l[1]);
+    base = [0, 0, 0];
+    view = { eye: [ex, e[2], ez], look: [lx, l[2], lz] };
+    const [px, pz] = gobekliAt(e[0] * 1.08, e[1] * 1.08 + 1.5);
+    ctx.player.pos.set(px, heightAt(px, pz), pz);
   } else if (/^pyramid-(foot|door|corner|calm)$/.test(id)) {
     // the pyramid's foot: the apron, a false door, a drift in a corner, the calm place before the north face
     const P = PYRAMID;
