@@ -624,6 +624,32 @@ export class AudioEngine {
     this.reso.gain.setTargetAtTime(k * 0.08, c.currentTime, 0.6);
   }
 
+  private sigh: GainNode | null = null;
+  /** The false doors' breath (0–1): air sighing out of stone, a soft band of noise, heard only
+      within a few metres of a door. */
+  stoneBreath(k: number): void {
+    if (!this.ctx) return;
+    const c = this.ctx;
+    if (!this.sigh) {
+      if (k < 0.01) return;
+      const s = c.createBufferSource();
+      s.buffer = this.noise;
+      s.loop = true;
+      const bp = c.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = 700;
+      bp.Q.value = 0.7;
+      const lp = c.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 1600;
+      this.sigh = c.createGain();
+      this.sigh.gain.value = 0;
+      s.connect(bp).connect(lp).connect(this.sigh).connect(this.worldDry);
+      s.start();
+    }
+    this.sigh.gain.setTargetAtTime(k * 0.05, c.currentTime, 0.4);
+  }
+
   /** A footstep on stone: the soft slap of a bare sole and the hall answering. */
   stepStone(): void {
     if (!this.ctx) return;

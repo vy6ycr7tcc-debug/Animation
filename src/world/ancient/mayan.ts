@@ -405,7 +405,7 @@ export function buildMayan(site: RuinSite): Area {
       uT.value = t;
       for (let i = 0; i < 6; i++) {
         const d = stelaAt[i].distanceTo(visitor);
-        const want = THREE.MathUtils.smoothstep(12, 4, d);
+        const want = 1 - THREE.MathUtils.smoothstep(d, 4, 12);
         near[i] += (want - near[i]) * Math.min(1, dt * (want > near[i] ? 0.6 : 0.35));
         nearA.setX(i, near[i]);
       }
