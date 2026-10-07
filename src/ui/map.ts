@@ -11,10 +11,18 @@
 import { heightAt, WATER_Y } from "../world/terrain";
 
 export type Group = "Shore" | "Mind" | "Body" | "Spirit" | "Choice" | "Deep";
+/** Where a place is listed below the map: by kind, the ancient worlds by era. */
+export type Section = "Monuments" | "Ancient" | "Lessons" | "Archetypes" | "Deep";
 export interface Place {
   numeral: string; // "" for the shore
   label: string;
   group: Group;
+  /** Its tab below the map (archetypes and the deep by their group; anything else Monuments). */
+  section?: Section;
+  /** A short note under its name: an ancient world's era. */
+  note?: string;
+  /** Its order in its tab (lower first; the ancient worlds oldest first). */
+  order?: number;
   deep?: boolean;
   x: number;
   z: number;
@@ -170,45 +178,114 @@ export class StartMap {
     requestAnimationFrame(() => this.el.classList.add("on"));
     this.layout();
     this.renderBase();
-    (this.continueBtn.hidden ? (this.list.querySelector("button") as HTMLButtonElement | null) : this.continueBtn)?.focus({ preventScroll: true });
+    // focus the open tab (focusing the first place chose it, and drew a box round the shore)
+    (this.continueBtn.hidden ? (this.list.querySelector('.map-tabs [aria-selected="true"]') as HTMLButtonElement | null) : this.continueBtn)?.focus({ preventScroll: true, focusVisible: false } as FocusOptions);
     return new Promise((res) => (this.resolve = res));
   }
 
-  /** The places below the map, one group at a time behind a row of tabs (all of them at once
-      were a long, confusing list). */
-  private tab: Group | "Tours" = "Shore";
+  /** The places below the map: the way back to the shore, then one tab of places at a time,
+      by kind (the monuments, the ancient worlds by era, the lessons, the archetypes by realm,
+      the deep, the tours). Any destination is two taps away: its tab, then its name. Each name
+      says which way it lies and how far, from where you stand. */
+  private tab: Section | "Tours" = "Monuments";
+  private sectionOf(p: Place): Section {
+    if (p.section) return p.section;
+    if (p.group === "Deep") return "Deep";
+    if (p.group !== "Shore") return "Archetypes";
+    return "Monuments";
+  }
   private buildList(): HTMLElement[] {
+    const head = document.createElement("div");
+    head.className = "map-head";
+    const shore = this.places.find((q) => q.label === "The shore");
+    if (shore) {
+      const b = this.placeButton(shore, "⌂ The shore");
+      b.classList.add("map-home");
+      head.append(b);
+    }
     const tabs = document.createElement("div");
     tabs.className = "map-tabs";
     tabs.setAttribute("role", "tablist");
+    head.append(tabs);
     const body = document.createElement("div");
     body.className = "map-group";
-    const shown = GROUPS.filter(({ g }) => g !== "Choice" && this.places.some((q) => q.group === g));
-    const show = (g: Group | "Tours") => {
-      this.tab = g;
-      for (const b of tabs.children) b.setAttribute("aria-selected", String((b as HTMLElement).dataset.g === g));
-      body.replaceChildren(...(g === "Tours" ? this.tourButtons() : [...this.groupButtons(g), ...(g === "Spirit" ? this.groupButtons("Choice") : [])]));
+    const SECTIONS: { s: Section | "Tours"; title: string }[] = [
+      { s: "Monuments", title: "Monuments" },
+      { s: "Ancient", title: "Ancient" },
+      { s: "Lessons", title: "Lessons" },
+      { s: "Archetypes", title: "Archetypes" },
+      { s: "Deep", title: "Deep" },
+      { s: "Tours", title: "Tours" },
+    ];
+    const has = (s: Section | "Tours") => (s === "Tours" ? this.tours.length > 0 && !this.closeBtn.hidden : this.places.some((q) => q !== shore && this.sectionOf(q) === s));
+    const shown = SECTIONS.filter(({ s }) => has(s));
+    const show = (s: Section | "Tours") => {
+      this.tab = s;
+      for (const b of tabs.children) b.setAttribute("aria-selected", String((b as HTMLElement).dataset.s === s));
+      body.className = s === "Archetypes" ? "map-group map-realms" : "map-group";
+      body.replaceChildren(...(s === "Tours" ? this.tourButtons() : s === "Archetypes" ? this.realms() : this.sectionButtons(s, shore)));
     };
-    for (const { g, title } of shown) {
+    for (const { s: sec, title } of shown) {
       const b = document.createElement("button");
       b.type = "button";
       b.setAttribute("role", "tab");
-      b.dataset.g = g;
-      b.textContent = g === "Shore" ? "Places" : g === "Deep" ? "Deep" : title.replace(/^The /, "");
-      b.addEventListener("click", () => show(g));
+      b.dataset.s = sec;
+      b.textContent = title;
+      b.addEventListener("click", () => show(sec));
       tabs.append(b);
     }
-    if (this.tours.length && this.closeBtn.hidden === false) {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.setAttribute("role", "tab");
-      b.dataset.g = "Tours";
-      b.textContent = "Tours";
-      b.addEventListener("click", () => show("Tours"));
-      tabs.append(b);
+    show(shown.some(({ s: sec }) => sec === this.tab) ? this.tab : (shown[0]?.s ?? "Monuments"));
+    return [head, body];
+  }
+  /** Which way, and how far, from where you stand (or the shore). */
+  private bearing(p: Place): string {
+    const from = this.you ?? this.places.find((q) => q.label === "The shore");
+    if (!from) return "";
+    const dx = p.x - from.x, dz = p.z - from.z, d = Math.hypot(dx, dz);
+    if (d < 40) return "here";
+    const names = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+    const dir = names[(Math.round(Math.atan2(dx, -dz) / (Math.PI / 4)) + 8) % 8];
+    return `${dir} · ${d < 1000 ? `${Math.round(d / 10) * 10} m` : `${(d / 1000).toFixed(1)} km`}`;
+  }
+  private placeButton(p: Place, text?: string): HTMLButtonElement {
+    const b = document.createElement("button");
+    b.type = "button";
+    const name = document.createElement("span");
+    name.className = "map-name";
+    name.textContent = text ?? (p.numeral ? `${p.numeral} · ${p.label.replace(/^The /, "")}` : p.label);
+    const sub = document.createElement("span");
+    sub.className = "map-sub";
+    sub.textContent = [p.note, p.deep ? "in the deep" : "", this.bearing(p)].filter(Boolean).join(" · ");
+    b.append(name, sub);
+    b.addEventListener("click", () => {
+      this.select(p, true);
+      this.go();
+    });
+    b.addEventListener("focus", () => this.select(p, false));
+    return b;
+  }
+  private sectionButtons(s: Section, except?: Place): HTMLElement[] {
+    return this.places
+      .map((p, i) => ({ p, i }))
+      .filter(({ p }) => p !== except && this.sectionOf(p) === s)
+      .sort((a, b) => (a.p.order ?? 0) - (b.p.order ?? 0) || a.i - b.i)
+      .map(({ p }) => this.placeButton(p));
+  }
+  /** The twenty-two by realm: four short rows, each under its name. */
+  private realms(): HTMLElement[] {
+    const out: HTMLElement[] = [];
+    for (const { g, title } of GROUPS.filter(({ g }) => g !== "Shore" && g !== "Deep")) {
+      const list = this.places.filter((q) => q.group === g && this.sectionOf(q) === "Archetypes");
+      if (!list.length) continue;
+      const h = document.createElement("p");
+      h.className = "map-realm";
+      h.textContent = title;
+      const row = document.createElement("div");
+      row.className = "map-row";
+      row.append(...list.map((p) => this.placeButton(p)));
+      out.push(h, row);
     }
-    show(this.tab === "Tours" ? (this.tours.length ? "Tours" : "Shore") : shown.some(({ g }) => g === this.tab) ? this.tab : "Shore");
-    return [tabs, body];
+    return out;
   }
   /** Each walk-through: the whole way, end to end; "walked" once you have been all the way. */
   private tourButtons(): HTMLElement[] {
@@ -222,22 +299,6 @@ export class StartMap {
       });
       return b;
     });
-  }
-  private groupButtons(g: Group): HTMLElement[] {
-    const out: HTMLElement[] = [];
-    for (const p of this.places.filter((q) => q.group === g)) {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.textContent = p.numeral ? `${p.numeral} · ${p.label.replace(/^The /, "")}` : p.label;
-      if (p.deep) b.textContent += " · in the deep";
-      b.addEventListener("click", () => {
-        this.select(p, true);
-        this.go();
-      });
-      b.addEventListener("focus", () => this.select(p, false));
-      out.push(b);
-    }
-    return out;
   }
 
   private finish(c: Choice | null): void {
