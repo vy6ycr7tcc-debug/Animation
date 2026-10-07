@@ -286,50 +286,36 @@ function starTexturePaint(): THREE.CanvasTexture {
   return canvasTexture(c);
 }
 
-/** A numeral carved and gilded on a coloured field, for the lintel over a shrine. */
-const numeralTextureMade = new Map<string, THREE.CanvasTexture>();
-/** Painted once each, kept (the temple is rebuilt on each visit; its canvases need not be). */
-function numeralTexture(numeral: string, name: string, tint: THREE.Color): THREE.CanvasTexture {
-  const key = numeral;
-  let t = numeralTextureMade.get(key);
-  if (!t) numeralTextureMade.set(key, (t = numeralTexturePaint(numeral, name, tint)));
-  return t;
-}
-function numeralTexturePaint(numeral: string, name: string, tint: THREE.Color): THREE.CanvasTexture {
-  // cut into the stone, not a painted box: a sunk border, the letters incised (a shadowed cut
-  // with a lit lip) and gilded, a thread of the archetype's colour under the name
-  const [c, g] = canvas(512, 160);
-  g.fillStyle = "#a88a62";
-  g.fillRect(0, 0, 512, 160);
-  for (let k = 0; k < 900; k++) {
-    g.fillStyle = `rgba(${k % 2 ? "60,44,28" : "220,196,160"},${0.05 + Math.random() * 0.06})`;
-    g.fillRect(Math.random() * 512, Math.random() * 160, 1 + Math.random() * 3, 1 + Math.random() * 2);
+/** A card's title in glowing letters (the owner: "the title of the cards… in glowing format"):
+    the numeral and the name in gold light, a breath of the archetype's colour in the glow round
+    the letters; painted once each, drawn as light (additive, no fog), contained. */
+const glowTitleMade = new Map<string, THREE.CanvasTexture>();
+function glowTitle(numeral: string, name: string, tint: THREE.Color): THREE.Mesh {
+  let tex = glowTitleMade.get(numeral);
+  if (!tex) {
+    const [c, g] = canvas(1024, 192);
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    const text = `${numeral} · ${name}`;
+    const tc = `rgba(${Math.round(Math.min(1, 0.6 + tint.r * 0.4) * 255)},${Math.round(Math.min(1, 0.55 + tint.g * 0.4) * 255)},${Math.round(Math.min(1, 0.45 + tint.b * 0.4) * 255)},0.9)`;
+    g.font = "italic 500 84px Georgia, 'Times New Roman', serif";
+    // the glow round the letters, then the letters themselves, warm white-gold
+    g.shadowColor = tc;
+    g.shadowBlur = 26;
+    g.fillStyle = "rgba(255,214,140,0.55)";
+    g.fillText(text, 512, 100);
+    g.shadowBlur = 8;
+    g.fillStyle = "rgba(255,236,196,1)";
+    g.fillText(text, 512, 100);
+    tex = canvasTexture(c, false);
+    glowTitleMade.set(numeral, tex);
   }
-  const cut = (x: number, y: number, w: number, h: number) => {
-    g.strokeStyle = "rgba(50,34,20,0.7)";
-    g.lineWidth = 3;
-    g.strokeRect(x, y, w, h);
-    g.strokeStyle = "rgba(235,212,170,0.45)";
-    g.lineWidth = 1.5;
-    g.strokeRect(x + 2, y + 2, w, h);
-  };
-  cut(26, 14, 460, 132);
-  g.textAlign = "center";
-  g.textBaseline = "middle";
-  const letters = (text: string, font: string, y: number) => {
-    g.font = font;
-    g.fillStyle = "rgba(235,212,170,0.5)";
-    g.fillText(text, 257.5, y + 1.5);
-    g.fillStyle = "rgba(45,30,16,0.85)";
-    g.fillText(text, 255, y - 1);
-    g.fillStyle = "#c9a256";
-    g.fillText(text, 256, y);
-  };
-  letters(numeral, "600 62px Georgia, 'Times New Roman', serif", 64);
-  letters(name, "italic 26px Georgia, 'Times New Roman', serif", 116);
-  g.fillStyle = `rgb(${Math.round(Math.min(1, tint.r * 0.7) * 255)},${Math.round(Math.min(1, tint.g * 0.7) * 255)},${Math.round(Math.min(1, tint.b * 0.7) * 255)})`;
-  g.fillRect(196, 134, 120, 2);
-  return canvasTexture(c, false);
+  const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
+  const tx = texture(tex);
+  m.colorNode = vec4(tx.rgb.mul(tx.a).mul(0.85), 1);
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 0.86), m);
+  mesh.renderOrder = 5;
+  return mesh;
 }
 
 /* ---------- geometry ---------- */
@@ -650,18 +636,6 @@ export class Temple {
     for (const side of [-1, 1]) block(ceil, SANCT_X - oc + 1, 0.6, oc * 2, side * (oc + (SANCT_X - oc + 1) / 2), SH + 0.3, CENTRE.z, 4);
     // architraves along the columns
     for (const side of [-1, 1]) block(stone, 1.6, 1.2, HALL_Z0 - HALL_Z1, side * 5.5, WALL_H - 0.2 - 0.3, (HALL_Z0 + HALL_Z1) / 2);
-    // the dais for the Choice: round, three steps
-    for (let s = 0; s < 3; s++) {
-      const d = new THREE.CylinderGeometry(4.2 - s * 1.1, 4.2 - s * 1.1, 0.3, 64).toNonIndexed();
-      d.translate(CENTRE.x, 0.45 + s * 0.3, CENTRE.z);
-      worldUV(d, 2);
-      stone.push(d);
-    }
-    // the altar at the centre, where the cards appear
-    const alt = new THREE.CylinderGeometry(1.0, 1.15, 0.9, 48).toNonIndexed();
-    alt.translate(CENTRE.x, 1.2 + 0.45, CENTRE.z);
-    worldUV(alt, 2);
-    stone.push(alt);
     // plinths for the Spirit's seven, in a ring
     this.ringSpots().forEach(({ x, z }) => {
       const p = new THREE.CylinderGeometry(1.6, 1.8, 0.6, 32).toNonIndexed();
@@ -791,6 +765,8 @@ export class Temple {
       const side = i % 2 ? 1 : -1;
       let z = HALL_Z1 - 3 - r() * 22;
       if (side > 0 && Math.abs(z - CH_DOOR_Z) < CH_DOOR_W) z = CH_DOOR_Z - CH_DOOR_W - 1 - r() * 6; // clear of the Choice room's door
+      const vx = side * (SANCT_X - 0.9);
+      if (this.ringSpots().some((q) => Math.hypot(q.x - vx, q.z - z) < 3.6)) continue; // clear of the shrines
       const kind = kinds[Math.floor(r() * kinds.length)];
       spots[kind].push({ x: side * (SANCT_X - 0.9 - r() * 0.5), y: 0.3, z, ry: r() * 6, k: 0.8 + r() * 0.6 });
     }
@@ -802,12 +778,14 @@ export class Temple {
     place("brass_diya_lantern", 0.42, lamps);
   }
 
-  /** The Spirit's seven stand in a ring around the dais, behind it and to either side. */
+  /** The Spirit's seven stand apart in a wide horseshoe round the sanctuary (the owner: they were
+      "stuck together"): from the left wall, round the back, to the right wall, about 6 m between
+      each, all facing the room's heart. */
   private ringSpots(): { x: number; z: number; face: number }[] {
     const out: { x: number; z: number; face: number }[] = [];
     for (let i = 0; i < 7; i++) {
-      const a = Math.PI * (0.18 + (i / 6) * 0.64) + Math.PI; // from the left, round behind, to the right
-      const x = CENTRE.x + Math.cos(a) * 11.5, z = CENTRE.z + Math.sin(a) * 9;
+      const a = Math.PI + (i / 6) * Math.PI; // from the left (x −), round behind (z −), to the right
+      const x = CENTRE.x + Math.cos(a) * 12.8, z = CENTRE.z + Math.sin(a) * 11.4;
       out.push({ x, z, face: Math.atan2(CENTRE.x - x, CENTRE.z - z) });
     }
     return out;
@@ -842,7 +820,7 @@ export class Temple {
       this.shrines.push({ beings, pivot, numeral: b.spec.numeral, name: b.spec.name });
       // the numeral over the shrine (in the hall) or before it (in the sanctuary)
       const tint = new THREE.Color(...b.spec.tint);
-      const label = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 1.0), new THREE.MeshStandardNodeMaterial({ map: numeralTexture(b.spec.numeral, b.spec.name, tint), roughness: 0.8 }));
+      const label = glowTitle(b.spec.numeral, b.spec.name, tint);
       return { label, tint };
     };
     for (let k = 0; k < 14; k++) {
@@ -860,23 +838,21 @@ export class Temple {
       back.position.set(side * (HALL_X + 3.15), 3.6, nz);
       back.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
       this.group.add(back);
-      label.position.set(side * (HALL_X - 0.62), 8.0, nz);
+      label.position.set(side * (HALL_X + 1.3), 5.75, nz);
       label.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
       this.group.add(label);
     }
     this.ringSpots().forEach(({ x, z, face }, j) => {
       const { label } = place(14 + j, x, 0.9, z, face);
-      // a low stele in front of it, facing the centre
-      label.scale.setScalar(0.55);
-      label.position.set(x + Math.sin(face) * 2.3, 1.1, z + Math.cos(face) * 2.3);
-      label.rotation.set(-0.35, face, 0, "YXZ");
+      // its title glowing over it, facing the room's heart
+      label.position.set(x + Math.sin(face) * 0.4, 6.1, z + Math.cos(face) * 0.4);
+      label.rotation.y = face;
       this.group.add(label);
       this.collide(x, z, 1.9);
     });
     // the Choice, alone in its room, facing the door; you sit before it
     const { label } = place(21, CHOICE_AT.x, CHOICE_AT.y, CHOICE_AT.z, -Math.PI / 2, 5.0);
-    label.scale.setScalar(0.6);
-    label.position.set(CHOICE_AT.x - 1.32, 0.62, CHOICE_AT.z);
+    label.position.set(CHOICE_AT.x - 0.4, 6.1, CHOICE_AT.z);
     label.rotation.y = -Math.PI / 2;
     this.group.add(label);
     this.collide(CHOICE_AT.x, CHOICE_AT.z, 1.7);
@@ -885,9 +861,33 @@ export class Temple {
     const cl = new THREE.PointLight(0xfff2dc, 16, 13, 1.3);
     cl.position.set(CHOICE_AT.x - 1.2, 6.5, CHOICE_AT.z);
     this.group.add(cl);
-    this.collide(CENTRE.x, CENTRE.z, 1.5); // the altar
+    this.buildInlay();
     this.buildLamps();
     this.buildSigns();
+  }
+
+  /** Where the dais and its altar stood (the owner: a centrepiece that "doesn't really make
+      sense"): only a ring of gold set into the floor, faintly lit, where the cards are taken up. */
+  private buildInlay(): void {
+    const seg: number[] = [];
+    const circle = (r: number, n = 96) => {
+      for (let k = 0; k < n; k++) {
+        const a0 = (k / n) * Math.PI * 2, a1 = ((k + 1) / n) * Math.PI * 2;
+        seg.push(Math.cos(a0) * r, 0, Math.sin(a0) * r, Math.cos(a1) * r, 0, Math.sin(a1) * r);
+      }
+    };
+    circle(2.2);
+    circle(2.05);
+    circle(0.5, 48);
+    // eight fine rays between, for the eight-armed star the cards wear at their crowns
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2, r = k % 2 ? 1.2 : 1.9;
+      seg.push(Math.cos(a) * 0.55, 0, Math.sin(a) * 0.55, Math.cos(a) * r, 0, Math.sin(a) * r);
+    }
+    const m = new THREE.Mesh(ribbonGeometry(seg), ribbonMaterial(vec3(1.0, 0.78, 0.42).mul(T.sin(this.uT.mul(0.5)).mul(0.1).add(0.4)), 0.55));
+    m.position.set(CENTRE.x, 0.33, CENTRE.z);
+    m.frustumCulled = false;
+    this.group.add(m);
   }
 
   private buildSigns(): void {
@@ -926,20 +926,11 @@ export class Temple {
     };
     const bronze = new THREE.MeshStandardNodeMaterial({ color: 0x8a6a3a, roughness: 0.42, metalness: 0.75 });
     const face = (sx: number, sz: number, tx: number, tz: number) => Math.atan2(-(tx - sx), -(tz - sz));
-    // the Mind: a tall lamp-stand of bronze, a small oil lamp with a cool, clear flame
+    // the Mind: no lamp-stand (the owner: "remove lamp at beginning"); its moment looks down the
+    // Mind's own wall to its first shrine, the wall's niches washed in its cool light
     {
-      const x = -8.0, z = 27.0;
-      const stand = new THREE.Mesh(new THREE.LatheGeometry([[0.001, 0], [0.32, 0], [0.34, 0.05], [0.12, 0.14], [0.05, 0.3], [0.04, 2.0], [0.07, 2.08], [0.22, 2.16], [0.24, 2.24], [0.001, 2.2]].map(([r, y]) => new THREE.Vector2(r, y)), 20), bronze);
-      stand.position.set(x, 0, z);
-      stand.castShadow = true;
       const u = uniform(1);
-      const core = sprite(soft, new THREE.Color(0.85, 0.92, 1.0), u, true, [0.26, 0.42]);
-      core.position.set(x, 2.42, z);
-      const glow = sprite(soft, new THREE.Color(0.35, 0.5, 0.9), u, false, [2.4, 2.4]);
-      glow.position.copy(core.position);
-      this.group.add(stand, core, glow);
-      this.collide(x, z, 0.5);
-      this.signs.push({ k: 1, lit: 1, u, stand: { x: -5.2, z: 24.8, heading: face(-5.2, 24.8, x, z) } });
+      this.signs.push({ k: 1, lit: 1, u, stand: { x: -5.2, z: 24.8, heading: face(-5.2, 24.8, -HALL_X - 1.9, NICHE_Z[0]) } });
     }
     // the Body: a fire burning in a wide bronze bowl on three legs
     {
@@ -1067,6 +1058,15 @@ export class Temple {
       if (d < bd) (bd = d), (best = i);
     });
     return best;
+  }
+
+  /** Where the view should centre on shrine `i`'s carving (world): a little above its middle, so
+      the whole carving and its title sit in the frame with room above (the owner's framing). */
+  frameFor(i: number, out = new THREE.Vector3()): THREE.Vector3 | null {
+    const sh = this.shrines[i];
+    if (!sh) return null;
+    sh.pivot.getWorldPosition(out);
+    return out.setY(out.y + 3.9);
   }
 
   /** Where to stand for shrine `i`, in the world, and the heading that faces it. */
