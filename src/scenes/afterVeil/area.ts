@@ -4,10 +4,13 @@
    Aria; beat 1 was spoken at the door, outside).
    2 the forest walk: the trees still, but light in their grain; the canopy thinning, the ground
        mist dissolving and the amber light turning white-gold as you go on (the veil thinning);
-   3 the clearing: fourth density, love made visible: warm air, motes drifting everywhere, and
-       fine threads of light between them (no veil between minds);
-   4 the newcomers' ground: half-formed figures at the treeline, angular shards of their old
-       armour still drifting about them; a bent spear and a cracked shield half under the light;
+   3 the clearing: fourth density, love made visible: warm air, motes drifting everywhere, fine
+       threads of light between them (no veil between minds); and its centrepiece, the ruins made
+       new (ruins.ts): a court of honey sandstone in ruins, rebuilt stone by stone as the beat is
+       spoken, its garden blooming, the air clearing;
+   4 the newcomers' ground: figures standing braced at the treeline, angular shards of their old
+       armour drifting about them until their line is spoken, then falling away; a bent spear and
+       a cracked shield half under the light;
    5 the war in heaven: a wide shallow vale; on one side columns of warm light standing guard; on
        the other tall forms, beautiful but wrong, round which slow spirals draw the motes in and dim
        them; arcs of thought across the vale; the path between, untouched;
@@ -26,6 +29,7 @@ import { fbm } from "../../world/terrain";
 import { GlassFolk } from "../glassFolk";
 import { starField } from "../past/kit";
 import { Angel } from "./angel";
+import { buildRuins } from "./ruins";
 import type { Narration } from "../../core/narration";
 import type { Room, Solid } from "../journey";
 import { MOBILE } from "../../core/quality";
@@ -170,6 +174,7 @@ export function createAfterVeil(scene: THREE.Scene, narration: Narration, whispe
   const t = clock.u;
   const uProg = uniform(0); // how far along the way you have come (s)
   const uLove = uniform(0); // the clearing's light, as its beat is spoken
+  const uGreen = uniform(0); // the clearing's turf, greening as the ruins are made new
   const uWar = uniform(0); // the vale's tableau, as its beat is spoken
   const uLaid = uniform(0); // the swords dimming
   const uGaze = uniform(new V3(0, 0, -1)); // where the camera looks (the whisperer withdraws)
@@ -209,7 +214,10 @@ export function createAfterVeil(scene: THREE.Scene, narration: Narration, whispe
     const pale = mix(vec3(0.24, 0.19, 0.1), vec3(0.34, 0.27, 0.14), fbmN(P.xz.mul(0.08)));
     const high = smoothstep(BASE + 2, BASE + 9, P.y);
     const stone = mix(vec3(0.07, 0.07, 0.09), vec3(0.11, 0.105, 0.12), fbmN(P.xz.mul(0.12)));
-    m.colorNode = mix(mix(loam, pale, inClear), stone, high.mul(float(1).sub(inClear))).mul(scan.color);
+    // the clearing's turf greens as the ruins are made new (ruins.ts): dry, then lawn
+    const lawn = mix(vec3(0.11, 0.3, 0.06), vec3(0.2, 0.42, 0.1), fbmN(P.xz.mul(0.11)));
+    const turf = mix(pale, lawn, uGreen.mul(smoothstep(40, 26, dC)));
+    m.colorNode = mix(mix(loam, turf, inClear), stone, high.mul(float(1).sub(inClear))).mul(scan.color);
     m.normalNode = scan.normal;
     // the clearing's ground holds a little of the light that fills the air there (it is the
     // light's own place: love made visible), breathing faintly
@@ -348,10 +356,12 @@ export function createAfterVeil(scene: THREE.Scene, narration: Narration, whispe
     // the threads: still motes, each joined by a thread of light to its nearest few, so the
     // whole clearing reads as one mind perceiving itself
     const A: THREE.Vector3[] = [];
-    for (let i = 0; i < 110; i++) {
+    for (let i = 0; i < 90; i++) {
       const a = R() * Math.PI * 2, r = 4 + Math.sqrt(R()) * 36;
       const x = CLEARING.x + Math.cos(a) * r, z = CLEARING.z + Math.sin(a) * r;
-      A.push(new V3(x, veilFloor(x, z) + 1 + R() * 6, z));
+      // low, and clear of the court (ruins.ts), so they never draw across its walls
+      if (x < CLEARING.x - 4 && z < CLEARING.z + 18 && z > CLEARING.z - 30) continue;
+      A.push(new V3(x, veilFloor(x, z) + 0.8 + R() * 3, z));
     }
     const pairs: number[] = [];
     A.forEach((p, i) => {
@@ -360,7 +370,7 @@ export function createAfterVeil(scene: THREE.Scene, narration: Narration, whispe
     });
     const tg = ribbonGeometry(pairs);
     const pulse = pow(sin(T.positionGeometry.x.mul(0.35).add(T.positionGeometry.z.mul(0.25)).sub(t.mul(0.9))).mul(0.5).add(0.5), 6);
-    const tm = keepAlpha(ribbonMaterial(vec3(1, 0.8, 0.5).mul(pulse.mul(0.4).add(0.08)).mul(uLove.mul(0.7).add(0.3)), 0.45));
+    const tm = keepAlpha(ribbonMaterial(vec3(1, 0.8, 0.5).mul(pulse.mul(0.3).add(0.05)).mul(uLove.mul(0.7).add(0.3)), 0.45));
     const tmesh = new THREE.Mesh(tg, tm);
     tmesh.frustumCulled = false;
     g.add(tmesh);
@@ -409,16 +419,31 @@ export function createAfterVeil(scene: THREE.Scene, narration: Narration, whispe
     }
     ours.push(anchors.material);
   }
+  // the ruins made new (ruins.ts): the clearing's centrepiece, rebuilt as its beat is spoken
+  const ruins = buildRuins({ centre: new V3(CLEARING.x, veilFloor(CLEARING.x, CLEARING.z), CLEARING.z), floor: veilFloor, R: seeded(5150), t, fewer, onWay: (x, z) => Math.abs(onPath(x, z).d) < 5 });
+  g.add(ruins.group);
+  solids.push(...ruins.solids);
+  windows.push([ruins.group, 40, 330]);
+  ours.push(ruins);
+  /** How far the ruins have come (0 ruin … 1 made new), eased; `?rebuild=0…1` holds it for still frames. */
+  let rebuilt = 0;
+  let shed = 0; // the newcomers' old armour falling away (0 … 1), once their line is spoken
+  const holdRebuild = (() => {
+    const v = new URLSearchParams(location.search).get("rebuild");
+    return v === null ? null : Math.min(1, Math.max(0, Number(v)));
+  })();
 
   /* ---------------- the newcomers' ground ---------------- */
+  // the newcomers stand braced at the treeline, facing in (never sitting about: the owner, of the
+  // first version's "random sitters"); once their line is spoken, the old armour falls from them
   const newcomers = new GlassFolk(
     [
-      { x: NEWCOMERS.x + 9, z: NEWCOMERS.z - 3, face: -2.0, act: "sit" as const, tint: new THREE.Color(0.55, 0.6, 0.72), glow: { inner: 0.35, edge: 0.5, body: 0.35 } },
+      { x: NEWCOMERS.x + 9, z: NEWCOMERS.z - 3, face: -2.0, act: "idle" as const, tint: new THREE.Color(0.55, 0.6, 0.72), glow: { inner: 0.35, edge: 0.5, body: 0.35 } },
       { x: NEWCOMERS.x + 11, z: NEWCOMERS.z + 4, face: -1.4, act: "idle" as const, tint: new THREE.Color(0.6, 0.62, 0.7), glow: { inner: 0.3, edge: 0.45, body: 0.3 } },
       { x: NEWCOMERS.x + 6, z: NEWCOMERS.z - 11, face: -2.6, act: "idle" as const, tint: new THREE.Color(0.52, 0.56, 0.68), glow: { inner: 0.3, edge: 0.45, body: 0.3 } },
-      { x: NEWCOMERS.x - 9, z: NEWCOMERS.z + 8, face: 1.2, act: "sit" as const, tint: new THREE.Color(0.58, 0.58, 0.66), glow: { inner: 0.35, edge: 0.5, body: 0.35 } },
+      { x: NEWCOMERS.x - 9, z: NEWCOMERS.z + 8, face: 1.2, act: "idle" as const, tint: new THREE.Color(0.58, 0.58, 0.66), glow: { inner: 0.35, edge: 0.5, body: 0.35 } },
       { x: NEWCOMERS.x - 11, z: NEWCOMERS.z - 6, face: 1.9, act: "idle" as const, tint: new THREE.Color(0.54, 0.6, 0.7), glow: { inner: 0.3, edge: 0.45, body: 0.3 } },
-    ].map((s) => ({ ...s, y: veilFloor(s.x, s.z) - (s.act === "sit" ? 0.42 : 0) })),
+    ].map((s) => ({ ...s, y: veilFloor(s.x, s.z) })),
     41,
   );
   g.add(newcomers.group);
@@ -729,7 +754,8 @@ export function createAfterVeil(scene: THREE.Scene, narration: Narration, whispe
     centre: (): THREE.Vector3 => {
       const n = BEATS[Math.min(beat, BEATS.length - 1)].n;
       if (n === 2) return angel.root.position.clone().add(new V3(0, 1.4, 0));
-      if (n === 3) return CLEARING.clone().setY(veilFloor(CLEARING.x, CLEARING.z) + 3);
+      // the court made new: its heart, between the hall, the basin and the arcade
+      if (n === 3) return new V3(CLEARING.x - 11, veilFloor(CLEARING.x - 11, CLEARING.z - 6) + 2.6, CLEARING.z - 6);
       if (n === 4) return NEWCOMERS.clone().setY(veilFloor(NEWCOMERS.x, NEWCOMERS.z) + 1.2);
       if (n === 5) return VALE.clone().setY(veilFloor(VALE.x, VALE.z) + 6);
       if (n === 6) return EARTH.clone();
@@ -742,22 +768,49 @@ export function createAfterVeil(scene: THREE.Scene, narration: Narration, whispe
       const o = onPath(local.x, local.z);
       progress = Math.max(progress, o.s);
       uProg.value = damp(uProg.value as number, progress, 0.8, dt);
-      applyAir(airAt(uProg.value as number));
+      {
+        // the air in the clearing clears as the court is made new (its haze washed out the turf)
+        const air = airAt(uProg.value as number);
+        const inCourt = 1 - Math.min(1, Math.max(0, (Math.hypot(local.x - CLEARING.x, local.z - CLEARING.z) - 45) / 30));
+        air.density *= 1 - 0.55 * (uGreen.value as number) * inCourt;
+        applyAir(air);
+      }
       key.target.position.set(visitor.x, visitor.y, visitor.z);
       key.position.copy(key.target.position).add(keyOff);
       // the moods of each place, eased as their beats are spoken
       const nowN = BEATS[Math.min(beat, BEATS.length - 1)].n;
       uLove.value = damp(uLove.value as number, (speaking && nowN === 3) || beat > 1 ? 1 : 0, 0.4, dt);
+      // the ruins follow the clearing's telling: made new over its 90 s, whole once it is told
+      {
+        const pr = speaking && nowN === 3 ? narration.progress() : null;
+        const goal = holdRebuild ?? (beat > 1 ? 1 : pr ? Math.min(1, pr.t / pr.total) : 0);
+        rebuilt = holdRebuild ?? damp(rebuilt, goal, 1.5, dt);
+        const sm = (a: number, b: number, x: number) => {
+          const k = Math.min(1, Math.max(0, (x - a) / (b - a)));
+          return k * k * (3 - 2 * k);
+        };
+        const bloom = sm(0.42, 0.9, rebuilt);
+        ruins.update(rebuilt, bloom, rebuilt > 0.84 ? Math.min(1, (rebuilt - 0.84) / 0.16) : 0);
+        uGreen.value = bloom;
+      }
       uWar.value = damp(uWar.value as number, (speaking && nowN === 5) || beat > 3 ? 1 : 0.4, 0.4, dt);
       uLaid.value = damp(uLaid.value as number, ended ? 1 : speaking && nowN === 7 ? 0.5 : 0, 0.15, dt);
       // the husks move a little against the flow: their stillness plays backward
       husksFolk.update(-dt * 0.5);
       newcomers.update(dt * 0.6);
-      for (const sd of shardsU.list) {
-        sd.a += sd.w * dt;
-        sd.m.position.set(sd.c.x + Math.cos(sd.a) * sd.r, sd.c.y + sd.y + Math.sin(sd.a * 1.7) * 0.05, sd.c.z + Math.sin(sd.a) * sd.r);
-        sd.m.rotation.set(sd.a * 0.7, sd.a, sd.a * 0.4);
-      }
+      // the armour: drifting about them until their line has been spoken, then falling away to
+      // the ground, one shard after another, and fading into it
+      shed = damp(shed, beat > 2 ? 1 : 0, 0.25, dt);
+      shardsU.list.forEach((sd, i) => {
+        sd.a += sd.w * dt * (1 - shed);
+        const q = Math.min(1, Math.max(0, shed * 1.6 - (i % 5) * 0.12));
+        const fall = q * q;
+        const gy = veilFloor(sd.c.x, sd.c.z) + 0.05;
+        const y = sd.c.y + sd.y + Math.sin(sd.a * 1.7) * 0.05;
+        sd.m.position.set(sd.c.x + Math.cos(sd.a) * sd.r * (1 + q * 0.6), y + (gy - y) * fall, sd.c.z + Math.sin(sd.a) * sd.r * (1 + q * 0.6));
+        sd.m.rotation.set(sd.a * 0.7 + q * 1.4, sd.a, sd.a * 0.4 + q);
+        sd.m.scale.setScalar(1 - Math.max(0, shed - 0.7) / 0.3 * 0.9);
+      });
       // the angel: a little ahead along the way, waiting at its next place until you come;
       // there it turns to you and speaks, and when its line has ended it goes on
       if (beat < BEATS.length) {
