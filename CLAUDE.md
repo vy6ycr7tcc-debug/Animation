@@ -824,7 +824,8 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - Room 5 is brighter below and still black above: floor tint ~0.05–0.07, the magician's cool light 20 over 30 m, air glow (0.04, 0.045, 0.07), a cold shadow lift.
   - The Duat's hour visions change calmly (`VisionStage` `calm`, the Duat only): delays spread over 55 % of each turn, a far smaller vortex, 8.5 s a moment with 6 s of gathering.
   - The Duat tour ends by itself if the stair's top is never reached (60 s), and waits 25 s (was 12) for the Duat to build.
-  - Open with the owner: the vision of creation stands on a levelled pad in the lake (its site search finds no dry ground and falls back); the "patchy character" didn't reproduce.
+  - The vision of creation stands on a levelled islet in the lake (its site search finds no dry ground and falls back). The owner: it stays there, a landmark the monuments are placed around.
+  - The "patchy character" (the owner's 2026-10-03 iPhone recordings, campfire close-up) didn't reproduce headless: closed as not reproduced until it recurs on device.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.
