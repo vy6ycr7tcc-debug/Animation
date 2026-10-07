@@ -64,6 +64,10 @@
 
 <div id="title" aria-hidden="true">
   <h1><small>The</small> Inward Journey</h1>
+  <div id="welcome" hidden>
+    <p class="w-copy">Inward Journey is not a game to win. It is a place to wander, across still water, through seven gates, toward the light. There is nothing to collect and nowhere to be. Keep it open beside you while you work, or lie down and let it hold you. Move gently. Listen. Breathe.</p>
+    <p class="w-hint"></p>
+  </div>
   <p id="touch">Touch the water to begin</p>
 </div>
 <button id="begin" type="button" aria-label="Touch the water to begin"></button>
@@ -179,6 +183,12 @@
   </dl>
   <button id="howto-close" type="button">Close</button>
 </div>
+<div id="welcome-again" role="dialog" aria-labelledby="welcome-title" hidden>
+  <p id="welcome-title">Welcome</p>
+  <p>Inward Journey is not a game to win. It is a place to wander, across still water, through seven gates, toward the light. There is nothing to collect and nowhere to be. Keep it open beside you while you work, or lie down and let it hold you. Move gently. Listen. Breathe.</p>
+  <p class="note w-hint"></p>
+  <button id="welcome-close" type="button">Close</button>
+</div>
 <div id="about" role="dialog" aria-labelledby="about-title" hidden>
   <p id="about-title">About</p>
   <p>Some narrations in this world are interpretive adaptations of channeled material from the L/L Research archive, voiced by AI. They are artistic interpretations, not the channeling itself. This is an independent work, not affiliated with or endorsed by L/L Research. The complete archive is freely available at llresearch.org.</p>
@@ -218,6 +228,7 @@
         <div id="offline-bar"></div>
         <p id="offline-text" class="note">0%</p>
       </div>
+      <button id="welcome-open" type="button" class="menu-row">Welcome</button>
       <button id="howto-open" type="button" class="menu-row">How to play</button>
       <button id="about-open" type="button" class="menu-row">About</button>
     </div>
