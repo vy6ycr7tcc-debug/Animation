@@ -388,7 +388,7 @@ export function runShot(ctx: ShotCtx): void {
       a: [[0, 46, T0 + 2.4], [-6, 2, T0 - 0.5]], // the ridge, from the approach
       b: [[-1.4, 7, T0 + 2.2], [-13.5, 4, F + 2.2]], // down into D from the ramp
       c: [[-7.5, 2.5, F + 1.6], [-14.5, 5.5, F + 3.2]], // in D, the central pair
-      d: [[-4.0, 0.5, F + 1.8], [-5.6, -1.7, F + 1.7]], // the vulture stone
+      d: [[-2.6, 2.4, F + 1.9], [-5.6, -1.7, F + 1.9]], // the vulture stone
       e: [[30, 10, T0 + 3.5], [14.5, -8, F + 1.5]], // C and the rim walk
       f: [[-29, -26, T0 + 2.0], [-38, -36, T0 - 1.5]], // the quarry
       g: [[45, 70, T0 + 48], [0, -2, T0]], // from the air
@@ -399,13 +399,14 @@ export function runShot(ctx: ShotCtx): void {
     view = { eye: [ex, e[2], ez], look: [lx, l[2], lz] };
     const [px, pz] = gobekliAt(e[0] * 1.08, e[1] * 1.08 + 1.5);
     ctx.player.pos.set(px, heightAt(px, pz), pz);
-  } else if (/^pyramid-(foot|door|corner|calm)$/.test(id)) {
+  } else if (/^pyramid-(foot|door|near|corner|calm)$/.test(id)) {
     // the pyramid's foot: the apron, a false door, a drift in a corner, the calm place before the north face
     const P = PYRAMID;
     base = [P.x, P.y, P.z];
     const V4: Record<string, { eye: XYZ; look: XYZ }> = {
       foot: { eye: [-44, 3.2, -78], look: [-14, 7, -55] },
       door: { eye: [-23.5, 1.9, -63], look: [-26, 2.1, -56] },
+      near: { eye: [-24.6, 1.75, -59.6], look: [-26, 2.3, -55.4] },
       corner: { eye: [70, 3.2, 74], look: [52, 1.5, 52] },
       calm: { eye: [6, 1.8, -96], look: [0, 12, -55] },
     };
