@@ -732,6 +732,34 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - The telling (`Ancients` in `world/ancient/index.ts`) begins once, the first time you come into the city's water (within 62 m), and plays on wherever you go: leaving never ducks, cuts or restarts it (the owner's rule for these areas). It doesn't start while "Only nature" rests the voices or over an archive narration; then it waits for your next coming in.
   - Solid: the pyramid's terraces (each up to its own height), the temple, the stelae, the lintel, the ball court's mounds and the altars.
   - Stills: `?shot=ancient-mayan-<a|b|c|d|e>` (approach, stelae, ball court, temple top, reading wall); `&warm=S` lives the world S seconds first, keeping the still's own view.
+- 2026-10-07: Atlantis under the sea (the owner's ancient civilizations brief, SPEC 2; the telling `ATLANTIS`, `audio/ancient-civs/atlantis.mp3`, Aria, 269.71 s decoded, 97 cues, used as delivered).
+  - Where: the next deepest of the world's ruin sites (~22 m of water; `AREA_SITES`), in place of its ruin, its floor levelled within 64 m. On the map (Deep) as "Atlantis".
+  - The city (`world/ancient/atlantis.ts`), after Plato's rings: rings of land 2.3 m high, faced and paved in pale marble (the shared masonry, `seaMasonry(…, "marble")`), alternate with the canals (the dark lake floor) about a central islet; you swim, or walk, ring to ring (`standHooks` in `terrain.ts` lets you stand on the rings).
+    - The acropolis: three steps up to a round platform; a ring of twelve great fluted marble columns (seven standing, five fallen outward and broken in two), lintels still spanning three pairs, great blocks fallen about, a broken pediment lying across the floor, and a throne with a high back facing the way you come.
+    - The colonnade: great columns down the avenue from the outer ring toward the centre, some standing, some toppled outward in turn, their drums apart.
+    - Bridges over the canals along the avenue (the inner whole, the outer broken mid-arch, its keystone fallen in the canal) and two more elsewhere.
+    - The harbour beyond the outer ring: three stone quays with mooring rings, the ribs and keels of two great hulls half buried in the silt.
+    - Four great dim crystals in broken stone housings, a faint light breathing in them once every ~20 s (never flashy); pottery and worked blocks scattered for close discovery; small debris tumbling slowly past; a gentle current of motes running round the canals.
+  - Light: colder and deeper than the Maya city (the water bluer, fewer and dimmer shafts), and two gold shafts (on the acropolis and the avenue) that swell where the telling turns while it speaks (each cue time of `ATLANTIS`).
+  - Life: fish keep to the outer rings (the centre feels emptied); one great ray (4.2 m) circles the acropolis.
+  - Wanderers (recipe `ATLANTEAN`: tall, a hooded robe cut in few broad planes, pale blue, crystal-blue at collar and hem): two walk slowly round the canals, one walks the avenue, one stands still on the acropolis facing the sea; and the still presence (recipe `ATLANTEAN_PRESENCE`: larger, a long veil, a pale disc behind the head) on the acropolis's far side, a memorial more than a character. Never solid, never approaching.
+  - The telling follows the Maya city's rule: once, on first coming into the city's water (within 64 m), playing on wherever you go.
+  - Solid: the acropolis, its standing columns, the throne, the pediment, the avenue's standing columns, the quays and the crystals.
+  - Stills: `?shot=ancient-atlantis-<a|b|c|d|e>` (the approach, the acropolis, the colonnade, the harbour, a crystal).
+- 2026-10-07: Mu, the drowned land of Lemuria (the owner's ancient civilizations brief, SPEC 3; the telling `LEMURIA`, `audio/ancient-civs/lemuria.mp3`, Aria, 246.84 s decoded, 41 cues, used as delivered). Peace: the oldest and gentlest of the three, the relief after the warning.
+  - Where: the ruin site nearest the shore where you wake (~18 m of water, the lightest of the three), in place of its ruin; its floor levelled within 46 m. On the map (Deep) as "Mu, the drowned land".
+  - The land (`world/ancient/lemuria.ts`): nothing cut square, the stone grown smooth (the scanned sandstone, `seaStone`, with soft green growth and silt), the sea having adopted it:
+    - the circle of the elders: nine tall smooth stones like river pebbles stood on end, about a shallow hollow of sand and shells whose sand turns slowly in many fine arms (the listening; `spiralSand`);
+    - rounded platforms of stone you can stand on, and broad shallow garden terraces you can climb (`standHooks`), with sea-gardens on them: tapering blades in muted greens and golds swaying slowly, each on its own time;
+    - coral fused with the stone: branching growths in soft ochre, rose and sand rising out of stones, platforms and mounds;
+    - three star stones, each pierced near its top by a round sight-hole and notched at its crown, tipped back so the holes look up toward the light;
+    - five dwelling mounds, low half-buried domes, each with a dark oval doorway set into its skin (no inside).
+  - Light: the warmest of the three (the water golden-green, warm soft shafts breathing).
+  - Life: dense small fish in three schools. No turtles or jellyfish: there are no models for them (real models or nothing).
+  - Elders (recipe `LEMURIAN_ELDER`: shorter and rounder, a broad simple robe in earth and sea tones, a soft hood), the most still of all: one sits at the circle, one stands there and raises a hand in blessing a while on a long loop, one tends the garden terraces (kneeling, rising a while, kneeling). Heads turn to you when near; they never approach and are never solid.
+  - The telling follows the same rule: once, on first coming into Mu's water (within 48 m), playing on wherever you go.
+  - Solid: the circle's stones, the star stones and the mounds.
+  - Stills: `?shot=ancient-lemuria-<a|b|c|d|e>` (the circle, the terraces, the star stones, a mound, the hollow).
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.

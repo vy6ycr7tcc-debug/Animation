@@ -45,7 +45,7 @@ export interface RuinSite {
   name?: string;
 }
 /** The drowned cities of the ancient tellings (world/ancient), each at one of the ruin sites. */
-export type AreaId = "mayan";
+export type AreaId = "mayan" | "atlantis" | "lemuria";
 export interface SpotSite { x: number; z: number; y: number; r: number }
 export interface MouthSite { x: number; z: number; y: number; face: number }
 
@@ -98,6 +98,8 @@ export const RUIN_SITES: RuinSite[] = (() => {
     the deepest (its nine-terraced pyramid stands ~17 m and wants the most water over it). */
 export const AREA_SIZE: Record<AreaId, { inner: number; outer: number; name: string }> = {
   mayan: { inner: 50, outer: 78, name: "The drowned Maya city" },
+  atlantis: { inner: 64, outer: 92, name: "Atlantis" },
+  lemuria: { inner: 46, outer: 70, name: "Mu, the drowned land" },
 };
 export const AREA_SITES: Partial<Record<AreaId, RuinSite>> = (() => {
   const out: Partial<Record<AreaId, RuinSite>> = {};
@@ -110,6 +112,10 @@ export const AREA_SITES: Partial<Record<AreaId, RuinSite>> = (() => {
     levelGround(r.x, r.z, r.y, AREA_SIZE[id].inner, AREA_SIZE[id].outer);
   };
   take("mayan", free().sort((a, b) => a.y - b.y)[0]);
+  // Atlantis: the deepest left, with room round it for its rings (~60 m)
+  take("atlantis", free().sort((a, b) => a.y - b.y)[0]);
+  // Mu: the gentlest, nearest the shore where you wake (in shallower, lighter water)
+  take("lemuria", free().sort((a, b) => Math.hypot(a.x - SPAWN.x, a.z - SPAWN.z) - Math.hypot(b.x - SPAWN.x, b.z - SPAWN.z))[0]);
   return out;
 })();
 

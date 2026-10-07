@@ -569,6 +569,34 @@ const RECIPES: Record<string, Recipe> = {
     b.collar(N * 0.08, 0.2);
   },
   // the drowned cities' keepers (world/ancient): never archetypes, only presences
+  // the wanderers of Atlantis: tall, robed in a garment cut in few broad planes (pleats six), a
+  // hood of pale light, crystal-blue at the collar and hem
+  ATLANTEAN: (b, N) => {
+    b.skinPoints(N * 0.3, b.hue([0.75, 0.86, 1.0], 0.3), under(0.4));
+    b.measureHead();
+    b.hood(N * 0.12, [0.82, 0.9, 1.0]);
+    b.collar(N * 0.07, 0.19);
+    b.robe(N * 0.42, 0.46, b.floor + 0.01, 0.15, 0.3, [0.42, 0.56, 0.86], [0.78, 0.88, 1.0], 6, [0.62, 0.9, 1.0]);
+    b.cloak(N * 0.09, [0.5, 0.64, 0.95], [0.7, 0.95, 1.0]);
+  },
+  // the elders of Mu: shorter and rounder (a fuller body, a broad simple robe in earth and sea
+  // tones), a soft hood, the most still of all
+  LEMURIAN_ELDER: (b, N) => {
+    b.skinPoints(N * 0.36, b.hue([0.92, 0.8, 0.58], 0.3), under(0.38));
+    b.measureHead();
+    b.hood(N * 0.1, [0.72, 0.68, 0.48]);
+    b.robe(N * 0.44, 0.44, b.floor + 0.01, 0.2, 0.34, [0.5, 0.52, 0.3], [0.78, 0.66, 0.42], 8, [0.95, 0.78, 0.42]);
+    b.belt(N * 0.06, -0.2);
+  },
+  // the still presence on the acropolis: a memorial more than a character; a long veil, a broad
+  // robe, a pale disc behind the head
+  ATLANTEAN_PRESENCE: (b, N) => {
+    b.skinPoints(N * 0.3, b.hue([0.9, 0.94, 1.0], 0.3), under(0.4));
+    b.measureHead();
+    b.disc(N * 0.06, 0.1, [0.8, 0.9, 1.0], false);
+    b.veil(N * 0.2, [0.85, 0.92, 1.0]);
+    b.robe(N * 0.4, 0.44, b.floor + 0.01, 0.14, 0.38, [0.62, 0.74, 0.98], [0.9, 0.95, 1.0], 14, [0.75, 0.9, 1.0]);
+  },
   // the Maya priests: a feathered headdress, a jade collar, a wrapped garment in deep green
   MAYA_PRIEST: (b, N) => {
     b.skinPoints(N * 0.36, b.hue([0.85, 0.72, 0.5], 0.3), under(0.35));

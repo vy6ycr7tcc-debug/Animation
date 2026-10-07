@@ -13,6 +13,9 @@ import { WATER_Y, type Collider } from "../terrain";
 import type { UnderwaterEffect } from "../underwater";
 import type { RGB } from "./kit";
 import { buildMayan } from "./mayan";
+import { buildAtlantis } from "./atlantis";
+import { buildLemuria } from "./lemuria";
+import catalogue from "../../../content/narration.json";
 
 export interface Area {
   id: AreaId;
@@ -26,10 +29,12 @@ export interface Area {
   /** The water about it: its colour (×), its shafts' strength and colour. */
   water: { tint: RGB; shaft: number; shaftCol: RGB };
   loaded: Promise<void>;
-  update(dt: number, t: number, visitor: THREE.Vector3, reduced: boolean): void;
+  /** `telling`: what is speaking and how far in (seconds), for what answers the telling. */
+  update(dt: number, t: number, visitor: THREE.Vector3, reduced: boolean, telling: { id: string | null; t: number }): void;
 }
 
-const BUILD: Record<AreaId, (s: RuinSite) => Area> = { mayan: buildMayan };
+const cuesOf = (id: string) => (catalogue.tracks as { id: string; cues: { t: number }[] }[]).find((t) => t.id === id)?.cues ?? [];
+const BUILD: Record<AreaId, (s: RuinSite) => Area> = { mayan: buildMayan, atlantis: (s) => buildAtlantis(s, cuesOf("ATLANTIS")), lemuria: buildLemuria };
 const SEEN = 260;
 const OPEN = { tint: [1, 1, 1] as RGB, shaft: 1, shaftCol: [0.3, 0.55, 0.62] as RGB };
 
@@ -52,13 +57,13 @@ export class Ancients {
 
   /** Each frame. `speak` begins a telling and says whether it could (voices on, nothing in the
       way); `uw` is the water's look. Returns the city you are in, if any. */
-  update(dt: number, t: number, visitor: THREE.Vector3, reduced: boolean, uw: UnderwaterEffect, speak: (track: string) => boolean): Area | null {
+  update(dt: number, t: number, visitor: THREE.Vector3, reduced: boolean, uw: UnderwaterEffect, speak: (track: string) => boolean, telling: { id: string | null; t: number } = { id: null, t: 0 }): Area | null {
     let inside: Area | null = null, nearest: Area | null = null, nd = Infinity;
     for (const a of this.areas) {
       const d = Math.hypot(visitor.x - a.site.x, visitor.z - a.site.z);
       a.group.visible = d < a.radius + SEEN;
       if (!a.group.visible) continue;
-      a.update(dt, t, visitor, reduced);
+      a.update(dt, t, visitor, reduced, telling);
       if (d < nd) (nd = d), (nearest = a);
       if (d < a.radius && visitor.y < WATER_Y + 0.5) {
         inside = a;
