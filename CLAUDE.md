@@ -662,6 +662,17 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - When the clips arrive, name either four cues (started on the audio clock at each phase's edge) or one seamless cycle (`loop`). The bed ducks lightly under them (`audio.duckSoft`), and "Only nature" or another voice speaking rests them.
   - Never synthesize a stand-in.
   - Still frames: `?shot=breath&t=<0..1>` (the ring held that open round the wanderer on the shore).
+- 2026-10-07: the temple's cards framed, spread and titled (the owner, iPhone screenshots: "remove lamp at beginning, center the centered view with more room above… last room all the cards are stucked together, make instead beautiful arrangements and separate them more. Also add the title of the cards to all of them in glowing format"; and of the sanctuary's dais, "a centerpiece in the middle that doesn't really make sense").
+  - The Mind's bronze lamp-stand by the door is gone. Its moment in the tour (the opening's own line, "In the first room, a lamp is lit…") now looks down the Mind's wall to its first shrine, the niches washed in the room's cool light (`buildSigns`). The Body's fire and the Spirit's star stay.
+  - Framing (`Temple.frameFor`, `TempleTour.atShrine`, `gravityFrame`/`gravityPoint` in `main.ts`):
+    - At every shrine the view centres on the carving, the whole of it and its title in frame with room above.
+    - In the tour this happens at each stop, the camera a little higher.
+    - Walking freely, it happens when you stand at a shrine's place (within 1.6 m), the view swinging round behind you on the line to it.
+    - Not the Choice, whose seat has its own view.
+  - The sanctuary: the round three-step dais and its altar are gone. Only a ring of gold set into the floor (two circles, an eight-armed star) marks where the cards are taken up; "The cards" opens there as before, and the Spirit's star still hangs over it.
+  - The Spirit's seven now stand apart in a wide horseshoe round the room (`ringSpots`: from the left wall, round the back, to the right wall, ~6 m between each, all facing the room's heart, the way to the Choice's door clear). The vessels by the walls keep clear of them.
+  - Every carving (all 22) carries its title over it in glowing letters (`glowTitle`: "I · The Magician", warm gold with a breath of its own colour, additive, contained), in place of the carved stone plaques.
+  - Stills: `?shot=temple-sanctuary`, `?shot=temple-tour&t=<s>&live=8` (the tour's own view at a stop), `?shot=temple-shrine-<i>&live=8&inward=0` (standing at a shrine). `&live=` now works for any still (the game's camera after that many seconds), and `&inward=0` keeps it short of contemplation.
 - 2026-10-07: the world after the veil (v5 item 6; the owner's brief `prompts/opus-densities-area-prompt.md`; audio `public/audio/densities-area/densities-area-cine-1…7.mp3`, Aria, used as they are).
   - The one door (`scenes/afterVeil/door.ts`, site `VEIL_HALL` in `terrain.ts`, toward the deep night):
     - a tall door of old dark stone in courses, a heavy lintel, its seams fine lines of light, a faint pale light in its opening;

@@ -1960,6 +1960,11 @@ function gravityPoint(): THREE.Vector3 | null {
     const p7 = pyramid.PATH[pyramid.PATH.length - 1];
     return DUAT_ORIGIN.clone().add(p7).add(new THREE.Vector3(-0.3 * 140, 14, -0.95 * 140));
   }
+  // standing at a shrine's place in the temple (not seated, not with the cards): its carving
+  if (S.mode === "play" && temple.inside && !temple.cardsOpen && sitting.phase === "none" && player.speed < 0.3) {
+    const k = temple.nearShrine(player.pos, 1.6);
+    if (k >= 0 && k !== 21) return temple.frameFor(k, shrineFrame);
+  }
   if (S.mode !== "play" || (!narration.progress() && narration.debugTime === null)) return null;
   const h = inHall();
   if (h) return h.journey.inside && !h.journey.crossing ? h.journey.centre() : null;
@@ -1969,7 +1974,17 @@ function gravityPoint(): THREE.Vector3 | null {
   return m?.focus?.clone() ?? null;
 }
 const GRAVITY_AFTER = 2500;
+const shrineFrame = new THREE.Vector3();
 function gravityFrame(dt: number): void {
+  // the temple tour at a shrine: the view centred on its carving, the whole of it and its title
+  // with room above (the owner's framing); the tour itself turns the view round
+  const ts = tourScenes.tour.active ? tourScenes.tour.atShrine : -1;
+  if (ts >= 0) {
+    follow.frame = temple.frameFor(ts, shrineFrame);
+    follow.frameHold = 1;
+    follow.wide = 0;
+    return;
+  }
   const g = document.body.classList.contains("touring") && !walk && !duatTour ? null : gravityPoint();
   follow.frame = g;
   // a room framed wide (the first density): the focus move, and contemplation, draw back to reveal it
@@ -3882,8 +3897,19 @@ renderer
           breath.set(true);
           for (let k = 0; k < 120; k++) breath.update(1 / 30, player.pos, false);
         },
+        templeStand: (i) => {
+          setInside(true);
+          update(1 / 60); // coming in begins the tour: this still is of walking up yourself
+          tourScenes.tour.exit();
+          const s = temple.standFor(i);
+          player.pos.set(s.x, temple.floorAt(s.x, s.z), s.z);
+          player.heading = s.heading;
+          follow.yaw = s.heading;
+          follow.snapTo(player.pos);
+        },
         idle: () => {
-          lastTouch = -1e9;
+          // (&inward=0: still a few seconds, not long enough for contemplation)
+          lastTouch = new URLSearchParams(location.search).get("inward") === "0" ? performance.now() - 3000 : -1e9;
           realDt = 1 / 60; // the stills' frames are lived synchronously, at sixty a second
         },
         draw: () => {
