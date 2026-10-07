@@ -362,6 +362,14 @@ export function densityStages(seen: () => Set<string>): Stage[] {
       title: "",
       make: async (scene) => lobby(scene, seen),
       start: { x: 0, z: 10.5, heading: 0 },
+      // the fountain at the heart (its basin and lip) and the eight steles round the wall
+      solids: [
+        { x: 0, z: 0, r: 2.2, h: 0.9 },
+        ...Array.from({ length: 8 }, (_, k) => {
+          const th = Math.PI + Math.PI / 8 + (k * Math.PI) / 4;
+          return { x: Math.sin(th) * (R_LOBBY - 3.2), z: Math.cos(th) * (R_LOBBY - 3.2), hx: 0.55, hz: 0.33, ang: th, h: 3 };
+        }),
+      ],
       exits: [
         { x: 0, z: -R_LOBBY - 0.2, r: 1.9, to: 1 },
         { x: 0, z: R_LOBBY + 0.2, r: 1.9, to: "out" },

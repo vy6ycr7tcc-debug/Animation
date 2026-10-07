@@ -15,7 +15,7 @@
 import * as THREE from "three/webgpu";
 import { T, vnoise } from "../gpu/tsl";
 import { contactShade, doorSpill, landStone, stoneBlock } from "./stoneworks";
-import { heightAt } from "./terrain";
+import { colliders, heightAt } from "./terrain";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 const { smoothstep, uv, vec2, vec3, mix } = T;
@@ -125,6 +125,8 @@ export class EgyptGate {
     // the jambs: battered on their outer faces, laid in courses of uneven height; each course one
     // or two stones, each a little shifted and turned; the right one's top course broken away
     const BASE_W = 1.85, TOP_W = 1.38, BASE_D = 2.0, TOP_D = 1.62;
+    // the jambs stand solid (they had no colliders: you walked through the stone)
+    for (const side of [-1, 1]) colliders.push({ x: x + side * (OPEN_W / 2 + BASE_W / 2), z, r: 0, hx: BASE_W / 2, hz: BASE_D / 2, top: y + OPEN_H + 0.3 });
     for (const side of [-1, 1]) {
       let yy = -0.15; // the lowest course sits a little down in the sand
       while (yy < OPEN_H - 0.05) {

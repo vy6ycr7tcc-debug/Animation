@@ -425,6 +425,7 @@ export function pastStages(seen: () => Set<string>): Stage[] {
       title: "",
       make: async (scene) => lobby(scene, seen),
       start: { x: 0, z: 9.5, heading: 0 },
+      solids: Array.from({ length: 12 }, (_, k) => ({ x: Math.sin(((k + 0.5) / 12) * Math.PI * 2) * 9.4, z: Math.cos(((k + 0.5) / 12) * Math.PI * 2) * 9.4, r: 0.6, h: 9 })), // the twelve columns (the pool is in `confine`)
       exits: [
         { x: 0, z: -Rr - 0.1, r: 1.6, to: 1, dark: 1.5 },
         { x: 0, z: Rr + 0.1, r: 1.6, to: "out" },

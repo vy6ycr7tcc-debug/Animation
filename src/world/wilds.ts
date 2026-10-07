@@ -12,7 +12,7 @@ import { outOfTheWay, T, withFog, worldPoints } from "../gpu/tsl";
 import { crystalMaterial, prismGeometry } from "./creation";
 import { etchedStone } from "./etching";
 import type { LifeFrame } from "./life";
-import { CAVE_SITES, colliders, fbm, groundKind, heightAt, keptClear, LANDMARK_SITES, SPAWN, WATER_Y } from "./terrain";
+import { CAVE_SITES, colliders, type Collider, fbm, groundKind, heightAt, keptClear, LANDMARK_SITES, SPAWN, WATER_Y } from "./terrain";
 
 const { attribute, cos, dot, float, fract, Fn, mix, normalWorld, positionLocal, positionWorld, sin, smoothstep, abs, screenCoordinate, step, uniform, vec2, vec3, vec4 } = T;
 const V = THREE.Vector3;
@@ -188,6 +188,7 @@ export class Wilds {
   private uT = uniform(0);
   private palmMeshes: THREE.InstancedMesh[] = [];
   private palms = new Map<string, Palm[]>();
+  private palmSolid: Collider[] = [];
   private cx = Infinity;
   private cz = Infinity;
   private caves: Cave[] = [];
@@ -269,6 +270,7 @@ export class Wilds {
         this.q.setFromAxisAngle(new V(Math.sin(a), 0, -Math.cos(a)), -0.3 + hash(n, k, 4) * 0.2);
         this.m.compose(new V(x, heightAt(x, z) - 0.1, z), this.q, new V(len * 0.5, len, len * 0.5));
         crystals.setMatrixAt(ci, this.m);
+        colliders.push({ x, z, r: 0.3 * len, top: heightAt(x, z) + len * 0.8 }); // the crystals at the back stand solid
         aC.setXYZ(ci, (n * 0.29 + k * 0.05) % 1, 0.7, hash(n, k, 5));
         ci++;
       }
@@ -305,6 +307,12 @@ export class Wilds {
     this.cz = cz;
     const counts = [0, 0];
     const s = new V();
+    // the palms near you stand solid at their foot (they had no colliders)
+    for (const c of this.palmSolid) {
+      const k = colliders.indexOf(c);
+      if (k >= 0) colliders.splice(k, 1);
+    }
+    this.palmSolid.length = 0;
     for (let i = -PRING; i <= PRING; i++)
       for (let j = -PRING; j <= PRING; j++)
         for (const p of this.palmsAt(cx + i, cz + j)) {
@@ -313,7 +321,9 @@ export class Wilds {
           this.q.setFromAxisAngle(new V(0, 1, 0), p.rot);
           this.m.compose(new V(p.x, p.y, p.z), this.q, s.setScalar(p.scale));
           mesh.setMatrixAt(counts[p.variant]++, this.m);
+          this.palmSolid.push({ x: p.x, z: p.z, r: 0.3 * p.scale, top: p.y + 5 * p.scale });
         }
+    colliders.push(...this.palmSolid);
     this.palmMeshes.forEach((m, k) => {
       m.count = counts[k];
       m.instanceMatrix.needsUpdate = true;
