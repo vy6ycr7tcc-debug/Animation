@@ -1,0 +1,23 @@
+{
+  "_note": "Adaptive graphics quality (src/core/quality.ts). Read at boot; edit and redeploy, no code change. Any field left out (or of the wrong kind) keeps its built-in default. Frames are judged in ~1 s windows. When slow, the render scale steps down within its band first (never below the sharpness floor), then effects rest tier by tier; with headroom it all climbs back.",
+  "slowFps": 50,
+  "goodFps": 56,
+  "slowWindows": 3,
+  "goodWindows": 10,
+  "retryWindows": 30,
+  "startSettle": 8,
+  "scaleMin": 0.5,
+  "scaleStep": 0.1,
+  "dprFloorPhone": 2,
+  "dprFloorDesktop": 1,
+  "lowPower": { "minFps": 27, "maxFps": 32, "maxWorstMs": 45 },
+  "lowEnd": { "maxCores": 4, "maxMemoryGB": 3 },
+  "start": { "phone": "high", "phoneLowEnd": "medium", "desktop": "full", "desktopLowEnd": "high" },
+  "tiers": [
+    { "name": "full", "dpr": 3, "shadow": 2048, "bloom": true, "particles": 1800, "particlesPhone": 1200, "ao": true, "aoPhone": false, "rays": true, "reflection": true },
+    { "name": "high", "dpr": 3, "shadow": 2048, "bloom": true, "particles": 1100, "particlesPhone": 1100, "ao": false, "aoPhone": false, "rays": true, "reflection": true },
+    { "name": "medium", "dpr": 2.5, "shadow": 1024, "bloom": true, "particles": 900, "particlesPhone": 900, "ao": false, "aoPhone": false, "rays": false, "reflection": true },
+    { "name": "light", "dpr": 2, "shadow": 1024, "bloom": true, "particles": 700, "particlesPhone": 700, "ao": false, "aoPhone": false, "rays": false, "reflection": false },
+    { "name": "minimum", "dpr": 2, "shadow": 512, "bloom": false, "particles": 400, "particlesPhone": 400, "ao": false, "aoPhone": false, "rays": false, "reflection": false }
+  ]
+}
