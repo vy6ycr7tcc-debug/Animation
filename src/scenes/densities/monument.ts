@@ -404,7 +404,10 @@ export function densityStages(seen: () => Set<string>): Stage[] {
     {
       id: "room1",
       focus: [[-3, 5, -40], [8, 3, -20]],
-      centre: [3.6, 1.8, -9.5], // where the life is: the stone of sparks close ahead
+      // the whole is the beauty here: the view draws back to hold the stone of sparks in the
+      // foreground, the black shore, the sea stacks and the volcano pouring fire beyond
+      centre: [9, 15, -40],
+      framing: "wide",
       title: "The first density",
       make: async (scene, nar, wh) => {
         const mod = await import("./room_1");
@@ -446,6 +449,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
     {
       id: "room4",
       focus: [[-1, 2.2, -18], [0, 1.3, -14], [19, 20, -34]],
+      framing: "wide", // the village round the plaza and every thread between its people
       title: "The fourth density",
       make: mk(() => import("./room_4"), "createDensityRoom4Scene"),
       start: { x: 0, z: 0, heading: 0 },

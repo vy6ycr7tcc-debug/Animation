@@ -321,31 +321,49 @@ export function createDensityRoom1Scene(
     /* ---------------- the volcano, pouring slow fire ---------------- */
     {
       const rTop = 6, rBot = 62;
-      const geo = new THREE.CylinderGeometry(rTop, rBot, VOLCANO_H, 72, 28, true);
+      const geo = new THREE.CylinderGeometry(rTop, rBot, VOLCANO_H, 160, 40, true);
       geo.translate(0, VOLCANO_H / 2, 0);
       const p = geo.attributes.position as THREE.BufferAttribute;
       for (let i = 0; i < p.count; i++) {
         const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
         const v = y / VOLCANO_H;
-        // a concave cone (steeper high up), ridged and gullied
+        const a = Math.atan2(z, x);
+        // a concave cone (steeper high up), ridged and gullied: buttresses of old flows run down
+        // its flanks (sharper near the summit, broadening below), so its edge against the sky is
+        // worn and ribbed, never a drawn cone; the crater's rim is broken, lower on one side
         const n = fbm(x * 0.05 + 9, z * 0.05 + y * 0.03) - 0.5;
-        const k = (1 + n * 0.28) * (1 - v * 0.08) + Math.pow(1 - v, 3) * 0.12;
-        p.setXYZ(i, x * k, y * (1 + n * 0.05), z * k);
+        const ribs = Math.pow(Math.abs(Math.sin(a * 9 + n * 3 + v * 1.4)), 0.6) - 0.6;
+        const fine = Math.sin(a * 23 + n * 6) * 0.5;
+        const k = (1 + n * 0.3 + ribs * 0.07 * (0.4 + v) + fine * 0.02 * (1 - v)) * (1 - v * 0.08) + Math.pow(1 - v, 3) * 0.12;
+        const notch = v > 0.9 ? (Math.cos(a - 2.2) * 0.5 + 0.5) * (v - 0.9) * 40 * (0.6 + n) : 0;
+        p.setXYZ(i, x * k, y * (1 + n * 0.05) - notch, z * k);
       }
       geo.computeVertexNormals();
       const m = new THREE.MeshStandardNodeMaterial({ color: "#110c10", roughness: 0.92, metalness: 0 });
       const P = positionGeometry;
       const v = P.y.div(VOLCANO_H);
+      // the rock: strata and a crust of old flows, darker in the folds, faintly warm high up
+      const strata = vnoise(vec2(v.mul(38).add(vnoise(P.xz.mul(0.04)).mul(3)), P.x.mul(0.02))).mul(0.5).add(0.75);
+      const crust = vnoise(P.xz.mul(0.18).add(P.y.mul(0.1))).mul(0.4).add(0.8);
+      m.colorNode = vec3(0.07, 0.048, 0.05).mul(strata).mul(crust);
       // rivers of fire: channels in the rock, brighter toward the crater, pulses running down them
-      // each river runs down one gully: a narrow band around the cone, wandering as it descends
+      // each river runs down one gully: a narrow band around the cone, wandering as it descends;
+      // the rock either side is heated and glows dull red, so each river reads as poured, not drawn
       const dir = normalize(P.xz);
       const wander = vnoise(vec2(v.mul(5), dir.x.mul(2).add(dir.y))).mul(2.4);
-      const chan = smoothstep(0.95, 0.998, sin(dir.x.mul(19).add(dir.y.mul(13)).add(wander))).mul(smoothstep(0.3, 0.55, vnoise(vec2(dir.x.mul(4), v.mul(3)))));
+      const sw = sin(dir.x.mul(19).add(dir.y.mul(13)).add(wander));
+      const which = smoothstep(0.3, 0.55, vnoise(vec2(dir.x.mul(4), v.mul(3))));
+      const chan = smoothstep(0.93, 0.997, sw).mul(which);
+      const heat = smoothstep(0.55, 0.97, sw).mul(which).mul(0.16);
       const pulse = sin(v.mul(22).add(t.mul(0.5))).mul(0.35).add(0.65);
-      const high = smoothstep(0.15, 0.95, v);
-      const rim = smoothstep(0.9, 1.0, v);
-      const lava = chan.mul(high).mul(pulse).add(rim.mul(0.8)).mul(uLava);
-      m.emissiveNode = vec3(1.0, 0.32, 0.06).mul(lava).mul(4.5);
+      const flicker = vnoise(vec2(v.mul(60).add(t.mul(0.9)), dir.x.mul(40))).mul(0.5).add(0.6);
+      const high = smoothstep(0.1, 0.95, v);
+      // the rim, ragged: its glow comes and goes along the broken edge
+      const rim = smoothstep(0.86, 1.0, v.add(vnoise(dir.mul(6)).mul(0.06)));
+      // where the rivers reach the plain they spread into a slow apron of cooling fire
+      const apron = smoothstep(0.14, 0.0, v).mul(smoothstep(0.6, 0.95, sw)).mul(which).mul(smoothstep(0.45, 0.8, vnoise(P.xz.mul(0.3).add(t.mul(0.05)))));
+      const lava = chan.mul(high).mul(pulse).mul(flicker).add(heat.mul(high)).add(rim.mul(0.8)).add(apron.mul(0.14)).mul(uLava);
+      m.emissiveNode = mix(vec3(0.6, 0.1, 0.03), vec3(1.0, 0.42, 0.1), chan.add(rim).min(1)).mul(lava).mul(4.5);
       const mesh = new THREE.Mesh(geo, m);
       mesh.position.copy(VOLCANO);
       g.add(mesh);

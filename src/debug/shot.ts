@@ -98,6 +98,8 @@ export interface ShotCtx {
   settle?(): Promise<unknown>;
   /** Walk into stage `i` of the density journey (no fades), lived for `t` seconds; `journey-<i>`. */
   journey?(name: string, i: number, t: number): Promise<void>;
+  /** No touch for a long while (the gravity point and contemplation answer to stillness). */
+  idle?(): void;
   /** Build density room `n` alone (the open world hidden); `density-<n>` still frames. */
   room?(n: number): Promise<{ onSit(): void; update(dt: number): void }>;
 }
@@ -188,11 +190,19 @@ export function runShot(ctx: ShotCtx): void {
     ctx.narration.debugTime = t;
     const k = Number(jm[2]), name = jm[1] === "journey" ? "densities" : jm[1];
     const views = name === "adept" ? ADEPT_VIEWS : name === "past" ? PAST_VIEWS : JOURNEY_VIEWS;
+    // &live=S: the game's own camera, after S seconds of stillness (the focus move as it plays)
+    const live = Number(new URLSearchParams(location.search).get("live") ?? NaN);
     void journey(name, k, t).then(() => {
       ctx.S.mode = "play";
       ctx.follow.startFollowing(true);
       ctx.follow.follow = 1;
       const o = JOURNEY_ORIGIN;
+      if (live >= 0) {
+        ctx.idle?.();
+        for (let i = 0, n = Math.round(live * 60); i < n; i++) ctx.update(1 / 60);
+        ctx.narration.debugTime = t;
+        return finish(rest, id, t, [o.x, o.y, o.z], null);
+      }
       finish(rest, id, t, [o.x, o.y, o.z], views[k] ?? { eye: [0, 2, 8], look: [0, 3, -30] });
     });
     return;
@@ -328,7 +338,7 @@ export function runShot(ctx: ShotCtx): void {
   finish(ctx, id, t, base, view);
 }
 
-function finish(ctx: ShotCtx, id: string, t: number, base: XYZ, view: { eye: XYZ; look: XYZ }): void {
+function finish(ctx: ShotCtx, id: string, t: number, base: XYZ, view: { eye: XYZ; look: XYZ } | null): void {
   ctx.update(1 / 60);
   ctx.S.t = t;
   ctx.S.wt = t;
@@ -340,8 +350,10 @@ function finish(ctx: ShotCtx, id: string, t: number, base: XYZ, view: { eye: XYZ
     view = { eye: [-fx * 4.5, 2.6, -fz * 4.5], look: [fx * 5, 1.6, fz * 5] };
   }
 
-  ctx.camera.position.set(base[0] + view.eye[0], base[1] + view.eye[1], base[2] + view.eye[2]);
-  ctx.camera.lookAt(base[0] + view.look[0], base[1] + view.look[1], base[2] + view.look[2]);
+  if (view) {
+    ctx.camera.position.set(base[0] + view.eye[0], base[1] + view.eye[1], base[2] + view.eye[2]);
+    ctx.camera.lookAt(base[0] + view.look[0], base[1] + view.look[1], base[2] + view.look[2]);
+  }
   ctx.camera.updateMatrixWorld(true);
 
   const loading = document.getElementById("loading");

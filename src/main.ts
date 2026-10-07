@@ -1884,7 +1884,7 @@ function gravityPoint(): THREE.Vector3 | null {
     const p7 = pyramid.PATH[pyramid.PATH.length - 1];
     return DUAT_ORIGIN.clone().add(p7).add(new THREE.Vector3(-0.3 * 140, 14, -0.95 * 140));
   }
-  if (S.mode !== "play" || !narration.progress()) return null;
+  if (S.mode !== "play" || (!narration.progress() && narration.debugTime === null)) return null;
   const h = inHall();
   if (h) return h.journey.inside && !h.journey.crossing ? h.journey.centre() : null;
   const id = tourScenes.seatedId;
@@ -1896,6 +1896,8 @@ const GRAVITY_AFTER = 2500;
 function gravityFrame(dt: number): void {
   const g = document.body.classList.contains("touring") && !walk && !duatTour ? null : gravityPoint();
   follow.frame = g;
+  // a room framed wide (the first density): the focus move, and contemplation, draw back to reveal it
+  follow.wide = inHall()?.journey.framing() === "wide" && (g || inwardK > 0.05) ? 1 : 0;
   if (!g) return;
   const idle = performance.now() - lastTouch > GRAVITY_AFTER && Math.hypot(input.move.x, input.move.y) < 0.05 && !input.hold;
   follow.frameHold = idle ? 1 : 0.35;
@@ -3769,6 +3771,10 @@ renderer
           return [player.pos.x, player.pos.y, player.pos.z];
         },
         update,
+        idle: () => {
+          lastTouch = -1e9;
+          realDt = 1 / 60; // the stills' frames are lived synchronously, at sixty a second
+        },
         draw: () => {
           renderer.info.reset();
           post.render();
