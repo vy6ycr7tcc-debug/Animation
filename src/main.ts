@@ -1109,8 +1109,38 @@ player.onLand = () => {
 };
 lanterns.onKindle = () => say("Lanterns kindle around you.");
 
+/* The welcome (the owner's words on what this place is and how it is meant to be used, and one
+   line of how to move): under the title the first time only, over the world as it finishes
+   loading; the touch on the water is still the one way in. Afterwards it lives in ⋮ → Welcome. */
+const WELCOMED = "inward-journey:welcomed";
+const welcomeHint = MOBILE
+  ? "Your left thumb moves you, a drag anywhere else looks around, and a tap on what glows lets it speak."
+  : "Move with W A S D or the arrow keys, drag to look around, and click on what glows to let it speak.";
+for (const el of document.querySelectorAll(".w-hint")) el.textContent = welcomeHint;
+let firstWelcome = false;
+try {
+  firstWelcome = !localStorage.getItem(WELCOMED);
+} catch {
+  firstWelcome = true;
+}
+if (firstWelcome) {
+  $("#welcome").hidden = false;
+  $("#title").classList.add("first");
+}
+$("#welcome-open").addEventListener("click", () => {
+  setMenu(false);
+  $("#welcome-again").hidden = false;
+  $<HTMLButtonElement>("#welcome-close").focus({ preventScroll: true });
+});
+$("#welcome-close").addEventListener("click", () => ($("#welcome-again").hidden = true));
+
 function begin(e?: Event): void {
   if (S.mode !== "intro" || startMap.isOpen || opening !== "done") return;
+  try {
+    localStorage.setItem(WELCOMED, "1"); // read once: later boots go straight to the water
+  } catch {
+    /* private mode: it shows again next time, which is fine */
+  }
   // Sound starts inside this touch (iOS requirement).
   audio.start();
   audio.bell(587.33, 0.05, 6);
