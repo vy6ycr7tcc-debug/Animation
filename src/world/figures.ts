@@ -558,6 +558,16 @@ type Recipe = (b: Builder, N: number) => void;
 const under = (y: number) => (p: THREE.Vector3) => (p.y < y ? 0.3 : 1);
 
 const RECIPES: Record<string, Recipe> = {
+  // the angel of the world after the veil (scenes/afterVeil): a being of warm gold light-dust,
+  // its body and a long robe falling from the shoulders, a veil of paler light from the head;
+  // no wings (the brief: only if they come of the flow, and they do not here)
+  ANGEL: (b, N) => {
+    b.skinPoints(N * 0.42, b.hue([1.0, 0.82, 0.5], 0.4), under(0.35));
+    b.measureHead();
+    b.veil(N * 0.14, [1.0, 0.93, 0.78]);
+    b.robe(N * 0.36, 0.44, b.floor + 0.02, 0.14, 0.34, [1.0, 0.8, 0.46], [1.0, 0.9, 0.7], 26, [1.0, 0.72, 0.36]);
+    b.collar(N * 0.08, 0.2);
+  },
   // the drowned cities' keepers (world/ancient): never archetypes, only presences
   // the Maya priests: a feathered headdress, a jade collar, a wrapped garment in deep green
   MAYA_PRIEST: (b, N) => {

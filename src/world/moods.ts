@@ -165,6 +165,9 @@ const MOODS: { mood: Mood; dir: [number, number] | null }[] = [
   { mood: DAWN, dir: [Math.SQRT1_2, Math.SQRT1_2] },
 ];
 export const MOOD_NAMES = ["night", "sunrise", "sunset", "deep", "twilight", "golden", "dusk", "ember", "dawn"];
+/** A place that tells its story through the air (the long descent) sets the moods' weights here,
+    in the order of MOOD_NAMES; they are eased toward as ever. null: the moods follow where you are. */
+export const moodForce: { w: number[] | null } = { w: null };
 
 export interface MoodTargets {
   hemi: THREE.HemisphereLight;
@@ -202,7 +205,7 @@ export class Moods {
     sum = sum || 1;
     const k = Math.min(1, dt * 0.6);
     for (let i = 0; i < MOODS.length; i++) {
-      const want = i ? (lobes[i] / sum) * away : 1 - away;
+      const want = moodForce.w ? moodForce.w[i] ?? 0 : i ? (lobes[i] / sum) * away : 1 - away;
       const before = this.w[i];
       this.w[i] += (want - this.w[i]) * k;
       this.drift += Math.abs(this.w[i] - before);
