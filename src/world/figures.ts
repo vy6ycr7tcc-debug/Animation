@@ -597,6 +597,15 @@ const RECIPES: Record<string, Recipe> = {
     b.robe(N * 0.42, 0.42, b.floor + 0.12, 0.16, 0.3, [0.6, 0.52, 0.4], [0.76, 0.64, 0.46], 6, [0.7, 0.5, 0.3]);
     b.belt(N * 0.06, -0.2);
   },
+  // Nan Madol's watcher and keeper: a long plain wrap of bark cloth, sea and basalt tones, a
+  // shell collar
+  NAN_MADOL_WATCHER: (b, N) => {
+    b.skinPoints(N * 0.38, b.hue([0.78, 0.6, 0.44], 0.3), under(0.4));
+    b.measureHead();
+    b.collar(N * 0.06, 0.18);
+    b.robe(N * 0.44, 0.42, b.floor + 0.04, 0.16, 0.3, [0.42, 0.5, 0.5], [0.66, 0.6, 0.48], 8, [0.86, 0.8, 0.62]);
+    b.belt(N * 0.05, -0.2);
+  },
   // the still presence on the acropolis: a memorial more than a character; a long veil, a broad
   // robe, a pale disc behind the head
   ATLANTEAN_PRESENCE: (b, N) => {

@@ -7885,6 +7885,396 @@
      "text": "the way the stones do. They buried their temple. They could not bury the question."
     }
    ]
+  },
+  {
+   "id": "NAN-MADOL",
+   "title": "Nan Madol",
+   "voice": "female",
+   "file": "audio/ancient-civs/nan-madol.mp3",
+   "duration": 281.32,
+   "trigger": "nan-madol",
+   "cues": [
+    {
+     "t": 0.0,
+     "text": "Come by water, the way everyone has always come."
+    },
+    {
+     "t": 3.04,
+     "text": "There is no road to the city, there never was."
+    },
+    {
+     "t": 6.0,
+     "text": "You slip between walls of black stone down a corridor of seawater"
+    },
+    {
+     "t": 10.0,
+     "text": "and the walls keep coming,"
+    },
+    {
+     "t": 11.68,
+     "text": "eyelid after eyelid, nearly a hundred of them,"
+    },
+    {
+     "t": 14.96,
+     "text": "a whole capital floating on a coral reef in the middle of the Pacific."
+    },
+    {
+     "t": 19.6,
+     "text": "This is Nan Madal."
+    },
+    {
+     "t": 21.2,
+     "text": "Its name means within the intervals, the spaces between."
+    },
+    {
+     "t": 25.36,
+     "text": "The city is the spaces, streets of seawater,"
+    },
+    {
+     "t": 28.96,
+     "text": "doorways that open onto the tide."
+    },
+    {
+     "t": 31.52,
+     "text": "Look at the walls."
+    },
+    {
+     "t": 32.64,
+     "text": "They are built of stone logs, long hexagonal columns of basalt,"
+    },
+    {
+     "t": 37.12,
+     "text": "formed when lava cooled a million years ago."
+    },
+    {
+     "t": 40.32,
+     "text": "Layed the way you would stack firewood,"
+    },
+    {
+     "t": 42.48,
+     "text": "one course lengthwise, the next crosswise,"
+    },
+    {
+     "t": 45.44,
+     "text": "locked to the corners, no mortar, nothing but weight and patience."
+    },
+    {
+     "t": 50.24,
+     "text": "Some of these stones weigh many tons."
+    },
+    {
+     "t": 52.56,
+     "text": "The walls rise eight meters."
+    },
+    {
+     "t": 54.64,
+     "text": "The great mortuary enclosure where the chief sleep rises 20."
+    },
+    {
+     "t": 59.12,
+     "text": "And the people who raised them had no metal tools, no wheels,"
+    },
+    {
+     "t": 62.88,
+     "text": "no police, no draft animals, only hands and canoes and time."
+    },
+    {
+     "t": 68.24,
+     "text": "The teachers asked you to sit with that for a moment,"
+    },
+    {
+     "t": 70.96,
+     "text": "not to solve it, to feel the size of it."
+    },
+    {
+     "t": 74.08,
+     "text": "Nearly a million tons of stone,"
+    },
+    {
+     "t": 76.4,
+     "text": "quarried for volcanic plug on the far side of the island,"
+    },
+    {
+     "t": 79.92,
+     "text": "carried kilometers across the water and set here,"
+    },
+    {
+     "t": 83.36,
+     "text": "course upon course in the tidal zone,"
+    },
+    {
+     "t": 86.24,
+     "text": "where the sea itself tries twice a day to take it back."
+    },
+    {
+     "t": 90.32,
+     "text": "Whatever moved those stones, it was not convenience."
+    },
+    {
+     "t": 93.92,
+     "text": "It was conviction."
+    },
+    {
+     "t": 95.36,
+     "text": "The islanders have their own account,"
+    },
+    {
+     "t": 97.12,
+     "text": "and it is worth hearing as they tell it."
+    },
+    {
+     "t": 99.52,
+     "text": "Two brothers came by canoe from a western land,"
+    },
+    {
+     "t": 102.64,
+     "text": "twins taller than the native people,"
+    },
+    {
+     "t": 105.04,
+     "text": "sorcerers."
+    },
+    {
+     "t": 106.32,
+     "text": "They sought a place to honor the god of the harvest,"
+    },
+    {
+     "t": 109.12,
+     "text": "and they found this reef."
+    },
+    {
+     "t": 110.88,
+     "text": "And with rights and a flying dragon,"
+    },
+    {
+     "t": 113.12,
+     "text": "the old stories say they lifted the basalt through the air"
+    },
+    {
+     "t": 116.8,
+     "text": "and set it down in walls."
+    },
+    {
+     "t": 118.8,
+     "text": "When the elder brother died of old age,"
+    },
+    {
+     "t": 121.2,
+     "text": "the younger became the first of the Souda-Ler kings."
+    },
+    {
+     "t": 124.8,
+     "text": "The guides do not ask you to believe the dragon literally."
+    },
+    {
+     "t": 128.16,
+     "text": "They ask you to notice what the story is really saying,"
+    },
+    {
+     "t": 131.52,
+     "text": "that the people who remember this place know in their bones,"
+    },
+    {
+     "t": 135.04,
+     "text": "that ordinary explanations do not suffice."
+    },
+    {
+     "t": 138.48,
+     "text": "Every culture keeps one story for the thing it cannot account for."
+    },
+    {
+     "t": 142.56,
+     "text": "This is theirs."
+    },
+    {
+     "t": 144.0,
+     "text": "For four centuries, the Souda-Ler is ruled from this reef."
+    },
+    {
+     "t": 147.2,
+     "text": "The first government to unite the island,"
+    },
+    {
+     "t": 149.44,
+     "text": "tribute flowing in by boat,"
+    },
+    {
+     "t": 151.36,
+     "text": "chiefs and priests living behind walls of stone,"
+    },
+    {
+     "t": 154.24,
+     "text": "while the common people lived on the main island."
+    },
+    {
+     "t": 156.96,
+     "text": "It was power made visible,"
+    },
+    {
+     "t": 158.8,
+     "text": "a capital with no fields and no fresh water,"
+    },
+    {
+     "t": 161.92,
+     "text": "everything at eight and drank delivered by subjects."
+    },
+    {
+     "t": 165.2,
+     "text": "And the teachers point to this gently"
+    },
+    {
+     "t": 167.36,
+     "text": "because it is the oldest pattern in the book."
+    },
+    {
+     "t": 169.92,
+     "text": "Centralize the wonder."
+    },
+    {
+     "t": 171.6,
+     "text": "Isolate the rulers, feed the machine with tribute."
+    },
+    {
+     "t": 175.36,
+     "text": "Then one day a hero comes with three hundred warriors"
+    },
+    {
+     "t": 178.88,
+     "text": "and the pattern breaks and the city begins the long quiet of abandonment."
+    },
+    {
+     "t": 183.76,
+     "text": "There is something else here,"
+    },
+    {
+     "t": 185.52,
+     "text": "fainter, that the guides want you to feel."
+    },
+    {
+     "t": 188.56,
+     "text": "You are floating in the Pacific,"
+    },
+    {
+     "t": 190.64,
+     "text": "the ocean of Mu."
+    },
+    {
+     "t": 192.72,
+     "text": "Long before these canals were dredged,"
+    },
+    {
+     "t": 195.12,
+     "text": "the old stories tell of a drowned continent in these same waters,"
+    },
+    {
+     "t": 199.52,
+     "text": "and of survivors who scatter to the far shores."
+    },
+    {
+     "t": 203.44,
+     "text": "No one claims these stones are theirs."
+    },
+    {
+     "t": 206.16,
+     "text": "The archaeology dates the great walls to less than a thousand years ago."
+    },
+    {
+     "t": 210.96,
+     "text": "But stand here at dawn with the mist on the canals"
+    },
+    {
+     "t": 214.88,
+     "text": "and you may feel what the teachers mean when they say"
+    },
+    {
+     "t": 218.32,
+     "text": "the traces of earlier worlds are still among us,"
+    },
+    {
+     "t": 221.84,
+     "text": "asking to be contemplated."
+    },
+    {
+     "t": 224.16,
+     "text": "The ocean keeps more than one memory."
+    },
+    {
+     "t": 227.12,
+     "text": "So ask the question the stones are asking."
+    },
+    {
+     "t": 230.56,
+     "text": "What does it take for a people to raise a city from the sea?"
+    },
+    {
+     "t": 234.48,
+     "text": "Vision larger than a lifetime."
+    },
+    {
+     "t": 236.8,
+     "text": "Labor beyond counting."
+    },
+    {
+     "t": 238.96,
+     "text": "A reason strong enough to move a million tons of rock."
+    },
+    {
+     "t": 243.12,
+     "text": "And then ask the harder one."
+    },
+    {
+     "t": 245.36,
+     "text": "What does it cost to keep it?"
+    },
+    {
+     "t": 247.52,
+     "text": "The South alurs learn the answer."
+    },
+    {
+     "t": 249.92,
+     "text": "Every tribute system is a tide."
+    },
+    {
+     "t": 252.32,
+     "text": "It comes in, it goes out."
+    },
+    {
+     "t": 254.72,
+     "text": "The canals still run with the tide twice a day as they always have."
+    },
+    {
+     "t": 258.8,
+     "text": "The stones never left."
+    },
+    {
+     "t": 260.8,
+     "text": "Walk, no, drift, among the eyelids,"
+    },
+    {
+     "t": 264.32,
+     "text": "and let the water set the pace."
+    },
+    {
+     "t": 266.72,
+     "text": "This was never a city you conquer."
+    },
+    {
+     "t": 268.96,
+     "text": "It was always a city you approach slowly,"
+    },
+    {
+     "t": 271.6,
+     "text": "by boat, between walls of black stone."
+    },
+    {
+     "t": 274.72,
+     "text": "The way everyone has always come."
+    },
+    {
+     "t": 277.04,
+     "text": "It is still waiting, not for rulers, for witnesses."
+    }
+   ]
   }
  ]
 }
