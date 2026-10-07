@@ -1246,20 +1246,20 @@ function compass(x: number, z: number): string {
 function places(): Place[] {
   return [
     { numeral: "", label: "The shore", group: "Shore", x: SPAWN.x, z: SPAWN.z, narration: "J01", start: { x: SPAWN.x, z: SPAWN.z, heading: SPAWN.heading } },
-    { numeral: "", label: "The temple", group: "Shore", x: temple.gateAt.x, z: temple.gateAt.z, narration: "J01", start: { ...temple.outside(), heading: temple.gateHeading } },
-    { numeral: "", label: "The vision of creation", group: "Shore" as const, x: vision.group.position.x, z: vision.group.position.z, narration: "J01", start: { x: vision.group.position.x + 11, z: vision.group.position.z + 11, heading: Math.atan2(11, 11) } },
+    { numeral: "", label: "The temple", group: "Shore", order: 1, x: temple.gateAt.x, z: temple.gateAt.z, narration: "J01", start: { ...temple.outside(), heading: temple.gateHeading } },
+    { numeral: "", label: "The vision of creation", group: "Shore" as const, order: 0, x: vision.group.position.x, z: vision.group.position.z, narration: "J01", start: { x: vision.group.position.x + 11, z: vision.group.position.z + 11, heading: Math.atan2(11, 11) } },
     (() => {
       const [x, z] = nanMadolAt(0, -30);
-      return { numeral: "", label: "Nan Madol", group: "Shore" as const, x: NAN_MADOL.x, z: NAN_MADOL.z, narration: "J01", start: { x, z, heading: NAN_MADOL.face + Math.PI } };
+      return { numeral: "", label: "Nan Madol", group: "Shore" as const, section: "Ancient" as const, note: "Pohnpei, c. 1180–1628", order: 5, x: NAN_MADOL.x, z: NAN_MADOL.z, narration: "J01", start: { x, z, heading: NAN_MADOL.face + Math.PI } };
     })(),
     (() => {
       const [x, z] = gobekliAt(0, 50);
-      return { numeral: "", label: "Göbekli Tepe", group: "Shore" as const, x: GOBEKLI.x, z: GOBEKLI.z, narration: "J01", start: { x, z, heading: GOBEKLI.face } };
+      return { numeral: "", label: "Göbekli Tepe", group: "Shore" as const, section: "Ancient" as const, note: "c. 9500 BCE", order: 2, x: GOBEKLI.x, z: GOBEKLI.z, narration: "J01", start: { x, z, heading: GOBEKLI.face } };
     })(),
-    { numeral: "", label: "The pyramid", group: "Shore" as const, x: pyramid.door.x, z: pyramid.door.z, narration: "J01", start: { x: pyramid.door.x, z: pyramid.door.z - 14, heading: Math.PI } },
+    { numeral: "", label: "The pyramid", group: "Shore" as const, section: "Ancient" as const, note: "Egypt, and the Duat beneath", order: 3, x: pyramid.door.x, z: pyramid.door.z, narration: "J01", start: { x: pyramid.door.x, z: pyramid.door.z - 14, heading: Math.PI } },
     ...halls.map(({ hall }) => {
       const o = hall.outside(), f = hall.face;
-      return { numeral: "", label: hall.label, group: "Shore" as const, x: hall.door.x, z: hall.door.z, narration: "J01", start: { x: o.x + Math.sin(f) * 22, z: o.z + Math.cos(f) * 22, heading: f } };
+      return { numeral: "", label: hall.label, group: "Shore" as const, order: 2, x: hall.door.x, z: hall.door.z, narration: "J01", start: { x: o.x + Math.sin(f) * 22, z: o.z + Math.cos(f) * 22, heading: f } };
     }),
     // beneath the water: the sunken ruins, and the cave that leads to the deep archive (you wake
     // on the water above; dive, and swim down to them)
@@ -1271,6 +1271,9 @@ function places(): Place[] {
         const twin = same.some((q) => q !== r && compass(q.x, q.z) === dir && Math.hypot(q.x - SPAWN.x, q.z - SPAWN.z) < d);
         label += `, ${twin ? "further " : ""}${dir}`;
       }
+      // the drowned cities are ancient worlds (legendary or not), listed by era; the rest are the deep's
+      const era = r.area ? ({ lemuria: { note: "legendary, beneath the water", order: 0 }, atlantis: { note: "legendary, beneath the water", order: 1 }, mayan: { note: "Maya, beneath the water", order: 4 } } as Record<string, { note: string; order: number }>)[r.area] : undefined;
+      if (era) return { numeral: "", label, group: "Deep" as const, section: "Ancient" as const, ...era, x: r.x + 14, z: r.z + 14, narration: "J01", start: { x: r.x + 14, z: r.z + 14, heading: Math.atan2(14, 14) } };
       return { numeral: "", label, group: "Deep" as const, x: r.x + 14, z: r.z + 14, narration: "J01", start: { x: r.x + 14, z: r.z + 14, heading: Math.atan2(14, 14) } };
     }),
     ...depths.mouths.slice(0, 1).map((m) => {

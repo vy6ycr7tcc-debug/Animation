@@ -383,14 +383,24 @@ body.touring #busy { right: calc(22px + env(safe-area-inset-right, 0px)); bottom
 #map-continue[hidden] { display: none; }
 #map-go, #map-continue { border: 1px solid var(--gold); border-radius: 22px; min-height: 44px; padding: 8px 20px; color: var(--gold); }
 #map-places { display: flex; flex-direction: column; gap: 0.5rem; max-width: 44em; width: 100%; }
-.map-tabs { display: flex; justify-content: center; gap: 4px; flex-wrap: wrap; }
+.map-head { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.map-tabs { display: flex; justify-content: center; gap: 2px; flex-wrap: nowrap; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.map-tabs::-webkit-scrollbar { display: none; }
 .map-tabs button {
-  min-height: 36px; padding: 6px 14px; border-radius: 18px; font-size: 14px; color: var(--dim);
+  min-height: 44px; padding: 6px 8px; border-radius: 22px; font-size: 13.5px; color: var(--dim); white-space: nowrap; flex: none;
   border: 1px solid transparent;
 }
 .map-tabs button[aria-selected="true"] { color: var(--gold); border-color: var(--line); background: rgba(226, 191, 126, 0.08); }
-.map-group { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 0.1rem 0.8rem; }
-#map-places button { font-size: 14px; color: var(--dim); padding: 6px 2px; min-height: 36px; }
+/* the places of one tab: a tidy grid of names, each with where it lies beneath */
+.map-group { display: grid; grid-template-columns: repeat(auto-fill, minmax(11.5em, 1fr)); gap: 2px 10px; }
+.map-group > button, .map-row > button { display: flex; flex-direction: column; align-items: flex-start; text-align: left; }
+.map-realms { display: flex; flex-direction: column; gap: 2px; }
+.map-realm { margin: 6px 0 0; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold); opacity: 0.8; }
+.map-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5em, 1fr)); gap: 0 10px; }
+.map-name { line-height: 1.25; }
+.map-sub { font-size: 11.5px; opacity: 0.7; line-height: 1.25; }
+#map-places .map-home { display: flex; flex-direction: row; gap: 8px; align-items: baseline; color: var(--gold); padding: 6px 12px; }
+#map-places button { font-size: 14px; color: var(--dim); padding: 6px 4px; min-height: 44px; }
 #map-places button:hover, #map-places button:focus-visible { color: var(--pearl); }
 #map .note { margin: 0; font-size: 13px; color: var(--dim); font-style: italic; }
 #map-close { font-size: 14px; color: var(--gold); padding: 6px 12px; }
