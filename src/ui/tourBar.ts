@@ -94,6 +94,10 @@ class TourBar {
   get shown(): boolean {
     return !!this.owner;
   }
+  /** What the bar says now (the feedback tool's context), or null when it isn't showing. */
+  info(): { title: string; hint: string } | null {
+    return this.owner ? { title: this.titleEl.textContent ?? "", hint: this.hintEl.textContent ?? "" } : null;
+  }
   set(title: string, hint: string): void {
     if (this.titleEl.textContent !== title) this.titleEl.textContent = title;
     if (this.hintEl.textContent !== hint) this.hintEl.textContent = hint;
