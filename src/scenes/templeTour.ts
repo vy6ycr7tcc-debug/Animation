@@ -257,6 +257,12 @@ type Phase = "leading" | "speaking" | "done";
 export class TempleTour implements SceneModule {
   readonly id = "tour";
   active = false;
+  /** The shrine the tour stands at now (its carving framed in the view), or −1 (on the way, or a
+      room's opening). */
+  get atShrine(): number {
+    if (!this.active || this.phase === "leading") return -1;
+    return this.stops[this.index]?.shrine ?? -1;
+  }
   /** The whole tour: the wanderer steps out of the view, and the view glides after the light. */
   get watching(): boolean {
     return this.active;
@@ -618,7 +624,7 @@ export class TempleTour implements SceneModule {
     const kk = at ? 1.5 : 2.2;
     this.yawVel += (dy * kk * kk - 2 * kk * this.yawVel) * step;
     this.follow.yaw += this.yawVel * step;
-    this.follow.pitch += ((at ? 0.14 : 0.2) - this.follow.pitch) * Math.min(1, step * 1.5);
+    this.follow.pitch += ((at ? 0.2 : 0.2) - this.follow.pitch) * Math.min(1, step * 1.5);
     if (this.follow.dist !== undefined) this.follow.dist += ((at ? 4.4 : 4.8) - this.follow.dist) * Math.min(1, step * 1.5);
     // its part spoken to its end (or no voice to speak it): a breath, then the light goes on by
     // itself; never before the part is over, so nothing is cut
