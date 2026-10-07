@@ -1,0 +1,14 @@
+{
+  "_note": "Square breathing while auto-walk or autofly carries you (src/world/breath.ts). Phases in order, in seconds: edit for 4-4-6-2 or any other pattern (names: in, hold, out, rest). VOICE: ASSET SLOT, PENDING. Aria's cues come from the narrations pipeline (Aria, avocado_v2:MAI_01, speed 92). Until they exist every path stays null and the guide breathes in silence with the same timing. When they arrive, either name four cue clips (one per phase, e.g. \"audio/breathing/in.mp3\"), started on the audio clock at each phase's edge, or one seamless clip of a whole cycle as \"loop\" (then the cues are not used). Never synthesize a stand-in.",
+  "phases": [
+    { "name": "in", "secs": 4 },
+    { "name": "hold", "secs": 4 },
+    { "name": "out", "secs": 4 },
+    { "name": "rest", "secs": 4 }
+  ],
+  "voice": {
+    "cues": { "in": null, "hold": null, "out": null, "rest": null },
+    "loop": null,
+    "gain": 0.9
+  }
+}

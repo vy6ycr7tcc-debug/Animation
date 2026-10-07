@@ -651,6 +651,17 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - Room 1's volcano: a ribbed, gullied silhouette (buttresses of old flows, a broken crater rim lower on one side), rock with strata and crust, rivers of fire flickering with heated rock glowing either side, and a faint apron of cooling fire where they reach the plain.
   - Stills of the move as it plays: `?shot=journey-<k>&t=<narration s>&live=<seconds of stillness>` (the game's own camera after that many seconds idle).
 - 2026-10-07: the Aton in the Egypt telling (v5 B4; the owner: "the sun disk with rays ending in arms/hands reaching down"). Carved in thin gold light, as the Duat's gates carry their winged suns (`atonSegments` in `past/egypt.ts`, ribbons): a disk of two rings with the uraeus hanging from it, thirteen straight rays fanning down, each ending in a small open hand, two holding out an ankh. Great on the pyramid's north face above the door (laid on the plane of the courses' edges, drawn a little taller so the disk reads round from below; its rays reach down toward the door), and on the faces of the valley temple's two pylons. Illustration only: it warms when the door is open. Stills: `?shot=past-4&t=20|54|120`.
+- 2026-10-07: auto-walk and square breathing (v5 item 3; the owner: a guided square-breathing practice while the game moves on its own).
+  - Auto-walk (`player/autorun.ts`): the wanderer goes on by itself on foot at a gentle walk (~1.7 m/s), steering softly from grove to home to garden ahead (wide turns, 0.45 rad/s). It turns aside from water ahead and steps round anything that holds it up. It drives the controller with a stick as a thumb would, so the colliders hold it and it never passes through anything.
+  - Autofly (existing) is the other auto mode.
+  - The small ring button (`#auto`, 44 px, above the round button; or O) goes on by itself: auto-walk on the land, autofly in the air; again, off. The stick, the round button or a tap takes over at once. ⋮ → Autofly and P stay.
+  - The breath (`world/breath.ts`): while either mode carries you, a ring of ~220 warm gold motes breathes round the wanderer at the heart's height. It opens on the inhale (0.75 → 2.3 m), holds, draws in on the exhale, rests. It is contained (dim, additive, out of the camera's line to you), with no text, numbers or bars.
+  - The clock is the audio clock, so the voice and the motes can't drift (checked over five cycles: each phase on its 4 s edge). Re-engaging always begins from an inhale. The background narrator rests while you breathe.
+  - The pattern is config, not code (`public/breathing.json`: 4-4-4-4; names in/hold/out/rest).
+  - Aria's voice is an ASSET SLOT, PENDING. The config names no clips, so the guide breathes in silence and requests no file.
+  - When the clips arrive, name either four cues (started on the audio clock at each phase's edge) or one seamless cycle (`loop`). The bed ducks lightly under them (`audio.duckSoft`), and "Only nature" or another voice speaking rests them.
+  - Never synthesize a stand-in.
+  - Still frames: `?shot=breath&t=<0..1>` (the ring held that open round the wanderer on the shore).
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.

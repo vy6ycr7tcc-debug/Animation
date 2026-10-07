@@ -48,6 +48,8 @@ import { buildSky, skyUniforms, starDirection } from "./world/sky";
 import { floorHook, groundUniforms, heightAt, heightCoarse, LANDMARK_SITES, MONUMENT, PEAKS, SPAWN, Terrain, WATER_Y } from "./world/terrain";
 import { Temple } from "./world/temple";
 import { Autofly } from "./player/autofly";
+import { Autorun } from "./player/autorun";
+import { BreathGuide } from "./world/breath";
 import { Genesis } from "./world/genesis";
 import { Touch } from "./world/touch";
 import { Depths, RUIN_NAMES, RUIN_SITES } from "./world/depths";
@@ -569,7 +571,7 @@ input.onTap = (x, y, touch) => {
   if (sitting.phase === "seated" || tourScenes.movementHeld) return;
   const p = groundPoint(x, y);
   if (!p) return;
-  if (autofly.active) setAutofly(false);
+  stopAuto();
   player.target = new THREE.Vector2(p.x, p.z);
   if (p.y <= WATER_Y + 0.05) water.ripple(p.x, p.z, 0.6, S.t);
   else footprints.place(p.x, p.y, p.z, player.heading, S.t);
@@ -625,7 +627,7 @@ function compileInDark(): Promise<unknown> {
 function crossTemple(inside: boolean): void {
   if (crossing) return;
   crossing = true;
-  if (autofly.active) setAutofly(false);
+  stopAuto();
   fadeEl.classList.add("on");
   audio.bell(inside ? 330 : 396, 0.12, 6);
   window.setTimeout(async () => {
@@ -990,6 +992,7 @@ function setAutofly(on: boolean): void {
   if (on) {
     if (S.mode !== "play" || sitting.phase === "seated" || tourScenes.movementHeld || player.diving || genesis.active || apart()) return;
     player.target = null;
+    if (autorun.active) setAutorun(false);
     autofly.start(player.pos, player.heading);
     say("Autofly: the stick or the button takes you back.");
   } else {
@@ -997,6 +1000,53 @@ function setAutofly(on: boolean): void {
     player.vy = 0;
   }
   $("#autofly").setAttribute("aria-pressed", String(on));
+  $("#auto").setAttribute("aria-pressed", String(on || autorun.active));
+}
+/* Auto-walk and square breathing (v5 item 3): the wanderer goes on by itself on foot (Autorun),
+   or flies (Autofly); while either carries you, a ring of gold motes breathes round you, in, hold,
+   out, rest (world/breath.ts; Aria's cues when they exist). The stick, the button or a tap takes
+   over; the small ring button (bottom right, or O) takes you on again: on foot, or in the air when
+   flying. */
+const autorun = new Autorun([...GROVE_SITES.map((g) => ({ x: g.x, z: g.z })), ...LANDMARK_SITES.map(([x, z]) => ({ x, z }))]);
+const breath = new BreathGuide(audio);
+scene.add(breath.group);
+function setAutorun(on: boolean): void {
+  if (isTv || on === autorun.active) return;
+  if (on) {
+    if (S.mode !== "play" || sitting.phase === "seated" || tourScenes.movementHeld || player.swimming || player.flying || genesis.active || apart()) return;
+    if (autofly.active) setAutofly(false);
+    player.target = null;
+    autorun.start(player.pos, player.heading);
+    say("Walking on by itself: the stick or the button takes you back.");
+  } else autorun.stop();
+  $("#auto").setAttribute("aria-pressed", String(on || autofly.active));
+}
+function stopAuto(): void {
+  if (autofly.active) setAutofly(false);
+  if (autorun.active) setAutorun(false);
+}
+/** The ring button: on again (in the air, autofly; on the land, auto-walk), or off. */
+function toggleAuto(): void {
+  if (autofly.active || autorun.active) return stopAuto();
+  if (player.flying) setAutofly(true);
+  else setAutorun(true);
+}
+$("#auto").addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  toggleAuto();
+});
+addEventListener("keydown", (e) => {
+  if (isTv) return;
+  if (e.key.toLowerCase() === "o" && !e.repeat && S.mode === "play" && !(e.target as HTMLElement)?.closest?.("input, #menu")) toggleAuto();
+});
+let autoShown = false;
+function autoFrame(dt: number): void {
+  const show = !$("#menu-btn").hidden && !apart() && S.mode === "play";
+  if (show !== autoShown) $("#auto").hidden = !(autoShown = show);
+  const on = autofly.active || autorun.active;
+  breath.set(on);
+  // the voice rests for "Only nature", and while another voice is speaking
+  breath.update(dt, player.pos, playlist.on && !narration.progress() && !tp.playing);
 }
 $("#autofly").addEventListener("click", () => {
   setAutofly(!autofly.active);
@@ -1686,7 +1736,7 @@ function journeyHost(hall: Hall): JourneyHost {
     },
     apart: (on) => {
       if (on) {
-        if (autofly.active) setAutofly(false);
+        stopAuto();
         standUp();
       }
       audio.setTemple(on, false);
@@ -1789,7 +1839,7 @@ for (const ev of ["pointerdown", "pointermove", "keydown", "wheel", "touchstart"
   }, { capture: true, passive: true });
 function calmFrame(): void {
   const idle = performance.now() - lastTouch > 4500 && Math.hypot(input.move.x, input.move.y) < 0.05 && !input.hold;
-  const want = S.mode === "play" && !startMap.isOpen && $("#menu").hidden && (autofly.active || idle);
+  const want = S.mode === "play" && !startMap.isOpen && $("#menu").hidden && (autofly.active || autorun.active || idle);
   if (want === calm) return;
   calm = want;
   document.body.classList.toggle("calm", calm);
@@ -1815,7 +1865,7 @@ let tourWatchK = 0;
 function contemplationFrame(dt: number): void {
   const idle = performance.now() - lastTouch > INWARD_AFTER && Math.hypot(input.move.x, input.move.y) < 0.05 && !input.hold;
   const want = inwardOn && idle && S.mode === "play" && !startMap.isOpen && $("#menu").hidden && player.speed < 0.3 &&
-    !player.flying && !player.diving && !follow.underwater && !autofly.active && !genesis.active && !crossing &&
+    !player.flying && !player.diving && !follow.underwater && !autofly.active && !autorun.active && !genesis.active && !crossing &&
     (sitting.phase === "none" || lessonSeated()) && !document.body.classList.contains("touring");
   inwardK += ((want ? 1 : 0) - inwardK) * Math.min(1, dt * (want ? 0.35 : 3));
   if (inwardK < 0.002 && !want) inwardK = 0;
@@ -2091,7 +2141,7 @@ const walkTitle = (t: string, hint: string) => tourBar().set(t, hint);
 function walkStart(id: string): void {
   const w = WALKS.find((x) => x.id === id);
   if (!w) return;
-  if (autofly.active) setAutofly(false);
+  stopAuto();
   standUp();
   if (duatTour) duatTourEnd(false);
   if (narration.current) narration.stop(1.5); // a background voice gives way to the tour's own
@@ -2225,7 +2275,7 @@ tourBar().isPaused = () => narration.paused || tourHeld;
 let duatTour: { i: number; phase: "enter" | "walk" | "watch"; t: number; skip: boolean } | null = null;
 /** `chained`: a stop of a walk (the grand tour), which goes on when the Duat's tour ends. */
 function duatTourStart(chained = false): void {
-  if (autofly.active) setAutofly(false);
+  stopAuto();
   standUp();
   if (walk && !chained) walkEnd(false);
   inHall()?.journey.leaveNow();
@@ -2584,7 +2634,7 @@ function setPyr(inside: boolean): void {
 function crossPyr(inside: boolean): void {
   if (crossing) return;
   crossing = true;
-  if (autofly.active) setAutofly(false);
+  stopAuto();
   fadeEl.classList.add("on");
   audio.bell(inside ? 293.66 : 440, 0.1, 6);
   window.setTimeout(async () => {
@@ -2621,7 +2671,7 @@ function enterDuatCrossing(): void {
   duatVentured = false;
   if (crossing) return;
   crossing = true;
-  if (autofly.active) setAutofly(false);
+  stopAuto();
   fadeEl.classList.add("on");
   audio.bell(293.66, 0.1, 6);
   window.setTimeout(() => {
@@ -2648,7 +2698,7 @@ function exitDuatWalkBack(): void {
   duatVentured = false;
   if (crossing) return;
   crossing = true;
-  if (autofly.active) setAutofly(false);
+  stopAuto();
   fadeEl.classList.add("on");
   audio.bell(293.66, 0.1, 6);
   window.setTimeout(() => {
@@ -2672,7 +2722,7 @@ function exitDuatDawn(): void {
   duatVentured = false;
   if (crossing) return;
   crossing = true;
-  if (autofly.active) setAutofly(false);
+  stopAuto();
   fadeEl.classList.add("on");
   audio.bell(293.66, 0.1, 6);
   window.setTimeout(() => {
@@ -3018,7 +3068,7 @@ function guideAutoFrame(dt: number): void {
 }
 $("#guide-walk").addEventListener("click", () => {
   if (!guideChoice) return;
-  if (autofly.active) setAutofly(false);
+  stopAuto();
   standUp();
   guide.lead(guideChoice, player.pos);
   guideAuto = { since: 0 };
@@ -3364,6 +3414,7 @@ function update(dt: number): void {
     guideAutoFrame(dt);
     if (wanderer.gesture !== "none" && Math.hypot(input.move.x, input.move.y) > 0.2 && wanderer.gesture === "sit") wanderer.setGesture("none");
     if (autofly.active && !isTv && (Math.hypot(input.move.x, input.move.y) > 0.25 || input.hold)) setAutofly(false); // the thumb takes over
+    if (autorun.active && (Math.hypot(input.move.x, input.move.y) > 0.25 || input.hold || player.swimming || player.flying || player.target)) setAutorun(false);
     if (genesis.active || temple.cardsOpen || tourScenes.tour.active) player.update(dt, { x: 0, y: 0, glide: false, run: 0, hold: false, down: false, pitch: follow.pitch }, follow.yaw);
     else if (walk?.phase === "travel" || walk?.phase === "go" || (walk?.phase === "listen" && player.target) || (duatTour?.phase === "walk" && player.target) || guideAuto) player.update(dt, { x: 0, y: 0, glide: false, run: 1, hold: travelHold, down: false, pitch: follow.pitch }, follow.yaw);
     else if (autofly.active) {
@@ -3371,6 +3422,11 @@ function update(dt: number): void {
       Object.assign(player, { heading: r.heading, speed: r.speed, vy: r.vy, flying: true, landing: false, grounded: false, swimming: false, gliding: false, pose: "fly", target: null });
       player.vel.set(-Math.sin(r.heading), 0, -Math.cos(r.heading)).multiplyScalar(r.speed);
       follow.pitch += (autofly.pitch - follow.pitch) * Math.min(1, dt * 0.6);
+    } else if (autorun.active) {
+      // as a thumb would: the way it chooses, given relative to the camera
+      const r = autorun.update(dt, player.pos);
+      const fx = -Math.sin(follow.yaw), fz = -Math.cos(follow.yaw), rx = Math.cos(follow.yaw), rz = -Math.sin(follow.yaw);
+      player.update(dt, { x: (r.x * rx + r.z * rz) * r.push, y: (r.x * fx + r.z * fz) * r.push, glide: false, run: 0.25, hold: false, down: false, pitch: follow.pitch }, follow.yaw);
     } else player.update(dt, { ...input.move, glide: input.boost, run: input.run, hold: input.hold, down: input.descend, pitch: follow.pitch, free: freeFly }, follow.yaw);
     follow.freeLook = freeFly && player.flying;
     // the one context word: "Land" high in the air, "Dive" on the water, "Surface" under it
@@ -3414,7 +3470,7 @@ function update(dt: number): void {
       water.ripple(player.pos.x, player.pos.z, 0.8, t);
       audio.step(true);
     }
-    playlist.quiet = sitting.phase === "seated" || apart() || !!walk || !!duatTour || tourScenes.tour.active; // a tour has its own voices
+    playlist.quiet = sitting.phase === "seated" || apart() || !!walk || !!duatTour || tourScenes.tour.active || breath.active; // a tour has its own voices; the breath its own
     playlist.update(realDt); // real time: a slow frame rate never stretches the quiet
   }
   narration.update();
@@ -3538,6 +3594,7 @@ function update(dt: number): void {
   journeyFrame(dt);
   busyFrame();
   calmFrame();
+  autoFrame(realDt);
   gravityFrame(realDt);
   contemplationFrame(realDt);
   lessonUxFrame(realDt);
@@ -3771,6 +3828,11 @@ renderer
           return [player.pos.x, player.pos.y, player.pos.z];
         },
         update,
+        breath: (open) => {
+          breath.debugOpen = open;
+          breath.set(true);
+          for (let k = 0; k < 120; k++) breath.update(1 / 30, player.pos, false);
+        },
         idle: () => {
           lastTouch = -1e9;
           realDt = 1 / 60; // the stills' frames are lived synchronously, at sixty a second
@@ -3812,4 +3874,4 @@ function endLoading(): void {
   }, wait);
 }
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall } });

@@ -167,6 +167,11 @@ export class AudioEngine {
     this.ramp(this.bed?.gain, on ? 0.38 : 1, on ? 1.2 : 2.5);
   }
 
+  /** A light duck under a short spoken cue (the breathing guide), gentler than narration's. */
+  duckSoft(on: boolean): void {
+    this.ramp(this.bed?.gain, on ? 0.72 : 1, on ? 0.6 : 2);
+  }
+
   private ramp(p: AudioParam | undefined, to: number, secs: number): void {
     if (!this.ctx || !p) return;
     const t = this.ctx.currentTime;
@@ -442,14 +447,14 @@ export class AudioEngine {
     }
   }
   /** Play a clip on the voice bus; `stop` fades it out. */
-  playClip(buf: AudioBuffer, gain = 1): { stop(fade?: number): void } | null {
+  playClip(buf: AudioBuffer, gain = 1, when = 0): { stop(fade?: number): void } | null {
     const ctx = this.ctx;
     if (!ctx) return null;
     const s = ctx.createBufferSource(), g = ctx.createGain();
     s.buffer = buf;
     g.gain.value = gain;
     s.connect(g).connect(this.voice);
-    s.start();
+    s.start(Math.max(when, ctx.currentTime));
     return {
       stop: (fade = 1) => {
         const t = ctx.currentTime;
