@@ -1,5 +1,16 @@
 import { defineConfig } from "vitest/config";
 import { VitePWA } from "vite-plugin-pwa";
+import { execSync } from "node:child_process";
+
+// the commit built (the feedback tool names it); CI gives it, a local build asks git
+function sha(): string {
+  if (process.env.GITHUB_SHA) return process.env.GITHUB_SHA.slice(0, 7);
+  try {
+    return execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+  } catch {
+    return "unknown";
+  }
+}
 
 // Relative base so the same build works on GitHub Pages (/animation/), Netlify, or any subfolder.
 export default defineConfig({
@@ -49,7 +60,7 @@ export default defineConfig({
   ],
   base: "./",
   // the build's time, shown in the #stats readout, so a phone holding an old copy can be told
-  define: { __BUILD__: JSON.stringify(new Date().toISOString().slice(0, 16).replace("T", " ") + " UTC") },
+  define: { __BUILD__: JSON.stringify(new Date().toISOString().slice(0, 16).replace("T", " ") + " UTC"), __SHA__: JSON.stringify(sha()) },
   server: { host: true },
   build: {
     target: "es2020", // Safari 14+

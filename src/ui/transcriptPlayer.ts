@@ -30,6 +30,10 @@ export class TranscriptPlayer {
   get playing(): boolean {
     return this.current !== null && !this.media.paused;
   }
+  /** Seconds into the recording playing (or paused). */
+  get time(): number {
+    return this.media.currentTime || 0;
+  }
   onChange: ((id: string | null) => void) | null = null;
   /** The narration to follow `n` when it ends (or when "next" is asked for); null stops. */
   next: ((n: Narration) => Narration | null) | null = null;

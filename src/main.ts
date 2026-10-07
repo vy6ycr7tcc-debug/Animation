@@ -3841,15 +3841,18 @@ quality.hold(12);
 const shadowAt = new THREE.Vector3();
 
 let last = performance.now();
+import { devMode } from "./debug/devflag";
+import { ARCHETYPES } from "./world/beings";
 import { getShot, runShot } from "./debug/shot"; // dev-only: ?shot=<scene>&t=<sec> renders one still frame
 const shot = getShot();
 
 let realDt = 0;
+let devHeld = false; // the feedback tool (dev mode) holds the game while its panel is open
 let frameDraws = 0; // draw calls of the last frame, taken right after it (for the readout)
 function frame(now: number): void {
   if (shot) return; // shot mode draws exactly one frame, outside this loop
   requestAnimationFrame(frame);
-  if (S.hidden) return;
+  if (S.hidden || devHeld) return;
   const ms = now - last;
   last = now;
   const dt = Math.min(0.05, ms / 1000);
@@ -4132,6 +4135,89 @@ function endLoading(): void {
     document.body.classList.remove("loading");
     window.setTimeout(() => $("#loading")?.remove(), 4500);
   }, wait);
+}
+
+/* The owner's feedback tool (`?dev=1`, remembered on the device; debug/feedback.ts). Loaded only
+   in dev mode: with it off, nothing of it is fetched, shown or run. */
+declare const __SHA__: string;
+if (devMode()) {
+  void import("./debug/feedback").then(({ installFeedback }) =>
+    installFeedback({
+      capture: () => {
+        try {
+          post.render(); // a fresh frame, read before the browser presents it (no preserved buffer)
+        } catch {
+          return null;
+        }
+        const c = renderer.domElement;
+        const out = document.createElement("canvas");
+        out.width = c.width;
+        out.height = c.height;
+        const g = out.getContext("2d");
+        if (!g) return null;
+        g.drawImage(c, 0, 0);
+        return out;
+      },
+      hold: () => {
+        devHeld = true;
+        const voice = !!tp.guest?.active() && !tp.guest.paused();
+        if (voice) tp.guest!.toggle();
+        const archive = tp.playing;
+        if (archive) tp.pause();
+        return () => {
+          devHeld = false;
+          last = performance.now();
+          if (voice && tp.guest?.paused()) tp.guest.toggle();
+          if (archive) tp.resume();
+        };
+      },
+      context: devContext,
+    }),
+  );
+}
+function devPlace(): string {
+  const h = inHall();
+  if (h) {
+    const st = h.journey.stage;
+    return `${h.hall.label} › ${st && h.journey.inside && !h.journey.crossing ? `${st.title} [${st.id}]` : "crossing"}`;
+  }
+  if (temple.inside) {
+    const i = temple.nearShrine(player.pos, 4);
+    return "The temple" + (i >= 0 && ARCHETYPES[i] ? ` › ${ARCHETYPES[i].numeral} ${ARCHETYPES[i].name}` : "");
+  }
+  if (pyramid.isInside) return player.pos.distanceTo(DUAT_ORIGIN) < 260 ? "The Duat" : "The pyramid, inside";
+  if (depths.inside) return "The deep archive";
+  let best: Place | null = null, bd = Infinity;
+  for (const p of places()) {
+    const d = Math.hypot(p.x - player.pos.x, p.z - player.pos.z);
+    if (d < bd) (bd = d), (best = p);
+  }
+  const how = player.swimming ? " · in the water" : player.flying ? " · flying" : "";
+  return (best ? `world · ${Math.round(bd)} m from ${best.label}` : "world") + how;
+}
+function devContext(): [string, string][] {
+  const r1 = (v: number) => (Math.round(v * 10) / 10).toFixed(1);
+  const dir = camera.getWorldDirection(new THREE.Vector3());
+  const yaw = Math.round((Math.atan2(dir.x, -dir.z) * 180) / Math.PI);
+  const pitch = Math.round((Math.asin(THREE.MathUtils.clamp(dir.y, -1, 1)) * 180) / Math.PI);
+  const out: [string, string][] = [];
+  if (shot) out.push(["shot", location.search.replace(/^\?/, "")]);
+  out.push(["place", devPlace()]);
+  out.push(["camera", `${r1(camera.position.x)}, ${r1(camera.position.y)}, ${r1(camera.position.z)} · yaw ${yaw}° pitch ${pitch}°`]);
+  out.push(["wanderer", `${r1(player.pos.x)}, ${r1(player.pos.y)}, ${r1(player.pos.z)} · ${player.pose}`]);
+  const bar = tourBar().info();
+  if (bar) {
+    const name = walk ? walk.label : duatTour ? "The Duat, hour by hour" : areaTour ? "Walking with the guide" : tourScenes.tour.active ? "The temple tour" : "tour";
+    out.push(["tour", `${name} › ${[bar.title, bar.hint].filter(Boolean).join(" · ")}`]);
+  }
+  const pr = narration.progress();
+  if (narration.current) out.push(["narration", `${narration.current}${pr ? ` @ ${pr.t.toFixed(1)} / ${pr.total.toFixed(1)} s` : ""}${narration.paused ? " (paused)" : ""}`]);
+  if (tp.current) out.push(["archive", `${tp.current.id} "${tp.current.title}" @ ${tp.time.toFixed(1)} s`]);
+  const sky = MOOD_NAMES.map((n, i) => [n, moods.weights[i]] as const).filter(([, w]) => w > 0.05).map(([n, w]) => `${n} ${Math.round(w * 100)}`).join(" · ");
+  if (sky) out.push(["sky", sky]);
+  out.push(["view", `${rendererName} · ${quality.current.name} · ${renderer.domElement.width}×${renderer.domElement.height}`]);
+  out.push(["build", `${__SHA__} · ${__BUILD__}`]);
+  return out;
 }
 
 Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall } });
