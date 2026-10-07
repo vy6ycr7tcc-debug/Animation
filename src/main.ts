@@ -18,7 +18,7 @@ import { RITES, riteAudio, SYNTHESES, synthAudio } from "./world/rites";
 import { SIGNATURES } from "./player/gestures";
 import { heartId, passageId, promptsFor, registerAnswers, registerTunnel, SPECTRUM, trackId, walkId } from "./core/dialogues";
 import { Awake } from "./core/awake";
-import { AdaptiveQuality, FrameStats, MOBILE, type Tier } from "./core/quality";
+import { AdaptiveQuality, FrameStats, loadQualityConfig, MOBILE, type Tier } from "./core/quality";
 import { clear, load, save, type SaveData } from "./core/save";
 import { FollowCamera } from "./player/camera";
 import { Controller } from "./player/controller";
@@ -400,6 +400,9 @@ function applyTier(t: Tier, i: number = quality.tier): void {
   resize();
 }
 applyTier(quality.current);
+// the tuning lives in public/quality.json (frame targets, hysteresis, scale band, start tiers,
+// the tiers themselves): read over the built-in defaults, it takes over before anything is judged
+void loadQualityConfig().then((ok) => ok && quality.reconfigure());
 addEventListener("resize", resize);
 // iOS settles the screen's size a moment after launch and on turning: measure again then
 visualViewport?.addEventListener("resize", resize);
