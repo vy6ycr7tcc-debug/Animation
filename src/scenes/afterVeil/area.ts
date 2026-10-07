@@ -11,9 +11,10 @@
    4 the newcomers' ground: figures standing braced at the treeline, angular shards of their old
        armour drifting about them until their line is spoken, then falling away; a bent spear and
        a cracked shield half under the light;
-   5 the war in heaven: a wide shallow vale; on one side columns of warm light standing guard; on
-       the other tall forms, beautiful but wrong, round which slow spirals draw the motes in and dim
-       them; arcs of thought across the vale; the path between, untouched;
+   5 the war in heaven: a wide shallow vale, columns of warm light standing guard on its west side,
+       and over it the battle in the sky (battle.ts): a vortex of cloud with light breaking through
+       its eye, two hosts of winged lights in flight about it, gold and silver-blue, ribbons of
+       intention arcing between them; as the telling ends it slows and parts, weather passing;
    6 the mirror: a vantage over the abyss, and below it the old world turning, blue and green,
        vivid and unseeing; threads, gold and shadow, coming down toward it and fading before they
        touch; the shadow ones withdraw wherever you look straight at them;
@@ -30,6 +31,7 @@ import { GlassFolk } from "../glassFolk";
 import { starField } from "../past/kit";
 import { Angel } from "./angel";
 import { buildRuins } from "./ruins";
+import { buildBattle } from "./battle";
 import type { Narration } from "../../core/narration";
 import type { Room, Solid } from "../journey";
 import { MOBILE } from "../../core/quality";
@@ -500,28 +502,12 @@ export function createAfterVeil(scene: THREE.Scene, narration: Narration, whispe
   }
 
   /* ---------------- the war in heaven: weather, not war ---------------- */
-  // the guardians: tall steady columns of warm light on the west side, facing outward
+  // the guardians: tall steady columns of warm light on the vale's west side, facing outward
   const guardians: THREE.Vector3[] = [];
   for (let i = 0; i < 6; i++) guardians.push(new V3(VALE.x - 12 - (i % 2) * 3, 0, VALE.z - 22 + i * 10));
-  // the husks: tall, elegant, luminous forms on the east side (the game's figures of glass light,
-  // drawn tall and thin, their light cold and their stance a little crooked)
-  const husks: THREE.Vector3[] = [];
-  for (let i = 0; i < 5; i++) husks.push(new V3(VALE.x + 12 + (i % 2) * 3, 0, VALE.z - 20 + i * 11));
-  for (const p of [...guardians, ...husks]) p.y = veilFloor(p.x, p.z);
-  const husksFolk = new GlassFolk(
-    husks.map((p, i) => ({ x: p.x, z: p.z, y: p.y, face: -Math.PI / 2 + (i % 2 ? 0.3 : -0.2), act: "idle" as const, tint: new THREE.Color(0.78, 0.8, 1.0), scale: 2.3, glow: { inner: 0.75, edge: 1.1, body: 0.55 } })),
-    53,
-  );
-  g.add(husksFolk.group);
-  void husksFolk.loaded.then(() => {
-    // beautiful but wrong: each a little crooked, slender, and moving slightly against the flow
-    husksFolk.group.children.forEach((r, i) => {
-      r.rotation.z = (i % 2 ? 1 : -1) * 0.05;
-      r.scale.x = 0.85;
-    });
-  });
+  for (const p of guardians) p.y = veilFloor(p.x, p.z);
   {
-    // the guardians' columns: a bright narrow core, soft to its edges, light slowly rising in it
+    // their columns: a bright narrow core, soft to its edges, light slowly rising in it
     const col = new THREE.CylinderGeometry(1.1, 1.3, 16, 20, 1, true);
     col.translate(0, 8, 0);
     const cm = keepAlpha(new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.FrontSide, fog: false }));
@@ -538,55 +524,19 @@ export function createAfterVeil(scene: THREE.Scene, narration: Narration, whispe
       windows.push([m, 225, 420]);
       solids.push({ x: p.x, z: p.z, r: 1.2, h: 16 });
     }
-    for (const p of husks) solids.push({ x: p.x, z: p.z, r: 0.8, h: 4 });
-    // round each husk, a slow spiral drawing the motes in and dimming them: the light drunk
-    const per = Math.round(160 * fewer);
-    const sp = pointCloud(per * husks.length, 0.09);
-    husks.forEach((h, j) => {
-      for (let i = 0; i < per; i++) {
-        sp.pos.set([h.x, h.y + 0.5, h.z], (j * per + i) * 3);
-        sp.k.set([R(), R(), R(), R()], (j * per + i) * 4);
-      }
-    });
-    touch(sp.cloud);
-    const K = sp.cloud.nodes.aK;
-    const life = fract(K.x.add(t.mul(float(0.035).add(K.y.mul(0.02)))));
-    const r = float(1).sub(life).mul(float(5).add(K.z.mul(4))).add(0.3);
-    const a = K.w.mul(6.283).add(life.mul(9));
-    const y = float(0.5).add(K.y.mul(4)).add(life.mul(1.5));
-    sp.material.positionNode = sp.cloud.nodes.position.add(vec3(cos(a).mul(r), y, sin(a).mul(r)));
-    // bright where they are taken from the air, dimming as they are drawn in
-    sp.material.colorNode = vec4(vec3(0.95, 0.9, 1.0).mul(sp.round).mul(pow(float(1).sub(life), 1.6)).mul(uWar.mul(0.6).add(0.3)), 1);
-    g.add(sp.cloud.sprite);
-    windows.push([sp.cloud.sprite, 225, 420]);
-    ours.push(sp.material);
-    // the arms of thought: arcs of light across the vale, both ways, pulses running along them
-    const arcs: number[] = [];
-    for (let i = 0; i < 9; i++) {
-      const a0 = guardians[i % guardians.length].clone().setY(guardians[i % guardians.length].y + 9 + R() * 6);
-      const b0 = husks[(i * 3) % husks.length].clone().setY(husks[(i * 3) % husks.length].y + 3 + R() * 2);
-      const lift = 3 + R() * 4;
-      const segs = 28;
-      for (let k = 0; k < segs; k++) {
-        const u0 = k / segs, u1 = (k + 1) / segs;
-        const p0 = a0.clone().lerp(b0, u0), p1 = a0.clone().lerp(b0, u1);
-        p0.y += Math.sin(u0 * Math.PI) * lift;
-        p1.y += Math.sin(u1 * Math.PI) * lift;
-        arcs.push(p0.x, p0.y, p0.z, p1.x, p1.y, p1.z);
-      }
-    }
-    const ag = ribbonGeometry(arcs);
-    const PG = T.positionGeometry;
-    const pulse = pow(sin(PG.x.mul(0.25).sub(t.mul(1.4)).add(PG.z.mul(0.05))).mul(0.5).add(0.5), 8);
-    // gold where they leave the guardians, colder toward the husks
-    const warm = smoothstep(VALE.x + 14, VALE.x - 14, PG.x);
-    const am = keepAlpha(ribbonMaterial(mix(vec3(0.7, 0.75, 1.0), vec3(1, 0.8, 0.5), warm).mul(pulse.mul(0.6).add(0.06)).mul(uWar.mul(0.35).add(0.12)), 0.45));
-    const amesh = new THREE.Mesh(ag, am);
-    amesh.frustumCulled = false;
-    g.add(amesh);
-    windows.push([amesh, 225, 420]);
-    ours.push(ag, am);
   }
+  // the battle itself is in the sky over the vale (battle.ts): the vortex, its eye, the two hosts
+  // in flight and the ribbons of intention between them. (The tall husks on the ground with their
+  // spirals were the owner's "alien head-beams": gone.)
+  const battle = buildBattle({ centre: new V3(VALE.x, 70, VALE.z - 70), R: seeded(6620), t, fewer });
+  g.add(battle.group);
+  windows.push([battle.group, 225, 420]);
+  ours.push(battle);
+  let told5 = 0; // how far beat 5 has been told (0 … 1), eased
+  const holdWar = (() => {
+    const v = new URLSearchParams(location.search).get("war");
+    return v === null ? null : Math.min(1, Math.max(0, Number(v)));
+  })();
 
   /* ---------------- the mirror: the old world, turning, unseeing ---------------- */
   {
@@ -721,7 +671,7 @@ export function createAfterVeil(scene: THREE.Scene, narration: Narration, whispe
   const [ax0, az0] = along(6);
   const angel = new Angel(ax0 + 1.4, veilFloor(ax0 + 1.4, az0), az0, 0);
   g.add(angel.root);
-  const loaded = Promise.all([angel.loaded, newcomers.loaded, husksFolk.loaded]).then(() => undefined);
+  const loaded = Promise.all([angel.loaded, newcomers.loaded]).then(() => undefined);
 
   let beat = 0; // index into BEATS of the next place
   let speaking = false;
@@ -757,7 +707,8 @@ export function createAfterVeil(scene: THREE.Scene, narration: Narration, whispe
       // the court made new: its heart, between the hall, the basin and the arcade
       if (n === 3) return new V3(CLEARING.x - 11, veilFloor(CLEARING.x - 11, CLEARING.z - 6) + 2.6, CLEARING.z - 6);
       if (n === 4) return NEWCOMERS.clone().setY(veilFloor(NEWCOMERS.x, NEWCOMERS.z) + 1.2);
-      if (n === 5) return VALE.clone().setY(veilFloor(VALE.x, VALE.z) + 6);
+      // the battle: up into the sky over the vale, the guardians' columns still in the frame below
+      if (n === 5) return new V3(VALE.x, 34, VALE.z - 34);
       if (n === 6) return EARTH.clone();
       return GLADE.clone().setY(veilFloor(GLADE.x, GLADE.z) + 0.5);
     },
@@ -794,9 +745,14 @@ export function createAfterVeil(scene: THREE.Scene, narration: Narration, whispe
         uGreen.value = bloom;
       }
       uWar.value = damp(uWar.value as number, (speaking && nowN === 5) || beat > 3 ? 1 : 0.4, 0.4, dt);
+      {
+        // the battle follows the telling of beat 5; once told it has passed (weather)
+        const pr = speaking && nowN === 5 ? narration.progress() : null;
+        const goal = holdWar ?? (beat > 3 ? 1 : pr ? Math.min(1, pr.t / pr.total) : 0);
+        told5 = holdWar ?? damp(told5, goal, 1.5, dt);
+        battle.update(told5, dt);
+      }
       uLaid.value = damp(uLaid.value as number, ended ? 1 : speaking && nowN === 7 ? 0.5 : 0, 0.15, dt);
-      // the husks move a little against the flow: their stillness plays backward
-      husksFolk.update(-dt * 0.5);
       newcomers.update(dt * 0.6);
       // the armour: drifting about them until their line has been spoken, then falling away to
       // the ground, one shard after another, and fading into it
