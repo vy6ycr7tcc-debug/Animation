@@ -2,7 +2,7 @@
    - etchedStone: dark stone with a faint gold lattice, which wakes when you are still before it.
    - buildMandala: hand-drawn line geometry on the central platform (seven-fold, one ring per island). */
 import * as THREE from "three/webgpu";
-import { T, type N } from "../gpu/tsl";
+import { T, skySheen, type N } from "../gpu/tsl";
 import { surface } from "./textures";
 
 const {
@@ -182,6 +182,8 @@ export function etchedStone(
     const on = float(1).sub(smoothstep(V.uVibeR.mul(1.1), V.uVibeR.mul(1.6).add(0.6), vd));
     const wave = pow(sin(vd.mul(10).sub(E.uEtchT.mul(9))).mul(0.5).add(0.5), 6).add(pow(sin(vd.mul(4).sub(E.uEtchT.mul(5))).mul(0.5).add(0.5), 10).mul(0.6));
     e.addAssign(vec3(1.0, 0.85, 0.6).mul(wave).mul(0.9).add(uLine.mul(l).mul(1.2)).mul(on).mul(V.uVibeK));
+    // the sky's sheen at its silhouette (gpu/tsl.ts)
+    e.addAssign(skySheen(normalize(vEN)));
     return e;
   })();
   void cos;

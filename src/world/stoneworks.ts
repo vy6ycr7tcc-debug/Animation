@@ -9,7 +9,7 @@
 import * as THREE from "three/webgpu";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
-import { T, fogUniforms, gpuUniforms, type N } from "../gpu/tsl";
+import { T, fogUniforms, gpuUniforms, skySheen, type N } from "../gpu/tsl";
 import { scan, type ScanName } from "./temple";
 
 const { abs, float, mix, smoothstep, vec3 } = T;
@@ -203,6 +203,9 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
   m.colorNode = T.vec4(c, 1);
   m.roughnessNode = rough;
   m.normalNode = T.normalize(T.normalView.add(T.cameraViewMatrix.mul(T.vec4(dn, 0)).xyz));
+  // the sky's sheen on the upright faces (gpu/tsl.ts): the air's colour at grazing angles, a rim
+  // of the moon's or low sun's light where it is behind the stone
+  m.emissiveNode = skySheen(n, (marble ? 1.3 : 1) * dry);
   m.maskNode = seeThrough(n);
   return m;
 }

@@ -56,7 +56,7 @@ export function scan(name: ScanName): { diff: THREE.Texture; nor: THREE.Texture;
     const load = (k: string, colour: boolean) => {
       const t = loader.load(`textures/temple/${name}_${k}.jpg`);
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
-      t.anisotropy = 8;
+      t.anisotropy = 16;
       t.colorSpace = colour ? THREE.SRGBColorSpace : THREE.NoColorSpace;
       return t;
     };

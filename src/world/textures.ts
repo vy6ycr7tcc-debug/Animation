@@ -12,7 +12,7 @@ function tex(path: string, colour: boolean): THREE.Texture {
   if (!t) {
     t = loader.load(path);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.anisotropy = 4;
+    t.anisotropy = 16; // the ground is mostly seen at a grazing angle: keep its grain sharp there
     if (colour) t.colorSpace = THREE.SRGBColorSpace;
     cache.set(path, t);
   }
