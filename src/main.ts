@@ -2910,7 +2910,7 @@ function deepFrame(dt: number, wt: number, inWater: boolean): void {
       if (S.mode !== "play" || !playlist.on || tp.playing) return false;
       void narration.play(id);
       return true;
-    });
+    }, { id: narration.current, t: narration.progress()?.t ?? 0 });
   if (S.mode !== "play") return;
   if (depths.inside) {
     if (!player.swimming) player.placeUnder();

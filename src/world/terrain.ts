@@ -353,10 +353,14 @@ export function heightAt(x: number, z: number): number {
   return h;
 }
 
+/** What stands raised above the floor in the world, to stand on (the rings of drowned Atlantis):
+    each answers its height at (x, z), or −Infinity where it doesn't stand. */
+export const standHooks: ((x: number, z: number) => number)[] = [];
 /** Where the wanderer stands: the ground, or the pyramid's faces (you can climb to its apex). */
 export function standAt(x: number, z: number): number {
-  const h = heightAt(x, z);
+  let h = heightAt(x, z);
   if (x > 20000) return h;
+  for (const f of standHooks) h = Math.max(h, f(x, z));
   const m = Math.max(Math.abs(x - PYRAMID.x), Math.abs(z - PYRAMID.z));
   if (m < PYRAMID.half) return Math.max(h, PYRAMID.y + PYRAMID.height * (1 - m / PYRAMID.half));
   const dm = Math.hypot(x - DENSITY_HALL.x, z - DENSITY_HALL.z);
