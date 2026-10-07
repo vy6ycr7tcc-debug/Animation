@@ -98,6 +98,8 @@ export interface ShotCtx {
   settle?(): Promise<unknown>;
   /** Walk into stage `i` of the density journey (no fades), lived for `t` seconds; `journey-<i>`. */
   journey?(name: string, i: number, t: number): Promise<void>;
+  /** The breathing ring round the wanderer, held this open (`breath&t=<0..1>`). */
+  breath?(open: number): void;
   /** No touch for a long while (the gravity point and contemplation answer to stillness). */
   idle?(): void;
   /** Build density room `n` alone (the open world hidden); `density-<n>` still frames. */
@@ -230,6 +232,12 @@ export function runShot(ctx: ShotCtx): void {
       : { eye: [16.6, 2.6, -39.5], look: [26.2, 2.4, -39.5] }; // the Choice's room from its door
     ctx.setInside(true);
     ctx.player.pos.set(base[0] + view.eye[0], base[1], base[2] + view.eye[2] - 2);
+  } else if (id === "breath" && ctx.breath) {
+    // the breathing ring round the wanderer on the shore, from behind it; t is how open (0..1)
+    const p = ctx.player.pos;
+    base = [p.x, p.y, p.z];
+    view = { eye: [2.2, 2.4, 6.4], look: [0, 1.2, -2] };
+    ctx.breath(Math.min(1, t));
   } else if (/^peak-\d$/.test(id)) {
     // a massif seen from the land, about 900 m off toward the shore
     const pk = PEAKS[Number(id.slice(5))] ?? PEAKS[0];
