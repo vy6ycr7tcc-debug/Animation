@@ -37,12 +37,13 @@ export const DUAT_PATH: THREE.Vector3[] = [
 ];
 const RIM = 50; // the gorge's walls stand beyond this
 
-/* NARRATION WIRING POINT (HELD: the Duat's recordings are pending from the owner's narration
-   pipeline; nothing is invented or synthesized). When they arrive, put each recording's path here
-   (e.g. "audio/duat/hour_1.mp3"): the entry plays as you come into the Duat, each hour's as you
-   first come to it, the dawn's on the stair. Null is silence, as now. */
+/* The Duat's narration (catalogue ids or recording paths). The owner's recording is one telling of
+   the whole night (Aria, 279 s, `DUAT` in content/narration.json, trigger "duat-landfall"): it
+   begins as you come into the Duat, once each time you enter, and carries on as you walk the
+   hours. The hours' and the dawn's slots stay for any later recordings of their own; null is
+   silence. */
 export const DUAT_TRACKS: { entry: string | null; hours: (string | null)[]; dawn: string | null } = {
-  entry: null,
+  entry: "DUAT",
   hours: [null, null, null, null, null, null],
   dawn: null,
 };
