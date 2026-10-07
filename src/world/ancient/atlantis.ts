@@ -29,7 +29,7 @@ import { T, outOfTheWay, softPoints, spriteCloud, type N } from "../../gpu/tsl";
 import { heightAt, SPAWN, standHooks, type Collider } from "../terrain";
 import type { RuinSite } from "../depths";
 import { flutedColumn } from "../../scenes/past/kit";
-import { Keeper, Merge, place, rng, roughBlock, seaMasonry, seaStone, shafts, solidBox, solidRound, Swimmers } from "./kit";
+import { Keeper, Merge, place, rng, roughBlock, seaMasonry, shafts, solidBox, solidRound, Swimmers } from "./kit";
 import type { Area } from "./index";
 
 const { cameraPosition, float, length, positionWorld, pow, sin, smoothstep, uniform, vec3, vec4 } = T;
@@ -108,7 +108,8 @@ export function buildAtlantis(site: RuinSite, cues: { t: number }[] = []): Area 
   const cold: [number, number, number] = [0.55, 0.78, 0.95];
   const wall = seaMasonry("sandstone_blocks_05", [1.1, 1.12, 1.16], { course: 1.0, block: 2.1, flag: 2.2 }, uT, 0.12, cold, 0.1, "marble");
   const stone = seaMasonry("sandstone_blocks_08", [1.0, 1.04, 1.1], { course: 0.9, block: 1.6, flag: 1.6 }, uT, 0.12, cold, 0.1);
-  const colM = seaStone({ set: "sandstone_cracks", tint: [1.34, 1.34, 1.38], caustic: float(0.1), causticCol: cold, sea: 0.8, growth: [0.2, 0.3, 0.26], lift: 0.12 }, uT);
+  // the great columns in the same marble, laid in drums
+  const colM = seaMasonry("sandstone_blocks_05", [1.08, 1.1, 1.14], { course: 1.35, block: 6, flag: 2 }, uT, 0.1, cold, 0.1, "marble");
   const mg = new Merge<"wall" | "stone" | "col">();
 
   // the rings of land, faced in pale stone
@@ -269,8 +270,9 @@ export function buildAtlantis(site: RuinSite, cues: { t: number }[] = []): Area 
     cg.push(crystalGeo(1.1, h).applyMatrix4(place(lx, y + 0.4, lz, R(), 1, 1, 1, lean, lean * 0.5)));
     cg.push(crystalGeo(0.55, h * 0.55).applyMatrix4(place(lx + 1.3, y + 0.3, lz + 0.6, R(), 1, 1, 1, -0.4, 0.3)));
     // the housing: a broken collar of stone, a third of it gone
-    const collar = new THREE.CylinderGeometry(2.2, 2.4, 1.6, 20, 1, true, 0.3, Math.PI * 1.35);
-    housings.add("stone", collar, place(lx, y + 0.8, lz, R() * 3));
+    // a solid wall of stone in section (outer face, top, inner face), a third of its round gone
+    const collar = new THREE.LatheGeometry([new THREE.Vector2(2.5, 0), new THREE.Vector2(2.35, 1.6), new THREE.Vector2(1.95, 1.6), new THREE.Vector2(1.9, 0)], 20, 0.3, Math.PI * 1.35);
+    housings.add("stone", collar, place(lx, y, lz, R() * 3));
     housings.add("stone", roughBlock(1.6, 0.9, 1.0, R, 0.25), place(lx + 2.6, y + 0.4, lz - 1.2, R() * 3, 1, 1, 1, 0.2, 0.1));
     round(lx, lz, 1.6, y + h);
   }

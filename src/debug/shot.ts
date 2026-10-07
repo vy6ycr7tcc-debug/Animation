@@ -127,7 +127,7 @@ const ANCIENT_VIEWS: Record<string, Record<string, { eye: XYZ; look: XYZ }>> = {
     a: { eye: [8, 9, 72], look: [0, 5, 0] }, // the approach over the rings to the acropolis
     b: { eye: [6, 7, 18], look: [0, 6, 0] }, // the acropolis: the temple's columns, the throne
     c: { eye: [-9, 4.5, 52], look: [0, 5, 24] }, // the colonnade, standing and fallen
-    d: { eye: [-28, 6, -8], look: [-48, 1, -28] }, // the harbour: quays, ribs of hulls
+    d: { eye: [-38, 7, -4], look: [-50, 1, -28] }, // the harbour: quays, ribs of hulls
     e: { eye: [-16, 4, 15], look: [-24, 4, 8] }, // a dead crystal in its broken housing
   },
 };
