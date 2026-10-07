@@ -31,7 +31,6 @@ const SEA_Y = -1.3;
 const MOON = new THREE.Vector3(-0.35, 0.22, -0.9).normalize();
 const SOUTH = new THREE.Vector3(-170, 0, -430);
 const EAST = new THREE.Vector3(190, 0, -470);
-export const ATLANTIS_DOOR = new THREE.Vector3(-6.5, 0, 4);
 
 export function createAtlantisScene(scene: THREE.Scene, narration: Narration, whisper: (t: string, ms?: number) => void): Room {
   return seatedRoom(scene, narration, whisper, {

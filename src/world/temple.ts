@@ -45,8 +45,6 @@ const COL_Z = [29, 20.9, 12.7, 4.5, -3.7, -11.9, -20.1, -27.6]; // between them
 const CENTRE = new THREE.Vector3(0, 0, -44); // the sanctuary's centre, where the Choice stands
 const STATUE_SCALE = 1.3;
 
-/** Is this point inside the temple's place apart? */
-export const inTempleRegion = (x: number) => x > TEMPLE_ORIGIN.x - 500;
 
 /* ---------- photo-scanned stone (Poly Haven, CC0; see CREDITS.md) ---------- */
 export type ScanName = "sandstone_blocks_08" | "sandstone_blocks_05" | "sandstone_cracks" | "red_sandstone_pavement";
