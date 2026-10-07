@@ -332,12 +332,16 @@ const HOURS: Hour[] = [
     ],
   },
 ];
-const HOLD = 6; // seconds each moment of an hour holds (9 left a still form on screen ~13 s: "dead stretches")
+// seconds from one moment of an hour to the next (9 left a still form on screen ~13 s: "dead
+// stretches"; 6 with a 3.5 s turn read as "all over the place"): a long, calm gathering (MORPH)
+// and a short hold, so something is always slowly becoming
+const HOLD = 8.5;
+const MORPH = 6;
 
 /** Keys for many turns of an hour's cycle (its clock runs only while you are near). */
 function keysFor(h: Hour): Key[] {
   const keys: Key[] = [];
-  for (let k = 0; k < 40; k++) h.cycle.forEach((c, i) => keys.push({ ...c, t: 0.5 + (k * h.cycle.length + i) * HOLD, dur: 3.5 }));
+  for (let k = 0; k < 40; k++) h.cycle.forEach((c, i) => keys.push({ ...c, t: 0.5 + (k * h.cycle.length + i) * HOLD, dur: MORPH }));
   return keys;
 }
 
@@ -652,7 +656,7 @@ export class Duat {
       sp.y = duatHeight(sp.x, sp.z);
       // Apophis and the weighing are told as animated scenes (duatScenes.ts); the others in light
       const stage: VisionStage | HourScene =
-        h.at === 4 ? new ApophisScene(sp, face + Math.PI) : h.at === 5 ? new WeighingScene(sp, face + Math.PI) : new VisionStage({ at: sp, face: face + Math.PI, forms: h.forms, keys: keysFor(h), seedNum: 700 + h.at * 13 });
+        h.at === 4 ? new ApophisScene(sp, face + Math.PI) : h.at === 5 ? new WeighingScene(sp, face + Math.PI) : new VisionStage({ at: sp, face: face + Math.PI, forms: h.forms, keys: keysFor(h), seedNum: 700 + h.at * 13, calm: true });
       this.group.add(stage.group);
       const cycle = "cycle" in stage ? stage.cycle : h.cycle.length * HOLD;
       // where to stand to watch it: on the way, past the gate, 6 m before it

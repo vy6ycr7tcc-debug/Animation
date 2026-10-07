@@ -110,10 +110,10 @@ export function createDensity5Scene(scene: THREE.Scene, narration: Narration, wh
   let rate = 0; // formulas begun per second
   const air: Air = {
     color: new THREE.Color(0, 0, 0),
-    glow: new THREE.Color(0.02, 0.025, 0.04),
+    glow: new THREE.Color(0.04, 0.045, 0.07),
     glowDir: new THREE.Vector3(0, 1, 0),
     density: 0.004,
-    shadow: new THREE.Color(0, 0, 0),
+    shadow: new THREE.Color(0.01, 0.012, 0.02), // a breath of cold in the shadows: the floor reads, the sky stays black
     sat: 0.95,
     contrast: 1.1,
   };
@@ -128,7 +128,7 @@ export function createDensity5Scene(scene: THREE.Scene, narration: Narration, wh
       const geo = new THREE.CircleGeometry(90, 96);
       geo.rotateX(-Math.PI / 2);
       geo.translate(0, 0, -30);
-      const m = landStone("red_sandstone_pavement", 0, 3, [0.02, 0.022, 0.03], { flag: 1.4 });
+      const m = landStone("red_sandstone_pavement", 0, 3, [0.05, 0.055, 0.07], { flag: 1.4 });
       m.roughnessNode = float(0.85); // matte: no glare sliding over the floor
       const mesh = new THREE.Mesh(geo, m);
       mesh.receiveShadow = true;
@@ -148,7 +148,7 @@ export function createDensity5Scene(scene: THREE.Scene, narration: Narration, wh
       ours.push(rg, rm);
     }
     // its light on the stone round it, and the warmth that kindles at its heart
-    const cool = new THREE.PointLight(0xc8d8ff, 0, 22, 2);
+    const cool = new THREE.PointLight(0xc8d8ff, 0, 30, 2);
     cool.position.set(MAGE.x, 3.2, MAGE.z + 1.5);
     const warm = new THREE.PointLight(0xffb066, 0, 18, 2);
     warm.position.set(MAGE.x, 2.2, MAGE.z + 0.8);
@@ -295,7 +295,7 @@ export function createDensity5Scene(scene: THREE.Scene, narration: Narration, wh
       uDoor.value = damp(uDoor.value, goal.door, 0.5, d);
       rate = damp(rate, goal.rate, 0.8, d);
       const slow = 1 - uCold.value * 0.8 * (1 - uLove.value);
-      cool.intensity = 12 * uWake.value * (1 - uLove.value * 0.4);
+      cool.intensity = 20 * uWake.value * (1 - uLove.value * 0.4);
       warm.intensity = 22 * uLove.value;
       atom.rotation.y += d * 0.35 * slow;
       atom.rotation.x = Math.sin(clock.u.value * 0.2) * 0.2;

@@ -819,6 +819,12 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - Two figures (`NAN_MADOL_WATCHER`, the temple figures' particle idiom; bark cloth in sea and basalt tones, a shell collar): the watcher on the seawall facing the open water, and the keeper in the mortuary's inner court. No dialogue, no collision.
   - The telling begins once, the first time you come into the lagoon, and plays on wherever you go.
   - Stills: `?shot=nanmadol-a` … `nanmadol-f` (from the shore, the western canal, the mortuary's gate, its inner court, the seawall, from the air).
+- 2026-10-07: master fix, Phase 1 (`docs/findings-ledger.md` holds every finding, its cause, fix and still).
+  - Stills: `?shot=density-0` and `density-7` render (the room factory knew rooms 1–6 only); `ruin-n` frames a drowned city from its own approach and other ruins from 22 m; `meadow` frames the vision of creation; still frames show no whispers.
+  - Room 5 is brighter below and still black above: floor tint ~0.05–0.07, the magician's cool light 20 over 30 m, air glow (0.04, 0.045, 0.07), a cold shadow lift.
+  - The Duat's hour visions change calmly (`VisionStage` `calm`, the Duat only): delays spread over 55 % of each turn, a far smaller vortex, 8.5 s a moment with 6 s of gathering.
+  - The Duat tour ends by itself if the stair's top is never reached (60 s), and waits 25 s (was 12) for the Duat to build.
+  - Open with the owner: the vision of creation stands on a levelled pad in the lake (its site search finds no dry ground and falls back); the "patchy character" didn't reproduce.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.

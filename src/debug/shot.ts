@@ -4,7 +4,7 @@
 import { SITES } from "../scenes/sites";
 import { DUAT_ORIGIN } from "../world/pyramid";
 import { AREA_SITES, RUIN_SITES, type AreaId } from "../world/depths";
-import { ADEPT_HALL, DENSITY_HALL, GOBEKLI, GOBEKLI_PLAN, gobekliAt, nanMadolAt, LANDMARK_SITES, PAST_HALL, PEAKS, PYRAMID, SPAWN, heightAt } from "../world/terrain";
+import { ADEPT_HALL, DENSITY_HALL, GOBEKLI, GOBEKLI_PLAN, gobekliAt, nanMadolAt, LANDMARK_SITES, MONUMENT, PAST_HALL, PEAKS, PYRAMID, SPAWN, heightAt } from "../world/terrain";
 import { JOURNEY_ORIGIN } from "../scenes/journey";
 
 export interface Shot {
@@ -142,6 +142,7 @@ const ANCIENT_VIEWS: Record<string, Record<string, { eye: XYZ; look: XYZ }>> = {
 /** The density rooms' still frames: where the eye stands and looks (room frame, the seat at the
     origin facing −z). */
 const ROOM_VIEWS: Record<string, { eye: XYZ; look: XYZ }> = {
+  "density-0": { eye: [0, 2.0, 6], look: [0, 4, -20] },
   "density-1": { eye: [1.5, 2.2, 7], look: [-3, 5, -40] },
   "density-2": { eye: [1.5, 2.0, 7], look: [2, 4, -30] },
   "density-3": { eye: [0, 2.0, 7], look: [0, 2.4, -20] },
@@ -151,6 +152,7 @@ const ROOM_VIEWS: Record<string, { eye: XYZ; look: XYZ }> = {
   "density-5": { eye: [1.5, 2.2, 6], look: [0, 9, -31] },
   "density-5L": { eye: [2.5, 2.4, -6], look: [0, 4, -16] },
   "density-6": { eye: [0, 1.8, 10], look: [0, 2, -18] },
+  "density-7": { eye: [0, 1.8, 4], look: [0, 6, -46] },
 };
 /** The journey's stages (0 the lobby, 1 the beginning, 2–8 the densities): over the shoulder
     of the wanderer where it arrives, looking on into the room. */
@@ -327,10 +329,29 @@ export function runShot(ctx: ShotCtx): void {
     view = { eye: [Math.sin(f) * 6 + Math.cos(f) * 5, 2.4, Math.cos(f) * 6 - Math.sin(f) * 5], look: [H.x - px, 12, H.z - pz] };
     ctx.player.pos.set(px, heightAt(px, pz), pz);
   } else if (id === "meadow") {
-    // the open land near the start, at eye height, looking inland
-    const px = SPAWN.x + 30, pz = SPAWN.z - 30;
+    // the open land near the start: from a little rise, across the meadow to the vision of
+    // creation standing on it, the sky above (it framed bare ground before)
+    // a dry vantage 34 m off with a clear line of sight (sampled round it, nearest the shore first)
+    const my = heightAt(MONUMENT.x, MONUMENT.z);
+    // (34 m off where the land allows; the nearest dry ring otherwise: its site search can fall
+    // back to a levelled pad in the water, see docs/findings-ledger.md)
+    let px = MONUMENT.x, pz = MONUMENT.z + 10, best = -Infinity;
+    for (let k = 0; k < 24 * 4; k++) {
+      const R = [34, 24, 16, 11][Math.floor(k / 24)];
+      if (best > -Infinity && R < 34 && k % 24 === 0) break;
+      const a = Math.atan2(SPAWN.x - MONUMENT.x, SPAWN.z - MONUMENT.z) + (k % 2 ? 1 : -1) * Math.ceil((k % 24) / 2) * (Math.PI / 12);
+      const cx = MONUMENT.x + Math.sin(a) * R, cz = MONUMENT.z + Math.cos(a) * R, cy = heightAt(cx, cz);
+      if (cy < 0.6) continue;
+      let clear = 1e9;
+      for (let i = 1; i < 10; i++) {
+        const f = i / 10, gx = cx + (MONUMENT.x - cx) * f, gz = cz + (MONUMENT.z - cz) * f;
+        clear = Math.min(clear, cy + 2.4 + (my + 5 - cy - 2.4) * f - heightAt(gx, gz));
+      }
+      const score = Math.min(clear, 3) - (k % 24) * 0.05;
+      if (score > best) (best = score), (px = cx), (pz = cz);
+    }
     base = [px, heightAt(px, pz), pz];
-    view = { eye: [0, 1.7, 0], look: [40, 0.5, -60] };
+    view = { eye: [0, 2.4, 0], look: [MONUMENT.x - px, heightAt(MONUMENT.x, MONUMENT.z) - base[1] + 5, MONUMENT.z - pz] };
     ctx.player.pos.set(px, heightAt(px, pz), pz);
   } else if (/^ancient-[a-z]+-[a-z]$/.test(id)) {
     // a drowned city (world/ancient), from one of its views (local frame: +z toward the shore)
@@ -346,10 +367,22 @@ export function runShot(ctx: ShotCtx): void {
   } else if (/^ruin-\d$/.test(id)) {
     // under the water, standing on the floor before a ruin
     const r = RUIN_SITES[Number(id.slice(5))] ?? RUIN_SITES[0];
-    const px = r.x + 9, pz = r.z + 9;
-    base = [px, heightAt(px, pz), pz];
-    view = { eye: [4, 2.2, 5], look: [-9, 2.5, -9] };
-    ctx.player.pos.set(px, heightAt(px, pz), pz);
+    const v = r.area ? ANCIENT_VIEWS[r.area]?.a : undefined;
+    if (v) {
+      // a site that is now a drowned city: from its own approach (a fixed 9 m camera stood inside it)
+      const f = Math.atan2(SPAWN.x - r.x, SPAWN.z - r.z), cs = Math.cos(f), sn = Math.sin(f);
+      const L = (q: XYZ): XYZ => [q[0] * cs + q[2] * sn, q[1], -q[0] * sn + q[2] * cs];
+      base = [r.x, r.y, r.z];
+      view = { eye: L(v.eye), look: L(v.look) };
+      ctx.player.pos.set(r.x + view.eye[0], r.y + v.eye[1] - 1.2, r.z + view.eye[2]);
+    } else {
+      // a ruin, from far enough to see it whole, a little above the floor, toward the shore's light
+      const f = Math.atan2(SPAWN.x - r.x, SPAWN.z - r.z);
+      const px = r.x + Math.sin(f) * 22, pz = r.z + Math.cos(f) * 22;
+      base = [px, heightAt(px, pz), pz];
+      view = { eye: [0, 4.5, 0], look: [r.x - px, heightAt(r.x, r.z) - base[1] + 3.5, r.z - pz] };
+      ctx.player.pos.set(px, heightAt(px, pz), pz);
+    }
   } else if (/^home-\d+$/.test(id)) {
     // an archetype's home in the open world, from a little way off
     const [hx, hz] = LANDMARK_SITES[Number(id.slice(5))] ?? LANDMARK_SITES[0];

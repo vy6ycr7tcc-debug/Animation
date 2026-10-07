@@ -502,7 +502,9 @@ loadFailed.hook = (path) => {
   const name = path.replace(/^models\//, "").replace(/\.glb$/, "").replace(/[-_/]/g, " ");
   window.setTimeout(() => whisper(`Something could not load (${name}). It will be there next time.`, 6000), 1500);
 };
+const STILL = new URLSearchParams(location.search).has("shot");
 function whisper(text: string, ms = 5000): void {
+  if (STILL) return; // still frames: no words over the picture (first-time tips covered the ruins)
   const w = $("#whisper");
   w.textContent = text;
   w.classList.add("on");
@@ -2410,7 +2412,7 @@ function duatTourFrame(dt: number): void {
   d.t += dt;
   if (d.phase === "enter") {
     if (pyramid.duatActive && !crossing) Object.assign(d, { phase: "walk", t: 0 });
-    else if (d.t > 12) duatTourEnd(false);
+    else if (d.t > 25) duatTourEnd(false); // a slow phone builds and compiles the Duat in the dark: 12 s gave up on it
     return;
   }
   if (!pyramid.duatActive) return void (crossing ? 0 : duatTourEnd(d.i >= pyramid.duatHours().length));
@@ -2426,6 +2428,9 @@ function duatTourFrame(dt: number): void {
     player.target = duatTo.clone();
     tourGoal(duatTo.x, duatTo.y);
     walkTitle("Dawn", `${hs.length} of ${hs.length}`);
+    // the stair's top ends the tour by itself; if the way up is held up, the tour still ends
+    // (it used to wait forever, the controls hidden), leaving you on the stair with them back
+    if (d.t > 60) duatTourEnd(true);
     return;
   }
   const h = hs[d.i], sx = O.x + h.stand.x, sz = O.z + h.stand.z;
@@ -3923,19 +3928,23 @@ renderer
         room: async (n: number) => {
           // the density rooms are factory modules (not yet in the journey): built here alone
           const mods: Record<number, () => Promise<Record<string, unknown>>> = {
+            0: () => import("./scenes/densities/room_0"),
             1: () => import("./scenes/densities/room_1"),
             2: () => import("./scenes/densities/room_2"),
             3: () => import("./scenes/densities/room_3"),
             4: () => import("./scenes/densities/room_4"),
             5: () => import("./scenes/densities/room_5"),
             6: () => import("./scenes/densities/room_6"),
+            7: () => import("./scenes/densities/room_7"),
           };
           const mod = await (mods[n] ?? mods[1])();
-          const make = mod[n === 3 ? "createRoom3Scene" : n === 5 ? "createDensity5Scene" : `createDensityRoom${n}Scene`] as (s: THREE.Scene, nar: typeof narration, w: typeof whisper) => { onSit(): void; update(dt: number): void };
-          const lesson = make(scene, narration, whisper);
+          // each room module names its own factory; room 7 also takes where it stands
+          type Make = (s: THREE.Scene, nar: typeof narration, w: typeof whisper, at?: THREE.Vector3, heading?: number) => { onSit(): void; update(dt: number): void };
+          const make = mod[n === 3 ? "createRoom3Scene" : n === 5 ? "createDensity5Scene" : n === 7 ? "createDensity7" : `createDensityRoom${n}Scene`] as Make;
+          const lesson = n === 7 ? make(scene, narration, whisper, new THREE.Vector3(), 0) : make(scene, narration, whisper);
           await (lesson as { loaded?: Promise<void> }).loaded;
           additiveKeepsAlpha(scene);
-          for (const o of scene.children) if (!(o as THREE.Light).isLight && o.name !== `lesson:density_${n}` && o.name !== `lesson:density-${n}` && o !== camera) o.visible = false;
+          for (const o of scene.children) if (!(o as THREE.Light).isLight && o.name !== `lesson:density_${n}` && o.name !== `lesson:density-${n}` && o.name !== `density:density-${n}` && o !== camera) o.visible = false;
           return lesson;
         },
         camera,
