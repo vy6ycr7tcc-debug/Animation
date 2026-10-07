@@ -20,7 +20,7 @@
    - Ra later called such shapes training wheels, no longer needed (60.13, 60.16).
    Outside you can climb its faces to the apex (terrain.ts `standAt`). */
 import * as THREE from "three/webgpu";
-import { T, worldPoints, type N } from "../gpu/tsl";
+import { T, skySheen, worldPoints, type N } from "../gpu/tsl";
 import { scan, type ScanName } from "./temple";
 import { landStone, stoneBlock, contactShade } from "./stoneworks";
 import { surface } from "./textures";
@@ -97,7 +97,7 @@ function limestone(uT: N, tint: [number, number, number], alive = 1, tile = 2.4,
   // "the stones are alive": a slow swell of warm light rising through the stone, not lines
   const wave = sin(pw.y.mul(0.35).sub(uT.mul(0.9))).mul(0.5).add(0.5);
   const beat = T.pow(sin(uT.mul(1.1)).mul(0.5).add(0.5), 6);
-  m.emissiveNode = vec3(1.0, 0.8, 0.5).mul(wave.mul(0.045).add(beat.mul(0.02)).mul(alive)).add(c.mul(0.05));
+  m.emissiveNode = vec3(1.0, 0.8, 0.5).mul(wave.mul(0.045).add(beat.mul(0.02)).mul(alive)).add(c.mul(0.05)).add(skySheen(T.normalWorldGeometry));
   return m;
 }
 /** The chambers' limestone: the game's cut masonry (courses, flagstones, recessed joints seen in

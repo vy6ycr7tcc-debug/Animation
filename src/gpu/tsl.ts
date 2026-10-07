@@ -67,6 +67,18 @@ export const fogUniforms = {
   density: uniform(FOG.density),
 };
 
+/** The sky's sheen on stone (emissive; never a mirror, never on a floor): a face turning away from
+    you takes on the colour of the air, and where the moon or the low sun is behind it its edges
+    catch a rim of that light, so stone stands out of the night by its silhouette, as in Sky's
+    rim light. `n` is the world normal; flat tops and floors take none. */
+export const skySheen = (n: N, k: N | number = 1): N => {
+  const V = TT.normalize(TT.cameraPosition.sub(TT.positionWorld));
+  const fres = TT.pow(TT.float(1).sub(TT.clamp(TT.abs(TT.dot(n, V)), 0, 1)), 3); // abs: a face seen from behind (a gorge drawn inward) is still a face
+  const back = safeSmoothstep(0.2, 0.9, TT.dot(V.negate(), fogUniforms.glowDir));
+  const upright = TT.float(1).sub(safeSmoothstep(0.4, 0.7, TT.abs(n.y)));
+  return fogUniforms.color.mul(0.7).add(fogUniforms.glow.mul(back).mul(0.8)).mul(fres).mul(upright).mul(k);
+};
+
 /** The colour grade after tone mapping, set by the moods (and the temple): a lift of colour into
     the shadows, a tint on the highlights, saturation and contrast (post.ts). */
 export const gradeUniforms = {
