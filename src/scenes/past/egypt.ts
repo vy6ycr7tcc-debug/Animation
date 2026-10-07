@@ -281,6 +281,48 @@ export function createEgyptScene(scene: THREE.Scene, narration: Narration, whisp
         ours.push(tm);
       }
 
+      /* ---------------- the Aton, carved in thin gold light (the owner: "the sun disk with rays
+         ending in arms/hands reaching down"): on the faces of the valley temple's two pylons, and
+         great on the pyramid's face above its door, its rays reaching down toward the door and the
+         people. Carvings in the stone, as the Duat's gates carry their winged suns; they warm when
+         the door is open. ---------------- */
+      {
+        const gold = ribbonMaterial(vec3(1.0, 0.8, 0.46).mul(float(0.5).add(u.door.mul(0.4)).add(sin(t.mul(0.4)).mul(0.06))), 0.6);
+        // on a pylon's face: flat, a little proud of the stone, leaning back with its batter
+        for (const [x, h] of [[-10.5, 7.5], [10.5, 5.6]] as const) {
+          const yb = egyptFloor(x, -24) - 1.6, top = yb + h;
+          const sc = Math.min(2.6, (top - Math.max(yb, egyptFloor(x, -22.4)) - 0.6) / 1.55);
+          const cy = top - 0.6 - 0.24 * sc;
+          const pts = atonSegments(sc);
+          for (let i = 0; i < pts.length; i += 3) {
+            const yy = cy + pts[i + 1];
+            const k = (yy - yb) / h; // the batter at this height: the face leans back as it rises
+            pts[i] = x + pts[i] * 1;
+            pts[i + 1] = yy;
+            pts[i + 2] = -24 + 1.5 * (1 - 0.2 * k) + 0.06;
+          }
+          const mesh = new THREE.Mesh(ribbonGeometry(pts), gold);
+          mesh.frustumCulled = false;
+          g.add(mesh);
+          ours.push(mesh.geometry);
+        }
+        // on the pyramid's north face, above the door: laid on the plane the courses' edges make
+        {
+          const sc = 12, cy = 26;
+          const pts = atonSegments(sc);
+          for (let i = 0; i < pts.length; i += 3) {
+            const yy = cy + pts[i + 1] * 1.22; // seen from below on the sloping face: drawn taller so the disk reads round
+            pts[i + 1] = yy;
+            pts[i + 2] = PYR.z + HALF * (1 - (yy - 1.3) / HEIGHT) + 0.12;
+          }
+          const mesh = new THREE.Mesh(ribbonGeometry(pts), gold);
+          mesh.frustumCulled = false;
+          g.add(mesh);
+          ours.push(mesh.geometry);
+        }
+        ours.push(gold);
+      }
+
       /* ---------------- four thousand years of wind: sand streaming over the desert as the stars wheel ---------------- */
       {
         const n = 6000;
@@ -457,6 +499,50 @@ export function createEgyptScene(scene: THREE.Scene, narration: Narration, whisp
 }
 
 /** The dunes on the GPU (the same shape as `egyptFloor`), for things that walk on them. */
+/** The Aton as Amarna drew it, in segment pairs (x, y, 0) scaled by `s`: a disk of two rings with
+    the uraeus hanging from it, and a fan of straight rays reaching down, each ending in a small
+    open hand; two of them hold out an ankh. About 1.65 s wide and 1.5 s tall, the disk's centre at 0. */
+function atonSegments(s: number): number[] {
+  const seg: number[] = [];
+  const line = (pts: [number, number][]) => {
+    for (let k = 0; k < pts.length - 1; k++) seg.push(pts[k][0] * s, pts[k][1] * s, 0, pts[k + 1][0] * s, pts[k + 1][1] * s, 0);
+  };
+  const circle = (cx: number, cy: number, r: number, nn = 40) =>
+    line(Array.from({ length: nn + 1 }, (_, k) => [cx + Math.cos((Math.PI * 2 * k) / nn) * r, cy + Math.sin((Math.PI * 2 * k) / nn) * r] as [number, number]));
+  circle(0, 0, 0.22);
+  circle(0, 0, 0.18, 36);
+  // the uraeus: a cobra hanging from the disk's foot, its hood raised
+  line([[0, -0.22], [0.025, -0.27], [-0.01, -0.31], [0.02, -0.35], [0.045, -0.33], [0.03, -0.3]]);
+  const N = 13;
+  for (let i = 0; i < N; i++) {
+    const a = -Math.PI / 2 + ((i / (N - 1)) * 2 - 1) * 0.92;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    const r1 = 1.0 - Math.abs(i - (N - 1) / 2) * 0.012;
+    const ex = ca * r1, ey = sa * r1;
+    line([[ca * 0.26, sa * 0.26], [ex, ey]]);
+    // the hand: a small palm opening from the ray's end, four fingers and a thumb, reaching down
+    const px = -sa, py = ca; // across the ray
+    const hl = 0.075;
+    for (const f of [-1.5, -0.5, 0.5, 1.5]) {
+      const bx = ex + px * f * 0.012, by = ey + py * f * 0.012;
+      line([[bx, by], [bx + ca * hl + px * f * 0.008, by + sa * hl + py * f * 0.008]]);
+    }
+    line([[ex, ey], [ex + ca * 0.03 + px * 0.04, ey + sa * 0.03 + py * 0.04]]);
+    // two hands, either side of the middle, hold out the ankh
+    if (i === 4 || i === N - 5) {
+      // held by its loop, hanging from the fingers: loop, crossbar, then the stem down
+      const ax = ex + ca * 0.09, ay = ey + sa * 0.09;
+      line(Array.from({ length: 17 }, (_, k) => {
+        const q = (k / 16) * Math.PI * 2;
+        return [ax + Math.sin(q) * 0.028, ay - 0.04 + Math.cos(q) * 0.04] as [number, number];
+      }));
+      line([[ax - 0.05, ay - 0.09], [ax + 0.05, ay - 0.09]]);
+      line([[ax, ay - 0.08], [ax, ay - 0.22]]);
+    }
+  }
+  return seg;
+}
+
 function egyptFloorN(x: N, z: N): N {
   const dunes = sin(x.mul(0.045).add(z.mul(0.02))).mul(1.3).add(sin(x.mul(0.013).sub(z.mul(0.037))).mul(2.2));
   const plaza = max(abs(x.sub(PYR.x)), abs(z.sub(PYR.z)));
