@@ -10,7 +10,7 @@ import * as THREE from "three/webgpu";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { floatAttributes, loadBytes } from "../core/assets";
-import { gpuUniforms, softPoints, spriteCloud, T, viewDepth, type SpriteCloud } from "../gpu/tsl";
+import { gpuUniforms, softPoints, spriteCloud, T, viewDepth, type SpriteCloud, softDot, pointR } from "../gpu/tsl";
 import { grow, prismGeometry, SHAPES, tubes } from "./creation";
 
 const V = THREE.Vector3;
@@ -229,13 +229,13 @@ export class Vision {
     for (let i = 0; i < n; i++) this.seed[i] = R();
     (this.cloud.attrs.aSeed.array as Float32Array).set(this.seed);
     {
-      const { clamp, float, length, max, pointUV, sin, smoothstep, exp, vec4 } = T;
+      const { clamp, float, max, sin, exp, vec4 } = T;
       const { position, aCol, aSeed } = this.cloud.nodes;
       const worldPos = T.modelWorldMatrix.mul(vec4(position, 1)).xyz;
       mat.sizeNode = clamp(gpuUniforms.px.mul(0.05).mul(aSeed.mul(0.8).add(0.6)).div(max(viewDepth(worldPos), 0.5)), float(1).div(gpuUniforms.dpr), 5);
       const flick = sin(this.uT.mul(21).add(aSeed.mul(97))).mul(0.12).add(0.88);
       const scan = exp(position.y.sub(this.uScan).mul(position.y.sub(this.uScan)).mul(-3)).mul(0.9);
-      const soft = smoothstep(0.5, 0.05, length(pointUV.sub(0.5)));
+      const soft = softDot(pointR()).mul(1.39);
       mat.colorNode = vec4(aCol.mul(soft).mul(flick).mul(scan.add(0.55)).mul(0.62), 1);
     }
     this.cloud.sprite.frustumCulled = false;

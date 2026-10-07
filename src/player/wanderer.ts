@@ -8,7 +8,7 @@
    - Sitting and reaching gestures are used at the stations. */
 import * as THREE from "three/webgpu";
 import { Rig, type Moment, type Signature } from "./gestures";
-import { softPoints, spriteCloud, T, type SpriteCloud } from "../gpu/tsl";
+import { softPoints, spriteCloud, T, type SpriteCloud, softDot, pointR } from "../gpu/tsl";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { floatAttributes, loadBytes } from "../core/assets";
@@ -122,10 +122,10 @@ class BodyMotes {
       tint[i] = Math.random();
     }
     {
-      const { clamp, float, length, max, pointUV, smoothstep, vec3, vec4 } = T;
+      const { clamp, float, max, vec3, vec4 } = T;
       const { position, aAlpha, aSize, aTint } = this.cloud.nodes;
       mat.sizeNode = clamp(aSize.mul(26).div(max(T.cameraViewMatrix.mul(vec4(position, 1)).z.negate(), 0.5)), float(1).div(this.uDpr), 8);
-      const a = smoothstep(0.5, 0, length(pointUV.sub(0.5))).mul(aAlpha).mul(U.uForm);
+      const a = softDot(pointR()).mul(1.22).mul(aAlpha).mul(U.uForm);
       const c = aTint.lessThan(0.65).select(vec3(1.0, 0.88, 0.66), aTint.lessThan(0.9).select(vec3(0.8, 0.93, 1.0), vec3(1.0, 0.7, 0.45)));
       mat.colorNode = vec4(c.mul(a).mul(0.55), 1);
     }

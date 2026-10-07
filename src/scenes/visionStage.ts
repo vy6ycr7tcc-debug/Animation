@@ -10,7 +10,7 @@
    Contained: small soft points, no spreading glow (docs/style). */
 import * as THREE from "three/webgpu";
 import { MOBILE } from "../core/quality";
-import { gpuUniforms, softPoints, spriteCloud, T, viewDepth, type SpriteCloud } from "../gpu/tsl";
+import { gpuUniforms, softPoints, spriteCloud, T, viewDepth, type SpriteCloud, softDot, pointR } from "../gpu/tsl";
 import { bodyForms, FORM_H, rng, seed, type BodyForms, type Rand, type Shape } from "../world/forms";
 
 export type RGB = [number, number, number];
@@ -86,7 +86,7 @@ export class VisionStage {
     for (let i = 0; i < this.n; i++) this.seedA[i] = R();
     (this.cloud.attrs.aSeed.array as Float32Array).set(this.seedA);
     {
-      const { clamp, float, length, max, pointUV, sin, smoothstep, exp, vec4 } = T;
+      const { clamp, float, max, sin, smoothstep, exp, vec4 } = T;
       const { position, aCol, aSeed } = this.cloud.nodes;
       const worldPos = T.modelWorldMatrix.mul(vec4(position, 1)).xyz;
       const depth = viewDepth(worldPos);
@@ -94,7 +94,7 @@ export class VisionStage {
       const flick = sin(this.uT.mul(aSeed.mul(9).add(12)).add(aSeed.mul(97))).mul(0.12).add(0.88);
       const dy = position.y.sub(this.uScan);
       const scan = exp(dy.mul(dy).mul(-2.5)).mul(0.7);
-      const soft = smoothstep(0.5, 0.05, length(pointUV.sub(0.5)));
+      const soft = softDot(pointR()).mul(1.39);
       // near the lens a point fades rather than swelling
       const nearK = smoothstep(1.2, 3.5, depth);
       mat.colorNode = vec4(aCol.mul(soft).mul(flick).mul(scan.add(0.62)).mul(this.uGlow).mul(nearK).mul(0.7), 1);

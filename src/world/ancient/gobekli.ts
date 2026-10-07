@@ -24,7 +24,7 @@
      go (the owner's rule for these areas). */
 import * as THREE from "three/webgpu";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { T, gpuUniforms, outOfTheWay, softPoints, spriteCloud, viewDepth, withFog, type N } from "../../gpu/tsl";
+import { T, gpuUniforms, outOfTheWay, softPoints, spriteCloud, viewDepth, withFog, type N, softDot, pointR } from "../../gpu/tsl";
 import { GOBEKLI, GOBEKLI_PLAN, GOBEKLI_SISTERS, gobekliAt, heightAt, standHooks, type Collider } from "../terrain";
 import { landStone } from "../stoneworks";
 import { herdOf, type Animal } from "../creatures";
@@ -609,7 +609,7 @@ export class Gobekli {
     mat.positionNode = p;
     const wp = T.modelWorldMatrix.mul(vec4(p, 1)).xyz;
     mat.sizeNode = clamp(gpuUniforms.px.mul(seed.select(float(0.03), float(0.018))).div(max(viewDepth(wp), 0.4)), float(1).div(gpuUniforms.dpr), 5);
-    const soft = smoothstep(0.5, 0.1, length(T.pointUV.sub(0.5)));
+    const soft = softDot(pointR()).mul(1.59);
     const tw = sin(uT.mul(1.3).add(K.x.mul(60))).mul(0.5).add(0.5);
     const k = seed.select(smoothstep(0, 0.1, life).mul(smoothstep(1, 0.8, life)).mul(0.35), tw.mul(0.3).add(0.15));
     mat.colorNode = vec4(vec3(1.0, 0.82, 0.55).mul(soft).mul(k).mul(outOfTheWay(wp)), 1);

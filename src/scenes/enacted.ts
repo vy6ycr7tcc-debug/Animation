@@ -10,7 +10,7 @@
    seated looks toward −z), x to the seated one's right. */
 import * as THREE from "three/webgpu";
 import type { Narration } from "../core/narration";
-import { softPoints, spriteCloud, T, type N, type SpriteCloud } from "../gpu/tsl";
+import { nearLens, pointR, softDot, softPoints, spriteCloud, type N, type SpriteCloud } from "../gpu/tsl";
 import { heightAt } from "../world/terrain";
 import { rng } from "../world/forms";
 import { LessonScene, type SceneModule } from "./lessonKit";
@@ -18,7 +18,6 @@ import type { SiteDef } from "./sites";
 import { seatStone } from "./visionLesson";
 import { keepAlpha, roomClock } from "./densities/roomKit";
 
-const { exp, length, smoothstep } = T;
 
 export interface Stage {
   group: THREE.Group;
@@ -73,8 +72,7 @@ export function cloud(n: number, size: number, layout: Record<string, number>): 
   const c = spriteCloud(n, { position: 3, ...layout }, m);
   const a: Record<string, Float32Array> = {};
   for (const [k, v] of Object.entries(c.attrs)) a[k] = v.array as Float32Array;
-  const r = length(T.pointUV.sub(0.5)).mul(2);
-  const round = exp(r.mul(r).mul(-4)).mul(smoothstep(1, 0.7, r));
+  const round = softDot(pointR()).mul(0.99).mul(nearLens());
   return { c, m, a, round, dirty: () => { for (const v of Object.values(c.attrs)) v.needsUpdate = true; } };
 }
 

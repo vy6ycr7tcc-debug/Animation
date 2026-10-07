@@ -12,7 +12,7 @@
    - the receiving (out-breath): its light, in its own colour, flows back into the hands.
    The stick, the button or a tap elsewhere lets go. Nothing is asked, nothing is scored. */
 import * as THREE from "three/webgpu";
-import { softPoints, spriteCloud, T, viewDepth, type SpriteCloud } from "../gpu/tsl";
+import { softPoints, spriteCloud, T, viewDepth, type SpriteCloud, softDot, pointR } from "../gpu/tsl";
 import { heightAt, WATER_Y } from "./terrain";
 import { creationUniforms, type Creation } from "./creation";
 import type { Controller } from "../player/controller";
@@ -75,11 +75,11 @@ export class Touch {
     this.alpha = this.cloud.attrs.aAlpha.array as Float32Array;
     this.tint = this.cloud.attrs.aTint.array as Float32Array;
     for (let i = 0; i < N * 4; i++) this.seed[i] = Math.random();
-    const { clamp, float, length, max, pointUV, smoothstep, vec4 } = T;
+    const { clamp, float, max, vec4 } = T;
     const { position, aAlpha, aTint } = this.cloud.nodes;
     // fine, soft motes: a subtle current, never a beam
     mat.sizeNode = clamp(float(20).div(max(viewDepth(position), 0.4)), float(1).div(this.uDpr), 6);
-    mat.colorNode = vec4(aTint.mul(smoothstep(0.5, 0, length(pointUV.sub(0.5)))).mul(aAlpha).mul(1.0), 1);
+    mat.colorNode = vec4(aTint.mul(softDot(pointR()).mul(1.22)).mul(aAlpha).mul(1.0), 1);
     this.points = this.cloud.sprite;
     this.points.visible = false;
   }

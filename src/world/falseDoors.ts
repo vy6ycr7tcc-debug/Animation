@@ -18,7 +18,7 @@
    the plaza before the north face (on the ground, not on the faces). */
 import * as THREE from "three/webgpu";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { T, outOfTheWay, softPoints, spriteCloud, viewDepth, gpuUniforms, type N } from "../gpu/tsl";
+import { T, outOfTheWay, softPoints, spriteCloud, viewDepth, gpuUniforms, type N, softDot, pointR } from "../gpu/tsl";
 import { scan } from "./temple";
 import { colliders, heightAt, PYRAMID } from "./terrain";
 
@@ -587,7 +587,7 @@ function breathMotes(uT: N, uB: N, uN: N, R: () => number, seed: number): THREE.
   mat.sizeNode = clamp(gpuUniforms.px.mul(0.025).div(max(viewDepth(wp), 0.4)), float(1).div(gpuUniforms.dpr), 5);
   const shown = smoothstep(0.75, 0.6, K.w.sub(uN.mul(0.35))); // near, more of them come
   const k = uB.mul(smoothstep(0, 0.15, life)).mul(smoothstep(1, 0.5, life)).mul(shown);
-  const soft = smoothstep(0.5, 0.1, length(T.pointUV.sub(0.5)));
+  const soft = softDot(pointR()).mul(1.59);
   mat.colorNode = vec4(vec3(1.0, 0.82, 0.55).mul(soft).mul(k).mul(0.6).mul(outOfTheWay(wp)), 1);
   void pow;
   void cameraPosition;
