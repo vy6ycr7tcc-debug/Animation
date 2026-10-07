@@ -383,13 +383,14 @@ export function runShot(ctx: ShotCtx): void {
     view = { eye: [ex, e[2], ez], look: [lx, l[2], lz] };
     const [px, pz] = gobekliAt(e[0] * 1.08, e[1] * 1.08 + 1.5);
     ctx.player.pos.set(px, heightAt(px, pz), pz);
-  } else if (/^pyramid-(foot|door|corner|calm)$/.test(id)) {
+  } else if (/^pyramid-(foot|door|near|corner|calm)$/.test(id)) {
     // the pyramid's foot: the apron, a false door, a drift in a corner, the calm place before the north face
     const P = PYRAMID;
     base = [P.x, P.y, P.z];
     const V4: Record<string, { eye: XYZ; look: XYZ }> = {
       foot: { eye: [-44, 3.2, -78], look: [-14, 7, -55] },
       door: { eye: [-23.5, 1.9, -63], look: [-26, 2.1, -56] },
+      near: { eye: [-24.6, 1.75, -59.6], look: [-26, 2.3, -55.4] },
       corner: { eye: [70, 3.2, 74], look: [52, 1.5, 52] },
       calm: { eye: [6, 1.8, -96], look: [0, 12, -55] },
     };
