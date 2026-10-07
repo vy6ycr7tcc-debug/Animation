@@ -315,6 +315,27 @@ class Builder {
     }
   }
 
+  /** A feathered headdress (the Maya priests of the drowned city): a band round the brow, and a
+      fan of long plumes rising up and back from the crown, each arcing over and tapering, from
+      `base` at the quill to `tip` at the end. */
+  plumes(n: number, feathers: number, len: number, base: RGB, mid: RGB, tip: RGB): void {
+    const R = this.R, h = this.head, top = h.y + this.hr * 0.6;
+    for (let i = 0; i < n * 0.15; i++) {
+      const th = R() * Math.PI * 2;
+      this.put(new V(h.x + Math.sin(th) * this.hr * 1.05, h.y + this.hr * (0.25 + R() * 0.2), h.z + Math.cos(th) * this.hr * 1.05), this.hue(base, 0.1), [["DEF-head", 1]]);
+    }
+    for (let i = 0; i < n * 0.85; i++) {
+      const f = Math.floor(R() * feathers), fan = (f / Math.max(1, feathers - 1) - 0.5) * 2.2; // side to side
+      const v = R(), w = (R() - 0.5) * 0.045 * (1 - v * 0.7);
+      const a = 0.35 + v * 1.1; // rising, then arcing back
+      const x = Math.sin(fan) * (0.04 + v * len * 0.55) + w * Math.cos(fan);
+      const y = top + Math.sin(a) * v * len * 0.85;
+      const z = h.z - 0.05 - Math.cos(fan) * 0.02 - (1 - Math.cos(a)) * v * len * 0.6;
+      const c: RGB = v < 0.45 ? base : v < 0.85 ? mid : tip;
+      this.put(new V(h.x + x, y, z), this.hue(c, 0.08), [["DEF-head", 1]]);
+    }
+  }
+
   /** The white crown of Upper Egypt: a tall bulb, a knob at its top. */
   hedjet(n: number): void {
     this.onHead(n, 0.36, (v) => this.hr * (1.0 - 0.72 * v) + Math.sin(v * Math.PI) * 0.015 + (v > 0.93 ? 0.02 : 0), () => WHITE, 0.5);
@@ -537,6 +558,16 @@ type Recipe = (b: Builder, N: number) => void;
 const under = (y: number) => (p: THREE.Vector3) => (p.y < y ? 0.3 : 1);
 
 const RECIPES: Record<string, Recipe> = {
+  // the drowned cities' keepers (world/ancient): never archetypes, only presences
+  // the Maya priests: a feathered headdress, a jade collar, a wrapped garment in deep green
+  MAYA_PRIEST: (b, N) => {
+    b.skinPoints(N * 0.36, b.hue([0.85, 0.72, 0.5], 0.3), under(0.35));
+    b.measureHead();
+    b.plumes(N * 0.2, 9, 0.62, [0.3, 0.85, 0.62], [0.2, 0.62, 0.42], [1.0, 0.78, 0.36]);
+    b.collar(N * 0.08, 0.2);
+    b.robe(N * 0.28, 0.4, -0.62, 0.15, 0.24, [0.22, 0.52, 0.4], [0.32, 0.7, 0.55], 10, [1.0, 0.76, 0.36]);
+    b.belt(N * 0.08, -0.3);
+  },
   // I, the Magician: nemes and uraeus, broad collar, the long linen robe and a gold apron
   I: (b, N) => {
     b.skinPoints(N * 0.38, b.hue(LINEN, 0.5), under(0.4));

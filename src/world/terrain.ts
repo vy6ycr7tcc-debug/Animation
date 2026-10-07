@@ -304,6 +304,13 @@ export const ADEPT_HALL = monumentSite(-1.9, 220, 560, 34);
 /** The monument of past choices (scenes/past/monument.ts): a round Atlantean temple on an island
     ringed by water, on a stepped platform, its door toward the shore. */
 export const PAST_HALL = monumentSite(0.9, 240, 620, 30);
+/** Level the ground round (x, z) to height `h`, flat within `inner` m and blending out by `outer`
+    (the drowned cities on the lake floors, world/ancient). Called while the world is being made,
+    before any ground is built. */
+export function levelGround(x: number, z: number, h: number, inner: number, outer: number): void {
+  PADS.push({ x, z, h, outer, inner });
+  coarse.clear();
+}
 /** Its platform's rise at distance `d` from its centre (walked up; scenes/past/monument.ts). */
 const pastRise = (d: number): number => (d < 12.4 ? 1.3 : d < 22 ? 0.9 : d < 23 ? 0.6 : d < 24 ? 0.3 : 0);
 /** The stepped platform's rise at distance `d` from a monument's centre (three steps of 0.45 m). */

@@ -3,7 +3,7 @@
    the `shot` query param is present — normal play is untouched. */
 import { SITES } from "../scenes/sites";
 import { DUAT_ORIGIN } from "../world/pyramid";
-import { RUIN_SITES } from "../world/depths";
+import { AREA_SITES, RUIN_SITES, type AreaId } from "../world/depths";
 import { ADEPT_HALL, DENSITY_HALL, LANDMARK_SITES, PAST_HALL, PEAKS, PYRAMID, SPAWN, heightAt } from "../world/terrain";
 import { JOURNEY_ORIGIN } from "../scenes/journey";
 
@@ -107,6 +107,17 @@ export interface ShotCtx {
   /** Build density room `n` alone (the open world hidden); `density-<n>` still frames. */
   room?(n: number): Promise<{ onSit(): void; update(dt: number): void }>;
 }
+
+/** The drowned cities' still frames (world/ancient), in each city's own frame. */
+const ANCIENT_VIEWS: Record<string, Record<string, { eye: XYZ; look: XYZ }>> = {
+  mayan: {
+    a: { eye: [5, 5, 26], look: [0, 7, -24] }, // the approach: plaza, altars, the pyramid's stair
+    b: { eye: [17, 2.2, 6.5], look: [24, 1.6, -1.4] }, // the stelae, from the way
+    c: { eye: [-36, 3.2, 15], look: [-36, 2, -12] }, // down the ball court's alley
+    d: { eye: [10, 19, 6], look: [0, 12, -24] }, // the temple on top
+    e: { eye: [-14, 3, 19], look: [-20, 0.5, 12] }, // the reading wall
+  },
+};
 
 /** The density rooms' still frames: where the eye stands and looks (room frame, the seat at the
     origin facing −z). */
@@ -285,6 +296,17 @@ export function runShot(ctx: ShotCtx): void {
     base = [px, heightAt(px, pz), pz];
     view = { eye: [0, 1.7, 0], look: [40, 0.5, -60] };
     ctx.player.pos.set(px, heightAt(px, pz), pz);
+  } else if (/^ancient-[a-z]+-[a-z]$/.test(id)) {
+    // a drowned city (world/ancient), from one of its views (local frame: +z toward the shore)
+    const [, name, k] = id.split("-");
+    const r = AREA_SITES[name as AreaId];
+    const v = ANCIENT_VIEWS[name]?.[k];
+    if (!r || !v) return;
+    const f = Math.atan2(SPAWN.x - r.x, SPAWN.z - r.z), cs = Math.cos(f), sn = Math.sin(f);
+    const L = (q: XYZ): XYZ => [q[0] * cs + q[2] * sn, q[1], -q[0] * sn + q[2] * cs];
+    base = [r.x, r.y, r.z];
+    view = { eye: L(v.eye), look: L(v.look) };
+    ctx.player.pos.set(r.x + view.eye[0], r.y + v.eye[1] - 1.2, r.z + view.eye[2]);
   } else if (/^ruin-\d$/.test(id)) {
     // under the water, standing on the floor before a ruin
     const r = RUIN_SITES[Number(id.slice(5))] ?? RUIN_SITES[0];
@@ -354,6 +376,9 @@ export function runShot(ctx: ShotCtx): void {
       c.narration.debugTime = t;
       return finish(c, id, t, base, null);
     }
+    // &warm=S: the world lived for S seconds first, the still's own view kept (figures gather)
+    const warm = Number(new URLSearchParams(location.search).get("warm") ?? NaN);
+    if (warm > 0) for (let i = 0, n = Math.round(warm * 30); i < n; i++) c.update(1 / 30);
     finish(c, id, t, base, view);
   };
   if (ctx.settle) {
