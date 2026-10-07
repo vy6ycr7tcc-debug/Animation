@@ -434,6 +434,10 @@ export interface SwimSpec {
   /** Spread of the school about its leader (m). */
   spread?: number;
   phase?: number;
+  /** In shallow water: the highest it may swim (default 1.5 m under the surface), and how far it
+      rises and falls along its loop (default 1.2 m). */
+  top?: number;
+  bob?: number;
 }
 
 /** Schools and mantas on loops about a city: they flow round it, slow, never startled. */
@@ -502,7 +506,7 @@ export class Swimmers {
       const at = (u: number, out: THREE.Vector3) => {
         const x = s.cx + Math.cos(u) * s.rx, z = s.cz + Math.sin(u) * s.rz;
         const floor = heightAt(x, z);
-        return out.set(x, Math.min(WATER_Y - 1.5, floor + s.y + Math.sin(u * 2.3) * 1.2), z);
+        return out.set(x, Math.min(s.top ?? WATER_Y - 1.5, floor + s.y + Math.sin(u * 2.3) * (s.bob ?? 1.2)), z);
       };
       at(a, this.p).add(f.off);
       at(a + 0.02 * Math.sign(s.speed), this.q).add(f.off);

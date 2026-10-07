@@ -69,7 +69,7 @@ function tagged(pos: number[], nor: number[], part: number[], us: number[], xs: 
 }
 
 /** One palm, about 6 m tall, leaning by `lean` metres at the crown. */
-function palmGeometry(lean: number): THREE.BufferGeometry {
+export function palmGeometry(lean: number): THREE.BufferGeometry {
   const H = 6.2;
   const trunk = new THREE.CatmullRomCurve3([new V(0, 0, 0), new V(lean * 0.2, H * 0.35, 0), new V(lean * 0.7, H * 0.72, 0), new V(lean, H, 0)]);
   const parts = [tube(trunk, 18, 7, (u) => 0.19 * (1 - u * 0.4) + 0.12 * Math.max(0, 1 - u * 5), (u) => u * u * 0.3)];
@@ -128,7 +128,7 @@ function palmGeometry(lean: number): THREE.BufferGeometry {
   return mergeGeometries(parts)!;
 }
 
-function palmMaterial(uT: ReturnType<typeof uniform>): THREE.MeshBasicNodeMaterial {
+export function palmMaterial(uT: ReturnType<typeof uniform>): THREE.MeshBasicNodeMaterial {
   const m = new THREE.MeshBasicNodeMaterial({ side: THREE.DoubleSide, fog: false });
   const aSway = attribute("aSway", "float");
   // the wind: slow, and strongest at the fronds' tips (positionLocal here is the placed palm)

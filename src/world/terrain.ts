@@ -407,6 +407,49 @@ export const GOBEKLI_SISTERS: { x: number; z: number; y: number }[] = (() => {
   KEEP_CLEAR.push({ x: G.x, z: G.z, r: 72 });
   for (const s of GOBEKLI_SISTERS) KEEP_CLEAR.push({ x: s.x, z: s.z, r: 20 });
 }
+/** Nan Madol (world/ancient/nanMadol.ts): a shore toward the dawn (south-east, 0.9–1.9 km out)
+    where dry land meets a great lake falling away to real depths, the open sea beyond the
+    seawall. `x, z`: the lagoon's centre, ~40 m out from the shore; `face`: the heading out to
+    the open water (the site's +z). */
+export const NAN_MADOL = (() => {
+  let best = { x: 1318, z: 1181, ox: 0.65, oz: 0.76 }, bestScore = -Infinity;
+  for (let r = 900; r <= 1900; r += 15)
+    for (let k = -20; k <= 20; k++) {
+      const a = Math.PI / 4 + k * 0.025, x = SPAWN.x + Math.sin(a) * r, z = SPAWN.z + Math.cos(a) * r;
+      const h = rawHeight(x, z);
+      if (h < -0.6 || h > 1.2) continue;
+      const gx = rawHeight(x + 4, z) - rawHeight(x - 4, z), gz = rawHeight(x, z + 4) - rawHeight(x, z - 4), g = Math.hypot(gx, gz);
+      if (g < 1e-3) continue;
+      const ox = -gx / g, oz = -gz / g; // downhill: out to the water
+      let lake = -Infinity;
+      for (const d of [110, 170, 250]) lake = Math.max(lake, rawHeight(x + ox * d, z + oz * d));
+      const land = Math.min(rawHeight(x - ox * 50, z - oz * 50), rawHeight(x - ox * 90, z - oz * 90));
+      if (lake > -3 || land < 1.2) continue;
+      if (LANDMARK_SITES.some(([lx, lz]) => Math.hypot(x - lx, z - lz) < 200)) continue;
+      if (MONUMENT_SITES.some((m) => Math.hypot(x - m.x, z - m.z) < m.r + 200)) continue;
+      if (Math.hypot(x - PYRAMID.x, z - PYRAMID.z) < 350 || Math.hypot(x - GOBEKLI.x, z - GOBEKLI.z) < 400) continue;
+      if (PEAKS.some((p) => Math.hypot(x - p.x, z - p.z) < p.r + 100)) continue;
+      let side = 0;
+      for (const s of [-50, 50]) side = Math.max(side, Math.abs(rawHeight(x - oz * s, z + ox * s)));
+      // a straight shore, deep water beyond, toward the dawn
+      const score = -side - Math.abs(k) * 0.04 + Math.min(4, -lake) * 0.1;
+      if (score > bestScore) (bestScore = score), (best = { x, z, ox, oz });
+    }
+  return { x: best.x + best.ox * 40, z: best.z + best.oz * 40, face: Math.atan2(best.ox, best.oz) };
+})();
+/** A point of Nan Madol's plan (+z out to the open water) in the world. */
+export function nanMadolAt(lx: number, lz: number): [number, number] {
+  const c = Math.cos(NAN_MADOL.face), s = Math.sin(NAN_MADOL.face);
+  return [NAN_MADOL.x + lx * c + lz * s, NAN_MADOL.z - lx * s + lz * c];
+}
+/** Its lagoon floor: shallow enough to wade the canals (not swim: the controller swims below
+    1 m), the land behind it a beach, the reef outside the seawall falling away. */
+export const NAN_FLOOR = -0.72;
+{
+  const N = NAN_MADOL;
+  PADS.push({ x: N.x, z: N.z, h: NAN_FLOOR, inner: 56, outer: 84 });
+  KEEP_CLEAR.push({ x: N.x, z: N.z, r: 90 });
+}
 /** Its platform's rise at distance `d` from its centre (walked up; scenes/past/monument.ts). */
 const pastRise = (d: number): number => (d < 12.4 ? 1.3 : d < 22 ? 0.9 : d < 23 ? 0.6 : d < 24 ? 0.3 : 0);
 /** The stepped platform's rise at distance `d` from a monument's centre (three steps of 0.45 m). */

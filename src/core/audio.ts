@@ -650,6 +650,44 @@ export class AudioEngine {
     this.sigh.gain.setTargetAtTime(k * 0.05, c.currentTime, 0.4);
   }
 
+  private surfBus: GainNode | null = null;
+  /** Surf breaking softly on a seawall far off (0–1): low noise in slow swells, each set rising
+      and falling over some seconds, kept above the phone's lost low end. */
+  surf(k: number): void {
+    if (!this.ctx) return;
+    const c = this.ctx;
+    if (!this.surfBus) {
+      if (k < 0.01) return;
+      const s = c.createBufferSource();
+      s.buffer = this.noise;
+      s.loop = true;
+      const hp = c.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 220;
+      const lp = c.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 900;
+      // the swells: a slow wave on the level and a slower one on the brightness
+      const swell = c.createGain();
+      swell.gain.value = 0.5;
+      const lfo = c.createOscillator(), lfoG = c.createGain();
+      lfo.frequency.value = 0.11;
+      lfoG.gain.value = 0.45;
+      lfo.connect(lfoG).connect(swell.gain);
+      const lfo2 = c.createOscillator(), lfo2G = c.createGain();
+      lfo2.frequency.value = 0.047;
+      lfo2G.gain.value = 380;
+      lfo2.connect(lfo2G).connect(lp.frequency);
+      lfo.start();
+      lfo2.start();
+      this.surfBus = c.createGain();
+      this.surfBus.gain.value = 0;
+      s.connect(hp).connect(lp).connect(swell).connect(this.surfBus).connect(this.worldDry);
+      s.start();
+    }
+    this.surfBus.gain.setTargetAtTime(k * 0.07, c.currentTime, 0.8);
+  }
+
   /** A footstep on stone: the soft slap of a bare sole and the hall answering. */
   stepStone(): void {
     if (!this.ctx) return;

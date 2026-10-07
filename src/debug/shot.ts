@@ -4,7 +4,7 @@
 import { SITES } from "../scenes/sites";
 import { DUAT_ORIGIN } from "../world/pyramid";
 import { AREA_SITES, RUIN_SITES, type AreaId } from "../world/depths";
-import { ADEPT_HALL, DENSITY_HALL, GOBEKLI, GOBEKLI_PLAN, gobekliAt, LANDMARK_SITES, PAST_HALL, PEAKS, PYRAMID, SPAWN, heightAt } from "../world/terrain";
+import { ADEPT_HALL, DENSITY_HALL, GOBEKLI, GOBEKLI_PLAN, gobekliAt, nanMadolAt, LANDMARK_SITES, PAST_HALL, PEAKS, PYRAMID, SPAWN, heightAt } from "../world/terrain";
 import { JOURNEY_ORIGIN } from "../scenes/journey";
 
 export interface Shot {
@@ -365,6 +365,22 @@ export function runShot(ctx: ShotCtx): void {
     const p = ctx.player.pos, fx = -Math.sin(ctx.player.heading), fz = -Math.cos(ctx.player.heading);
     base = [p.x, p.y, p.z];
     view = { eye: [-fx * 5, 3, -fz * 5], look: [fx * 6, 2.2, fz * 6] };
+  } else if (/^nanmadol-[a-f]$/.test(id)) {
+    // Nan Madol, in the lagoon's own frame (+z out to the open water): [eye, look] as plan x, z, height
+    const V6: Record<string, [[number, number, number], [number, number, number]]> = {
+      a: [[0, -50, 2.2], [0, 18, 2.5]], // from the shore, the islets and the seawall beyond
+      b: [[-13, -4, 0.9], [-13, 34, 1.6]], // wading the western canal
+      c: [[0, 3, 1.9], [0, 12, 3.2]], // the mortuary's entrance
+      d: [[-4, 13.5, 2.3], [2, 26, 2.2]], // its inner court, the keeper
+      e: [[-14, 39, 3.6], [4, 52, 3.4]], // the seawall, the surf, the watcher
+      f: [[46, -62, 46], [0, 16, 0]], // from the air
+    };
+    const [e, l] = V6[id.slice(9)];
+    const [ex, ez] = nanMadolAt(e[0], e[1]), [lx, lz] = nanMadolAt(l[0], l[1]);
+    base = [0, 0, 0];
+    view = { eye: [ex, e[2], ez], look: [lx, l[2], lz] };
+    const [px, pz] = nanMadolAt(e[0], e[1] - 2.5);
+    ctx.player.pos.set(px, heightAt(px, pz), pz);
   } else if (/^gobekli-[a-g]$/.test(id)) {
     // Göbekli Tepe, in the site's own frame (+z toward the shore): [eye, look] as plan x, z, height
     const T0 = GOBEKLI.y, F = GOBEKLI.y - GOBEKLI_PLAN.depth;

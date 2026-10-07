@@ -792,6 +792,28 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - Two builders (`GOBEKLI_BUILDER`, the temple figures' particle idiom; undyed wool, ochre, stone grey): one standing still between D's central pillars facing in with the stones, one walking C's rim pausing at its pillars. None on the mounds or at the quarry. No dialogue, no collision.
   - The telling begins once, the first time you come onto the hilltop, and plays on wherever you go.
   - Stills: `?shot=gobekli-a` … `gobekli-g` (approach, into D, D's central pair, the vulture stone, C and its rim walk, the quarry, from the air).
+- 2026-10-07: Nan Madol (the owner's brief; the telling `NAN-MADOL`, Aria, `audio/ancient-civs/nan-madol.mp3`, 281.32 s decoded, cues embedded; used as delivered; never merged here). The coastal one: dawn, open sky, water to wade.
+  - The site (`NAN_MADOL` in `terrain.ts`): the world's own straight shore toward the dawn (south-east, 0.9–1.9 km out), dry land behind and a great lake falling to ~14 m beyond (the open sea), clear of every home and monument, the pyramid, Göbekli Tepe and the peaks. The lagoon's floor is levelled to 0.72 m below the water (wading: the controller swims only below 1 m), a beach behind it, the reef outside the seawall falling away. Kept clear. On the map as "Nan Madol".
+  - The basalt (`world/ancient/nanMadol.ts`): every wall is long hexagonal basalt columns laid log-cabin fashion, a course of stretchers along the wall then a course of headers across it with their ends standing out, all in one instanced draw over a dark core.
+    - The basalt is black and wet, darker and glistening toward the waterline, with a weed line at it and pale salt on dry tops.
+    - The islets are platforms of it with coral-rubble tops, two low steps up from the water at each, and walls on some.
+  - The islets:
+    - the mortuary (after Nandauwas): the tallest walls (6.2 m), their corners swept up, a narrow gate, an inner court within a second wall, and a tomb of logs roofed with logs, with offering stones before the gate;
+    - a walled islet;
+    - a courtyard with a tidal pool holding the sky;
+    - house platforms;
+    - the canoe landing with mooring stones;
+    - two small islets of palms.
+    - All are walked on; their walls are solid.
+  - The seawall along the open side, 3.2 m, the surf breaking white against its outer face in sets running along it, and heard: a soft surf bed under everything within ~300 m (`audio.surf`, a band of noise in slow swells, above 200 Hz).
+  - Life:
+    - palms leaning over the canals (the world's own, `wilds.ts` `palmGeometry`/`palmMaterial`, now exported);
+    - mangroves gripping the walls' feet, on prop roots arching into the water, with round crowns;
+    - fish schools in the canals (`Swimmers`, which now take a shallow `top` and `bob`). No turtle: there is no model (real models or nothing).
+  - The tide: faint streaks on the canals drift one way and then the other, turning every ~3 minutes. Mist lies on the water and thins over the first four minutes of a visit.
+  - Two figures (`NAN_MADOL_WATCHER`, the temple figures' particle idiom; bark cloth in sea and basalt tones, a shell collar): the watcher on the seawall facing the open water, and the keeper in the mortuary's inner court. No dialogue, no collision.
+  - The telling begins once, the first time you come into the lagoon, and plays on wherever you go.
+  - Stills: `?shot=nanmadol-a` … `nanmadol-f` (from the shore, the western canal, the mortuary's gate, its inner court, the seawall, from the air).
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.
