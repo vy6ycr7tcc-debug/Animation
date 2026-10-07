@@ -38,6 +38,9 @@ export interface StageOpts {
   seedNum: number;
   /** A point's size in metres at 1 m (default 0.042): a stage drawn larger wants larger points. */
   pointSize?: number;
+  /** A calmer change between forms (the Duat's hours): points set off over a longer spread, and
+      the vortex between forms turns and widens far less. */
+  calm?: boolean;
 }
 
 // the game's canon (docs/style/STYLE_GUIDE.md §1)
@@ -154,10 +157,13 @@ export class VisionStage {
     const cA = Math.cos(angA), sA = Math.sin(angA), cB = Math.cos(angB), sB = Math.sin(angB);
     const zA = from?.axis === "z", zB = into?.axis === "z", cy = FORM_H / 2;
     const S = this.seedA;
+    // how the points set off (spread of delays) and how far the vortex carries them
+    const calm = !!this.opts.calm;
+    const lag = calm ? 0.55 : 0.35, turn = calm ? 0.35 : 1.2, turnS = calm ? 0.3 : 1.1, wide = calm ? 0.06 : 0.2, wideS = calm ? 0.08 : 0.3, lift = calm ? 0.3 : 0.9;
     for (let i = 0; i < n; i++) {
       const s = S[i], j = i * 3;
       // each point sets off a little later than the last, and finds its own way
-      const q = Math.min(1, Math.max(0, (p - s * 0.35) / 0.65));
+      const q = Math.min(1, Math.max(0, (p - s * lag) / (1 - lag)));
       const e = ease(q);
       let ax = A[j], ay = A[j + 1], az = A[j + 2];
       if (angA) {
@@ -173,12 +179,12 @@ export class VisionStage {
       // between forms, a vortex: turned about the axis and drawn outward, then gathered in
       const sw = Math.sin(e * Math.PI);
       if (sw > 0.001) {
-        const ang = sw * (1.2 + s * 1.1), c = Math.cos(ang), sn = Math.sin(ang);
-        const out = 1 + sw * (0.2 + s * 0.3);
+        const ang = sw * (turn + s * turnS), c = Math.cos(ang), sn = Math.sin(ang);
+        const out = 1 + sw * (wide + s * wideS);
         const nx = (x * c - z * sn) * out;
         z = (x * sn + z * c) * out;
         x = nx;
-        y += sw * (s - 0.35) * 0.9;
+        y += sw * (s - 0.35) * lift;
       }
       // alive while held: a breath through the form and a quiver in each point
       const br = reduced ? 1 : 1 + Math.sin(L * 0.8 + y * 0.6) * 0.012;
