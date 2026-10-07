@@ -31,7 +31,7 @@ const { abs, cos, float, floor, fract, mix, sin, smoothstep, uniform, uv, vec2, 
 const V = THREE.Vector3;
 
 export const PYR_ORIGIN = new THREE.Vector3(50000, 14, 0); // high enough that its lowest chamber (−9) stays above the water line
-export const DUAT_ORIGIN = PYR_ORIGIN.clone().add(new THREE.Vector3(-140, -30, 60)); // world origin of the Duat: pyramid-local (−140, −30, 60), clear of the rooms (x ∈ [−34, 47.5])
+export const DUAT_ORIGIN = PYR_ORIGIN.clone().add(new THREE.Vector3(-140, -4, 60)); // world origin of the Duat: pyramid-local (−140, −4, 60), clear of the rooms (x ∈ [−34, 47.5]) and above the world's water line (y 10; its lowest dune ~2.4 m below): at −30 it stood at y −16, so the controller took its sand for a lake and the wanderer swam through it
 
 /* ---------------------------------------------------------------- stone */
 function triplanar(set: ScanName, tile: number, origin?: THREE.Vector3): { col: N; arm: N; w: N } {
