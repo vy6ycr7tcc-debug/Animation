@@ -746,6 +746,20 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - The telling follows the Maya city's rule: once, on first coming into the city's water (within 64 m), playing on wherever you go.
   - Solid: the acropolis, its standing columns, the throne, the pediment, the avenue's standing columns, the quays and the crystals.
   - Stills: `?shot=ancient-atlantis-<a|b|c|d|e>` (the approach, the acropolis, the colonnade, the harbour, a crystal).
+- 2026-10-07: Mu, the drowned land of Lemuria (the owner's ancient civilizations brief, SPEC 3; the telling `LEMURIA`, `audio/ancient-civs/lemuria.mp3`, Aria, 246.84 s decoded, 41 cues, used as delivered). Peace: the oldest and gentlest of the three, the relief after the warning.
+  - Where: the ruin site nearest the shore where you wake (~18 m of water, the lightest of the three), in place of its ruin; its floor levelled within 46 m. On the map (Deep) as "Mu, the drowned land".
+  - The land (`world/ancient/lemuria.ts`): nothing cut square, the stone grown smooth (the scanned sandstone, `seaStone`, with soft green growth and silt), the sea having adopted it:
+    - the circle of the elders: nine tall smooth stones like river pebbles stood on end, about a shallow hollow of sand and shells whose sand turns slowly in many fine arms (the listening; `spiralSand`);
+    - rounded platforms of stone you can stand on, and broad shallow garden terraces you can climb (`standHooks`), with sea-gardens on them: tapering blades in muted greens and golds swaying slowly, each on its own time;
+    - coral fused with the stone: branching growths in soft ochre, rose and sand rising out of stones, platforms and mounds;
+    - three star stones, each pierced near its top by a round sight-hole and notched at its crown, tipped back so the holes look up toward the light;
+    - five dwelling mounds, low half-buried domes, each with a dark oval doorway set into its skin (no inside).
+  - Light: the warmest of the three (the water golden-green, warm soft shafts breathing).
+  - Life: dense small fish in three schools. No turtles or jellyfish: there are no models for them (real models or nothing).
+  - Elders (recipe `LEMURIAN_ELDER`: shorter and rounder, a broad simple robe in earth and sea tones, a soft hood), the most still of all: one sits at the circle, one stands there and raises a hand in blessing a while on a long loop, one tends the garden terraces (kneeling, rising a while, kneeling). Heads turn to you when near; they never approach and are never solid.
+  - The telling follows the same rule: once, on first coming into Mu's water (within 48 m), playing on wherever you go.
+  - Solid: the circle's stones, the star stones and the mounds.
+  - Stills: `?shot=ancient-lemuria-<a|b|c|d|e>` (the circle, the terraces, the star stones, a mound, the hollow).
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.

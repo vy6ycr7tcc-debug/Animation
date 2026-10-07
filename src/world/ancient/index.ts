@@ -14,6 +14,7 @@ import type { UnderwaterEffect } from "../underwater";
 import type { RGB } from "./kit";
 import { buildMayan } from "./mayan";
 import { buildAtlantis } from "./atlantis";
+import { buildLemuria } from "./lemuria";
 import catalogue from "../../../content/narration.json";
 
 export interface Area {
@@ -33,7 +34,7 @@ export interface Area {
 }
 
 const cuesOf = (id: string) => (catalogue.tracks as { id: string; cues: { t: number }[] }[]).find((t) => t.id === id)?.cues ?? [];
-const BUILD: Record<AreaId, (s: RuinSite) => Area> = { mayan: buildMayan, atlantis: (s) => buildAtlantis(s, cuesOf("ATLANTIS")) };
+const BUILD: Record<AreaId, (s: RuinSite) => Area> = { mayan: buildMayan, atlantis: (s) => buildAtlantis(s, cuesOf("ATLANTIS")), lemuria: buildLemuria };
 const SEEN = 260;
 const OPEN = { tint: [1, 1, 1] as RGB, shaft: 1, shaftCol: [0.3, 0.55, 0.62] as RGB };
 
