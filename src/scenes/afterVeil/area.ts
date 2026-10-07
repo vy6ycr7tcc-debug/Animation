@@ -715,6 +715,16 @@ export function createAfterVeil(scene: THREE.Scene, narration: Narration, whispe
     onStand: () => undefined,
     loaded,
     solids: () => solids,
+    /** The guided walk: on to just past the angel's next place; held while it speaks; then out. */
+    lead: (): { x: number; z: number } | null => {
+      if (speaking) return null;
+      if (beat < BEATS.length) {
+        // a few metres ahead at a time, so you walk beside the guide rather than run past it
+        const [x, z] = along(Math.min(BEATS[beat].s + 1, progress + 6));
+        return { x, z };
+      }
+      return { x: VEIL_EXIT.x, z: VEIL_EXIT.z };
+    },
     /** The place the angel is speaking of (room frame): what the view holds while it speaks. */
     centre: (): THREE.Vector3 => {
       const n = BEATS[Math.min(beat, BEATS.length - 1)].n;
