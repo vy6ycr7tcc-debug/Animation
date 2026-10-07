@@ -365,6 +365,18 @@ export function runShot(ctx: ShotCtx): void {
     const p = ctx.player.pos, fx = -Math.sin(ctx.player.heading), fz = -Math.cos(ctx.player.heading);
     base = [p.x, p.y, p.z];
     view = { eye: [-fx * 5, 3, -fz * 5], look: [fx * 6, 2.2, fz * 6] };
+  } else if (/^pyramid-(foot|door|corner|calm)$/.test(id)) {
+    // the pyramid's foot: the apron, a false door, a drift in a corner, the calm place before the north face
+    const P = PYRAMID;
+    base = [P.x, P.y, P.z];
+    const V4: Record<string, { eye: XYZ; look: XYZ }> = {
+      foot: { eye: [-44, 3.2, -78], look: [-14, 7, -55] },
+      door: { eye: [-23.5, 1.9, -63], look: [-26, 2.1, -56] },
+      corner: { eye: [70, 3.2, 74], look: [52, 1.5, 52] },
+      calm: { eye: [6, 1.8, -96], look: [0, 12, -55] },
+    };
+    view = V4[id.slice(8)];
+    ctx.player.pos.set(P.x + view.eye[0], P.y, P.z + view.eye[2] + 2);
   } else if (id === "pyramid" || id === "duat") {
     // camera only: main.ts pre-positions the player before runShot is called
     const o = id === "pyramid" ? PYRAMID : DUAT_ORIGIN;

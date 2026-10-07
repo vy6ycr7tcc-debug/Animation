@@ -22,9 +22,11 @@
 import * as THREE from "three/webgpu";
 import { T, worldPoints, type N } from "../gpu/tsl";
 import { scan, type ScanName } from "./temple";
-import { landStone } from "./stoneworks";
+import { landStone, stoneBlock, contactShade } from "./stoneworks";
+import { surface } from "./textures";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { release } from "../core/residency";
-import { colliders, PYRAMID, type Collider } from "./terrain";
+import { colliders, PYRAMID, standHooks, type Collider } from "./terrain";
 import { Duat, DUAT_PATH, duatHeight } from "./duat";
 
 const { abs, cos, float, floor, fract, mix, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
@@ -43,10 +45,16 @@ function triplanar(set: ScanName, tile: number, origin?: THREE.Vector3): { col: 
     T.texture(t, pw.zy.div(tile)).mul(w.x).add(T.texture(t, pw.xz.div(tile)).mul(w.y)).add(T.texture(t, pw.xy.div(tile)).mul(w.z));
   return { col: tri(S.diff).rgb, arm: tri(S.arm), w };
 }
-/** Pale limestone, its block courses breathing a slow living light ("the stones are alive"). */
-function limestone(uT: N, tint: [number, number, number], alive = 1, tile = 2.4): THREE.MeshStandardNodeMaterial {
+/** Pale limestone, its block courses breathing a slow living light ("the stones are alive").
+    With `at` (the pyramid's foot, world) it weathers as stone that has stood in the wind: grime
+    and drifted sand toward the foot, streaks run down the faces, broad patches where the casing
+    has worn to its rougher, darker core (more at the foot and the corners), and every block set
+    at its own slight tilt, so the faces catch the light block by block. */
+function limestone(uT: N, tint: [number, number, number], alive = 1, tile = 2.4, at?: { x: number; y: number; z: number; half: number }): THREE.MeshStandardNodeMaterial {
   const m = new THREE.MeshStandardNodeMaterial({ metalness: 0, roughness: 0.8 });
-  const { col, arm, w } = triplanar("sandstone_blocks_05", tile);
+  // only the scan's grain: the block scan carries bricks of its own, which fought the courses
+  const { col, arm, w } = triplanar("sandstone_cracks", tile);
+  tint = [tint[0] * 0.835, tint[1] * 0.965, tint[2] * 1.141];
   const pw = T.positionWorld;
   // courses: level joints every 1.3 m, upright joints staggered every 1.8 m, drawn as fine dark
   // hairlines (never glowing: a grid of light read as a wireframe, "Minecraft"), and each block
@@ -58,10 +66,34 @@ function limestone(uT: N, tint: [number, number, number], alive = 1, tile = 2.4)
   const jV = smoothstep(0.02, 0.0, fract(along.div(1.8)).sub(0.5).abs().sub(0.48).abs()).mul(float(1).sub(w.y));
   const joint = jH.max(jV);
   const block = floor(along.div(1.8)).add(row.mul(17.3));
-  const tone = fract(sin(block.mul(12.9898)).mul(43758.5453)).mul(0.18).add(0.9);
-  const c = col.mul(vec3(...tint)).mul(T.mix(float(0.55), float(1), arm.r)).mul(tone).mul(float(1).sub(joint.mul(0.3)));
+  const hash = (k: N) => fract(sin(k.mul(12.9898)).mul(43758.5453));
+  const tone = hash(block).mul(0.18).add(0.9);
+  let c: N = col.mul(vec3(...tint)).mul(T.mix(float(0.55), float(1), arm.r)).mul(tone).mul(float(1).sub(joint.mul(0.3)));
+  let rough: N = T.clamp(arm.g, 0.45, 1);
+  if (at) {
+    const hy = pw.y.sub(at.y);
+    const broad = T.mx_noise_float(vec3(along.mul(0.07), pw.y.mul(0.09), 0.3));
+    // toward the corners (the arrises take the wind)
+    const m0 = T.max(abs(pw.x.sub(at.x)), abs(pw.z.sub(at.z)));
+    const m1 = T.min(abs(pw.x.sub(at.x)), abs(pw.z.sub(at.z)));
+    const corner = smoothstep(at.half * 0.55, at.half * 0.95, m1.div(T.max(m0, float(1))).mul(at.half));
+    // casing worn to its core: rougher, darker, browner stone in broad patches
+    const wear = smoothstep(0.05, 0.38, broad.add(smoothstep(22, 0, hy).mul(0.22)).add(corner.mul(0.18)));
+    c = mix(c, c.mul(vec3(0.68, 0.6, 0.52)), wear.mul(0.75));
+    rough = mix(rough, float(1), wear);
+    // streaks running down the faces
+    const streak = T.mx_noise_float(vec3(along.mul(1.3), pw.y.mul(0.05), 1.7)).mul(0.5).add(0.5);
+    c = c.mul(float(1).sub(smoothstep(0.5, 0.85, streak).mul(0.24)));
+    // grime and drifted sand at the foot
+    const foot = smoothstep(6, 0, hy.add(broad.mul(2)));
+    c = mix(c, vec3(0.42, 0.33, 0.24), foot.mul(0.45));
+    // each block its own slight tilt, and the joints a little recessed (the face turns into them)
+    const tilt = vec3(hash(block.add(3.1)).sub(0.5), hash(block.add(7.7)).sub(0.5), hash(block.add(5.3)).sub(0.5)).mul(0.14);
+    const bend = vec3(0, cy.sub(0.5).sign().mul(jH), 0).mul(0.35);
+    m.normalNode = T.normalize(T.normalView.add(T.cameraViewMatrix.mul(vec4(tilt.add(bend).mul(float(1).sub(wear.mul(0.4))), 0)).xyz));
+  }
   m.colorNode = vec4(c, 1);
-  m.roughnessNode = T.clamp(arm.g, 0.45, 1);
+  m.roughnessNode = rough;
   // "the stones are alive": a slow swell of warm light rising through the stone, not lines
   const wave = sin(pw.y.mul(0.35).sub(uT.mul(0.9))).mul(0.5).add(0.5);
   const beat = T.pow(sin(uT.mul(1.1)).mul(0.5).add(0.5), 6);
@@ -356,6 +388,114 @@ export class Pyramid {
     this.inside.visible = false;
   }
 
+  /** What lies round its foot, as at a pyramid that has stood a long time: a paved apron of
+      flagstones, its outer edge broken and some slabs lifted or lost; sand drifted against the
+      faces in the corners and between the false doors (you walk over both: `standHooks`); and a
+      soft contact shadow where the stone meets the ground. */
+  private buildGround(): void {
+    const { x, y, z, half: H } = PYRAMID;
+    const A = 7, TOP = 0.12; // the apron's width beyond the foot, and its height
+    // dry desert paving: no lichen, and no damp at the foot (its own foot is the ground)
+    const pave = landStone("sandstone_blocks_05", y - 3, 2.4, [1.55, 1.47, 1.3], { flag: 1.5, interior: true });
+    const strips: THREE.BufferGeometry[] = [];
+    const strip = (w: number, d: number, cx: number, cz: number) => {
+      const g = new THREE.BoxGeometry(w, 0.5, d);
+      g.translate(cx, TOP - 0.25, cz);
+      strips.push(g);
+    };
+    strip(2 * (H + A), A + 1, 0, -(H + A / 2 - 0.5));
+    strip(2 * (H + A), A + 1, 0, H + A / 2 - 0.5);
+    strip(A + 1, 2 * H, -(H + A / 2 - 0.5), 0);
+    strip(A + 1, 2 * H, H + A / 2 - 0.5, 0);
+    // the broken edge: loose slabs along the outer edge, some tilted, some lying out on the ground
+    const R = (() => { let a = 9127; return () => ((a = (a * 16807) % 2147483647) / 2147483647); })();
+    for (let i = 0; i < 64; i++) {
+      const side = i % 4, t = (R() * 2 - 1) * (H + A - 1);
+      const out = H + A + (R() < 0.3 ? 0.6 + R() * 2.4 : -0.4 + R() * 0.8);
+      const [lx, lz] = side === 0 ? [t, -out] : side === 1 ? [out, t] : side === 2 ? [t, out] : [-out, t];
+      const sw = 0.9 + R() * 0.8, sd = 0.7 + R() * 0.7;
+      const g = stoneBlock(sw, 0.22, sd, i + 3);
+      g.rotateZ((R() - 0.5) * 0.12);
+      g.rotateX((R() - 0.5) * 0.12);
+      g.rotateY(R() * Math.PI);
+      g.translate(lx, TOP - 0.06 + R() * 0.05, lz);
+      strips.push(g.index ? g.toNonIndexed() : g);
+    }
+    for (const g of strips) for (const k of Object.keys(g.attributes)) if (k !== "position" && k !== "normal") g.deleteAttribute(k);
+    const apron = new THREE.Mesh(mergeGeometries(strips.map((g) => (g.index ? g.toNonIndexed() : g))), pave);
+    apron.receiveShadow = true;
+    this.world.add(apron);
+    const shade = contactShade({ w: 2 * H, d: 2 * H }, 6, 0.42);
+    shade.position.y = TOP + 0.02;
+    this.world.add(shade);
+    // sand drifted against the faces: the corners on every face, and between the doors on the
+    // east, south and west (the north keeps its entrance clear)
+    type Drift = { nx: number; nz: number; s0: number; s1: number; peak: number; out: number };
+    const drifts: Drift[] = [];
+    const faces = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+    faces.forEach(([nx, nz], fi) => {
+      drifts.push({ nx, nz, s0: -H - 2, s1: -33, peak: 1.3 + fi * 0.15, out: 5.5 });
+      drifts.push({ nx, nz, s0: 33, s1: H + 2, peak: 1.7 - fi * 0.12, out: 6 });
+      if (fi !== 0) drifts.push({ nx, nz, s0: -19, s1: -8 + fi, peak: 0.8 + fi * 0.12, out: 4 });
+    });
+    const driftAt = (d: Drift, lx: number, lz: number): number => {
+      const s = d.nz * lx * -1 + d.nx * lz; // along the face (tx = −nz, tz = nx)
+      const v = d.nx * lx + d.nz * lz - H; // out from the foot
+      if (s < d.s0 - 1 || s > d.s1 + 1 || v > d.out) return 0;
+      const len = d.s1 - d.s0;
+      const u = (s - d.s0) / len;
+      const along = Math.pow(Math.max(0, Math.sin(Math.PI * THREE.MathUtils.clamp(u, 0, 1))), 0.6);
+      const prof = v < 0 ? 1 : Math.pow(1 - v / d.out, 1.6);
+      const ripple = 1 + 0.12 * Math.sin(s * 0.55 + d.peak * 5) + 0.08 * Math.sin(s * 1.7);
+      return d.peak * along * prof * ripple;
+    };
+    const sandM = new THREE.MeshStandardNodeMaterial({ metalness: 0, roughness: 1 });
+    {
+      const sd = surface("sand");
+      const pw = T.positionWorld;
+      const c = T.texture(sd.diff, pw.xz.div(3.2)).rgb.mul(T.texture(sd.diff, pw.xz.div(11)).rgb.mul(0.6).add(0.5));
+      const ao = T.texture(sd.arm, pw.xz.div(3.2)).r;
+      sandM.colorNode = vec4(c.mul(vec3(1.35, 1.24, 1.06)).mul(mix(float(0.7), float(1), ao)), 1);
+    }
+    for (const d of drifts) {
+      const nu = 40, nv = 10, len = d.s1 - d.s0;
+      const pos: number[] = [];
+      const vtx = (i: number, j: number) => {
+        const s = d.s0 + (i / nu) * len, v = -1.4 + (j / nv) * (d.out + 1.4);
+        const lx = -d.nz * s + d.nx * (H + v), lz = d.nx * s + d.nz * (H + v);
+        return [lx, TOP - 0.03 + driftAt(d, lx, lz), lz];
+      };
+      for (let i = 0; i < nu; i++)
+        for (let j = 0; j < nv; j++) {
+          const a = vtx(i, j), b = vtx(i + 1, j), c = vtx(i + 1, j + 1), e = vtx(i, j + 1);
+          pos.push(...a, ...e, ...b, ...b, ...e, ...c);
+        }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+      g.computeVertexNormals();
+      // wound so the drift faces up on every face (flip where the cross product points down)
+      const n = g.attributes.normal.array as Float32Array;
+      if (n[1] < 0) {
+        g.index = null;
+        const p = g.attributes.position.array as Float32Array;
+        for (let k = 0; k < p.length; k += 9) for (let q = 0; q < 3; q++) { const t = p[k + 3 + q]; p[k + 3 + q] = p[k + 6 + q]; p[k + 6 + q] = t; }
+        g.computeVertexNormals();
+      }
+      const mesh = new THREE.Mesh(g, sandM);
+      mesh.receiveShadow = true;
+      this.world.add(mesh);
+    }
+    // you walk on the apron and over the drifts
+    standHooks.push((wx, wz) => {
+      const lx = wx - x, lz = wz - z;
+      const m = Math.max(Math.abs(lx), Math.abs(lz));
+      if (m > H + A + 0.5) return -Infinity;
+      let h = TOP;
+      for (const d of drifts) h = Math.max(h, TOP - 0.03 + driftAt(d, lx, lz));
+      return y + h;
+    });
+  }
+
   private buildOutside(): void {
     const { x, y, z, half: H, height: Ht } = PYRAMID;
     this.world.position.set(x, y, z);
@@ -377,11 +517,12 @@ export class Pyramid {
       g.computeVertexNormals();
       return g;
     };
-    const casing = new THREE.Mesh(faces(0, capK), limestone(this.uT, [1.45, 1.4, 1.3], 1, 3.2));
+    const casing = new THREE.Mesh(faces(0, capK), limestone(this.uT, [1.45, 1.4, 1.3], 1, 3.2, { x, y, z, half: H }));
     casing.receiveShadow = casing.castShadow = true;
     const cap = new THREE.Mesh(faces(capK, 0.9999), granite(this.uT));
     cap.castShadow = true;
     this.world.add(casing, cap);
+    this.buildGround();
     // the entrance, on the north face: a doorway of granite blocks standing out from the casing
     const gm = granite(this.uT);
     const dz = -H - 1.0;

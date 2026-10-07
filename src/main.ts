@@ -55,6 +55,7 @@ import { Touch } from "./world/touch";
 import { Depths, RUIN_NAMES, RUIN_SITES } from "./world/depths";
 import { Ancients } from "./world/ancient";
 import { Pyramid, DUAT_ORIGIN } from "./world/pyramid";
+import { FalseDoors } from "./world/falseDoors";
 import { DUAT_TRACKS } from "./world/duat";
 import { Companion } from "./world/companion";
 import { Vision } from "./world/vision";
@@ -1709,6 +1710,11 @@ scene.add(pyramid.world, pyramid.inside);
 // beside it, the gateway into the telling of Egypt (world/egyptGate.ts)
 const egyptGate = new EgyptGate(pyramid.door);
 scene.add(egyptGate.group);
+// round its base, eight false doors that breathe (world/falseDoors.ts); before the north face,
+// the calm place where the pyramid meditation begins
+const falseDoors = new FalseDoors();
+scene.add(falseDoors.group);
+let meditationHeard = false;
 
 /* The monuments (scenes/journey.ts): through each one's door, a lobby, then its rooms one after
    another, each crossing pitch black, each room's recording beginning as you arrive, and home to
@@ -2836,6 +2842,17 @@ function pyramidFrame(dt: number): void {
   const pitK = pyramid.isInside ? pyramid.nearPit(player.pos) : 0;
   const atApex = !pyramid.isInside && pyramid.atApex(player.pos);
   pyramid.update(S.wt, near, pitK, rite?.kind === "king" && rite.t > 10.5 ? 1 : 0, atApex ? 1.25 : 0.6, S.reduced);
+  // the false doors breathe only for someone near the pyramid outside it
+  const doorsNear = !pyramid.isInside && !apart() && player.pos.distanceTo(pyramid.apex) < 260;
+  falseDoors.group.visible = !pyramid.isInside && !apart() && player.pos.distanceTo(pyramid.apex) < 900;
+  audio.stoneBreath(doorsNear ? falseDoors.update(dt, S.wt, player.pos, S.reduced) : 0);
+  // the pyramid meditation: once a session, on first standing calmly before the north face
+  // (on the ground, not climbing, flying or swimming), when the voices may speak
+  if (doorsNear && !meditationHeard && S.mode === "play" && !player.flying && !player.swimming &&
+      falseDoors.inCalm(player.pos) && playlist.on && !tp.playing) {
+    meditationHeard = true;
+    void narration.play("PYRAMID-MEDITATION");
+  }
   // the Duat: enter at the hidden door, leave by walking back or completing the dawn ascent
   if (!crossing) {
     if (S.mode === "play" && !pyramid.duatActive && pyramid.isInside && pyramid.shouldEnterDuat()) {
@@ -4007,4 +4024,4 @@ function endLoading(): void {
   }, wait);
 }
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall } });

@@ -760,6 +760,18 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - The telling follows the same rule: once, on first coming into Mu's water (within 48 m), playing on wherever you go.
   - Solid: the circle's stones, the star stones and the mounds.
   - Stills: `?shot=ancient-lemuria-<a|b|c|d|e>` (the circle, the terraces, the star stones, a mound, the hollow).
+- 2026-10-07: the pyramid's false doors, its meditation and a more realistic foot (ancient civilizations 4/4; the owner's brief; never merged here: the owner merges).
+  - Eight false doors (`world/falseDoors.ts`), two on each face, 26 m either side of its middle (the north entrance between). Each is the Egyptian form in the temple's limestone: a plinth, stepped jambs, a lintel and cornice, a drum, and a deep false door in its niche. Glyph columns run down the jambs and an offering scene sits on the panel; these are decorative forms, not text. Before each lies an offering slab with loaves and a vessel. Each is solid (a turned box collider).
+  - The stone exhales: each door breathes on its own cycle of 8–12 s at its own phase. The exhale (the first ~55%) swells a warm gold glow in the niche and breathes fine motes out and up. Within ~4 m both deepen. Within a few metres a soft breath tone is heard (`audio.stoneBreath`: a band of noise round 700 Hz on the world bus, never louder than 0.05).
+  - The pyramid meditation (`PYRAMID-MEDITATION`, `audio/ancient-civs/pyramid-meditation.mp3`, 477.36 s decoded, cues embedded; the audio is used as delivered) begins once a session. It starts when you stand in the calm place on the plaza before the north face (20 m round a point 24 m out). You must be on the ground: not climbing, flying or swimming. The voices must be on and no archive narration playing. It plays on wherever you go. No figures at the pyramid.
+  - The pyramid made more real (`pyramid.ts`):
+    - the casing reads only the scan's grain (the block scan's own bricks fought the drawn courses);
+    - the casing weathers: grime and drifted sand at the foot, streaks down the faces, broad patches worn to a rougher, browner core (more at the foot and the corners), and every block at its own slight tilt with the level joints a little recessed;
+    - a paved apron of flagstones 7 m wide round the foot, its outer edge broken by loose and lifted slabs;
+    - sand drifted against the faces, in the corners and between the doors on the east, south and west (you walk over the apron and the drifts: `standHooks`);
+    - a soft contact shadow round the foot.
+  - Stills: `?shot=pyramid-foot|pyramid-door|pyramid-corner|pyramid-calm`.
+  - Fixed on the way: `THREE.MathUtils.smoothstep(x, min, max)` was called with its edges reversed. This affected the doors' nearness and breath tone (every door counted as near), the drowned cities' water tint, the Maya stelae's glow (it should come only within 4–12 m) and the ancient figures' fade (now 60–110 m). Rule: for a fall-off, write `1 − smoothstep(d, near, far)`; never reverse the edges.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.

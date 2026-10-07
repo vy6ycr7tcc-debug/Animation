@@ -71,7 +71,7 @@ export class Ancients {
       }
     }
     // the water takes the nearest city's colour, fully within it, easing out over 60 m
-    const want = nearest ? THREE.MathUtils.smoothstep(nearest.radius + 60, nearest.radius, nd) : 0;
+    const want = nearest ? 1 - THREE.MathUtils.smoothstep(nd, nearest.radius, nearest.radius + 60) : 0;
     if (nearest) this.near = nearest;
     this.k += (want - this.k) * Math.min(1, dt * 0.5);
     const w = this.near?.water ?? OPEN, k = this.k, u = uw.u;

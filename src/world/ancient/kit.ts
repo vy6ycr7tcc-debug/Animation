@@ -349,7 +349,7 @@ export class Keeper {
   update(dt: number, t: number, visitor: THREE.Vector3, reduced: boolean): void {
     const s = this.spec, p = this.root.position;
     const d = Math.hypot(visitor.x - p.x, visitor.z - p.z);
-    const want = d < 110 ? THREE.MathUtils.smoothstep(110, 60, d) : 0;
+    const want = d < 110 ? 1 - THREE.MathUtils.smoothstep(d, 60, 110) : 0;
     this.glow += (want - this.glow) * Math.min(1, dt * 0.8);
     this.root.visible = this.glow > 0.01;
     if (!this.root.visible || !this.mixer) return;
