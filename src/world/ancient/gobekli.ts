@@ -186,6 +186,23 @@ function relief(kind: Relief, R: () => number): THREE.BufferGeometry {
   }
 }
 
+/** A field stone for the walls: a box whose corners are pulled in unevenly and whose faces bulge,
+    so no two read alike and none reads as a brick (shared corners move together: no cracks). */
+function lumpyStone(w: number, h: number, d: number, R: () => number): THREE.BufferGeometry {
+  const g = new THREE.BoxGeometry(w, h, d, 2, 2, 1);
+  const p = g.attributes.position as THREE.BufferAttribute;
+  const k = [R(), R(), R(), R(), R(), R()].map((v) => v * 0.28 + 0.06);
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i) / (w / 2), y = p.getY(i) / (h / 2), z = p.getZ(i) / (d / 2);
+    const corner = Math.abs(x) > 0.99 && Math.abs(y) > 0.99;
+    const pull = corner ? k[(x > 0 ? 1 : 0) + (y > 0 ? 2 : 0)] : 0;
+    const bulge = Math.abs(x) < 0.01 && Math.abs(y) < 0.01 ? k[4] * 0.12 : Math.abs(x) < 0.01 || Math.abs(y) < 0.01 ? k[5] * 0.05 : 0;
+    p.setXYZ(i, p.getX(i) * (1 - pull * 0.6), p.getY(i) * (1 - pull * 0.5), p.getZ(i) + Math.sign(z) * bulge * d);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
 /* ---------------------------------------------------------------- materials */
 /** The pillars and the bedrock: one pale limestone, cut whole (no courses), weathered. */
 const limestone = () => landStone("sandstone_cracks", FLOOR, 1.7, [1.42, 1.32, 1.1]);
@@ -241,7 +258,7 @@ function deckAt(list: Run[], lx: number, lz: number): number {
   }
   return y;
 }
-function boardwalk(list: Run[], m: Merge<"lime" | "wall" | "stones" | "wood" | "rope">, ground: (lx: number, lz: number) => number): void {
+function boardwalk(list: Run[], m: Merge<"lime" | "wall" | "stones" | "floor" | "wood" | "rope">, ground: (lx: number, lz: number) => number): void {
   for (const r of list) {
     const dx = r.b[0] - r.a[0], dz = r.b[1] - r.a[1], dy = r.b[2] - r.a[2];
     const len = Math.hypot(dx, dz), slope = Math.hypot(len, dy);
@@ -376,7 +393,7 @@ export class Gobekli {
     this.group.rotation.y = G.face;
     const ground = (lx: number, lz: number) => heightAt(...gobekliAt(lx, lz));
     const toW = (lx: number, lz: number) => gobekliAt(lx, lz);
-    const m = new Merge<"lime" | "wall" | "stones" | "wood" | "rope">();
+    const m = new Merge<"lime" | "wall" | "stones" | "floor" | "wood" | "rope">();
     // the enclosures
     for (const e of P.enclosures) {
       const gapped = e.id === "D" || e.id === "C";
@@ -397,11 +414,17 @@ export class Gobekli {
           const len = 0.3 + R() * 0.55, da = len / e.r;
           if (a + da > end) break;
           const mid = a + da / 2, inset = (R() - 0.3) * 0.05;
-          const st = new THREE.BoxGeometry(len - 0.04 - R() * 0.06, ch - 0.03 - R() * 0.04, 0.3);
-          m.add("stones", st, place(e.x + Math.sin(mid) * (e.r + 0.12 - inset), FLOOR + y + ch / 2, e.z + Math.cos(mid) * (e.r + 0.12 - inset), mid, 1, 1, 1, (R() - 0.5) * 0.08, (R() - 0.5) * 0.1));
+          const st = lumpyStone(len - 0.05 - R() * 0.1, ch - 0.04 - R() * 0.06, 0.3, R);
+          m.add("stones", st, place(e.x + Math.sin(mid) * (e.r + 0.12 - inset), FLOOR + y + ch / 2 + (R() - 0.5) * 0.06, e.z + Math.cos(mid) * (e.r + 0.12 - inset), mid, 1, 1, 1, (R() - 0.5) * 0.1, (R() - 0.5) * 0.22));
           a += da;
         }
         y += ch;
+      }
+      // its floor: packed earth and the bedrock worn pale where it was cleared
+      {
+        const fl = new THREE.CircleGeometry(e.r + 0.05, 48);
+        fl.rotateX(-Math.PI / 2);
+        m.add("floor", fl, place(e.x, FLOOR + 0.03, e.z));
       }
       // the wall's ends at the gap, and rough stones lying along its top
       if (gapped)
@@ -510,7 +533,7 @@ export class Gobekli {
       const c = Math.cos(G.face), s = Math.sin(G.face);
       return deckAt(list, lx0 * c - lz0 * s, lx0 * s + lz0 * c);
     });
-    const mats = { lime: limestone(), wall: rubble(), stones: faceStone(), wood: woodMaterial(), rope: new THREE.MeshStandardNodeMaterial({ color: new THREE.Color(0.32, 0.25, 0.17), roughness: 1 }) };
+    const mats = { lime: limestone(), wall: rubble(), stones: faceStone(), floor: landStone("sandstone_cracks", FLOOR - 3, 3.2, [1.0, 0.9, 0.74]), wood: woodMaterial(), rope: new THREE.MeshStandardNodeMaterial({ color: new THREE.Color(0.32, 0.25, 0.17), roughness: 1 }) };
     const built = m.build(mats);
     built.traverse((o) => {
       if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true;

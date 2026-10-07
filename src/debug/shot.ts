@@ -372,7 +372,7 @@ export function runShot(ctx: ShotCtx): void {
       a: [[0, 46, T0 + 2.4], [-6, 2, T0 - 0.5]], // the ridge, from the approach
       b: [[-1.4, 7, T0 + 2.2], [-13.5, 4, F + 2.2]], // down into D from the ramp
       c: [[-7.5, 2.5, F + 1.6], [-14.5, 5.5, F + 3.2]], // in D, the central pair
-      d: [[-4.0, 0.5, F + 1.8], [-5.6, -1.7, F + 1.7]], // the vulture stone
+      d: [[-2.6, 2.4, F + 1.9], [-5.6, -1.7, F + 1.9]], // the vulture stone
       e: [[30, 10, T0 + 3.5], [14.5, -8, F + 1.5]], // C and the rim walk
       f: [[-29, -26, T0 + 2.0], [-38, -36, T0 - 1.5]], // the quarry
       g: [[45, 70, T0 + 48], [0, -2, T0]], // from the air
