@@ -2337,7 +2337,7 @@ const stopName = (s: WalkStop): string => (s.place === "temple" ? "The temple" :
    from the same moment. A tour with no voice (the Duat) pauses its own advance. */
 let tourHeld = false;
 tp.guest = {
-  active: () => S.mode === "play" && (!!narration.current || narration.paused || tourScenes.tour.active || !!walk || !!duatTour),
+  active: () => S.mode === "play" && (!!narration.current || narration.paused || tourScenes.tour.active || !!walk || !!duatTour || !!areaTour),
   paused: () => narration.paused || tourHeld,
   toggle: () => {
     if (narration.paused || tourHeld) {
@@ -2346,7 +2346,7 @@ tp.guest = {
       narration.resume();
     } else {
       if (narration.current) narration.pause();
-      tourHeld = !!(duatTour || walk || tourScenes.tour.active);
+      tourHeld = !!(duatTour || walk || areaTour || tourScenes.tour.active);
     }
     tourScenes.tour.held = tourHeld;
   },
@@ -2642,6 +2642,70 @@ function walkFrame(dt: number): void {
         walk.heard = false;
       } else if (!j.crossing) walkNext();
     }
+  }
+}
+
+/* Arrival (the owner, 2026-10-07: "no dead monuments, no hunting for a start button"): a place
+   with a guided tour begins it as you come in. Through a monument's door into its lobby, its walk
+   end to end; into the Duat, its hours; into the world after the veil or the long descent, a
+   guided walk beside the guide from place to place, held while it speaks. The tour bar's ✕ gives
+   the way back to you, and the tour doesn't begin again until you have left and come back. The
+   temple's tour already begins as you go in (scenes/integration.ts). */
+const HALL_WALKS = ["densities", "adept", "past"];
+let arrivedIn: Journey | null = null;
+let duatArrived = false;
+let areaTour: Journey | null = null;
+const areaBar: TourBarOwner = {
+  back: () => void narration.rewind(10, tourHeld),
+  next: () => void (narration.current && narration.stop(1)), // the line ends: the guide goes on to its next place
+  end: () => areaTourEnd(),
+  progress: () => {
+    const pr = narration.progress();
+    return pr ? pr.t / pr.total : 0;
+  },
+};
+function areaTourStart(j: Journey, title: string): void {
+  if (narration.current) narration.stop(1.5); // a background voice gives way to the guide's
+  areaTour = j;
+  document.body.classList.add("touring");
+  tourBar().show(areaBar);
+  walkTitle(title, "Walking with the guide");
+}
+function areaTourEnd(): void {
+  if (!areaTour) return;
+  areaTour = null;
+  player.target = null;
+  document.body.classList.remove("touring");
+  tourBar().hide(areaBar);
+}
+// still frames keep their own placing; `&arrive` lets one show a tour beginning
+const ARRIVE_IN_STILLS = new URLSearchParams(location.search).has("arrive");
+function arrivalFrame(): void {
+  if (S.mode !== "play" || (STILL && !ARRIVE_IN_STILLS)) return;
+  const at = inHall(), j = at?.journey ?? null;
+  if (!j || !j.inside) {
+    arrivedIn = null;
+    areaTourEnd();
+  } else if (j !== arrivedIn && !j.crossing) {
+    arrivedIn = j;
+    const k = halls.findIndex((h) => h.journey === j);
+    // not when a tour brought you here, nor by the pyramid's gate straight into Egypt
+    if (!walk && !duatTour && !j.via) {
+      if (k >= 0 && k < HALL_WALKS.length) {
+        if (j.at === 0) walkStart(HALL_WALKS[k]);
+      } else if (at) areaTourStart(j, at.hall.label);
+    }
+  }
+  if (areaTour && !tourHeld && !narration.paused) {
+    const p = areaTour.lead();
+    if (p) (player.target ??= new THREE.Vector2()).set(p.x, p.z);
+    else player.target = null;
+  }
+  // the Duat: its hours begin as you come down into it
+  if (!pyramid.duatActive) duatArrived = false;
+  else if (!duatArrived && !crossing) {
+    duatArrived = true;
+    if (!duatTour && !walk) duatTourStart();
   }
 }
 
@@ -3732,6 +3796,7 @@ function update(dt: number): void {
   lessonUxFrame(realDt);
   walkFrame(realDt);
   duatTourFrame(realDt);
+  arrivalFrame();
   companionFrame(realDt);
   if (!walk && !duatTour && !tourScenes.tour.active) setRecording(false);
   if (!apart()) {

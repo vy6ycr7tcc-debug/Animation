@@ -825,6 +825,12 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - The Duat's hour visions change calmly (`VisionStage` `calm`, the Duat only): delays spread over 55 % of each turn, a far smaller vortex, 8.5 s a moment with 6 s of gathering.
   - The Duat tour ends by itself if the stair's top is never reached (60 s), and waits 25 s (was 12) for the Duat to build.
   - Open with the owner: the vision of creation stands on a levelled pad in the lake (its site search finds no dry ground and falls back); the "patchy character" didn't reproduce.
+- 2026-10-07: tours begin on arrival (master prompt 2A: "no dead monuments, no hunting for a start button"; `arrivalFrame` in `main.ts`).
+  - Through a monument's door into its lobby (the densities, the adept, past choices): that monument's walk end to end begins (the same as Tours on the map).
+  - Coming down into the Duat: its hours begin.
+  - The world after the veil and the long descent: a guided walk beside the guide begins (`Room.lead`/`Journey.lead`: a few metres ahead along the way to the next place it speaks, held while it speaks, then out); the tour bar reads "Walking with the guide", ⟲ rewinds the line, » ends it (the guide goes on), ✕ gives the way back to you.
+  - The temple's tour already began as you go in.
+  - Not when a tour brought you, nor by the pyramid's gate straight into Egypt; ended by hand, a tour doesn't begin again until you have left and come back. Still frames keep their own placing (`&arrive` shows a tour beginning).
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.

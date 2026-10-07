@@ -826,6 +826,16 @@ export function createLongDescent(scene: THREE.Scene, narration: Narration, whis
     onStand: () => undefined,
     loaded,
     solids: () => solids,
+    /** The guided walk: on to just past the next place the guide speaks; held while it speaks; then out. */
+    lead: (): { x: number; z: number } | null => {
+      if (speaking) return null;
+      if (beat < BEATS.length) {
+        // a few metres ahead at a time, so you walk beside the guide rather than run past it
+        const [x, z] = along(Math.min(BEATS[beat].s + 1, progress + 6));
+        return { x, z };
+      }
+      return { x: WANDERER_EXIT.x, z: WANDERER_EXIT.z };
+    },
     /** Your own light: dimmer through the veil and the life, gold again from the pool. */
     presence: (): number => {
       const s = progress;
