@@ -272,7 +272,7 @@ const follow = new FollowCamera(camera);
 /* ============ AUDIO ============ */
 const audio = new AudioEngine("audio/water-bed.mp3");
 const narration = new Narration(audio, $("#sub"));
-Duat.voice = (track) => void narration.play(track); // the Duat's hours, once their recordings exist (DUAT_TRACKS)
+Duat.voice = (track) => void narration.play(track); // the Duat's hours, if they ever have recordings of their own (DUAT_TRACKS)
 const playlist = new Playlist(narration);
 registerAnswers();
 registerTunnel();
@@ -2601,7 +2601,7 @@ function enterDuatCrossing(): void {
     follow.snapTo(player.pos);
     pyramid.duatActive = true;
     whisper("The Duat", 5000);
-    if (DUAT_TRACKS.entry) void narration.play(DUAT_TRACKS.entry); // held: see DUAT_TRACKS
+    if (DUAT_TRACKS.entry) void narration.play(DUAT_TRACKS.entry); // the Duat's narration, once per entry (duat-landfall)
     window.setTimeout(() => {
       fadeEl.classList.remove("on");
       crossing = false;
@@ -2652,7 +2652,7 @@ function exitDuatDawn(): void {
     follow.snapTo(player.pos);
     pyramid.duatActive = false;
     whisper("Dawn", 5000);
-    if (DUAT_TRACKS.dawn) void narration.play(DUAT_TRACKS.dawn); // held: see DUAT_TRACKS
+    if (DUAT_TRACKS.dawn) void narration.play(DUAT_TRACKS.dawn); // none yet (DUAT_TRACKS)
     window.setTimeout(() => {
       fadeEl.classList.remove("on");
       crossing = false;
