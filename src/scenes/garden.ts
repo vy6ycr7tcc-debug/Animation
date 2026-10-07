@@ -13,7 +13,7 @@
    holds it up to the light, gold. */
 import * as THREE from "three/webgpu";
 import type { Narration } from "../core/narration";
-import { T, vnoise } from "../gpu/tsl";
+import { outOfTheWay, T, vnoise } from "../gpu/tsl";
 import { rng } from "../world/forms";
 import { landStone } from "../world/stoneworks";
 import type { SceneModule } from "./lessonKit";
@@ -37,6 +37,9 @@ function roadAt(end: THREE.Vector3, f: number, out: THREE.Vector3): THREE.Vector
 }
 
 function stage(ctx: StageCtx): Stage {
+  // the fire's sparks, smoke and embers keep out of the line from the camera to the wanderer (and
+  // melt near the lens): as the view turned about the seat they drifted through the body
+  const clear = outOfTheWay(T.positionWorld);
   const g = new THREE.Group();
   const t = ctx.clock;
   const R = rng(5505);
@@ -137,7 +140,7 @@ function stage(ctx: StageCtx): Stage {
     const drift = vec3(sin(K.z.mul(40).add(t.mul(0.7))).mul(life).mul(0.9), life.mul(float(3).add(K.w.mul(4))), T.cos(K.z.mul(33)).mul(life).mul(0.6));
     S.m.positionNode = coalPos.add(vec3(K.z.sub(0.5).mul(0.9), 0.3, K.w.sub(0.5).mul(0.6))).add(drift);
     const col = mix(vec3(1, 0.45, 0.12), vec3(1, 0.78, 0.4), u.warm);
-    S.m.colorNode = vec4(col.mul(S.round).mul(smoothstep(0, 0.08, life)).mul(float(1).sub(life)).mul(u.burn).mul(u.on).mul(0.9), 1);
+    S.m.colorNode = vec4(col.mul(S.round).mul(clear).mul(smoothstep(0, 0.08, life)).mul(float(1).sub(life)).mul(u.burn).mul(u.on).mul(0.9), 1);
     g.add(S.c.sprite);
     ours.push(S.m);
     const m = 500;
@@ -148,7 +151,7 @@ function stage(ctx: StageCtx): Stage {
     const SK = Sm.c.nodes.aK;
     const sl = fract(SK.x.add(t.mul(float(0.06).add(SK.y.mul(0.05)))));
     Sm.m.positionNode = coalPos.add(vec3(sin(SK.z.mul(30).add(t.mul(0.3))).mul(sl).mul(1.8), float(0.6).add(sl.mul(7)), sin(SK.w.mul(30)).mul(sl).mul(1.2)));
-    Sm.m.colorNode = vec4(vec3(0.16, 0.14, 0.15).mul(float(1).add(sl)), Sm.round.mul(smoothstep(0, 0.2, sl)).mul(float(1).sub(sl)).mul(0.22).mul(u.burn.min(1)).mul(float(1).sub(u.warm.mul(0.7))).mul(u.on));
+    Sm.m.colorNode = vec4(vec3(0.16, 0.14, 0.15).mul(float(1).add(sl)), Sm.round.mul(clear).mul(smoothstep(0, 0.2, sl)).mul(float(1).sub(sl)).mul(0.22).mul(u.burn.min(1)).mul(float(1).sub(u.warm.mul(0.7))).mul(u.on));
     g.add(Sm.c.sprite);
     ours.push(Sm.m);
   }
@@ -194,7 +197,7 @@ function stage(ctx: StageCtx): Stage {
     B.dirty();
     const K = B.c.nodes.aK;
     const glow = sin(t.mul(float(1.2).add(K.x)).add(K.y.mul(30))).mul(0.4).add(0.6);
-    B.m.colorNode = vec4(vec3(1, 0.3, 0.08).mul(B.round).mul(glow).mul(u.buried).mul(u.on).mul(0.7), 1);
+    B.m.colorNode = vec4(vec3(1, 0.3, 0.08).mul(B.round).mul(clear).mul(glow).mul(u.buried).mul(u.on).mul(0.7), 1);
     g.add(B.c.sprite);
     ours.push(B.m);
     const m = 900;
@@ -205,7 +208,7 @@ function stage(ctx: StageCtx): Stage {
     const dir = T.normalize(vec3(XK.x.sub(0.5), XK.y.mul(0.8).add(0.1), XK.z.sub(0.5)));
     const out = u.burst.mul(float(3).add(XK.w.mul(5)));
     X.m.positionNode = vec3(RIGHT_END.x * 0.85, gy(RIGHT_END.x * 0.85, RIGHT_END.z * 0.85) + 1.5, RIGHT_END.z * 0.85).add(dir.mul(out)).sub(vec3(0, u.burst.mul(u.burst).mul(2.5), 0));
-    X.m.colorNode = vec4(vec3(1, 0.4, 0.12).mul(X.round).mul(smoothstep(0.02, 0.1, u.burst)).mul(float(1).sub(u.burst)).mul(u.on).mul(1.2), 1);
+    X.m.colorNode = vec4(vec3(1, 0.4, 0.12).mul(X.round).mul(clear).mul(smoothstep(0.02, 0.1, u.burst)).mul(float(1).sub(u.burst)).mul(u.on).mul(1.2), 1);
     g.add(X.c.sprite);
     ours.push(X.m);
   }
@@ -235,7 +238,7 @@ function stage(ctx: StageCtx): Stage {
     const a = K.w.mul(6.283).add(life.mul(3));
     F.m.positionNode = vec3(float(HEARTH.x).add(T.cos(a).mul(r)), float(HEARTH.y + 0.3).add(life.mul(float(3.2).add(K.z.mul(2.2))).mul(u.flame.min(1.4))), float(HEARTH.z).add(sin(a).mul(r)));
     const col = mix(vec3(1, 0.85, 0.5), vec3(1, 0.42, 0.14), life);
-    F.m.colorNode = vec4(col.mul(F.round).mul(float(1).sub(life)).mul(u.flame).mul(u.on).mul(0.55), 1);
+    F.m.colorNode = vec4(col.mul(F.round).mul(clear).mul(float(1).sub(life)).mul(u.flame).mul(u.on).mul(0.55), 1);
     g.add(F.c.sprite);
     ours.push(F.m);
     // many small embers round it: what anger, well aimed, has changed
@@ -250,7 +253,7 @@ function stage(ctx: StageCtx): Stage {
     E.dirty();
     const EK = E.c.nodes.aK;
     const shown = smoothstep(EK.y.sub(0.05), EK.y, u.many);
-    E.m.colorNode = vec4(vec3(1, 0.72, 0.36).mul(E.round).mul(shown).mul(sin(t.mul(float(0.8).add(EK.z)).add(EK.w.mul(30))).mul(0.3).add(0.7)).mul(u.on).mul(0.8), 1);
+    E.m.colorNode = vec4(vec3(1, 0.72, 0.36).mul(E.round).mul(clear).mul(shown).mul(sin(t.mul(float(0.8).add(EK.z)).add(EK.w.mul(30))).mul(0.3).add(0.7)).mul(u.on).mul(0.8), 1);
     g.add(E.c.sprite);
     ours.push(E.m);
   }
@@ -276,15 +279,25 @@ function stage(ctx: StageCtx): Stage {
       const lift = env(T0, [[0, 0], [604, 0], [616, 1]]);
       v.copy(REST).lerp(new THREE.Vector3(HEARTH.x, HEARTH.y + 0.7, HEARTH.z), toHearth);
       v.y += Math.sin(toHearth * Math.PI) * 2.2 + lift * 3.2;
+      // the opening, as the words go (it held one still burning coal for half a minute): the coal
+      // waits dim among the hearth's stones, and at "a coal, lifted from a fire" (11.5–16 s) it
+      // rises in an arc into the palm
+      const lifted = env(T0, [[0, 0], [11.5, 0], [16, 1]]);
+      if (lifted < 1) {
+        v.set(HEARTH.x, HEARTH.y + 0.7, HEARTH.z).lerp(REST, lifted);
+        v.y += Math.sin(lifted * Math.PI) * 2.5;
+      }
       coal.position.copy(v);
       coal.rotation.set(time * 0.05, time * 0.08, 0);
       coalPos.value.copy(v);
       // its heat: burning in the hand; red and harsh at the start; gold in the hearth
       u.warm.value = env(T0, [[0, 0], [208, 0], [245, 1], [312, 1], [330, 0.8], [478, 0.2], [500, 0.3], [527, 0.9], [546, 1]]);
-      u.burn.value = env(T0, [[0, 0.9], [12, 1.2], [96, 1], [245, 0.8], [478, 1.3], [527, 0.7], [604, 1], [616, 1.25]]);
+      // dim in the hearth, waking in the palm, "burning in your palm" (26 s), a flare at "this is
+      // how anger comes" (30 s), then its steady heat
+      u.burn.value = env(T0, [[0, 0.3], [11.5, 0.35], [16, 0.7], [26, 1.2], [30, 1.25], [31.5, 1.7], [36, 1.15], [96, 1], [245, 0.8], [478, 1.3], [527, 0.7], [604, 1], [616, 1.25]]);
       u.flame.value = env(T0, [[0, 0], [230, 0], [250, 1], [342, 1.3], [478, 1.5], [527, 0.8], [590, 0.8], [604, 0.2]]);
       u.many.value = env(T0, [[0, 0], [358, 0], [390, 1], [470, 1], [500, 0.4]]);
-      u.hand.value = env(T0, [[0, 1], [240, 1], [260, 0.7], [590, 0.7], [604, 1]]);
+      u.hand.value = env(T0, [[0, 0.45], [2.5, 1], [240, 1], [260, 0.7], [590, 0.7], [604, 1]]);
       // the coal each other road takes: down the left and under; arcing away to the right
       const bury = env(T0, [[0, 0], [106, 0], [150, 1]]);
       const throwF = env(T0, [[0, 0], [165, 0], [188, 1]]);
