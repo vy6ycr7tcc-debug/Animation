@@ -98,6 +98,9 @@ export interface ShotCtx {
   settle?(): Promise<unknown>;
   /** Walk into stage `i` of the density journey (no fades), lived for `t` seconds; `journey-<i>`. */
   journey?(name: string, i: number, t: number): Promise<void>;
+  /** The world after the veil: its door out in the world (`veil-door`), or beat n's place within
+      (`veil-<n>`, n 2–7): where the eye stands and looks, in the world. */
+  veil?(n: number): Promise<{ eye: XYZ; look: XYZ }>;
   /** The breathing ring round the wanderer, held this open (`breath&t=<0..1>`). */
   breath?(open: number): void;
   /** No touch for a long while (the gravity point and contemplation answer to stillness). */
@@ -185,6 +188,19 @@ export function runShot(ctx: ShotCtx): void {
     return;
   }
 
+  const vm = /^veil-(door|\d)$/.exec(id);
+  if (vm && ctx.veil) {
+    const { veil, ...rest } = ctx;
+    void veil(vm[1] === "door" ? 1 : Number(vm[1])).then((view) => {
+      ctx.S.mode = "play";
+      ctx.follow.startFollowing(true);
+      ctx.follow.follow = 1;
+      ctx.S.t = t;
+      for (let i = 0; i < 300; i++) ctx.update(1 / 30); // its life runs a while: the angel gathers into its form
+      finish(rest, id, t, [0, 0, 0], view);
+    });
+    return;
+  }
   const jm = /^(journey|adept|past)-(\d)$/.exec(id);
   if (jm && ctx.journey) {
     // the density journey itself: walked into stage k (the real wiring: placed, its air, its seat)

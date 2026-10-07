@@ -337,6 +337,7 @@ body.touring #busy { right: calc(22px + env(safe-area-inset-right, 0px)); bottom
 .whisper { z-index: 36; }
 #fade { position: fixed; inset: 0; background: #07061a; opacity: 0; transition: opacity 1.3s ease; pointer-events: none; }
 #fade.on { opacity: 1; }
+#fade.white { background: #fff6e6; } /* the world after the veil: crossings go white */
 #ending {
   position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px;
   opacity: 0; transition: opacity 3s ease; pointer-events: none;

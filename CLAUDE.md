@@ -662,6 +662,31 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - When the clips arrive, name either four cues (started on the audio clock at each phase's edge) or one seamless cycle (`loop`). The bed ducks lightly under them (`audio.duckSoft`), and "Only nature" or another voice speaking rests them.
   - Never synthesize a stand-in.
   - Still frames: `?shot=breath&t=<0..1>` (the ring held that open round the wanderer on the shore).
+- 2026-10-07: the world after the veil (v5 item 6; the owner's brief `prompts/opus-densities-area-prompt.md`; audio `public/audio/densities-area/densities-area-cine-1…7.mp3`, Aria, used as they are).
+  - The one door (`scenes/afterVeil/door.ts`, site `VEIL_HALL` in `terrain.ts`, toward the deep night):
+    - a tall door of old dark stone in courses, a heavy lintel, its seams fine lines of light, a faint pale light in its opening;
+    - round it a ring of the world's own trees under dark crowns, spores of light low;
+    - the angel waits beside it, and coming within ~11 m it turns to you and speaks beat 1 (the choice), once a visit.
+    - Through the door, a white fade (`Journey.white`, `#fade.white`), not dark. On the map as "The world after the veil".
+  - Within (`scenes/afterVeil/area.ts`, a journey of one stage at x = 22000, lifted 8 m so the vale stays above the water line): one path, a corridor about it (`veilConfine`), no more doors. Beats 2–7 begin as you reach their places, in order, each once.
+    - 2, the forest walk: dense still trees, light in the grain (the world's bark), under dark crowns that thin as you go. Ground mist melts as you reach it and thins with progress. The air goes from heavy amber to white-gold.
+    - 3, the clearing: warm air, ~2,600 drifting motes, the ground lit with small lights like a meadow, soft shafts falling into it, and fine threads of light joining still motes (no veil between minds).
+    - 4, the newcomers' ground: five figures of dim cold glass light at the treeline, sitting or standing guard, angular dark shards of their old armour drifting slowly about them. A bent spear of shadow and a cracked shield lie half sunk. They never approach.
+    - 5, the war in heaven, weather not war: soft columns of warm light standing on one side (the guardians). On the other, tall slender glass-light forms in cold light, a little crooked, their idle playing slowly backward (beautiful but wrong), each with a slow spiral drawing motes in and dimming them. Arcs of thought cross between, pulses running along them. The path between is untouched.
+    - 6, the mirror: from the height, the old world turning, out over the abyss and a little below the eye: seas, coasts, land in two scales, ice, weather, a glint, its rim of air. Threads, gold and shadow, come down toward it and fade before they touch; the shadow ones dissolve wherever the gaze falls straight on them.
+    - 7, the laying down: a glade with a ring of twelve swords of light on the ground, crumbling and dimming. After its line the angel gestures to the way home and comes apart into motes that drift after you and fade. The path leads on out (white fade) to the door.
+  - The angel (`scenes/afterVeil/angel.ts`, recipe `ANGEL` in `world/figures.ts`): the game's particle character on the wanderer's skeleton, warm gold light-dust, a veil and a long robe, no wings. It walks the recorded walk a little ahead of you (≤1.15 m/s, gliding on faster only if left far behind), stops at its next place until you come, turns to you while it speaks, and goes on when the line ends. A pause holds it.
+  - The view frames what the angel speaks of (the room's own gravity point, `Room.centre`): the angel, the clearing, the newcomers, the vale, the old world, the glade.
+  - Far scenes rest until you come near (`windows`), so their lines never cross another place's sky.
+  - Stills: `?shot=veil-door`, `veil-<2..7>`.
+  - Flagged, beyond the brief (the owner to judge):
+    - the door's site and its own ring of trees;
+    - beat 1 spoken out in the world at the door;
+    - no camera float in the clearing;
+    - the husks' backward idle;
+    - the angel gliding to catch up;
+    - the way out is the path's end fading white;
+    - not yet in Tours.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.
