@@ -673,6 +673,45 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - The Spirit's seven now stand apart in a wide horseshoe round the room (`ringSpots`: from the left wall, round the back, to the right wall, ~6 m between each, all facing the room's heart, the way to the Choice's door clear). The vessels by the walls keep clear of them.
   - Every carving (all 22) carries its title over it in glowing letters (`glowTitle`: "I · The Magician", warm gold with a breath of its own colour, additive, contained), in place of the carved stone plaques.
   - Stills: `?shot=temple-sanctuary`, `?shot=temple-tour&t=<s>&live=8` (the tour's own view at a stop), `?shot=temple-shrine-<i>&live=8&inward=0` (standing at a shrine). `&live=` now works for any still (the game's camera after that many seconds), and `&inward=0` keeps it short of contemplation.
+- 2026-10-07: the world after the veil (v5 item 6; the owner's brief `prompts/opus-densities-area-prompt.md`; audio `public/audio/densities-area/densities-area-cine-1…7.mp3`, Aria, used as they are).
+  - The one door (`scenes/afterVeil/door.ts`, site `VEIL_HALL` in `terrain.ts`, toward the deep night):
+    - a tall door of old dark stone in courses, a heavy lintel, its seams fine lines of light, a faint pale light in its opening;
+    - round it a ring of the world's own trees under dark crowns, spores of light low;
+    - the angel waits beside it, and coming within ~11 m it turns to you and speaks beat 1 (the choice), once a visit (not again as you come back out through the door).
+    - Through the door, a white fade (`Journey.white`, `#fade.white`), not dark. On the map as "The world after the veil".
+  - Within (`scenes/afterVeil/area.ts`, a journey of one stage at x = 22000, lifted 8 m so the vale stays above the water line): one path, a corridor about it (`veilConfine`), no more doors. Beats 2–7 begin as you reach their places, in order, each once.
+    - 2, the forest walk: dense still trees, light in the grain (the world's bark), under dark crowns that thin as you go. Ground mist melts as you reach it and thins with progress. The air goes from heavy amber to white-gold.
+    - 3, the clearing: warm air, ~2,600 drifting motes, the ground lit with small lights like a meadow, soft shafts falling into it, and fine threads of light joining still motes (no veil between minds).
+    - 4, the newcomers' ground: five figures of dim cold glass light at the treeline, sitting or standing guard, angular dark shards of their old armour drifting slowly about them. A bent spear of shadow and a cracked shield lie half sunk. They never approach.
+    - 5, the war in heaven, weather not war: soft columns of warm light standing on one side (the guardians). On the other, tall slender glass-light forms in cold light, a little crooked, their idle playing slowly backward (beautiful but wrong), each with a slow spiral drawing motes in and dimming them. Arcs of thought cross between, pulses running along them. The path between is untouched.
+    - 6, the mirror: from the height, the old world turning, out over the abyss and a little below the eye: seas, coasts, land in two scales, ice, weather, a glint, its rim of air. Threads, gold and shadow, come down toward it and fade before they touch; the shadow ones dissolve wherever the gaze falls straight on them.
+    - 7, the laying down: a glade with a ring of twelve swords of light on the ground, crumbling and dimming. After its line the angel gestures to the way home and comes apart into motes that drift after you and fade. The path leads on out (white fade) to the door.
+  - The angel (`scenes/afterVeil/angel.ts`, recipe `ANGEL` in `world/figures.ts`): the game's particle character on the wanderer's skeleton, warm gold light-dust, a veil and a long robe, no wings. It walks the recorded walk a little ahead of you (≤1.15 m/s, gliding on faster only if left far behind), stops at its next place until you come, turns to you while it speaks, and goes on when the line ends. A pause holds it.
+  - The view frames what the angel speaks of (the room's own gravity point, `Room.centre`): the angel, the clearing, the newcomers, the vale, the old world, the glade.
+  - Far scenes rest until you come near (`windows`), so their lines never cross another place's sky.
+  - Stills: `?shot=veil-door`, `veil-<2..7>`.
+  - Flagged, beyond the brief (the owner to judge):
+    - the door's site and its own ring of trees;
+    - beat 1 spoken out in the world at the door;
+    - no camera float in the clearing;
+    - the husks' backward idle;
+    - the angel gliding to catch up;
+    - the way out is the path's end fading white;
+    - not yet in Tours.
+- 2026-10-07: the long descent (v5 item 7; the owner's brief `prompts/opus-wanderer-area-prompt.md` and its treatment `opus-wanderer-visual-design.md`; audio `public/audio/wanderer-area/wanderer-cine-1…7.mp3`, Aria, used as delivered). The wanderer's own story, walked in the clouds high above the world.
+  - The way in (`scenes/wanderer/portal.ts`, site `WANDERER_HALL` in `terrain.ts`): one shaft of white-gold light, breathing slowly, rising high from a meadow (seen from far away), its pool of light on the ground, motes rising up it, out of a broken ring of etched stones (two fallen). Walking into it: a white fade. On the map as "The long descent".
+  - Within (`scenes/wanderer/area.ts`, a journey of one stage at x = 22000, its way 12–40 m up, above the water line): one path over a sea of cloud, a corridor about it (`wandererConfine`), no more gates. Beats 1–7 begin as you reach their places, in order, each once:
+    - 1 the council: twelve pale beams leaning in, three gold rings turning overhead, a warm gold ground, threads joining them;
+    - 2 the descent: a ramp spiralling down past turning crystals and lamps whose light runs along them in a wave, then thinning;
+    - 3 the veil: thick grey air, memories drifting past and dissolving, your light dimming; the guide stops at the far edge and doesn't follow;
+    - 4 the life: rain, dark earth, one streetlamp, small warm memories that fade as you come to them, dark houses far off;
+    - 5 the ache: a long road under the deepest sky (aurora), one warm region too much like home; the guide walks beside you again;
+    - 6 the remembering: dawn, a book of light, a pale stranger, a moment when everything stops, the still pool holding the sky and your reflection in gold;
+    - 7 the radiating: an overlook above a sleeping city (its lights on dark land risen above the cloud sea), rings of warm light going out from you toward it, the council's ripples far off. The way goes on out (white fade) to the shaft.
+  - The arc is the game's own moods, forced along the way (`moodForce` in `world/moods.ts`, eased as ever): golden, twilight, dusk draining grey, night, the deep, dawn, sunrise. The place keeps the world's real sky and clouds (`journeyHost(hall, true)`), and the moods run while you are in it.
+  - The guide is the angel of the world after the veil (`scenes/afterVeil/angel.ts`), here the wanderer's own higher self, closer by, beside you in 5–7.
+  - Stills: `?shot=descent-door`, `descent-<1..7>`.
+  - Flagged for the owner: the shaft stands on level meadow ground 240–640 m out (the brief suggested "a high, quiet point"); the memories, the stranger and the book are drawn as light, not models; not yet in Tours.
 - 2026-10-07: the drowned Maya city (the owner's ancient civilizations brief, SPEC 1; the telling `MAYAN`, `audio/ancient-civs/mayan.mp3`, Aria, 251.40 s decoded, 40 cues, used as delivered).
   - Where: the brief asks for the world's own underwater ruin sites, not new geography. The city takes the deepest of the nine ruin sites (`AREA_SITES` in `depths.ts`, ~26 m of water, for a pyramid ~18 m tall), in place of that site's ruin and its ring of stillness; its floor is levelled within 50 m (`levelGround` in `terrain.ts`). On the map (Deep) as "The drowned Maya city".
   - The city (`world/ancient/mayan.ts`, local frame: the stair faces the shore, the way you come):

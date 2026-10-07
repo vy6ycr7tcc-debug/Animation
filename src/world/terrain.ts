@@ -304,6 +304,12 @@ export const ADEPT_HALL = monumentSite(-1.9, 220, 560, 34);
 /** The monument of past choices (scenes/past/monument.ts): a round Atlantean temple on an island
     ringed by water, on a stepped platform, its door toward the shore. */
 export const PAST_HALL = monumentSite(0.9, 240, 620, 30);
+/** The one door into the world after the veil (scenes/afterVeil): a standing door in the forest,
+    on a small level ground (the trees keep close round it), its face toward home. */
+export const VEIL_HALL = monumentSite(3.0, 260, 640, 8);
+/** The way into the long descent (scenes/wanderer): a shaft of white-gold light rising from a
+    quiet meadow out of a broken ring of etched stones, seen from far away. */
+export const WANDERER_HALL = monumentSite(-0.7, 240, 640, 10);
 /** Level the ground round (x, z) to height `h`, flat within `inner` m and blending out by `outer`
     (the drowned cities on the lake floors, world/ancient). Called while the world is being made,
     before any ground is built. */

@@ -21,7 +21,13 @@ export const JOURNEY_ORIGIN = new THREE.Vector3(22000, 0, 0);
 export const inJourney = (x: number): boolean => x > 20500 && x < 26000;
 
 /** A room may say how present the visitor's body is (Room 7 lets it thin toward light). */
-export type Room = SceneModule & { loaded?: Promise<void>; presence?: () => number; solids?: () => Solid[] };
+export type Room = SceneModule & {
+  loaded?: Promise<void>;
+  presence?: () => number;
+  solids?: () => Solid[];
+  /** The room's own gravity point now (its frame), when what the voice speaks of moves about. */
+  centre?: () => THREE.Vector3 | null;
+};
 /** Something solid in a room (its own frame): a circle (`r`) or a box (`hx`, `hz`, turned by
     `ang`), `h` metres tall from the floor. The journey makes it a collider while the room stands. */
 export interface Solid {
@@ -102,7 +108,7 @@ export interface JourneyHost {
   /** What stays visible while the world rests (the wanderer, the camera, the lights). */
   keep(o: THREE.Object3D): boolean;
   place(x: number, y: number, z: number, heading: number): void;
-  fade(on: boolean): void;
+  fade(on: boolean, white?: boolean): void;
   busy(seconds: number): void;
   /** After a room is built: fix its additive blending, compile its shaders. */
   settle(): Promise<void>;
@@ -172,6 +178,8 @@ export class Journey {
   /** Come in by another way (the pyramid's gate into Egypt): doors home to the lobby lead out,
       back where you came in. Cleared on leaving. */
   via = false;
+  /** Crossings go white, not dark (the world after the veil). */
+  white = false;
   /** A stage that failed to open (−1 none): you are taken on instead of being left in the dark. */
   failed = -1;
   /** The room's own life threw: it rests (its doors and walls still work) rather than freezing the game. */
@@ -192,6 +200,8 @@ export class Journey {
   /** The room's gravity point (world), or null. */
   centre(): THREE.Vector3 | null {
     const s = this.stage;
+    const own = this.inside ? this.room?.centre?.() : null;
+    if (own) return own.add(JOURNEY_ORIGIN);
     const c = s?.centre ?? s?.focus?.[0];
     if (!this.inside || !c) return null;
     const x = JOURNEY_ORIGIN.x + c[0], z = JOURNEY_ORIGIN.z + c[2];
@@ -265,7 +275,7 @@ export class Journey {
     if (this.crossing) return;
     this.crossing = true;
     const h = this.host;
-    h.fade(true);
+    h.fade(true, this.white);
     await wait(650);
     h.busy(1.5);
     await wait(40); // the black and the mark are painted before the heavy work
@@ -299,7 +309,7 @@ export class Journey {
       }
     }
     await wait(dark * 1000);
-    h.fade(false);
+    h.fade(false, this.white);
     window.setTimeout(() => (this.crossing = false), 250);
   }
 
