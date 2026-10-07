@@ -45,7 +45,7 @@ import { TranscriptPlayer } from "./ui/transcriptPlayer";
 import { tourBar, type TourBarOwner } from "./ui/tourBar";
 import { StartMap, type Choice, type Place } from "./ui/map";
 import { buildSky, skyUniforms, starDirection } from "./world/sky";
-import { floorHook, groundUniforms, heightAt, heightCoarse, LANDMARK_SITES, MONUMENT, PEAKS, SPAWN, Terrain, WATER_Y } from "./world/terrain";
+import { floorHook, GOBEKLI, gobekliAt, groundUniforms, heightAt, heightCoarse, LANDMARK_SITES, MONUMENT, PEAKS, SPAWN, Terrain, WATER_Y } from "./world/terrain";
 import { Temple } from "./world/temple";
 import { Autofly } from "./player/autofly";
 import { Autorun } from "./player/autorun";
@@ -56,6 +56,7 @@ import { Depths, RUIN_NAMES, RUIN_SITES } from "./world/depths";
 import { Ancients } from "./world/ancient";
 import { Pyramid, DUAT_ORIGIN } from "./world/pyramid";
 import { FalseDoors } from "./world/falseDoors";
+import { Gobekli } from "./world/ancient/gobekli";
 import { DUAT_TRACKS } from "./world/duat";
 import { Companion } from "./world/companion";
 import { Vision } from "./world/vision";
@@ -1244,6 +1245,10 @@ function places(): Place[] {
     { numeral: "", label: "The shore", group: "Shore", x: SPAWN.x, z: SPAWN.z, narration: "J01", start: { x: SPAWN.x, z: SPAWN.z, heading: SPAWN.heading } },
     { numeral: "", label: "The temple", group: "Shore", x: temple.gateAt.x, z: temple.gateAt.z, narration: "J01", start: { ...temple.outside(), heading: temple.gateHeading } },
     { numeral: "", label: "The vision of creation", group: "Shore" as const, x: vision.group.position.x, z: vision.group.position.z, narration: "J01", start: { x: vision.group.position.x + 11, z: vision.group.position.z + 11, heading: Math.atan2(11, 11) } },
+    (() => {
+      const [x, z] = gobekliAt(0, 50);
+      return { numeral: "", label: "Göbekli Tepe", group: "Shore" as const, x: GOBEKLI.x, z: GOBEKLI.z, narration: "J01", start: { x, z, heading: GOBEKLI.face } };
+    })(),
     { numeral: "", label: "The pyramid", group: "Shore" as const, x: pyramid.door.x, z: pyramid.door.z, narration: "J01", start: { x: pyramid.door.x, z: pyramid.door.z - 14, heading: Math.PI } },
     ...halls.map(({ hall }) => {
       const o = hall.outside(), f = hall.face;
@@ -1715,6 +1720,9 @@ scene.add(egyptGate.group);
 const falseDoors = new FalseDoors();
 scene.add(falseDoors.group);
 let meditationHeard = false;
+// Göbekli Tepe (world/ancient/gobekli.ts): the hilltop of great stone rings, east by north-east
+const gobekli = new Gobekli(MOBILE);
+scene.add(gobekli.group, gobekli.far, gobekli.live);
 
 /* The monuments (scenes/journey.ts): through each one's door, a lobby, then its rooms one after
    another, each crossing pitch black, each room's recording beginning as you arrive, and home to
@@ -2979,6 +2987,14 @@ function deepFrame(dt: number, wt: number, inWater: boolean): void {
       void narration.play(id);
       return true;
     }, { id: narration.current, t: narration.progress()?.t ?? 0 });
+  // Göbekli Tepe: its telling begins the first time you come onto the hilltop, and plays on
+  if (!apart())
+    gobekli.update(dt, wt, player.pos, S.reduced, (id) => {
+      if (S.mode !== "play" || !playlist.on || tp.playing) return false;
+      void narration.play(id);
+      return true;
+    });
+  else gobekli.group.visible = gobekli.live.visible = gobekli.far.visible = false;
   if (S.mode !== "play") return;
   if (depths.inside) {
     if (!player.swimming) player.placeUnder();
@@ -4024,4 +4040,4 @@ function endLoading(): void {
   }, wait);
 }
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall } });
