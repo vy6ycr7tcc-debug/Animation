@@ -25,7 +25,6 @@ import { applyAir, damp, keepAlpha, merge, pointCloud, roomClock, touch, type Ai
 const { abs, exp, length, mix, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
 
 /** Room frame: you start in the room at z −1.5 facing −z; the courtyard beyond; the door at z −31. */
-export const DISC_DOOR = new THREE.Vector3(0, 0, -31);
 const WARM = new THREE.Color(1, 0.88, 0.7);
 
 export function createDisciplinesScene(scene: THREE.Scene, narration: LessonCtx["narration"], whisper: (t: string, ms?: number) => void): SceneModule {

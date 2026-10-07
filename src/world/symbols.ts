@@ -254,16 +254,6 @@ export function rings(n: number, R: Rand, count = 4, cy = FORM_H * 0.5): Shape {
   return combine(n, parts);
 }
 
-/** A cracked heart (an ache). */
-export function crackedHeart(n: number, R: Rand, cy = FORM_H * 0.5): Shape {
-  const out: [number, number][] = [];
-  for (let i = 0; i <= 40; i++) {
-    const t = (i / 40) * Math.PI * 2;
-    out.push([16 * Math.sin(t) ** 3 * 0.075, (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) * 0.075 + cy]);
-  }
-  return combine(n, [[(m) => glyph(m, R, out, 0.85), 0.8], [(m) => stroke(m, R, [[0.05, cy + 0.7], [-0.15, cy + 0.3], [0.12, cy], [-0.1, cy - 0.35], [0, cy - 0.7]], 0.05), 0.2]]);
-}
-
 /** A wall and a hand pressed against it (pushing). */
 export function pushing(n: number, R: Rand): Shape {
   return combine(n, [
@@ -314,17 +304,6 @@ export function steamingBowl(n: number, R: Rand): Shape {
   }
   const steam = (x: number) => (m: number) => stroke(m, R, Array.from({ length: 12 }, (_, i) => [x + Math.sin(i * 0.8) * 0.15, 1.55 + i * 0.13] as [number, number]), 0.035);
   return combine(n, [[(m) => glyph(m, R, bowlPts, 0.8), 0.55], [steam(-0.35), 0.15], [steam(0), 0.15], [steam(0.35), 0.15]]);
-}
-
-/** A rope looped round and round a wrist (bound). */
-export function boundHand(n: number, R: Rand): Shape {
-  const cy = FORM_H * 0.5;
-  const coil: THREE.Vector3[] = [];
-  for (let i = 0; i <= 60; i++) {
-    const t = i / 60, a = t * Math.PI * 8;
-    coil.push(new V(Math.cos(a) * 0.55, cy - 1.0 + t * 0.5, Math.sin(a) * 0.3));
-  }
-  return combine(n, [[(m) => fist(m, R), 0.7], [(m) => cord(coil, m, R, 0.04), 0.3]]);
 }
 
 /* ---------------------------------------------------------------- symbols by meaning

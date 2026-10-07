@@ -29,7 +29,6 @@ const LAKE = new THREE.Vector2(0, -95);
 const LAKE_R = 34;
 const SUN = new THREE.Vector3(-0.55, 0.32, -0.62).normalize();
 const EARTH_DIR = new THREE.Vector3(0.42, 0, -1).normalize();
-export const MARS_DOOR = new THREE.Vector3(9, 0, 3);
 
 /** The valley's ground: level at the seat, the basin ahead, rising far off. */
 export function marsFloor(x: number, z: number): number {

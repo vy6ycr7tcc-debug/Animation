@@ -34,8 +34,6 @@ type U = ReturnType<typeof uniform>;
 
 /** Room frame: you begin at the origin facing −z; the magician stands at the heart. */
 export const MAGE = new THREE.Vector3(0, 0, -12);
-/** Kept for the journey's wiring (the seat's old figure stood here). */
-export const SEEKER = MAGE;
 /** Where the way on stands, beyond. */
 export const WISDOM_DOOR = new THREE.Vector3(0, 0, -60);
 

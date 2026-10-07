@@ -777,6 +777,48 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
     - a soft contact shadow round the foot.
   - Stills: `?shot=pyramid-foot|pyramid-door|pyramid-near|pyramid-corner|pyramid-calm`.
   - Fixed on the way: `THREE.MathUtils.smoothstep(x, min, max)` was called with its edges reversed. This affected the doors' nearness and breath tone (every door counted as near), the drowned cities' water tint, the Maya stelae's glow (it should come only within 4–12 m) and the ancient figures' fade (now 60–110 m). Rule: for a fall-off, write `1 − smoothstep(d, near, far)`; never reverse the edges.
+- 2026-10-07: Göbekli Tepe (the owner's brief; the telling `GOBEKLI`, Aria, `audio/ancient-civs/gobekli.mp3`, 331.44 s decoded, cues embedded; used as delivered; never merged here). The one ancient telling under the open sky, after the drowned cities.
+  - The site (`GOBEKLI` in `terrain.ts`): the world's highest dry hill toward the golden hour (east by north-east, 1–1.9 km out), with dry ground all round, a plain below and the snowy massif beyond. Its top is levelled. Four enclosures are dug 2.5 m into it, and the unexcavated tells are raised over it (all as pads, before any ground is built). Three sister hills stand 380–700 m out on the plain, each with a pillar head on its crown. Trees and caves keep clear. On the map as "Göbekli Tepe".
+  - The enclosures (`world/ancient/gobekli.ts`): rings of dry-stone wall (the masonry in small rough courses, stones along the top), D and C with a gap where a boardwalk ramp comes down.
+    - Each ring has T-pillars set into the wall facing in, and two taller ones at its centre, side by side, facing the gap.
+    - The pillars are figures: the T's head is the shoulders, arms are carved down the broad sides to hands meeting over the belly, with a belt and a fox pelt hanging from it.
+    - Some carry animals in low relief: fox, boar, lion, snake, scorpion, birds.
+    - In D, just inside its gap and turned to the ramp, is the vulture stone: the great bird with its wing out over the disc, the scorpion below, the headless man, small birds, three bags along its head.
+    - Walls and pillars are solid; you enter by the ramps.
+  - Around them:
+    - the tells under grass, some with pillar heads breaking the turf (still: their stillness against the moving grass is the effect);
+    - boardwalks on posts with rope rails: a spine across the top, ramps down into D and C, a ring round C's rim, lookouts over B and A (walked on: `standHooks`);
+    - the quarry at the hill's edge: a shelf of bedrock with a pillar half cut from it, lying in its trench, the work stopped;
+    - limestone breaking the turf.
+  - Life:
+    - dry grass over the hilltop in waves of wind (off the plain), a few wild flowers in it;
+    - dust turning in the low light over the rings, and seed heads blown along the ground;
+    - swifts circling high: the game's small bird model, darkened. There is no swift model (real models or nothing); the owner to judge.
+  - Two builders (`GOBEKLI_BUILDER`, the temple figures' particle idiom; undyed wool, ochre, stone grey): one standing still between D's central pillars facing in with the stones, one walking C's rim pausing at its pillars. None on the mounds or at the quarry. No dialogue, no collision.
+  - The telling begins once, the first time you come onto the hilltop, and plays on wherever you go.
+  - Stills: `?shot=gobekli-a` … `gobekli-g` (approach, into D, D's central pair, the vulture stone, C and its rim walk, the quarry, from the air).
+- 2026-10-07: Nan Madol (the owner's brief; the telling `NAN-MADOL`, Aria, `audio/ancient-civs/nan-madol.mp3`, 281.32 s decoded, cues embedded; used as delivered; never merged here). The coastal one: dawn, open sky, water to wade.
+  - The site (`NAN_MADOL` in `terrain.ts`): the world's own straight shore toward the dawn (south-east, 0.9–1.9 km out), dry land behind and a great lake falling to ~14 m beyond (the open sea), clear of every home and monument, the pyramid, Göbekli Tepe and the peaks. The lagoon's floor is levelled to 0.72 m below the water (wading: the controller swims only below 1 m), a beach behind it, the reef outside the seawall falling away. Kept clear. On the map as "Nan Madol".
+  - The basalt (`world/ancient/nanMadol.ts`): every wall is long hexagonal basalt columns laid log-cabin fashion, a course of stretchers along the wall then a course of headers across it with their ends standing out, all in one instanced draw over a dark core.
+    - The basalt is black and wet, darker and glistening toward the waterline, with a weed line at it and pale salt on dry tops.
+    - The islets are platforms of it with coral-rubble tops, two low steps up from the water at each, and walls on some.
+  - The islets:
+    - the mortuary (after Nandauwas): the tallest walls (6.2 m), their corners swept up, a narrow gate, an inner court within a second wall, and a tomb of logs roofed with logs, with offering stones before the gate;
+    - a walled islet;
+    - a courtyard with a tidal pool holding the sky;
+    - house platforms;
+    - the canoe landing with mooring stones;
+    - two small islets of palms.
+    - All are walked on; their walls are solid.
+  - The seawall along the open side, 3.2 m, the surf breaking white against its outer face in sets running along it, and heard: a soft surf bed under everything within ~300 m (`audio.surf`, a band of noise in slow swells, above 200 Hz).
+  - Life:
+    - palms leaning over the canals (the world's own, `wilds.ts` `palmGeometry`/`palmMaterial`, now exported);
+    - mangroves gripping the walls' feet, on prop roots arching into the water, with round crowns;
+    - fish schools in the canals (`Swimmers`, which now take a shallow `top` and `bob`). No turtle: there is no model (real models or nothing).
+  - The tide: faint streaks on the canals drift one way and then the other, turning every ~3 minutes. Mist lies on the water and thins over the first four minutes of a visit.
+  - Two figures (`NAN_MADOL_WATCHER`, the temple figures' particle idiom; bark cloth in sea and basalt tones, a shell collar): the watcher on the seawall facing the open water, and the keeper in the mortuary's inner court. No dialogue, no collision.
+  - The telling begins once, the first time you come into the lagoon, and plays on wherever you go.
+  - Stills: `?shot=nanmadol-a` … `nanmadol-f` (from the shore, the western canal, the mortuary's gate, its inner court, the seawall, from the air).
 - 2026-10-07: master fix, Phase 1 (`docs/findings-ledger.md` holds every finding, its cause, fix and still).
   - Stills: `?shot=density-0` and `density-7` render (the room factory knew rooms 1–6 only); `ruin-n` frames a drowned city from its own approach and other ruins from 22 m; `meadow` frames the vision of creation; still frames show no whispers.
   - Room 5 is brighter below and still black above: floor tint ~0.05–0.07, the magician's cool light 20 over 30 m, air glow (0.04, 0.045, 0.07), a cold shadow lift.
