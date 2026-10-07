@@ -37,6 +37,7 @@ import { Angel } from "../afterVeil/angel";
 import type { Narration } from "../../core/narration";
 import type { Room, Solid } from "../journey";
 import { MOBILE } from "../../core/quality";
+import { buildLand, type LandPath } from "./land";
 
 const { abs, cameraPosition, exp, float, fract, length, max, mix, normalize, positionWorld, pow, sin, smoothstep, step, uniform, uv, vec2, vec3, vec4 } = T;
 const V3 = THREE.Vector3;
@@ -213,24 +214,12 @@ export function createLongDescent(scene: THREE.Scene, narration: Narration, whis
     geo.setIndex(idx);
     geo.computeVertexNormals();
     const m = etchedStone("#1c1a2c", "#e9c37d", 2.2);
+    m.side = THREE.DoubleSide; // where it crosses over the ramp below, a bridge seen from beneath
     const band = new THREE.Mesh(geo, m);
     band.receiveShadow = true;
     g.add(band);
     ours.push(geo, m);
-    // its underside: cloud, soft, so the way hangs in the air on cloud and not on nothing
-    const under = pointCloud(Math.round(900 * fewer), 4.5);
-    for (let i = 0; i < under.pos.length / 3; i++) {
-      const [x, z, h] = along(R() * LEN);
-      under.pos.set([x + (R() - 0.5) * 9, h - 1.4 - R() * 2.2, z + (R() - 0.5) * 9], i * 3);
-      under.k.set([R(), R(), R(), R()], i * 4);
-    }
-    touch(under.cloud);
-    const UK = under.cloud.nodes.aK;
-    under.material.positionNode = under.cloud.nodes.position.add(vec3(sin(t.mul(0.05).add(UK.x.mul(30))).mul(0.6), sin(t.mul(0.07).add(UK.y.mul(30))).mul(0.3), 0));
-    // lit by the sky's own colours, gold caught on their tops
-    under.material.colorNode = vec4(mix(skyUniforms.uHor, skyUniforms.uSunCol.mul(0.6).add(skyUniforms.uMid), UK.z.mul(0.5)).mul(under.round).mul(0.16).mul(smoothstep(2, 7, length(cameraPosition.sub(positionWorld)))), 1);
-    g.add(under.cloud.sprite);
-    ours.push(under.material);
+    // (it used to hang on a band of soft cloud points; it is cut into the land now: land.ts)
     // the council's floor, and its gold
     const disc = new THREE.CylinderGeometry(15, 13.5, 1.2, 72, 1);
     disc.translate(COUNCIL.x, HIGH - 0.65, COUNCIL.z);
@@ -238,6 +227,56 @@ export function createLongDescent(scene: THREE.Scene, narration: Narration, whis
     dm.receiveShadow = true;
     g.add(dm);
     ours.push(disc);
+  }
+
+  /* ---------------- the land the way is cut into (land.ts) ---------------- */
+  {
+    const k = (a: number, b: number, s: number) => Math.min(1, Math.max(0, (s - a) / (b - a)));
+    // the arc in the ground's own colour: warm stone high, grey in the veil, dark earth in the
+    // life, the deep's blue in the ache, green coming back at dawn, gold-lit rock at the overlook
+    const STOPS: [number, [number, number, number]][] = [
+      [0, [1.12, 0.96, 0.78]],
+      [S_SPIRAL1 - 10, [1.0, 0.86, 0.74]],
+      [S_VEIL0 + 10, [0.66, 0.66, 0.7]],
+      [S_VEIL1 + 6, [0.5, 0.46, 0.42]],
+      [S_LIFE1 + 10, [0.46, 0.5, 0.62]],
+      [S_ACHE1, [0.48, 0.54, 0.7]],
+      [S_POOL - 10, [0.82, 0.98, 0.72]],
+      [S_POOL + 26, [0.92, 1.0, 0.76]],
+      [S_OVER - 10, [1.12, 0.94, 0.76]],
+      [LEN, [1.12, 0.94, 0.76]],
+    ];
+    const path: LandPath = {
+      onPath,
+      along,
+      len: LEN,
+      wide: (x, z, s) => (Math.hypot(x - COUNCIL.x, z - COUNCIL.z) < 16 ? 14 : Math.hypot(x - POOL.x, z - POOL.z) < 15 ? 12 : s > S_VEIL0 && s < S_VEIL1 ? 8.5 : 3.6),
+      tint: (s) => {
+        let i = 0;
+        while (i < STOPS.length - 2 && s > STOPS[i + 1][0]) i++;
+        const [a, ca] = STOPS[i], [b, cb] = STOPS[i + 1];
+        const u = k(a, b, s);
+        return [ca[0] + (cb[0] - ca[0]) * u, ca[1] + (cb[1] - ca[1]) * u, ca[2] + (cb[2] - ca[2]) * u];
+      },
+      carve: (x, z, outside) => {
+        // the lower way wins: where the ramp passes under the way it came by, the upper way
+        // crosses as a bridge of its own stone (its band) over the cut
+        void outside;
+        let lim = Infinity;
+        for (const sg of SEG) {
+          const u = Math.max(0, Math.min(sg.len, (x - sg.ax) * sg.dx + (z - sg.az) * sg.dz));
+          const px = sg.ax + sg.dx * u, pz = sg.az + sg.dz * u, d = Math.hypot(x - px, z - pz);
+          lim = Math.min(lim, sg.ah + sg.dh * u - 0.12 + Math.max(0, d - 4.2) * 0.5);
+        }
+        return lim;
+      },
+      // high in the air the land falls away fast; the country rolls; the overlook is a cliff edge
+      steep: (s) => Math.max(1 - k(S_VEIL1 - 4, S_VEIL1 + 24, s), k(S_POOL + 24, S_OVER - 6, s)),
+    };
+    const land = buildLand(path, { x: 0, z: -64, top: 0, r: 30 }, seeded(4471), t, fewer);
+    for (const o of land.objects) g.add(o);
+    solids.push(...land.solids);
+    ours.push(land);
   }
 
   /* ---------------- the cloud sea below, curving away; nothing beneath it ---------------- */
