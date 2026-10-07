@@ -1,5 +1,5 @@
 /* Movement: walk, run, glide, jump, swim, dive, fly. Ground comes from the analytic height
-   function; solid features are circle colliders. There is no way to fall or fail.
+   function; solid features are colliders (circles, or turned boxes: `pushOut` in terrain.ts). There is no way to fall or fail.
    Swimming (as in Abzû and Sky): at the surface the stick swims across the water; tap to dive
    (a small leap and a curving plunge); hold to rise out of the water into flight. Under the
    water you swim where you look, in three dimensions: look down to go deeper, up to rise. Tap
@@ -8,7 +8,7 @@
    own body (the owner: "swimming becomes flying… you can walk on the floor"); off it, floating,
    you are the orb of light. No breath, no current, nothing to fear. */
 import * as THREE from "three/webgpu";
-import { colliders, standAt as heightAt, WATER_Y } from "../world/terrain";
+import { colliders, pushOut, standAt as heightAt, WATER_Y } from "../world/terrain";
 import type { Pose } from "./wanderer";
 
 // A stroll, not a run. Swimming is buoyant and unhurried.
@@ -91,6 +91,7 @@ export class Controller {
   onLand: (() => void) | null = null;
   /** Tap-to-move destination; cleared on arrival or when the player steers. */
   target: THREE.Vector2 | null = null;
+  private solid = { x: 0, z: 0 };
 
   /** Come down to land (from the "Land" word). */
   land(): void {
@@ -216,21 +217,14 @@ export class Controller {
 
     const nx = this.pos.x + this.vel.x * dt;
     const nz = this.pos.z + this.vel.z * dt;
-    const p = new THREE.Vector2(nx, nz);
-    // Push out of solid features.
-    for (const c of colliders) {
-      if (this.pos.y > c.top) continue;
-      const ddx = p.x - c.x, ddz = p.y - c.z;
-      const d = Math.hypot(ddx, ddz);
-      const min = c.r + BODY_R;
-      if (d < min && d > 1e-4) {
-        p.x = c.x + (ddx / d) * min;
-        p.y = c.z + (ddz / d) * min;
-      }
-    }
-    const moved = Math.hypot(p.x - this.pos.x, p.y - this.pos.z);
+    const p = this.solid;
+    p.x = nx;
+    p.z = nz;
+    // Push out of solid features (twice: out of one may be into its neighbour).
+    for (let k = 0; k < 2; k++) for (const c of colliders) pushOut(p, this.pos.y, BODY_R, c);
+    const moved = Math.hypot(p.x - this.pos.x, p.z - this.pos.z);
     this.pos.x = p.x;
-    this.pos.z = p.y;
+    this.pos.z = p.z;
     this.odometer += moved;
     this.speed = moved / Math.max(dt, 1e-4);
 
@@ -471,10 +465,7 @@ export class Controller {
     this.pos.x += this.swimVel.x * dt;
     this.pos.z += this.swimVel.z * dt;
     // the solid things on the floor (ruins, stones) keep you out as they do on land
-    for (const c of colliders) {
-      const ex = this.pos.x - c.x, ez = this.pos.z - c.z, d = Math.hypot(ex, ez), r = c.r + BODY_R;
-      if (d < r && d > 1e-4 && this.pos.y < c.top) (this.pos.x = c.x + (ex / d) * r), (this.pos.z = c.z + (ez / d) * r);
-    }
+    for (const c of colliders) pushOut(this.pos, this.pos.y, BODY_R, c);
     const g = heightAt(this.pos.x, this.pos.z);
     this.pos.y += (Math.max(g, floor - 0.6) - this.pos.y) * Math.min(1, dt * 12);
     this.speed = Math.hypot(this.swimVel.x, this.swimVel.z);

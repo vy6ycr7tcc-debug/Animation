@@ -20,6 +20,7 @@
 
    The owner's direction (2026-09-30) replaces the earlier room. The recording is the draft
    `audio/densities/density_3.mp3`; beats are timed from its script's paragraphs. */
+import type { Solid } from "../journey";
 import * as THREE from "three/webgpu";
 import { LessonScene } from "../lessonKit";
 import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
@@ -65,6 +66,8 @@ export function createRoom3Scene(
   const goal = { sto: 0.35, sts: 0.35, gold: 0.5, red: 0.5, veil: 1, crowd: 0, portal: 0.45, seam: 0.7 };
   let time = 0, cheerAt = -1;
   let loaded: Promise<void> = Promise.resolve();
+  /** What stands solid (the dais, its obelisks, the people): the journey holds you out. */
+  const solids: Solid[] = [];
   const air: Air = {
     color: new THREE.Color(0.05, 0.045, 0.075),
     glow: new THREE.Color(0.22, 0.16, 0.2),
@@ -216,6 +219,7 @@ export function createRoom3Scene(
       { x: MB.x, z: MB.z, face: Math.atan2(MA.x - MB.x, MA.z - MB.z), act: "idle", tint: warm(0.13) },
     ];
     const left = new GlassFolk([...circle, ...vign], 31);
+    for (const f of [...circle, ...vign]) solids.push({ x: f.x, z: f.z, r: 0.35, h: 1.9 });
     g.add(left.group);
     ours.push(left);
     const hearts = circle.map((c) => new THREE.Vector3(c.x, 1.25, c.z));
@@ -298,6 +302,7 @@ export function createRoom3Scene(
         o.computeVertexNormals();
         o.translate(ox, 0, oz);
         parts.push(o);
+        solids.push({ x: STS.x + ox, z: STS.z + oz, r: 0.45, h });
       }
       for (const geo of parts) {
         const mesh = new THREE.Mesh(geo, m);
@@ -331,6 +336,8 @@ export function createRoom3Scene(
       kneel.push({ x, z, face: Math.atan2(STS.x - x, STS.z - z), y: SIT_Y, act: "sit", tint: new THREE.Color(0.55, 0.52, 0.62), glow: { inner: 0.1, edge: 0.4, body: 0.2 } });
     }
     const right = new GlassFolk([elevated, ...kneel], 37);
+    for (const f of kneel) solids.push({ x: f.x, z: f.z, r: 0.4, h: 1.4 });
+    solids.push({ x: STS.x, z: STS.z, hx: 2.3, hz: 2.3, h: DAIS_TOP });
     g.add(right.group);
     ours.push(right);
     const top = new THREE.Vector3(STS.x, DAIS_TOP + 1.45, STS.z);
@@ -448,5 +455,5 @@ export function createRoom3Scene(
     ours.length = 0;
     tickers.length = 0;
   };
-  return Object.assign(lesson, { loaded });
+  return Object.assign(lesson, { loaded, solids: () => solids });
 }

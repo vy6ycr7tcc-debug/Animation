@@ -380,6 +380,9 @@ export class Duat {
   private barque: Barque | null = null;
   private flames: { sprite: THREE.Sprite; base: number; phase: number }[] = [];
   private uT = T.uniform(0);
+  /** What stands solid (Duat-local): the gates' posts, the stone lamps. The pyramid makes them
+      colliders while the Duat stands. */
+  readonly solids: { x: number; z: number; y: number; r: number; h: number; hx?: number; hz?: number; ang?: number }[] = [];
 
   constructor(private say: (text: string, ms: number) => void) {
     this.buildSky();
@@ -540,6 +543,7 @@ export class Duat {
       for (const s of [-1, 1]) {
         const x = p.x - tg.z * 2.6 * s, z = p.z + tg.x * 2.6 * s, y = duatHeight(x, z);
         bowls.setMatrixAt(n++, new THREE.Matrix4().makeTranslation(x, y + 0.25, z));
+        this.solids.push({ x, z, y, r: 0.32, h: 0.6 });
         const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
         sp.position.set(x, y + 0.72, z);
         sp.scale.setScalar(0.55);
@@ -566,6 +570,11 @@ export class Duat {
       gate.position.set(gp.x, duatHeight(gp.x, gp.z), gp.z);
       gate.rotation.y = face;
       const parts: THREE.BufferGeometry[] = [];
+      for (const sx of [-1, 1]) {
+        // its two posts stand solid (local x of the gate, turned by `face`)
+        const px = gp.x + Math.cos(face) * sx * 2.3, pz = gp.z - Math.sin(face) * sx * 2.3;
+        this.solids.push({ x: px, z: pz, y: duatHeight(px, pz), r: 0.0, hx: 0.85, hz: 0.7, ang: face, h: 5.2 });
+      }
       for (const sx of [-1, 1]) {
         const post = new THREE.CylinderGeometry(0.7, 0.95, 5.2, 4, 1).toNonIndexed();
         post.rotateY(Math.PI / 4);

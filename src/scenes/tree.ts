@@ -9,7 +9,7 @@ import * as THREE from "three/webgpu";
 import type { Narration } from "../core/narration";
 import { barkMaterial, grow, SHAPES, tubes } from "../world/creation";
 import { etchedStone } from "../world/etching";
-import { fbm, heightAt } from "../world/terrain";
+import { colliders, fbm, heightAt } from "../world/terrain";
 import { gpuUniforms, softPoints, spriteCloud, T, viewDepth } from "../gpu/tsl";
 import type { SceneModule } from "./lessonKit";
 import { SITES } from "./sites";
@@ -64,6 +64,7 @@ export class TreeOfLifeScene implements SceneModule {
     bark.castShadow = true;
     bark.frustumCulled = false;
     this.group.add(bark);
+    colliders.push({ x: tx, z: tz, r: 0.16 * TREE_SCALE * 1.6, top: gy + 4.4 * TREE_SCALE }); // its trunk stands solid
 
     // the canopy: soft lights on the twig tips, a few around each
     const R = rng(3711);

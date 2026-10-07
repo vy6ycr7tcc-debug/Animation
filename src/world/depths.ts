@@ -18,7 +18,7 @@ import { T, worldPoints, type N } from "../gpu/tsl";
 import { etchedStone } from "./etching";
 import { columnGeometry, scan, type ScanName } from "./temple";
 import { surface } from "./textures";
-import { heightAt, LANDMARK_KINDS, LANDMARK_SITES, SPAWN, WATER_Y } from "./terrain";
+import { colliders, heightAt, LANDMARK_KINDS, LANDMARK_SITES, SPAWN, WATER_Y } from "./terrain";
 
 const { abs, atan, cos, float, fract, length, max, mix, positionGeometry, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
 const V = THREE.Vector3;
@@ -279,6 +279,36 @@ class Merge {
 }
 
 type Kind = "drum" | "block" | "beam" | "column" | "shaft" | "cap" | "crystal";
+
+/* What rests on the lake floor holds you out (the ruins had no colliders: the orb and the walker
+   passed through columns, drums and blocks). From each stone's own placement: its box in the
+   world; if it rests on the floor and stands taller than a step, a collider. Upright stones keep
+   their own shape and turn; fallen ones their footprint. Pieces held up high (lintels, beams)
+   don't. */
+const _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _up = new THREE.Vector3(), _box = new THREE.Box3();
+const UNIT: Partial<Record<Kind, THREE.Box3>> = {
+  drum: new THREE.Box3(new THREE.Vector3(-1, -0.5, -1), new THREE.Vector3(1, 0.5, 1)),
+  block: new THREE.Box3(new THREE.Vector3(-0.5, -0.5, -0.5), new THREE.Vector3(0.5, 0.5, 0.5)),
+  beam: new THREE.Box3(new THREE.Vector3(-0.5, -0.5, -0.5), new THREE.Vector3(0.5, 0.5, 0.5)),
+  column: new THREE.Box3(new THREE.Vector3(-0.56, 0, -0.56), new THREE.Vector3(0.56, 4.2, 0.56)),
+  shaft: new THREE.Box3(new THREE.Vector3(-0.5, -0.5, -0.5), new THREE.Vector3(0.5, 0.5, 0.5)),
+};
+function solidFrom(kind: Kind, m: THREE.Matrix4): void {
+  const unit = UNIT[kind];
+  if (!unit) return;
+  _box.copy(unit).applyMatrix4(m);
+  m.decompose(_p, _q, _s);
+  const cx = (_box.min.x + _box.max.x) / 2, cz = (_box.min.z + _box.max.z) / 2;
+  const floor = heightAt(cx, cz);
+  if (_box.min.y > floor + 0.9 || _box.max.y - Math.max(_box.min.y, floor) < 0.35) return;
+  _up.set(0, 1, 0).applyQuaternion(_q);
+  const top = _box.max.y;
+  if (_up.y > 0.95) {
+    const ang = Math.atan2(_up.set(1, 0, 0).applyQuaternion(_q).z, _up.x) * -1;
+    if (kind === "drum" || kind === "column") colliders.push({ x: _p.x, z: _p.z, r: (kind === "drum" ? 1 : 0.5) * Math.max(_s.x, _s.z), top });
+    else colliders.push({ x: _p.x, z: _p.z, r: 0, hx: (_s.x * (kind === "shaft" ? 0.8 : 1)) / 2, hz: (_s.z * (kind === "shaft" ? 0.8 : 1)) / 2, ang, top });
+  } else colliders.push({ x: cx, z: cz, r: 0, hx: ((_box.max.x - _box.min.x) / 2) * 0.85, hz: ((_box.max.z - _box.min.z) / 2) * 0.85, top });
+}
 class Stones {
   meshes: Record<Kind, THREE.InstancedMesh>;
   private n: Record<Kind, number> = { drum: 0, block: 0, beam: 0, column: 0, shaft: 0, cap: 0, crystal: 0 };
@@ -312,6 +342,7 @@ class Stones {
     if (this.n[kind] >= im.instanceMatrix.count) return;
     im.setMatrixAt(this.n[kind]++, m);
     im.count = this.n[kind];
+    solidFrom(kind, m);
   }
   done(): void {
     for (const im of Object.values(this.meshes)) {

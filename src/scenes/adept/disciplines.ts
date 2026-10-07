@@ -12,6 +12,7 @@
    No device replaced the daily work: the earlier instruments (a crystal, a small pyramid, a card)
    hang over the table in thin light and fade. Fish in water: the floor ripples with light like
    water, the sacred as the weather of the day. At the end the morning comes in through the window. */
+import type { Solid } from "../journey";
 import * as THREE from "three/webgpu";
 import { LessonScene } from "../lessonKit";
 import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
@@ -61,6 +62,8 @@ export function createDisciplinesScene(scene: THREE.Scene, narration: LessonCtx[
   ];
   for (let k = 0; k < 4; k++) specs.push({ x: -3.2, z: -18 - k * 1.3, face: Math.PI, act: "idle", tint: new THREE.Color(0.85, 0.88, 0.95), scale: 0.97 + (k % 2) * 0.05 });
   const folk = new GlassFolk(specs, 29);
+  /** What stands solid: walls, piers, the table, the sink, those sitting and standing. */
+  const solids: Solid[] = specs.map((f) => ({ x: f.x, z: f.z, r: 0.35, h: 1.9 }));
 
   const build = (ctx: LessonCtx) => {
     const g = ctx.group;
@@ -69,6 +72,9 @@ export function createDisciplinesScene(scene: THREE.Scene, narration: LessonCtx[
       const b = stoneBlock(w, h, d);
       b.translate(x, y, z);
       stone.push(b);
+      // what stands on the floor holds you out (walls, piers, the sink); floors, roofs, hoods and
+      // lintels overhead don't
+      if (y - h / 2 < 0.2 && y + h / 2 > 0.4 && w > 0.2 && d > 0.2) solids.push({ x, z, hx: w / 2, hz: d / 2, h: y + h / 2 });
     };
     // the room: floor, three walls and a roof; a window on the left; an archway at the back
     box(11, 0.3, 12, 0, -0.15, -6);
@@ -97,6 +103,7 @@ export function createDisciplinesScene(scene: THREE.Scene, narration: LessonCtx[
     // the table and the sink
     box(2.4, 0.12, 1.2, -1.6, 0.95, -6.5);
     for (const [x, z] of [[-2.6, -6], [-0.6, -6], [-2.6, -7], [-0.6, -7]]) box(0.1, 0.9, 0.1, x, 0.45, z);
+    solids.push({ x: -1.6, z: -6.5, hx: 1.2, hz: 0.6, h: 1 }); // the table
     box(0.9, 0.9, 1.6, 3.9, 0.45, -8.6);
     const m = landStone("sandstone_blocks_08", 0, 2.2, [1.28, 1.22, 1.14], {});
     const mesh = new THREE.Mesh(merge(stone), m);
@@ -343,5 +350,5 @@ export function createDisciplinesScene(scene: THREE.Scene, narration: LessonCtx[
     ours.length = 0;
     tickers.length = 0;
   };
-  return Object.assign(lesson, { loaded: folk.loaded });
+  return Object.assign(lesson, { loaded: folk.loaded, solids: () => solids });
 }
