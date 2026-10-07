@@ -130,6 +130,13 @@ const ANCIENT_VIEWS: Record<string, Record<string, { eye: XYZ; look: XYZ }>> = {
     d: { eye: [-38, 7, -4], look: [-50, 1, -28] }, // the harbour: quays, ribs of hulls
     e: { eye: [-16, 4, 15], look: [-24, 4, 8] }, // a dead crystal in its broken housing
   },
+  lemuria: {
+    a: { eye: [4, 5, 24], look: [0, 2, 0] }, // the circle of the elders, the terraces beyond
+    b: { eye: [5, 3, -12], look: [0, 1.5, -26] }, // the garden terraces
+    c: { eye: [-6, 3.5, -8], look: [0, 4, -20] }, // the star stones
+    d: { eye: [14, 3, 20], look: [24, 1, 18] }, // a dwelling mound
+    e: { eye: [3, 4, 6], look: [0, 0, 0] }, // the hollow's turning sand
+  },
 };
 
 /** The density rooms' still frames: where the eye stands and looks (room frame, the seat at the
