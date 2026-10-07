@@ -698,6 +698,20 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
     - the angel gliding to catch up;
     - the way out is the path's end fading white;
     - not yet in Tours.
+- 2026-10-07: the long descent (v5 item 7; the owner's brief `prompts/opus-wanderer-area-prompt.md` and its treatment `opus-wanderer-visual-design.md`; audio `public/audio/wanderer-area/wanderer-cine-1…7.mp3`, Aria, used as delivered). The wanderer's own story, walked in the clouds high above the world.
+  - The way in (`scenes/wanderer/portal.ts`, site `WANDERER_HALL` in `terrain.ts`): one shaft of white-gold light, breathing slowly, rising high from a meadow (seen from far away), its pool of light on the ground, motes rising up it, out of a broken ring of etched stones (two fallen). Walking into it: a white fade. On the map as "The long descent".
+  - Within (`scenes/wanderer/area.ts`, a journey of one stage at x = 22000, its way 12–40 m up, above the water line): one path over a sea of cloud, a corridor about it (`wandererConfine`), no more gates. Beats 1–7 begin as you reach their places, in order, each once:
+    - 1 the council: twelve pale beams leaning in, three gold rings turning overhead, a warm gold ground, threads joining them;
+    - 2 the descent: a ramp spiralling down past turning crystals and lamps whose light runs along them in a wave, then thinning;
+    - 3 the veil: thick grey air, memories drifting past and dissolving, your light dimming; the guide stops at the far edge and doesn't follow;
+    - 4 the life: rain, dark earth, one streetlamp, small warm memories that fade as you come to them, dark houses far off;
+    - 5 the ache: a long road under the deepest sky (aurora), one warm region too much like home; the guide walks beside you again;
+    - 6 the remembering: dawn, a book of light, a pale stranger, a moment when everything stops, the still pool holding the sky and your reflection in gold;
+    - 7 the radiating: an overlook above a sleeping city (its lights on dark land risen above the cloud sea), rings of warm light going out from you toward it, the council's ripples far off. The way goes on out (white fade) to the shaft.
+  - The arc is the game's own moods, forced along the way (`moodForce` in `world/moods.ts`, eased as ever): golden, twilight, dusk draining grey, night, the deep, dawn, sunrise. The place keeps the world's real sky and clouds (`journeyHost(hall, true)`), and the moods run while you are in it.
+  - The guide is the angel of the world after the veil (`scenes/afterVeil/angel.ts`), here the wanderer's own higher self, closer by, beside you in 5–7.
+  - Stills: `?shot=descent-door`, `descent-<1..7>`.
+  - Flagged for the owner: the shaft stands on level meadow ground 240–640 m out (the brief suggested "a high, quiet point"); the memories, the stranger and the book are drawn as light, not models; not yet in Tours.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.

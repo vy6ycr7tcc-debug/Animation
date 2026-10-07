@@ -307,6 +307,9 @@ export const PAST_HALL = monumentSite(0.9, 240, 620, 30);
 /** The one door into the world after the veil (scenes/afterVeil): a standing door in the forest,
     on a small level ground (the trees keep close round it), its face toward home. */
 export const VEIL_HALL = monumentSite(3.0, 260, 640, 8);
+/** The way into the long descent (scenes/wanderer): a shaft of white-gold light rising from a
+    quiet meadow out of a broken ring of etched stones, seen from far away. */
+export const WANDERER_HALL = monumentSite(-0.7, 240, 640, 10);
 /** Its platform's rise at distance `d` from its centre (walked up; scenes/past/monument.ts). */
 const pastRise = (d: number): number => (d < 12.4 ? 1.3 : d < 22 ? 0.9 : d < 23 ? 0.6 : d < 24 ? 0.3 : 0);
 /** The stepped platform's rise at distance `d` from a monument's centre (three steps of 0.45 m). */

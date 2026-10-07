@@ -63,6 +63,9 @@ import { DensityMonument, densityStages } from "./scenes/densities/monument";
 import { PastMonument, pastStages } from "./scenes/past/monument";
 import { VeilDoor } from "./scenes/afterVeil/door";
 import { createAfterVeil, veilConfine, veilFloor, VEIL_EXIT } from "./scenes/afterVeil/area";
+import { WandererPortal } from "./scenes/wanderer/portal";
+import { createLongDescent, wandererConfine, wandererFloor, WANDERER_EXIT } from "./scenes/wanderer/area";
+import { moodForce } from "./world/moods";
 import { cloudUniforms } from "./world/atmosphere";
 import { NO_MIRROR_LAYER, Water } from "./world/water";
 import { FOG } from "./world/fog";
@@ -1712,13 +1715,17 @@ const adeptHall = new AdeptMonument();
 const pastHall = new PastMonument();
 // the one door into the world after the veil (scenes/afterVeil): through it, an open walk
 const veilHall = new VeilDoor(narration);
-scene.add(densityHall.world, adeptHall.world, pastHall.world, veilHall.world);
-function journeyHost(hall: Hall): JourneyHost {
+// the way into the long descent (scenes/wanderer): a shaft of light in a meadow
+const descentHall = new WandererPortal();
+scene.add(densityHall.world, adeptHall.world, pastHall.world, veilHall.world, descentHall.world);
+/** `sky`: the place keeps the world's real sky and clouds (the long descent tells its story
+    through them). */
+function journeyHost(hall: Hall, withSky = false): JourneyHost {
   return {
     scene,
     narration,
     whisper,
-    keep: (o) => o === wanderer.root || o === wanderer.fx || o === camera || (o as THREE.Light).isLight,
+    keep: (o) => o === wanderer.root || o === wanderer.fx || o === camera || (o as THREE.Light).isLight || (withSky && (o === sky || o === clouds.mesh)),
     place: (x, y, z, heading) => {
       if (sitting.phase === "seated") standUp(); // a new room: you arrive on your feet
       player.pos.set(x, y, z);
@@ -1788,7 +1795,25 @@ const halls: { hall: Hall; journey: Journey; lit: number }[] = [];
     journeyHost(veilHall),
   );
   vj.white = true;
-  halls.push({ hall: densityHall, journey: dj, lit: -1 }, { hall: adeptHall, journey: aj, lit: -1 }, { hall: pastHall, journey: pj, lit: -1 }, { hall: veilHall, journey: vj, lit: -1 });
+  // the long descent: one walk in the clouds under the world's own sky, its crossings white
+  const wj: Journey = new Journey(
+    "descent",
+    [
+      {
+        id: "longDescent",
+        title: "The long descent",
+        make: async (sc, nar, wh) => createLongDescent(sc, nar, wh),
+        floor: wandererFloor,
+        start: { x: 0, z: 6, heading: 0 },
+        exits: [{ x: WANDERER_EXIT.x, z: WANDERER_EXIT.z, r: 4, to: "out" }],
+        confine: wandererConfine,
+        ownAir: true,
+      },
+    ],
+    journeyHost(descentHall, true),
+  );
+  wj.white = true;
+  halls.push({ hall: densityHall, journey: dj, lit: -1 }, { hall: adeptHall, journey: aj, lit: -1 }, { hall: pastHall, journey: pj, lit: -1 }, { hall: veilHall, journey: vj, lit: -1 }, { hall: descentHall, journey: wj, lit: -1 });
 }
 /** The journey you are in (null out in the world). */
 hallsReady = true;
@@ -3612,7 +3637,7 @@ function update(dt: number): void {
   glow.set(player.pos.x, S.mode === "intro" ? 0 : 1, player.pos.z);
   water.update(camera.position.x, camera.position.z, glow);
   skyUniforms.uT.value = wtSafe;
-  if (!apart()) {
+  if (!apart() || moodForce.w) {
     moods.update(player.pos, dt);
     worldLit.hemi = hemi.intensity;
     worldLit.star = star.intensity;
@@ -3892,6 +3917,28 @@ renderer
           const eye = at.clone().addScaledVector(dir, -5.5).add(new THREE.Vector3(dir.z * 1.6, 2.6, -dir.x * 1.6));
           return { eye: [o.x + eye.x, o.y + eye.y, o.z + eye.z], look: [o.x + look.x, o.y + look.y, o.z + look.z] };
         },
+        descent: async (n) => {
+          if (n === 0) {
+            // the shaft of light in its meadow, from a little way off
+            const d = descentHall.door, f = descentHall.face;
+            const px = d.x + Math.sin(f) * 16, pz = d.z + Math.cos(f) * 16;
+            player.pos.set(px, heightAt(px, pz), pz);
+            player.heading = f + Math.PI;
+            terrain.update(px, pz, true);
+            const eye = [d.x + Math.sin(f) * 30 + Math.cos(f) * 6, d.y + 4, d.z + Math.cos(f) * 30 - Math.sin(f) * 6] as [number, number, number];
+            return { eye, look: [d.x, d.y + 14, d.z] as [number, number, number] };
+          }
+          const j = halls[4].journey;
+          await j.jump(0);
+          const room = j.room as unknown as { debugPlace(n: number): { at: THREE.Vector3; look: THREE.Vector3 } };
+          const { at, look } = room.debugPlace(n);
+          const o = JOURNEY_ORIGIN;
+          player.pos.set(o.x + at.x, o.y + at.y, o.z + at.z);
+          const dir = look.clone().sub(at).setY(0).normalize();
+          player.heading = Math.atan2(-dir.x, -dir.z);
+          const eye = at.clone().addScaledVector(dir, -5.5).add(new THREE.Vector3(dir.z * 1.6, 2.6, -dir.x * 1.6));
+          return { eye: [o.x + eye.x, o.y + eye.y, o.z + eye.z], look: [o.x + look.x, o.y + look.y, o.z + look.z] };
+        },
         breath: (open) => {
           breath.debugOpen = open;
           breath.set(true);
@@ -3949,4 +3996,4 @@ function endLoading(): void {
   }, wait);
 }
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall } });
