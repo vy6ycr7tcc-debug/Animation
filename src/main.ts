@@ -2022,7 +2022,7 @@ const walkBar: TourBarOwner = {
       const h = pyramid.duatHours()[duatTour.i];
       return h && duatTour.phase === "watch" ? duatTour.t / (h.cycle + 1.5) : duatTour.i >= pyramid.duatHours().length ? 1 : 0;
     }
-    if (!walk || walk.phase === "travel" || walk.phase === "place") return 0;
+    if (!walk || walk.phase === "travel" || walk.phase === "place" || walk.phase === "leaving") return 0;
     if (walk.phase === "linger" || walk.phase === "go") return 1;
     const pr = narration.progress();
     return pr ? pr.t / pr.total : 0;
@@ -2033,7 +2033,7 @@ let walk: {
   label: string;
   stops: WalkStop[];
   i: number;
-  phase: "enter" | "listen" | "linger" | "go" | "travel" | "place";
+  phase: "enter" | "listen" | "linger" | "go" | "leaving" | "travel" | "place";
   t: number;
   heard: boolean;
   skip: boolean;
@@ -2041,6 +2041,8 @@ let walk: {
   /** A place's own tour has begun (the temple's, the Duat's), and how it ended. */
   begun: boolean;
   done: boolean;
+  /** On the way somewhere: the nearest it has come, and when (a walk held up goes on). */
+  best: { d: number; t: number };
 } | null = null;
 const walkTitle = (t: string, hint: string) => tourBar().set(t, hint);
 function walkStart(id: string): void {
@@ -2049,7 +2051,8 @@ function walkStart(id: string): void {
   if (autofly.active) setAutofly(false);
   standUp();
   if (duatTour) duatTourEnd(false);
-  walk = { id, label: w.label, stops: w.stops(), i: 0, phase: "enter", t: 0, heard: false, skip: false, tries: 0, begun: false, done: false };
+  if (narration.current) narration.stop(1.5); // a background voice gives way to the tour's own
+  walk = { id, label: w.label, stops: w.stops(), i: 0, phase: "enter", t: 0, heard: false, skip: false, tries: 0, begun: false, done: false, best: { d: Infinity, t: 0 } };
   document.body.classList.add("touring");
   tourBar().show(walkBar);
   walkTitle(w.label, "Beginning…");
@@ -2082,21 +2085,35 @@ async function walkEnterStop(): Promise<void> {
     // the next room of the same monument: through its door
     walk.phase = "enter";
     walk.t = 0;
-    await j.enter(s.stage);
+    // already there (its door took us in while Skip was waiting): never through the dark again
+    if (j.at !== s.stage || j.crossing) await j.enter(s.stage);
     return;
   }
-  // somewhere else: out of where you are first
-  if (other) await other.journey.leave();
+  // somewhere else: out of where you are first. Until you are out the walk waits ("leaving"):
+  // it used to stay in the room's last phase meanwhile, and the next frame took the half-left
+  // monument for the next one and skipped on (the next monument's lobby was never walked, and
+  // the flight there was lost to the dark)
+  const w = walk, i = walk.i;
+  walk.phase = "leaving";
+  walk.t = 0;
+  if (other) {
+    await other.journey.leave();
+    await new Promise<void>((done) => {
+      const f = (): void => void (other.journey.inside || other.journey.crossing ? window.setTimeout(f, 100) : done());
+      f();
+    });
+  }
   if (temple.inside) {
     if (!crossing) crossTemple(false);
     await crossingSettled();
   }
-  if (!walk) return;
+  if (walk !== w || walk.i !== i) return; // ended, or moved on (Skip, ⟲) while leaving
   const a = stopApproach(s);
   if (apart() || Math.hypot(a.x - player.pos.x, a.z - player.pos.z) > TRAVEL_MAX) return walkArrive();
   travelTo.set(a.x, a.z);
   walk.phase = "travel";
   walk.t = 0;
+  walk.best = { d: Infinity, t: 0 };
 }
 /** Each frame on the way somewhere by itself (a walk between places; the guide's "Walk me
     there"): on foot when it is near, in flight when it is far, cruising ~14 m over the land and
@@ -2120,6 +2137,7 @@ function walkArrive(): void {
   travelHold = false;
   player.target = null;
   if (player.flying) player.landing = true;
+  walk.skip = false; // Skip on the way meant "there now": it is answered
   walk.phase = s.place ? "place" : "enter";
   walk.t = 0;
   if (s.place === "temple") crossTemple(true); // its own tour begins as you go in
@@ -2247,7 +2265,7 @@ function duatTourFrame(dt: number): void {
 /** ⟲ in a walk-through: ten seconds back in the room's telling (back into it if it has just
     ended); near its start or in a room without a voice, the room before. */
 function walkBack(): void {
-  if (!walk || walk.phase === "travel" || walk.phase === "place") return;
+  if (!walk || walk.phase === "travel" || walk.phase === "place" || walk.phase === "leaving") return;
   const s = walk.stops[walk.i], j = halls[s.hall].journey;
   if (j.crossing || walk.phase === "enter") return;
   const pr = narration.progress();
@@ -2277,7 +2295,7 @@ function duatTourBack(): void {
 }
 function walkSkip(): void {
   if (!walk) return;
-  if (inHall()?.journey.crossing || walk.phase === "travel") walk.skip = true; // on the way: there at once
+  if (inHall()?.journey.crossing || walk.phase === "travel" || walk.phase === "leaving") walk.skip = true; // on the way: there at once
   else walkNext();
 }
 function walkNext(): void {
@@ -2319,6 +2337,7 @@ function walkFrame(dt: number): void {
   // a place's own tour may have taken the bar and the stick for a while: the walk takes them back
   if (!tourScenes.tour.active && !document.body.classList.contains("touring")) document.body.classList.add("touring");
   if (!tourScenes.tour.active && !tourBar().shown) tourBar().show(walkBar);
+  if (walk.phase === "leaving") return walkTitle(stopName(s0), `${walk.i + 1} of ${walk.stops.length} · on the way`);
   if (walk.phase === "travel") {
     walkTitle(stopName(s0), `${walk.i + 1} of ${walk.stops.length} · on the way`);
     if (walk.skip) {
@@ -2326,7 +2345,10 @@ function walkFrame(dt: number): void {
       return walkArrive();
     }
     tourGoal(travelTo.x, travelTo.y);
-    if (driveTo(travelTo.x, travelTo.y, null, walk.t) || walk.t > 150) walkArrive();
+    // there, or held up on the way (no nearer for 6 s: a stone or a wall before the door), or long enough
+    const td = Math.hypot(travelTo.x - player.pos.x, travelTo.y - player.pos.z);
+    if (td < walk.best.d - 0.5) walk.best = { d: td, t: walk.t };
+    if (driveTo(travelTo.x, travelTo.y, null, walk.t) || walk.t - walk.best.t > 6 || walk.t > 150) walkArrive();
     return;
   }
   if (walk.phase === "place") {
@@ -2396,19 +2418,33 @@ function walkFrame(dt: number): void {
     if (walk.t > 3) {
       walk.phase = "go";
       walk.t = 0;
+      walk.best = { d: Infinity, t: 0 };
     }
   } else if (walk.phase === "go") {
     if (sitting.phase === "seated") standUp(); // up from the seat first
     // walk to the door onward (the one that leads where the tour goes next), and through it
     const nx = walk.stops[walk.i + 1];
     const door = stage?.exits.find((e) => nx && nx.hall === s.hall && e.to === nx.stage) ?? stage?.exits[0];
-    if (door && walk.t < 9) {
+    // the doors stand 6–60 m from where a room begins: the wanderer runs there and goes through,
+    // and the walk only steps in (through the dark) if it is truly held up, never on a clock
+    // shorter than the walk (a 9 s limit used to cut every walk to a door short)
+    const dd = door ? Math.hypot(JOURNEY_ORIGIN.x + door.x - player.pos.x, JOURNEY_ORIGIN.z + door.z - player.pos.z) : 0;
+    if (dd < walk.best.d - 0.5) walk.best = { d: dd, t: walk.t };
+    const stalled = walk.t - walk.best.t;
+    const held = stalled > 6 || walk.t > 40; // no nearer for 6 s, or far too long
+    if (door && !held) {
       walkTo.set(JOURNEY_ORIGIN.x + door.x, JOURNEY_ORIGIN.z + door.z);
+      // something stands in the straight way (the Past Choices' pool lies across it): step round
+      // it to one side for a moment, then on to the door
+      if (stalled > 1.2 && dd > 3) {
+        const ax = walkTo.x - player.pos.x, az = walkTo.y - player.pos.z, side = stalled > 3.6 ? -1 : 1;
+        walkTo.set(player.pos.x + (ax / dd) * 2 - (az / dd) * 4 * side, player.pos.z + (az / dd) * 2 + (ax / dd) * 4 * side);
+      }
       player.target = walkTo.clone();
       tourGoal(walkTo.x, walkTo.y);
     }
-    // the door took us on by itself, or it is time to go on
-    if (j.crossing || j.at !== s.stage || walk.t > 9) {
+    // the door took us on by itself, or the way to it is held up
+    if (j.crossing || j.at !== s.stage || !door || held) {
       player.target = null;
       if (j.at !== s.stage && !j.crossing && nx && nx.hall === s.hall && j.at === nx.stage) {
         walk.i++;
@@ -3283,7 +3319,7 @@ function update(dt: number): void {
     if (wanderer.gesture !== "none" && Math.hypot(input.move.x, input.move.y) > 0.2 && wanderer.gesture === "sit") wanderer.setGesture("none");
     if (autofly.active && !isTv && (Math.hypot(input.move.x, input.move.y) > 0.25 || input.hold)) setAutofly(false); // the thumb takes over
     if (genesis.active || temple.cardsOpen || tourScenes.tour.active) player.update(dt, { x: 0, y: 0, glide: false, run: 0, hold: false, down: false, pitch: follow.pitch }, follow.yaw);
-    else if (walk?.phase === "travel" || guideAuto) player.update(dt, { x: 0, y: 0, glide: false, run: 1, hold: travelHold, down: false, pitch: follow.pitch }, follow.yaw);
+    else if (walk?.phase === "travel" || walk?.phase === "go" || (walk?.phase === "listen" && player.target) || guideAuto) player.update(dt, { x: 0, y: 0, glide: false, run: 1, hold: travelHold, down: false, pitch: follow.pitch }, follow.yaw);
     else if (autofly.active) {
       const r = autofly.update(dt, player.pos);
       Object.assign(player, { heading: r.heading, speed: r.speed, vy: r.vy, flying: true, landing: false, grounded: false, swimming: false, gliding: false, pose: "fly", target: null });
@@ -3332,7 +3368,7 @@ function update(dt: number): void {
       water.ripple(player.pos.x, player.pos.z, 0.8, t);
       audio.step(true);
     }
-    playlist.quiet = sitting.phase === "seated" || apart();
+    playlist.quiet = sitting.phase === "seated" || apart() || !!walk || !!duatTour || tourScenes.tour.active; // a tour has its own voices
     playlist.update(realDt); // real time: a slow frame rate never stretches the quiet
   }
   narration.update();
