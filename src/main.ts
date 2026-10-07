@@ -1845,6 +1845,12 @@ function gravityPoint(): THREE.Vector3 | null {
     const h = pyramid.duatHours()[duatTour.i];
     if (h) return DUAT_ORIGIN.clone().add(h.at).add(new THREE.Vector3(0, 3, 0));
   }
+  // the climb to the dawn: the view turns to the dawn the stair rises into (the Duat's sky glows
+  // low toward local (−0.3, −0.9)), not the stair's corner at your feet
+  if (S.mode === "play" && duatTour && duatTour.i >= pyramid.duatHours().length) {
+    const p7 = pyramid.PATH[pyramid.PATH.length - 1];
+    return DUAT_ORIGIN.clone().add(p7).add(new THREE.Vector3(-0.3 * 140, 14, -0.95 * 140));
+  }
   if (S.mode !== "play" || !narration.progress()) return null;
   const h = inHall();
   if (h) return h.journey.inside && !h.journey.crossing ? h.journey.centre() : null;
@@ -2589,6 +2595,7 @@ function enterDuatCrossing(): void {
     player.pos.set(e.x, e.y, e.z);
     player.heading = h;
     follow.yaw = h;
+    follow.pitch = 0.22; // level: it can arrive still looking down into the pit above
     Object.assign(player, { flying: false, landing: false, grounded: true, swimming: false, vy: 0, target: null });
     player.vel.set(0, 0, 0);
     follow.snapTo(player.pos);
@@ -3323,7 +3330,7 @@ function update(dt: number): void {
     if (wanderer.gesture !== "none" && Math.hypot(input.move.x, input.move.y) > 0.2 && wanderer.gesture === "sit") wanderer.setGesture("none");
     if (autofly.active && !isTv && (Math.hypot(input.move.x, input.move.y) > 0.25 || input.hold)) setAutofly(false); // the thumb takes over
     if (genesis.active || temple.cardsOpen || tourScenes.tour.active) player.update(dt, { x: 0, y: 0, glide: false, run: 0, hold: false, down: false, pitch: follow.pitch }, follow.yaw);
-    else if (walk?.phase === "travel" || walk?.phase === "go" || (walk?.phase === "listen" && player.target) || guideAuto) player.update(dt, { x: 0, y: 0, glide: false, run: 1, hold: travelHold, down: false, pitch: follow.pitch }, follow.yaw);
+    else if (walk?.phase === "travel" || walk?.phase === "go" || (walk?.phase === "listen" && player.target) || (duatTour?.phase === "walk" && player.target) || guideAuto) player.update(dt, { x: 0, y: 0, glide: false, run: 1, hold: travelHold, down: false, pitch: follow.pitch }, follow.yaw);
     else if (autofly.active) {
       const r = autofly.update(dt, player.pos);
       Object.assign(player, { heading: r.heading, speed: r.speed, vy: r.vy, flying: true, landing: false, grounded: false, swimming: false, gliding: false, pose: "fly", target: null });
@@ -3766,4 +3773,4 @@ function endLoading(): void {
   }, wait);
 }
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall } });

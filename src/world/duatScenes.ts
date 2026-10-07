@@ -332,7 +332,9 @@ export class WeighingScene implements HourScene {
     this.pans[1].add(feather);
     // the heart: a small warm light in a rose glow
     this.heart = new THREE.Group();
-    const hm = new THREE.MeshBasicNodeMaterial({ fog: false });
+    // light, not a solid: added to what is behind it, so as it fades it goes to nothing (an opaque
+    // sphere faded to black hung in the air as a "stray black ball" before and after it shone)
+    const hm = new THREE.MeshBasicNodeMaterial({ fog: false, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
     hm.colorNode = vec4(vec3(1.0, 0.36, 0.38).mul(this.uHeart), 1);
     const hb = new THREE.Mesh(new THREE.SphereGeometry(0.14, 18, 12), hm);
     hb.scale.set(1, 1.15, 0.85);
@@ -365,6 +367,7 @@ export class WeighingScene implements HourScene {
     this.heart.position.set(pan.x, pan.y + 0.22 + (1 - down) * 3.2 + up * 4.5, pan.z);
     this.heart.scale.setScalar(1 + up * 1.6);
     this.uHeart.value = sm(3, 4.5, t) * (1 - sm(30, 33.5, t)) * (1 + 0.6 * sm(24, 26, t));
+    this.heart.visible = this.uHeart.value > 0.01;
     // level: a ring of light from the fulcrum; the feather and the gold brighten
     const lv = sm(22, 24, t) * (1 - sm(28, 31, t));
     this.uRing.value = lv;
