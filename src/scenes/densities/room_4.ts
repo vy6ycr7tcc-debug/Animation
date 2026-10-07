@@ -6,6 +6,7 @@
    other by a thread of light, heart to heart, arcing between them, a slow pulse travelling each
    thread: the social memory complex, no one a stranger. The threads wake as the narration speaks
    of minds joined; by its end they burn together. The way on: an arch of crystal. */
+import type { Solid } from "../journey";
 import * as THREE from "three/webgpu";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { LessonScene } from "../lessonKit";
@@ -50,6 +51,8 @@ export function createDensityRoom4Scene(
   const goal = { threads: 0.15, towers: 0.6, portal: 0.4, self: 0.6 };
   let self = 0.6, time = 0;
   let loaded: Promise<void> = Promise.resolve();
+  /** What stands solid (towers, houses, the people who stand or sit): the journey holds you out. */
+  const solids: Solid[] = [];
   const air: Air = {
     color: new THREE.Color(0.16, 0.1, 0.1),
     glow: new THREE.Color(0.78, 0.46, 0.24),
@@ -161,6 +164,7 @@ export function createDensityRoom4Scene(
         geo.setAttribute("aH", new THREE.BufferAttribute(new Float32Array(p.count).fill(h0), 1));
         const mesh = new THREE.Mesh(geo, m);
         mesh.position.set(x, 0, z);
+        solids.push({ x, z, r: r * 0.9, h: h0 + r * 1.6 });
         mesh.rotation.y = R() * Math.PI;
         mesh.castShadow = true;
         g.add(mesh);
@@ -255,6 +259,7 @@ export function createDensityRoom4Scene(
         const w = 3.2 + R() * 1.6, d = 2.8 + R() * 1.2, h = 2.3 + R() * 0.6;
         const face = Math.atan2(-x, -14 - z); // the door toward the plaza's heart
         const m4 = new THREE.Matrix4().makeRotationY(face).setPosition(x, 0, z);
+        solids.push({ x, z, hx: w / 2, hz: d / 2, ang: face, h: h + 1.3 });
         const body = stoneBlock(w, h, d, 300 + i);
         body.translate(0, h / 2, 0);
         body.applyMatrix4(m4);
@@ -326,6 +331,7 @@ export function createDensityRoom4Scene(
     const hues = people.map((_, i) => new THREE.Color().setHSL((0.95 + i * 0.071) % 1, 0.55, 0.72));
     const bodies: { root: THREE.Group; mixer: THREE.AnimationMixer | null; mats: THREE.Material[]; ph: number }[] = [];
     const hearts = people.map((p) => new THREE.Vector3(p.x, 1.25, p.z));
+    for (const p of people) if (p.act !== "walk") solids.push({ x: p.x, z: p.z, r: 0.35, h: 1.9 }); // (walkers go round)
 
     // the threads: one ribbon per pair, arcing up between two hearts
     const pairs: [number, number][] = [];
@@ -489,5 +495,5 @@ export function createDensityRoom4Scene(
     tickers.length = 0;
   };
   // built later than this returns: whoever waits on it reads the promise as it is then
-  return Object.defineProperty(lesson, "loaded", { get: () => loaded }) as typeof lesson & { loaded: Promise<void> };
+  return Object.assign(Object.defineProperty(lesson, "loaded", { get: () => loaded }) as typeof lesson & { loaded: Promise<void> }, { solids: () => solids });
 }

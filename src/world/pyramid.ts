@@ -24,7 +24,7 @@ import { T, worldPoints, type N } from "../gpu/tsl";
 import { scan, type ScanName } from "./temple";
 import { landStone } from "./stoneworks";
 import { release } from "../core/residency";
-import { PYRAMID } from "./terrain";
+import { colliders, PYRAMID, type Collider } from "./terrain";
 import { Duat, DUAT_PATH, duatHeight } from "./duat";
 
 const { abs, cos, float, floor, fract, mix, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
@@ -671,12 +671,16 @@ export class Pyramid {
     return p.distanceTo(this.apex) < 6;
   }
 
+  private duatSolids: Collider[] = [];
   show(inside: boolean): void {
     this.isInside = inside;
     this.inside.visible = inside;
     if (inside && !this.night) {
       this.night = new Duat((text, ms) => this.say(text, ms));
       this.duat.add(this.night.group);
+      // its gates and lamps stand solid while it stands
+      this.duatSolids = this.night.solids.map((sd) => ({ x: DUAT_ORIGIN.x + sd.x, z: DUAT_ORIGIN.z + sd.z, r: sd.r, hx: sd.hx, hz: sd.hz, ang: sd.ang, top: DUAT_ORIGIN.y + sd.y + sd.h }));
+      colliders.push(...this.duatSolids);
     } else if (!inside && this.night) {
       // its stages, scenes, forms and stone are freed with it
       const g = this.night.group;
@@ -684,6 +688,11 @@ export class Pyramid {
       const scene = this.world.parent as THREE.Scene | null;
       if (scene) release(scene, [g]);
       this.night = null;
+      for (const c of this.duatSolids) {
+        const k = colliders.indexOf(c);
+        if (k >= 0) colliders.splice(k, 1);
+      }
+      this.duatSolids = [];
     }
   }
 

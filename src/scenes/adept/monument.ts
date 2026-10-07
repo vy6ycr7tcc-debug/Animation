@@ -359,6 +359,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
       title: "",
       make: async (scene) => lobby(scene, seen),
       start: { x: 0, z: 9, heading: 0 },
+      solids: [{ x: 0, z: 0, r: 1.8, h: 4 }, ...[-6.2, 6.2].flatMap((x) => [-7, -2.4, 2.4, 7].map((z) => ({ x, z, r: 0.8, h: 8 })))], // the quartz on its plinth, the papyrus columns
       exits: [
         { x: 0, z: -R - 0.1, r: 1.8, to: 1 },
         { x: 0, z: R + 0.1, r: 1.8, to: "out" },
@@ -400,6 +401,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
       title: "The crucible",
       make: async (scene, nar, wh) => (await import("./crucible")).createCrucibleScene(scene, nar, wh) as Room,
       start: { x: 0, z: 4.5, heading: 0 },
+      solids: [{ x: 0, z: -6, r: 2.6, h: 1.3 }], // the crucible's bowl (its hearth is a step)
       exits: [{ x: 0, z: -18.4, r: 1.8, to: 3, dark: 1.5 }], // out of the fire, into the dawn
       confine: (p) => {
         const dx = p.x, dz = p.z + 6, d = Math.hypot(dx, dz), lim = Math.abs(p.x) < 1.5 && p.z < -6 ? 12.8 : 10.4;
@@ -414,6 +416,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
       title: "The radiance",
       make: async (scene, nar, wh) => (await import("./radiance")).createRadianceScene(scene, nar, wh) as Room,
       start: { x: 0, z: 6.5, heading: 0 },
+      solids: [{ x: 0, z: 0, r: 0.85, h: 0.8 }, { x: -2.3, z: -16, hx: 0.55, hz: 0.6, h: 6.4 }, { x: 2.3, z: -16, hx: 0.55, hz: 0.6, h: 6.4 }], // the basin, the door's jambs
       exits: [{ x: 0, z: -16.6, r: 1.8, to: 4 }], // on to the ancient practices
       confine: (p) => {
         const d = Math.hypot(p.x, p.z), lim = Math.abs(p.x) < 1.6 && p.z < 0 ? 17 : 15.6;
@@ -432,6 +435,7 @@ export function adeptStages(seen: () => Set<string>): Stage[] {
       },
       floor: (x, z) => (stonesFloor ? stonesFloor(x, z) : 0),
       start: { x: 0, z: 0, heading: 0 },
+      solids: [{ x: -1.5, z: -15, r: 1.8, h: 1.2 }, ...[[-2.6, -24], [-0.8, -27], [1.4, -29.5], [3.2, -31.6]].map(([x, z]) => ({ x, z, r: 0.55, h: 1 }))], // the great crystal's plinth, the four small plinths
       exits: [{ x: 8, z: -34.3, r: 1.8, to: 5 }],
       confine: box(-9, 14, -35, 6),
       ownAir: true,

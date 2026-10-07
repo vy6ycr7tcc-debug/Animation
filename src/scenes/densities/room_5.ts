@@ -18,6 +18,7 @@
    recording (`audio/densities/density_5.mp3`) and the room's interface are unchanged: the seat
    at the origin facing −z, the silver door at z −60. Formulas are well-known physics, written as
    physics is written; no words of our own. */
+import type { Solid } from "../journey";
 import * as THREE from "three/webgpu";
 import { LessonScene } from "../lessonKit";
 import type { LessonCtx, Beat } from "../lessonKit";
@@ -397,5 +398,6 @@ export function createDensity5Scene(scene: THREE.Scene, narration: Narration, wh
     tickers.length = 0;
     baseDispose();
   };
-  return Object.assign(lesson, { loaded: mage.loaded });
+  // the magician stands solid in its silver circle
+  return Object.assign(lesson, { loaded: mage.loaded, solids: (): Solid[] => [{ x: MAGE.x, z: MAGE.z, r: 0.6, h: 2.9 }] });
 }

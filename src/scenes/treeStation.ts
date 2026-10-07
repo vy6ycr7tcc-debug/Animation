@@ -15,6 +15,7 @@ import type { Narration } from "../core/narration";
 import { T } from "../gpu/tsl";
 import { ribbonGeometry, ribbonMaterial } from "../gpu/ribbons";
 import { rng } from "../world/forms";
+import { colliders } from "../world/terrain";
 import { barkMaterial, grow, SHAPES, tubes } from "../world/creation";
 import type { SceneModule } from "./lessonKit";
 import { SITES } from "./sites";
@@ -70,6 +71,8 @@ function stage(ctx: StageCtx): Stage {
   const tree = new THREE.Group();
   tree.position.set(0, gy(0, -1) - 0.1, -1);
   tree.scale.setScalar(S);
+  // its trunk stands solid (stage frame (0, −1), turned with the stage)
+  colliders.push({ x: ctx.at.x - Math.sin(ctx.face), z: ctx.at.z - Math.cos(ctx.face), r: 0.75, top: ctx.at.y + 16 });
   g.add(tree);
   const { limbs, roots, tips } = grow(SHAPES[3], 0.2718);
   // the branch that breaks: the first of the great limbs, with everything growing from it

@@ -14,13 +14,25 @@ import type { SceneModule } from "./lessonKit";
 import type { Narration } from "../core/narration";
 import { T, gpuUniforms, gradeUniforms } from "../gpu/tsl";
 import { applyAir, keepAlpha, roomOrigin, type Air } from "./densities/roomKit";
+import { colliders, type Collider } from "../world/terrain";
 
 export const JOURNEY_ORIGIN = new THREE.Vector3(22000, 0, 0);
 /** Is (x, z) inside the journeys' place apart? */
 export const inJourney = (x: number): boolean => x > 20500 && x < 26000;
 
 /** A room may say how present the visitor's body is (Room 7 lets it thin toward light). */
-export type Room = SceneModule & { loaded?: Promise<void>; presence?: () => number };
+export type Room = SceneModule & { loaded?: Promise<void>; presence?: () => number; solids?: () => Solid[] };
+/** Something solid in a room (its own frame): a circle (`r`) or a box (`hx`, `hz`, turned by
+    `ang`), `h` metres tall from the floor. The journey makes it a collider while the room stands. */
+export interface Solid {
+  x: number;
+  z: number;
+  h: number;
+  r?: number;
+  hx?: number;
+  hz?: number;
+  ang?: number;
+}
 export interface Spot { x: number; z: number; heading: number }
 export interface Exit {
   x: number;
@@ -58,6 +70,8 @@ export interface Stage {
   centre?: [number, number, number];
   /** The room was drawn around its seat, somewhere else: move it so the seat is at the origin. */
   centreOnSeat?: boolean;
+  /** What stands solid in the room (its own frame), beyond what `confine` keeps you within. */
+  solids?: Solid[];
   /** Its recording waits for you to sit on its seat, and stops when you stand (the monument of
       past choices: "sitting plays, standing stops"). */
   seated?: boolean;
@@ -144,6 +158,8 @@ export class Journey {
   private objs: THREE.Object3D[] = [];
   private marks: { dispose(): void }[] = [];
   private hidden: [THREE.Object3D, boolean][] = [];
+  /** The room's solids, as colliders while it stands. */
+  private solidNow: Collider[] = [];
   private local = new THREE.Vector3();
   /** Sitting on the room's seat (a seated room), and whether you have stepped off it since
       standing (so standing up never sits you straight back down). */
@@ -307,6 +323,11 @@ export class Journey {
     for (const m of this.marks) m.dispose();
     this.objs = [];
     this.marks = [];
+    for (const c of this.solidNow) {
+      const k = colliders.indexOf(c);
+      if (k >= 0) colliders.splice(k, 1);
+    }
+    this.solidNow = [];
     this.room = null;
     this.broken = false;
     this.sitting = false;
@@ -336,6 +357,14 @@ export class Journey {
     await h.settle();
     this.room = room;
     this.at = i;
+    // what stands solid there holds you out (fountains, plinths, houses, towers): the room's own
+    // frame, moved with it
+    for (const sd of [...(s.solids ?? []), ...(room.solids?.() ?? [])]) {
+      const x = shift.x + sd.x, z = shift.z + sd.z;
+      const c: Collider = { x, z, r: sd.r ?? 0, top: this.floorAt(x, z) + sd.h, hx: sd.hx, hz: sd.hz, ang: sd.ang };
+      colliders.push(c);
+      this.solidNow.push(c);
+    }
     this.seen.add(s.id);
     const p = at ?? s.start;
     const x = JOURNEY_ORIGIN.x + p.x, z = JOURNEY_ORIGIN.z + p.z;
