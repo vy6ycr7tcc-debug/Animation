@@ -783,6 +783,8 @@ export function createAfterVeil(scene: THREE.Scene, narration: Narration, whispe
       const pr = uProg.value as number;
       for (const [o, a, b] of windows) o.visible = pr > a && pr < b;
     },
+    /** For tests: where the angel's telling stands. */
+    debugState: () => ({ beat, speaking, spokeFor, progress, next: BEATS[Math.min(beat, BEATS.length - 1)].s, at: along(BEATS[Math.min(beat, BEATS.length - 1)].s + 1) }),
     dispose() {
       g.parent?.remove(g);
       for (const x of ours) x.dispose();

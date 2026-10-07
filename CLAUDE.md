@@ -677,7 +677,7 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - The one door (`scenes/afterVeil/door.ts`, site `VEIL_HALL` in `terrain.ts`, toward the deep night):
     - a tall door of old dark stone in courses, a heavy lintel, its seams fine lines of light, a faint pale light in its opening;
     - round it a ring of the world's own trees under dark crowns, spores of light low;
-    - the angel waits beside it, and coming within ~11 m it turns to you and speaks beat 1 (the choice), once a visit.
+    - the angel waits beside it, and coming within ~11 m it turns to you and speaks beat 1 (the choice), once a visit (not again as you come back out through the door).
     - Through the door, a white fade (`Journey.white`, `#fade.white`), not dark. On the map as "The world after the veil".
   - Within (`scenes/afterVeil/area.ts`, a journey of one stage at x = 22000, lifted 8 m so the vale stays above the water line): one path, a corridor about it (`veilConfine`), no more doors. Beats 2–7 begin as you reach their places, in order, each once.
     - 2, the forest walk: dense still trees, light in the grain (the world's bark), under dark crowns that thin as you go. Ground mist melts as you reach it and thins with progress. The air goes from heavy amber to white-gold.

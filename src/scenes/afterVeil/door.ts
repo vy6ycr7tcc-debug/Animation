@@ -145,7 +145,10 @@ export class VeilDoor implements Hall {
     if (near && !this.angel.root.parent) this.world.parent?.add(this.angel.root);
     if (!near) {
       if (this.angel.root.parent) this.angel.root.parent.remove(this.angel.root);
-      if (d > 160) this.spoke = false; // gone a long way: it speaks again when you come back
+      // coming back out through the door, it has already spoken this visit (no second telling);
+      // gone a long way through the world, it speaks again when you come back
+      if (inside) this.spoke = true;
+      else if (d > 160) this.spoke = false;
       return;
     }
     // beat 1, the choice: when you come near, it turns to you and speaks (once a visit)
