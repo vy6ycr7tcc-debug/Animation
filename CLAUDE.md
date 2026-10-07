@@ -662,6 +662,42 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - When the clips arrive, name either four cues (started on the audio clock at each phase's edge) or one seamless cycle (`loop`). The bed ducks lightly under them (`audio.duckSoft`), and "Only nature" or another voice speaking rests them.
   - Never synthesize a stand-in.
   - Still frames: `?shot=breath&t=<0..1>` (the ring held that open round the wanderer on the shore).
+- 2026-10-07: the temple's cards framed, spread and titled (the owner, iPhone screenshots: "remove lamp at beginning, center the centered view with more room above… last room all the cards are stucked together, make instead beautiful arrangements and separate them more. Also add the title of the cards to all of them in glowing format"; and of the sanctuary's dais, "a centerpiece in the middle that doesn't really make sense").
+  - The Mind's bronze lamp-stand by the door is gone. Its moment in the tour (the opening's own line, "In the first room, a lamp is lit…") now looks down the Mind's wall to its first shrine, the niches washed in the room's cool light (`buildSigns`). The Body's fire and the Spirit's star stay.
+  - Framing (`Temple.frameFor`, `TempleTour.atShrine`, `gravityFrame`/`gravityPoint` in `main.ts`):
+    - At every shrine the view centres on the carving, the whole of it and its title in frame with room above.
+    - In the tour this happens at each stop, the camera a little higher.
+    - Walking freely, it happens when you stand at a shrine's place (within 1.6 m), the view swinging round behind you on the line to it.
+    - Not the Choice, whose seat has its own view.
+  - The sanctuary: the round three-step dais and its altar are gone. Only a ring of gold set into the floor (two circles, an eight-armed star) marks where the cards are taken up; "The cards" opens there as before, and the Spirit's star still hangs over it.
+  - The Spirit's seven now stand apart in a wide horseshoe round the room (`ringSpots`: from the left wall, round the back, to the right wall, ~6 m between each, all facing the room's heart, the way to the Choice's door clear). The vessels by the walls keep clear of them.
+  - Every carving (all 22) carries its title over it in glowing letters (`glowTitle`: "I · The Magician", warm gold with a breath of its own colour, additive, contained), in place of the carved stone plaques.
+  - Stills: `?shot=temple-sanctuary`, `?shot=temple-tour&t=<s>&live=8` (the tour's own view at a stop), `?shot=temple-shrine-<i>&live=8&inward=0` (standing at a shrine). `&live=` now works for any still (the game's camera after that many seconds), and `&inward=0` keeps it short of contemplation.
+- 2026-10-07: the world after the veil (v5 item 6; the owner's brief `prompts/opus-densities-area-prompt.md`; audio `public/audio/densities-area/densities-area-cine-1…7.mp3`, Aria, used as they are).
+  - The one door (`scenes/afterVeil/door.ts`, site `VEIL_HALL` in `terrain.ts`, toward the deep night):
+    - a tall door of old dark stone in courses, a heavy lintel, its seams fine lines of light, a faint pale light in its opening;
+    - round it a ring of the world's own trees under dark crowns, spores of light low;
+    - the angel waits beside it, and coming within ~11 m it turns to you and speaks beat 1 (the choice), once a visit (not again as you come back out through the door).
+    - Through the door, a white fade (`Journey.white`, `#fade.white`), not dark. On the map as "The world after the veil".
+  - Within (`scenes/afterVeil/area.ts`, a journey of one stage at x = 22000, lifted 8 m so the vale stays above the water line): one path, a corridor about it (`veilConfine`), no more doors. Beats 2–7 begin as you reach their places, in order, each once.
+    - 2, the forest walk: dense still trees, light in the grain (the world's bark), under dark crowns that thin as you go. Ground mist melts as you reach it and thins with progress. The air goes from heavy amber to white-gold.
+    - 3, the clearing: warm air, ~2,600 drifting motes, the ground lit with small lights like a meadow, soft shafts falling into it, and fine threads of light joining still motes (no veil between minds).
+    - 4, the newcomers' ground: five figures of dim cold glass light at the treeline, sitting or standing guard, angular dark shards of their old armour drifting slowly about them. A bent spear of shadow and a cracked shield lie half sunk. They never approach.
+    - 5, the war in heaven, weather not war: soft columns of warm light standing on one side (the guardians). On the other, tall slender glass-light forms in cold light, a little crooked, their idle playing slowly backward (beautiful but wrong), each with a slow spiral drawing motes in and dimming them. Arcs of thought cross between, pulses running along them. The path between is untouched.
+    - 6, the mirror: from the height, the old world turning, out over the abyss and a little below the eye: seas, coasts, land in two scales, ice, weather, a glint, its rim of air. Threads, gold and shadow, come down toward it and fade before they touch; the shadow ones dissolve wherever the gaze falls straight on them.
+    - 7, the laying down: a glade with a ring of twelve swords of light on the ground, crumbling and dimming. After its line the angel gestures to the way home and comes apart into motes that drift after you and fade. The path leads on out (white fade) to the door.
+  - The angel (`scenes/afterVeil/angel.ts`, recipe `ANGEL` in `world/figures.ts`): the game's particle character on the wanderer's skeleton, warm gold light-dust, a veil and a long robe, no wings. It walks the recorded walk a little ahead of you (≤1.15 m/s, gliding on faster only if left far behind), stops at its next place until you come, turns to you while it speaks, and goes on when the line ends. A pause holds it.
+  - The view frames what the angel speaks of (the room's own gravity point, `Room.centre`): the angel, the clearing, the newcomers, the vale, the old world, the glade.
+  - Far scenes rest until you come near (`windows`), so their lines never cross another place's sky.
+  - Stills: `?shot=veil-door`, `veil-<2..7>`.
+  - Flagged, beyond the brief (the owner to judge):
+    - the door's site and its own ring of trees;
+    - beat 1 spoken out in the world at the door;
+    - no camera float in the clearing;
+    - the husks' backward idle;
+    - the angel gliding to catch up;
+    - the way out is the path's end fading white;
+    - not yet in Tours.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.

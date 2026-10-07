@@ -61,6 +61,8 @@ import { Journey, JOURNEY_ORIGIN, inJourney, type Hall, type JourneyHost } from 
 import { AdeptMonument, adeptStages } from "./scenes/adept/monument";
 import { DensityMonument, densityStages } from "./scenes/densities/monument";
 import { PastMonument, pastStages } from "./scenes/past/monument";
+import { VeilDoor } from "./scenes/afterVeil/door";
+import { createAfterVeil, veilConfine, veilFloor, VEIL_EXIT } from "./scenes/afterVeil/area";
 import { cloudUniforms } from "./world/atmosphere";
 import { NO_MIRROR_LAYER, Water } from "./world/water";
 import { FOG } from "./world/fog";
@@ -1708,7 +1710,9 @@ scene.add(egyptGate.group);
 const densityHall = new DensityMonument();
 const adeptHall = new AdeptMonument();
 const pastHall = new PastMonument();
-scene.add(densityHall.world, adeptHall.world, pastHall.world);
+// the one door into the world after the veil (scenes/afterVeil): through it, an open walk
+const veilHall = new VeilDoor(narration);
+scene.add(densityHall.world, adeptHall.world, pastHall.world, veilHall.world);
 function journeyHost(hall: Hall): JourneyHost {
   return {
     scene,
@@ -1727,7 +1731,10 @@ function journeyHost(hall: Hall): JourneyHost {
       if (!inJourney(x)) terrain.update(x, z, true);
       quality.hold(3);
     },
-    fade: (on) => fadeEl.classList.toggle("on", on),
+    fade: (on, white) => {
+      if (on) fadeEl.classList.toggle("white", !!white);
+      fadeEl.classList.toggle("on", on);
+    },
     busy,
     settle: async () => {
       additiveKeepsAlpha(scene);
@@ -1763,7 +1770,25 @@ const halls: { hall: Hall; journey: Journey; lit: number }[] = [];
   const dj: Journey = new Journey("densities", densityStages(() => dj.seen), journeyHost(densityHall));
   const aj: Journey = new Journey("adept", adeptStages(() => aj.seen), journeyHost(adeptHall));
   const pj: Journey = new Journey("past", pastStages(() => pj.seen), journeyHost(pastHall));
-  halls.push({ hall: densityHall, journey: dj, lit: -1 }, { hall: adeptHall, journey: aj, lit: -1 }, { hall: pastHall, journey: pj, lit: -1 });
+  // the world after the veil: one open walk (no more doors), its crossings white
+  const vj: Journey = new Journey(
+    "veil",
+    [
+      {
+        id: "afterVeil",
+        title: "The world after the veil",
+        make: async (sc, nar, wh) => createAfterVeil(sc, nar, wh),
+        floor: veilFloor,
+        start: { x: 0, z: 2, heading: 0 },
+        exits: [{ x: VEIL_EXIT.x, z: VEIL_EXIT.z, r: 4, to: "out" }],
+        confine: veilConfine,
+        ownAir: true,
+      },
+    ],
+    journeyHost(veilHall),
+  );
+  vj.white = true;
+  halls.push({ hall: densityHall, journey: dj, lit: -1 }, { hall: adeptHall, journey: aj, lit: -1 }, { hall: pastHall, journey: pj, lit: -1 }, { hall: veilHall, journey: vj, lit: -1 });
 }
 /** The journey you are in (null out in the world). */
 hallsReady = true;
@@ -1777,6 +1802,7 @@ hearAgain.addEventListener("pointerdown", (e) => {
 /** Each frame: the monuments' doors, and within one, its journey. */
 function journeyFrame(dt: number): void {
   egyptGate.update(S.t);
+  veilHall.update(dt, S.t, player.pos, S.reduced, !!inHall() || apart());
   if (!apart() && S.mode === "play" && Math.hypot(player.pos.x - egyptGate.at.x, player.pos.z - egyptGate.at.z) < 9) tellPyr("egypt-gate", "The telling of Egypt", 4500);
   const at = inHall();
   if (at?.journey.inside) {
@@ -1934,6 +1960,11 @@ function gravityPoint(): THREE.Vector3 | null {
     const p7 = pyramid.PATH[pyramid.PATH.length - 1];
     return DUAT_ORIGIN.clone().add(p7).add(new THREE.Vector3(-0.3 * 140, 14, -0.95 * 140));
   }
+  // standing at a shrine's place in the temple (not seated, not with the cards): its carving
+  if (S.mode === "play" && temple.inside && !temple.cardsOpen && sitting.phase === "none" && player.speed < 0.3) {
+    const k = temple.nearShrine(player.pos, 1.6);
+    if (k >= 0 && k !== 21) return temple.frameFor(k, shrineFrame);
+  }
   if (S.mode !== "play" || (!narration.progress() && narration.debugTime === null)) return null;
   const h = inHall();
   if (h) return h.journey.inside && !h.journey.crossing ? h.journey.centre() : null;
@@ -1943,7 +1974,17 @@ function gravityPoint(): THREE.Vector3 | null {
   return m?.focus?.clone() ?? null;
 }
 const GRAVITY_AFTER = 2500;
+const shrineFrame = new THREE.Vector3();
 function gravityFrame(dt: number): void {
+  // the temple tour at a shrine: the view centred on its carving, the whole of it and its title
+  // with room above (the owner's framing); the tour itself turns the view round
+  const ts = tourScenes.tour.active ? tourScenes.tour.atShrine : -1;
+  if (ts >= 0) {
+    follow.frame = temple.frameFor(ts, shrineFrame);
+    follow.frameHold = 1;
+    follow.wide = 0;
+    return;
+  }
   const g = document.body.classList.contains("touring") && !walk && !duatTour ? null : gravityPoint();
   follow.frame = g;
   // a room framed wide (the first density): the focus move, and contemplation, draw back to reveal it
@@ -3828,13 +3869,47 @@ renderer
           return [player.pos.x, player.pos.y, player.pos.z];
         },
         update,
+        veil: async (n) => {
+          if (n === 1) {
+            // the door in the world, from the way in, the angel beside it
+            const o = veilHall.outside(), d = veilHall.door, f = veilHall.face;
+            const sx = Math.cos(f), sz = -Math.sin(f);
+            player.pos.set(o.x + Math.sin(f) * 4, heightAt(o.x + Math.sin(f) * 4, o.z + Math.cos(f) * 4), o.z + Math.cos(f) * 4);
+            player.heading = o.heading;
+            terrain.update(player.pos.x, player.pos.z, true);
+            for (let k = 0; k < 60; k++) veilHall.update(1 / 30, k / 30, player.pos, false, false);
+            const eye = [d.x + Math.sin(f) * 13 + sx * 3, d.y + 2.6, d.z + Math.cos(f) * 13 + sz * 3] as [number, number, number];
+            return { eye, look: [d.x, d.y + 2.6, d.z] as [number, number, number] };
+          }
+          const j = halls[3].journey;
+          await j.jump(0);
+          const room = j.room as unknown as { debugPlace(n: number): { at: THREE.Vector3; look: THREE.Vector3 } };
+          const { at, look } = room.debugPlace(n);
+          const o = JOURNEY_ORIGIN;
+          player.pos.set(o.x + at.x, o.y + at.y, o.z + at.z);
+          const dir = look.clone().sub(at).setY(0).normalize();
+          player.heading = Math.atan2(-dir.x, -dir.z);
+          const eye = at.clone().addScaledVector(dir, -5.5).add(new THREE.Vector3(dir.z * 1.6, 2.6, -dir.x * 1.6));
+          return { eye: [o.x + eye.x, o.y + eye.y, o.z + eye.z], look: [o.x + look.x, o.y + look.y, o.z + look.z] };
+        },
         breath: (open) => {
           breath.debugOpen = open;
           breath.set(true);
           for (let k = 0; k < 120; k++) breath.update(1 / 30, player.pos, false);
         },
+        templeStand: (i) => {
+          setInside(true);
+          update(1 / 60); // coming in begins the tour: this still is of walking up yourself
+          tourScenes.tour.exit();
+          const s = temple.standFor(i);
+          player.pos.set(s.x, temple.floorAt(s.x, s.z), s.z);
+          player.heading = s.heading;
+          follow.yaw = s.heading;
+          follow.snapTo(player.pos);
+        },
         idle: () => {
-          lastTouch = -1e9;
+          // (&inward=0: still a few seconds, not long enough for contemplation)
+          lastTouch = new URLSearchParams(location.search).get("inward") === "0" ? performance.now() - 3000 : -1e9;
           realDt = 1 / 60; // the stills' frames are lived synchronously, at sixty a second
         },
         draw: () => {
@@ -3874,4 +3949,4 @@ function endLoading(): void {
   }, wait);
 }
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall } });
+Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall } });

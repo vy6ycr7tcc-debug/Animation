@@ -98,8 +98,13 @@ export interface ShotCtx {
   settle?(): Promise<unknown>;
   /** Walk into stage `i` of the density journey (no fades), lived for `t` seconds; `journey-<i>`. */
   journey?(name: string, i: number, t: number): Promise<void>;
+  /** The world after the veil: its door out in the world (`veil-door`), or beat n's place within
+      (`veil-<n>`, n 2–7): where the eye stands and looks, in the world. */
+  veil?(n: number): Promise<{ eye: XYZ; look: XYZ }>;
   /** The breathing ring round the wanderer, held this open (`breath&t=<0..1>`). */
   breath?(open: number): void;
+  /** Stand at temple shrine `i`'s place, facing it (`temple-shrine-<i>`). */
+  templeStand?(i: number): void;
   /** No touch for a long while (the gravity point and contemplation answer to stillness). */
   idle?(): void;
   /** Build density room `n` alone (the open world hidden); `density-<n>` still frames. */
@@ -185,6 +190,19 @@ export function runShot(ctx: ShotCtx): void {
     return;
   }
 
+  const vm = /^veil-(door|\d)$/.exec(id);
+  if (vm && ctx.veil) {
+    const { veil, ...rest } = ctx;
+    void veil(vm[1] === "door" ? 1 : Number(vm[1])).then((view) => {
+      ctx.S.mode = "play";
+      ctx.follow.startFollowing(true);
+      ctx.follow.follow = 1;
+      ctx.S.t = t;
+      for (let i = 0; i < 300; i++) ctx.update(1 / 30); // its life runs a while: the angel gathers into its form
+      finish(rest, id, t, [0, 0, 0], view);
+    });
+    return;
+  }
   const jm = /^(journey|adept|past)-(\d)$/.exec(id);
   if (jm && ctx.journey) {
     // the density journey itself: walked into stage k (the real wiring: placed, its air, its seat)
@@ -224,6 +242,11 @@ export function runShot(ctx: ShotCtx): void {
     view = { eye: [0, 9, 24], look: [0, 5, -44] };
     ctx.setInside(true); // crossTemple's delays are skipped on purpose
     ctx.tour.beginTour(); // narration.play: muted
+  } else if (/^temple-shrine-\d+$/.test(id) && ctx.templeStand) {
+    // standing at a shrine's place, as you would walk up to it (best with &live=: the game's own view)
+    base = TEMPLE_ORIGIN;
+    view = { eye: [0, 3, 0], look: [0, 3, -10] };
+    ctx.templeStand(Number(id.slice(14)));
   } else if (id === "temple-sanctuary" || id === "temple-hall" || id === "temple-choice") {
     // the temple empty of the tour: the sanctuary from its gateway, the hall from the door, the Choice's platform
     base = TEMPLE_ORIGIN;
@@ -338,12 +361,23 @@ export function runShot(ctx: ShotCtx): void {
   ctx.update(1 / 60);
   ctx.S.t = t;
   ctx.S.wt = t;
+  // &live=S: the game's own camera after S seconds of stillness, not a fixed view
+  const live = Number(new URLSearchParams(location.search).get("live") ?? NaN);
+  const go = (c: ShotCtx) => {
+    if (live >= 0) {
+      c.idle?.();
+      for (let i = 0, n = Math.round(live * 60); i < n; i++) c.update(1 / 60);
+      c.narration.debugTime = t;
+      return finish(c, id, t, base, null);
+    }
+    finish(c, id, t, base, view);
+  };
   if (ctx.settle) {
     const { settle, ...rest } = ctx;
-    void settle().then(() => finish(rest, id, t, base, view));
+    void settle().then(() => go(rest));
     return;
   }
-  finish(ctx, id, t, base, view);
+  go(ctx);
 }
 
 function finish(ctx: ShotCtx, id: string, t: number, base: XYZ, view: { eye: XYZ; look: XYZ } | null): void {
@@ -351,7 +385,7 @@ function finish(ctx: ShotCtx, id: string, t: number, base: XYZ, view: { eye: XYZ
   ctx.S.t = t;
   ctx.S.wt = t;
 
-  if (id === "temple-tour") {
+  if (id === "temple-tour" && view) {
     // over the walking wanderer's shoulder, where the tour has brought it by T
     const p = ctx.player.pos, fx = -Math.sin(ctx.player.heading), fz = -Math.cos(ctx.player.heading);
     base = [p.x, p.y, p.z];
