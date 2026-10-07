@@ -15,7 +15,7 @@
    floor ≈ −0.95, hips 0, chest 0.41, neck 0.59. */
 import * as THREE from "three/webgpu";
 import { MOBILE } from "../core/quality";
-import { gpuUniforms, softPoints, spriteCloud, T, viewDepth, type SpriteCloud } from "../gpu/tsl";
+import { gpuUniforms, softPoints, spriteCloud, T, viewDepth, type SpriteCloud, softDot, pointR } from "../gpu/tsl";
 
 type RGB = [number, number, number];
 const key = (s: string) => s.replace(/[\s.:/[\]]/g, "");
@@ -872,13 +872,13 @@ export class Figure {
     (this.cloud.attrs.aSeed.array as Float32Array).set(bind.seed);
     this.height = 1.7;
     {
-      const { clamp, float, length, max, pointUV, sin, smoothstep, exp, vec4, vec3, mix } = T;
+      const { clamp, float, max, sin, exp, vec4, vec3, mix } = T;
       const { position, aCol, aSeed } = this.cloud.nodes;
       const worldPos = T.modelWorldMatrix.mul(vec4(position, 1)).xyz;
       mat.sizeNode = clamp(gpuUniforms.px.mul(0.022).mul(aSeed.mul(0.8).add(0.6)).div(max(viewDepth(worldPos), 0.4)), float(1).div(gpuUniforms.dpr), 6);
       const flick = sin(this.uT.mul(17).add(aSeed.mul(97))).mul(0.12).add(0.88);
       const scan = exp(position.y.sub(this.uScan).mul(position.y.sub(this.uScan)).mul(-9)).mul(0.6);
-      const soft = smoothstep(0.5, 0.05, length(pointUV.sub(0.5)));
+      const soft = softDot(pointR()).mul(1.39);
       // the archetype's own colour runs a little through everything it wears
       const c = mix(aCol, vec3(tint[0], tint[1], tint[2]), 0.12);
       mat.colorNode = vec4(c.mul(soft).mul(flick).mul(scan.add(0.7)).mul(this.uGlow).mul(0.5), 1);

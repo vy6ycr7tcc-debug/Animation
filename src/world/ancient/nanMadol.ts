@@ -25,7 +25,7 @@
      go (the owner's rule for these areas). */
 import * as THREE from "three/webgpu";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { T, fogUniforms, gpuUniforms, outOfTheWay, softPoints, spriteCloud, viewDepth, type N } from "../../gpu/tsl";
+import { T, fogUniforms, gpuUniforms, outOfTheWay, softPoints, spriteCloud, viewDepth, type N, softDot, pointR } from "../../gpu/tsl";
 import { NAN_FLOOR, NAN_MADOL, heightAt, nanMadolAt, standHooks, WATER_Y, type Collider } from "../terrain";
 import { surface } from "../textures";
 import { palmGeometry, palmMaterial } from "../wilds";
@@ -456,7 +456,7 @@ export class NanMadol {
     mat.positionNode = p;
     const wp = T.modelWorldMatrix.mul(vec4(p, 1)).xyz;
     mat.sizeNode = clamp(gpuUniforms.px.mul(K.w.mul(4).add(3)).div(max(viewDepth(wp), 0.4)), float(1), 900);
-    const soft = smoothstep(0.5, 0.0, length(T.pointUV.sub(0.5)));
+    const soft = softDot(pointR()).mul(1.22);
     mat.colorNode = vec4(vec3(0.95, 0.9, 0.86), 1);
     mat.opacityNode = soft.mul(soft).mul(0.07).mul(this.uMist).mul(outOfTheWay(wp)).mul(smoothstep(1.5, 8, viewDepth(wp)))
       // mist lies low: from high above its puffs would read as blobs

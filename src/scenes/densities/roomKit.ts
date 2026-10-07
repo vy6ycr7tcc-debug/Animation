@@ -4,14 +4,14 @@
    `additiveKeepsAlpha` does this at start-up, before any room exists). Rooms 0/3/5/7 are not
    touched by this file. */
 import * as THREE from "three/webgpu";
-import { T, fogUniforms, gpuUniforms, gradeUniforms, softPoints, spriteCloud, vnoise, type N, type SpriteCloud } from "../../gpu/tsl";
+import { T, fogUniforms, gpuUniforms, gradeUniforms, nearLens, pointR, softDot, softPoints, spriteCloud, vnoise, type N, type SpriteCloud } from "../../gpu/tsl";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
 import { fbm } from "../../world/terrain";
 import { stoneBlock } from "../../world/stoneworks";
 import { surface, type SurfaceName } from "../../world/textures";
 
-const { vec3, vec4, mix, smoothstep, length, exp, max, positionLocal, normalize, uniform } = T;
+const { vec3, vec4, mix, smoothstep, length, max, positionLocal, normalize, uniform } = T;
 
 
 /** Where the room you are in has been placed in the world (the journey moves rooms to a place
@@ -74,9 +74,8 @@ export function pointCloud(n: number, size: number): { cloud: SpriteCloud; mater
   const cloud = spriteCloud(n, { position: 3, aK: 4 }, material);
   const pos = cloud.attrs.position.array as Float32Array, k = cloud.attrs.aK.array as Float32Array;
   material.size = size;
-  // a soft round falloff (alpha is folded into the colour)
-  const r = length(T.pointUV.sub(0.5)).mul(2);
-  const round = exp(r.mul(r).mul(-4)).mul(smoothstep(1, 0.7, r));
+  // the shared soft point of light (alpha is folded into the colour), near the lens fading away
+  const round = softDot(pointR()).mul(0.99).mul(nearLens());
   return { cloud, material, pos, k, round };
 }
 

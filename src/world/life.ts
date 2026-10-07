@@ -7,7 +7,7 @@
    passages overhead, are in creation.ts.) */
 import * as THREE from "three/webgpu";
 import type { AudioEngine } from "../core/audio";
-import { softPoints, spriteCloud, T, viewDepth, withFog, type N, type SpriteCloud } from "../gpu/tsl";
+import { softPoints, spriteCloud, T, viewDepth, withFog, type N, type SpriteCloud, softDot, pointR } from "../gpu/tsl";
 import { fbm, gladeAt, groundKind, heightAt, LANDMARK_SITES, WATER_Y } from "./terrain";
 
 export interface LifeFrame {
@@ -53,7 +53,7 @@ export class Sparks {
     this.tint = this.cloud.attrs.aTint.array as Float32Array;
     this.vel = new Float32Array(this.n * 3);
     mat.sizeNode = clamp(aLife.add(0.4).mul(30).div(max(viewDepth(position), 0.5)), float(1).div(this.uDpr), 9);
-    mat.colorNode = vec4(aTint.mul(smoothstep(0.5, 0, length(pointUV.sub(0.5)))).mul(aLife).mul(1.8), 1);
+    mat.colorNode = vec4(aTint.mul(softDot(pointR()).mul(1.22)).mul(aLife).mul(1.8), 1);
     this.points = this.cloud.sprite;
   }
   emit(at: THREE.Vector3, count: number, color: THREE.Color, spread = 1): void {

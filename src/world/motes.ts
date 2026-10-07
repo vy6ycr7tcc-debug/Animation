@@ -1,7 +1,7 @@
 /* Motes of light drifting above the lake, drawn on the GPU. They follow the viewer
    in a wrapping volume, so there are always some nearby and never too many. */
 import * as THREE from "three/webgpu";
-import { softPoints, spriteCloud, T, type SpriteCloud } from "../gpu/tsl";
+import { softPoints, spriteCloud, T, type SpriteCloud, softDot } from "../gpu/tsl";
 
 const { cameraViewMatrix, cos, float, length, mix, mod, pointUV, positionView, sin, smoothstep, step, uniform, vec2, vec3, vec4, clamp } = T;
 
@@ -27,7 +27,7 @@ export class Motes {
     const a = float(1).sub(smoothstep(20, 40, d)).mul(smoothstep(0.6, 3, d)).mul(aK.mul(0.7).add(0.3)).mul(sin(U.uT.mul(1.4).add(aK.mul(40))).mul(0.4).add(0.6));
     const r = length(pointUV.sub(0.5));
     const col = mix(vec3(1.0, 0.9, 0.78), vec3(1.0, 0.72, 0.5), step(0.75, aK));
-    mat.colorNode = vec4(col.mul(smoothstep(0.5, 0, r)).mul(a).mul(1.4), 1);
+    mat.colorNode = vec4(col.mul(softDot(r.mul(2)).mul(1.22)).mul(a).mul(1.4), 1);
     void positionView;
     void vec2;
     this.points = this.cloud.sprite;

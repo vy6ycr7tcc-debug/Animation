@@ -153,6 +153,19 @@ export function spriteCloud(max: number, layout: Record<string, number>, materia
   };
 }
 
+/** The game's soft point of light, for every sprite cloud: a bright core in a soft halo (two
+    gaussians), so a point reads as light, never as a flat disc with a rim, and a dense cloud as
+    glowing dust rather than beads. `r` is 0 at the sprite's centre and 1 at its edge (`pointR`).
+    Its energy (mean over the sprite) is DOT_ENERGY; callers scale it to keep their brightness. */
+export const softDot = (r: N): N =>
+  exp(r.mul(r).mul(-20)).mul(0.8).add(exp(r.mul(r).mul(-2.2)).mul(0.45)).mul(smoothstep(1, 0.8, r));
+export const DOT_ENERGY = 0.1647;
+/** The distance from a sprite's centre, 0 there and 1 at its edge. */
+export const pointR = (): N => length(T.pointUV.sub(0.5)).mul(2);
+/** A point near the lens fades instead of swelling into a blob across the view (the house rule
+    for effects): gone within 0.35 m, whole from 1.6 m. Reads the point's own centre. */
+export const nearLens = (): N => smoothstep(0.35, 1.6, T.positionView.z.negate());
+
 /** A points material for a sprite cloud: additive, no depth writes, sized in pixels. */
 export function softPoints(): THREE.PointsNodeMaterial {
   const m = new THREE.PointsNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
