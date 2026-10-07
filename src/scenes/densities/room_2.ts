@@ -6,6 +6,7 @@
    wanderer is made of); primates are left out, as the house rule is real animated models or
    nothing, and there is no primate model yet.
    The way on: two trees leaning together into an arch, light between them. */
+import type { Solid } from "../journey";
 import * as THREE from "three/webgpu";
 import { LessonScene } from "../lessonKit";
 import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
@@ -52,6 +53,8 @@ export function createDensityRoom2Scene(
   let growth = 0.5, herdPace = 0.4, time = 0;
   /** Settles when the animals have arrived (still frames wait for it). */
   let loaded: Promise<void> = Promise.resolve();
+  /** What stands solid (the trunks, the arch's two trees): the journey holds you out. */
+  const solids: Solid[] = [];
   const air: Air = {
     color: new THREE.Color(0.16, 0.2, 0.2),
     glow: new THREE.Color(0.7, 0.52, 0.3),
@@ -158,6 +161,7 @@ export function createDensityRoom2Scene(
       const geo = tubes([...tree.limbs, ...tree.roots]);
       const obj = new THREE.Group();
       obj.position.set(x, meadowHeight(x, z) - 0.1, z);
+      solids.push({ x, z, r: 0.32 * size, h: 6 * size });
       obj.rotation.y = R() * Math.PI * 2;
       const mesh = new THREE.Mesh(geo, bark);
       mesh.castShadow = true;
@@ -310,6 +314,7 @@ export function createDensityRoom2Scene(
         const geo = tubes([...tree.limbs, ...tree.roots]);
         const mesh = new THREE.Mesh(geo, bark);
         mesh.position.set(sx * 2.4, 0, 0);
+        solids.push({ x: PORTAL.x + sx * 2.4, z: PORTAL.z, r: 0.45, h: 7 });
         mesh.rotation.set(0, sx > 0 ? 0.4 : 2.6, -sx * 0.32);
         mesh.scale.setScalar(1.1);
         mesh.castShadow = true;
@@ -444,5 +449,5 @@ export function createDensityRoom2Scene(
     ours.length = 0;
     tickers.length = 0;
   };
-  return Object.assign(lesson, { loaded });
+  return Object.assign(lesson, { loaded, solids: () => solids });
 }

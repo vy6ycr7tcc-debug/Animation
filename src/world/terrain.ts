@@ -393,14 +393,48 @@ export function groundKind(x: number, z: number, h = heightAt(x, z)): { meadow: 
   return { meadow, sand, stone };
 }
 
-/** Circle colliders for solid features (pillars, stones). */
+/** Solid features: a circle (pillars, stones, basins) or, with `hx`/`hz`, a box turned by `ang`
+    about its centre (walls, plinths, houses, tables); `r` is then unused. Below `top` it holds
+    you out; `bottom` (default none) lets you pass under something raised (a lintel, a bridge). */
 export interface Collider {
   x: number;
   z: number;
   r: number;
   top: number;
+  bottom?: number;
+  hx?: number;
+  hz?: number;
+  ang?: number;
 }
 export const colliders: Collider[] = [];
+
+/** Push a body of radius `body` at (p.x, p.z), its feet at `y`, out of collider `c` (mutates p). */
+export function pushOut(p: { x: number; z: number }, y: number, body: number, c: Collider): void {
+  if (y > c.top || (c.bottom !== undefined && y + 1.6 < c.bottom)) return;
+  if (c.hx === undefined || c.hz === undefined) {
+    const dx = p.x - c.x, dz = p.z - c.z, d = Math.hypot(dx, dz), min = c.r + body;
+    if (d < min && d > 1e-4) (p.x = c.x + (dx / d) * min), (p.z = c.z + (dz / d) * min);
+    return;
+  }
+  // into the box's own frame
+  const a = c.ang ?? 0, cs = Math.cos(a), sn = Math.sin(a);
+  const wx = p.x - c.x, wz = p.z - c.z;
+  let lx = wx * cs - wz * sn, lz = wx * sn + wz * cs;
+  const qx = Math.max(-c.hx, Math.min(c.hx, lx)), qz = Math.max(-c.hz, Math.min(c.hz, lz));
+  const ex = lx - qx, ez = lz - qz, d = Math.hypot(ex, ez);
+  if (d > 1e-4) {
+    if (d >= body) return;
+    lx = qx + (ex / d) * body;
+    lz = qz + (ez / d) * body;
+  } else {
+    // inside: out by the nearest face
+    const px = c.hx - Math.abs(lx), pz = c.hz - Math.abs(lz);
+    if (px < pz) lx = Math.sign(lx || 1) * (c.hx + body);
+    else lz = Math.sign(lz || 1) * (c.hz + body);
+  }
+  p.x = c.x + lx * cs + lz * sn;
+  p.z = c.z - lx * sn + lz * cs;
+}
 
 /* ---------- streamed ground, in three levels of detail ----------
    Near the wanderer: fine 64 m tiles (a vertex every 2 m). Around them, out to ~640 m: coarse

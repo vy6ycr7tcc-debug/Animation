@@ -15,6 +15,7 @@ import { etchedStone } from "../../world/etching";
 import { barkMaterial, grow, SHAPES, tubes } from "../../world/creation";
 import { fbm } from "../../world/terrain";
 import { applyAir, scannedGround, boulderGeometry, cloudSheet, damp, keepAlpha, pointCloud, roomClock, seeded, skyDome, spireGeometry, touch, type Air, roomPos } from "./roomKit";
+import type { Solid } from "../journey";
 
 const {
   abs, cameraPosition, cameraViewMatrix, cos, exp, float, floor, fract, length, max, mix, mod, normalize,
@@ -52,6 +53,8 @@ export function createDensityRoom1Scene(
 
   const tickers: Array<(dt: number) => void> = [];
   const ours: Array<{ dispose(): void }> = [];
+  /** What stands solid (the towers, the boulders, the living stone): the journey holds you out. */
+  const solids: Solid[] = [];
 
   // the room's moods, eased toward the goals the beats set
   const clock = roomClock();
@@ -178,6 +181,7 @@ export function createDensityRoom1Scene(
       const mesh = new THREE.Mesh(geo, stone);
       const y = Math.min(sandHeight(x, z), 0) - 0.8;
       mesh.position.set(x, y, z);
+      solids.push({ x, z, r: r * 0.85, h });
       mesh.rotation.y = R() * Math.PI * 2;
       mesh.castShadow = mesh.receiveShadow = true;
       g.add(mesh);
@@ -193,9 +197,11 @@ export function createDensityRoom1Scene(
       const a = R() * Math.PI * 2, d = 8 + R() * 34;
       const x = Math.cos(a) * d * 1.2, z = -10 - Math.abs(Math.sin(a)) * d;
       if (Math.abs(x) < 4.5 || x < SHORE_X - 4) continue; // the path stays clear, the sea too
-      const geo = boulderGeometry(0.6 + R() * 1.8, 90 + i);
+      const br = 0.6 + R() * 1.8;
+      const geo = boulderGeometry(br, 90 + i);
       const mesh = new THREE.Mesh(geo, stone);
       mesh.position.set(x, sandHeight(x, z) - 0.15, z);
+      solids.push({ x, z, r: br * 0.8, h: br });
       mesh.rotation.set(R() * 0.4, R() * 6.28, R() * 0.4);
       mesh.castShadow = mesh.receiveShadow = true;
       g.add(mesh);
@@ -213,6 +219,7 @@ export function createDensityRoom1Scene(
       geo.scale(1.25, 0.9, 1);
       const mesh = new THREE.Mesh(geo, stone);
       mesh.position.copy(N);
+      solids.push({ x: N.x, z: N.z, r: 1.75, h: 1.4 });
       mesh.castShadow = mesh.receiveShadow = true;
       g.add(mesh);
       ours.push(geo);
@@ -582,5 +589,5 @@ export function createDensityRoom1Scene(
     ours.length = 0;
     tickers.length = 0;
   };
-  return lesson;
+  return Object.assign(lesson, { solids: () => solids });
 }

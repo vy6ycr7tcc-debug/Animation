@@ -10,6 +10,7 @@
    daily lamp's warmth, the far worlds' white) and meet over the ring. At the end every star is
    joined to its neighbours by a thin line: all the climbers keeping each other company, making
    the night navigable. The way home to the school is a doorway at the hill's edge. */
+import type { Solid } from "../journey";
 import * as THREE from "three/webgpu";
 import { LessonScene } from "../lessonKit";
 import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
@@ -63,6 +64,8 @@ export function createOthersScene(scene: THREE.Scene, narration: LessonCtx["narr
     specs.push({ x, z, y: hillFloor(x, z), face: a + Math.PI, act: "sit", tint: new THREE.Color().setHSL(0.08 + k * 0.1, 0.45, 0.78) });
   }
   const folk = new GlassFolk(specs, 71);
+  /** What stands solid: the boulders, those sitting in the ring. */
+  const solids: Solid[] = specs.map((f) => ({ x: f.x, z: f.z, r: 0.35, h: 1.6 }));
 
   const build = (ctx: LessonCtx) => {
     const g = ctx.group;
@@ -101,8 +104,10 @@ export function createOthersScene(scene: THREE.Scene, narration: LessonCtx["narr
         const a = R() * Math.PI * 2, r = 10 + R() * 30;
         const x = Math.sin(a) * r, z = -8 + Math.cos(a) * r;
         if (Math.abs(x) < 3 && z < -16) continue;
-        const b = boulderGeometry(0.5 + R() * 1.6, i * 3.1);
+        const br = 0.5 + R() * 1.6;
+        const b = boulderGeometry(br, i * 3.1);
         b.translate(x, hillFloor(x, z), z);
+        solids.push({ x, z, r: br * 0.8, h: br });
         rocks.push(b);
       }
       const rm = landStone("sandstone_cracks", 0, 1.6, [0.55, 0.56, 0.62]);
@@ -340,5 +345,5 @@ export function createOthersScene(scene: THREE.Scene, narration: LessonCtx["narr
     ours.length = 0;
     tickers.length = 0;
   };
-  return Object.assign(lesson, { loaded: folk.loaded });
+  return Object.assign(lesson, { loaded: folk.loaded, solids: () => solids });
 }
