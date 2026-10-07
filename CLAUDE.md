@@ -673,6 +673,26 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - The Spirit's seven now stand apart in a wide horseshoe round the room (`ringSpots`: from the left wall, round the back, to the right wall, ~6 m between each, all facing the room's heart, the way to the Choice's door clear). The vessels by the walls keep clear of them.
   - Every carving (all 22) carries its title over it in glowing letters (`glowTitle`: "I · The Magician", warm gold with a breath of its own colour, additive, contained), in place of the carved stone plaques.
   - Stills: `?shot=temple-sanctuary`, `?shot=temple-tour&t=<s>&live=8` (the tour's own view at a stop), `?shot=temple-shrine-<i>&live=8&inward=0` (standing at a shrine). `&live=` now works for any still (the game's camera after that many seconds), and `&inward=0` keeps it short of contemplation.
+- 2026-10-07: the drowned Maya city (the owner's ancient civilizations brief, SPEC 1; the telling `MAYAN`, `audio/ancient-civs/mayan.mp3`, Aria, 251.40 s decoded, 40 cues, used as delivered).
+  - Where: the brief asks for the world's own underwater ruin sites, not new geography. The city takes the deepest of the nine ruin sites (`AREA_SITES` in `depths.ts`, ~26 m of water, for a pyramid ~18 m tall), in place of that site's ruin and its ring of stillness; its floor is levelled within 50 m (`levelGround` in `terrain.ts`). On the map (Deep) as "The drowned Maya city".
+  - The city (`world/ancient/mayan.ts`, local frame: the stair faces the shore, the way you come):
+    - the pyramid: nine sloping terraces, a band at each, the lowest buried in drifted sand; a grand stair between balustrades ending in serpent heads; a small temple on top with its doorway and roof comb;
+    - the processional way: a low white causeway; beside it six stelae, each with a rounded top, a standing ruler in low relief between columns of glyph blocks (`stelaAtlas`), and a plinth. Their carvings warm with a little gold as you come within ~12 m;
+    - the reading wall: a fallen lintel lying on its side, dense with glyph bands, a broken piece and a toppled jamb beside it;
+    - the ball court: two long mounds with sloping benches, coursed walls and a stone ring on each, open at both ends;
+    - the plaza: broken paving, five round altars (some tilted, half sunk), and the sand's ripples slowly moving over it.
+    - The glyphs are decorative shapes in the manner of Maya blocks (cartouches, bars and dots, scrolls, faces, petals), never real words or names.
+  - Stone: the buildings are the game's cut masonry (`seaMasonry` in `world/ancient/kit.ts` over the shared `landStone`: small courses of pale limestone, recessed joints, each stone its own tone), with silt on what faces up and the surface's light playing over it as faint caustics. Carved stones use `seaStone` (the scanned sandstone, triplanar, with the carving read from a canvas).
+  - Light: soft shafts from the surface to the plaza, the pyramid and the stelae, each breathing on its own time; near the city the water itself is a little greener and its shafts stronger (`UnderwaterEffect.u.uTint/uShaft/uShaftCol`, eased in over 60 m).
+  - Life: fish schools on loops round the pyramid and along the stelae (never through them), and two mantas passing far overhead (the world's own fish pack). No turtle: there is no turtle model (real models or nothing).
+  - Keepers (`Keeper` in `kit.ts`, recipe `MAYA_PRIEST` in `world/figures.ts`: a feathered headdress of jade and gold, a collar, a deep green wrapped garment). They are the temple archetypes' particle figures on the wanderer's skeleton:
+    - one sits still on the temple platform before its door;
+    - one walks slowly along the stelae, pausing at each, facing it;
+    - one kneels at an altar and rises a while on a long loop.
+    - Underwater they are buoyant and slower. They gather into form within ~45 m, fade by ~110 m, turn only their head toward you within ~16 m, never move toward you, and are never solid.
+  - The telling (`Ancients` in `world/ancient/index.ts`) begins once, the first time you come into the city's water (within 62 m), and plays on wherever you go: leaving never ducks, cuts or restarts it (the owner's rule for these areas). It doesn't start while "Only nature" rests the voices or over an archive narration; then it waits for your next coming in.
+  - Solid: the pyramid's terraces (each up to its own height), the temple, the stelae, the lintel, the ball court's mounds and the altars.
+  - Stills: `?shot=ancient-mayan-<a|b|c|d|e>` (approach, stelae, ball court, temple top, reading wall); `&warm=S` lives the world S seconds first, keeping the still's own view.
 - 2026-09-25: the wanderer must read as fluid, with no visible joints.
   - The skeleton (recorded animation from the CC0 Universal Animation Library) drives a ray-marched smooth union of capsules (`src/player/fluidBody.ts`).
   - The mannequin mesh is never drawn.
