@@ -33,7 +33,6 @@ const MOON = new THREE.Vector3(0.55, 0.5, 0.45).normalize();
 /** The star the apex points at. */
 const STAR = new THREE.Vector3(-0.12, 0.72, -0.68).normalize();
 const FENCE_R = 50;
-export const EGYPT_DOOR = new THREE.Vector3(8, 0, 4);
 
 /** Low dunes, level round the seat and on the pyramid's plaza. */
 export function egyptFloor(x: number, z: number): number {

@@ -140,20 +140,6 @@ export function rope(n: number, R: Rand, hx = 1.2, hy = 2.1, slack = 0): Shape {
   return cord(pts, n, R, 0.045 + slack * 0.02);
 }
 
-/** A rope from hand to hand (`a`, `b`), sagging by `slack`, with a knot at its middle while taut. */
-export function ropeBetween(n: number, R: Rand, a: THREE.Vector3, b: THREE.Vector3, slack = 0): Shape {
-  const pts: THREE.Vector3[] = [];
-  const knotR = 0.1 + slack * 0.25;
-  for (let i = 0; i <= 40; i++) {
-    const u = i / 40, p = a.clone().lerp(b, u);
-    p.y -= Math.sin(u * Math.PI) * (0.05 + slack * 0.7);
-    const k = Math.exp(-Math.pow((u - 0.5) / 0.1, 2)) * (1 - slack * 0.6), t = (u - 0.5) * 50;
-    p.add(new V(Math.sin(t * 1.5) * knotR * k * 0.6, Math.cos(t) * knotR * k, Math.sin(t) * knotR * k + 0.05));
-    pts.push(p);
-  }
-  return cord(pts, n, R, 0.035 + slack * 0.015);
-}
-
 /** A wheel standing upright facing you: rim, hub, eight spokes. */
 export function wheel(n: number, R: Rand, r = 1.8, cy = FORM_H / 2): Shape {
   const out = new Float32Array(n * 3);
