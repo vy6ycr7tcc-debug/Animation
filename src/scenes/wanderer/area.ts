@@ -113,7 +113,7 @@ POOL.y = at(11)[2];
 const S_POOL = sAt(at(11)[0], at(11)[1]);
 const OVERLOOK = new V3(at(16)[0], at(16)[2], at(16)[1]);
 const S_OVER = sAt(at(16)[0], at(16)[1]);
-const CITY_Y = -70;
+const CITY_Y = 3; // a dark land risen just above the cloud sea, its lights seen from the overlook
 export const WANDERER_EXIT = { x: at(19)[0], z: at(19)[1] };
 
 /** Beats 1–7 begin as you reach these points of the way. */
@@ -847,7 +847,7 @@ export function createLongDescent(scene: THREE.Scene, narration: Narration, whis
       }
       if (n === 5) return new V3(-120, 120, -460);
       if (n === 6) return POOL.clone().setY(POOL.y + 0.5);
-      return new V3(OVERLOOK.x, CITY_Y + 30, OVERLOOK.z - 160);
+      return new V3(OVERLOOK.x, CITY_Y + 2, OVERLOOK.z - 160);
     },
     update(dt: number) {
       // the three seconds of stillness: the scene's own clock stops (and so everything in it)
