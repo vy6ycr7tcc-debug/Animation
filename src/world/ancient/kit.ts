@@ -120,8 +120,8 @@ export function seaStone(o: StoneOpts, uT: N): THREE.MeshStandardNodeMaterial {
 /** The game's cut masonry (`landStone`: courses, recessed joints, worn arrises, each stone its
     own tone) with the sea's work over it (silt on what faces up) and the surface's light playing
     over it as caustics, and a little of its own light so forms read in the murk. */
-export function seaMasonry(set: ScanName, tint: RGB, masonry: Masonry, uT: N, caustic = 0.5, causticCol: RGB = [0.6, 0.9, 0.78], lift = 0.12): THREE.MeshStandardNodeMaterial {
-  const m = landStone(set, -1e4, 2.4, tint, masonry);
+export function seaMasonry(set: ScanName, tint: RGB, masonry: Masonry, uT: N, caustic = 0.5, causticCol: RGB = [0.6, 0.9, 0.78], lift = 0.12, finish?: "marble"): THREE.MeshStandardNodeMaterial {
+  const m = landStone(set, -1e4, 2.4, tint, masonry, finish);
   const pw = positionWorld, n = T.normalWorldGeometry;
   const nz = (p: N) => T.mx_noise_float(p).mul(0.5).add(0.5);
   const up = smoothstep(0.45, 0.9, n.y);
@@ -270,6 +270,8 @@ export interface KeeperSpec {
   water?: boolean;
   /** Its gesture comes and goes on a long loop (seconds). */
   every?: number;
+  /** The ground it stands on (default the world's floor): a raised ring, a platform. */
+  ground?: (x: number, z: number) => number;
 }
 
 /** One ambient presence. Its light gathers into the figure as you come within ~45 m, fades out by
@@ -294,7 +296,7 @@ export class Keeper {
 
   constructor(readonly spec: KeeperSpec) {
     this.heading = spec.face;
-    this.baseY = spec.y ?? heightAt(spec.x, spec.z);
+    this.baseY = spec.y ?? (spec.ground ?? heightAt)(spec.x, spec.z);
     this.root.position.set(spec.x, this.baseY, spec.z);
     this.root.rotation.y = spec.face;
     this.since = Math.random() * 30;
@@ -370,7 +372,7 @@ export class Keeper {
         this.face(Math.atan2(-dx, -dz), dt);
         act = "walk";
       }
-      this.baseY = heightAt(p.x, p.z);
+      this.baseY = (s.ground ?? heightAt)(p.x, p.z);
     }
     // a gesture, on its own long loop
     this.since += dt;

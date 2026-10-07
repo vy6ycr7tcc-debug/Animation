@@ -123,6 +123,13 @@ const ANCIENT_VIEWS: Record<string, Record<string, { eye: XYZ; look: XYZ }>> = {
     d: { eye: [10, 19, 6], look: [0, 12, -24] }, // the temple on top
     e: { eye: [-14, 3, 19], look: [-20, 0.5, 12] }, // the reading wall
   },
+  atlantis: {
+    a: { eye: [8, 9, 72], look: [0, 5, 0] }, // the approach over the rings to the acropolis
+    b: { eye: [6, 7, 18], look: [0, 6, 0] }, // the acropolis: the temple's columns, the throne
+    c: { eye: [-9, 4.5, 52], look: [0, 5, 24] }, // the colonnade, standing and fallen
+    d: { eye: [-38, 7, -4], look: [-50, 1, -28] }, // the harbour: quays, ribs of hulls
+    e: { eye: [-16, 4, 15], look: [-24, 4, 8] }, // a dead crystal in its broken housing
+  },
 };
 
 /** The density rooms' still frames: where the eye stands and looks (room frame, the seat at the
