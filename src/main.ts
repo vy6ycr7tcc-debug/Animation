@@ -52,6 +52,7 @@ import { Genesis } from "./world/genesis";
 import { Touch } from "./world/touch";
 import { Depths, RUIN_NAMES, RUIN_SITES } from "./world/depths";
 import { Pyramid, DUAT_ORIGIN } from "./world/pyramid";
+import { DUAT_TRACKS } from "./world/duat";
 import { Companion } from "./world/companion";
 import { Vision } from "./world/vision";
 import { Journey, JOURNEY_ORIGIN, inJourney, type Hall, type JourneyHost } from "./scenes/journey";
@@ -271,6 +272,7 @@ const follow = new FollowCamera(camera);
 /* ============ AUDIO ============ */
 const audio = new AudioEngine("audio/water-bed.mp3");
 const narration = new Narration(audio, $("#sub"));
+Duat.voice = (track) => void narration.play(track); // the Duat's hours, once their recordings exist (DUAT_TRACKS)
 const playlist = new Playlist(narration);
 registerAnswers();
 registerTunnel();
@@ -2592,6 +2594,7 @@ function enterDuatCrossing(): void {
     follow.snapTo(player.pos);
     pyramid.duatActive = true;
     whisper("The Duat", 5000);
+    if (DUAT_TRACKS.entry) void narration.play(DUAT_TRACKS.entry); // held: see DUAT_TRACKS
     window.setTimeout(() => {
       fadeEl.classList.remove("on");
       crossing = false;
@@ -2642,6 +2645,7 @@ function exitDuatDawn(): void {
     follow.snapTo(player.pos);
     pyramid.duatActive = false;
     whisper("Dawn", 5000);
+    if (DUAT_TRACKS.dawn) void narration.play(DUAT_TRACKS.dawn); // held: see DUAT_TRACKS
     window.setTimeout(() => {
       fadeEl.classList.remove("on");
       crossing = false;

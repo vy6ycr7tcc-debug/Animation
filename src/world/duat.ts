@@ -4,7 +4,7 @@
    stoneworks.ts) under the night of Nut, starry, with a dark river of slow gold running beside the
    way, stone lamps along it; six gates of stone, each with its emblem carved in thin gold light
    on its lintel (a winged sun) and posts, and beyond each gate the story of that hour told as a
-   vision of light (scenes/visionStage.ts, the vision-of-creation format): the waters of Nun and
+   vision of light (scenes/visionStage.ts, the vision-of-creation format): the vision of Nun and
    the first mound; the land of Sokar and its serpent; Ra and Osiris meeting in the deepest hour;
    Apophis coiled about the sun, and cut; the heart weighed against the feather of Ma'at in the
    Hall of the Two Truths; the Field of Reeds, and Khepri rolling the sun up into the dawn. A stair
@@ -36,6 +36,16 @@ export const DUAT_PATH: THREE.Vector3[] = [
   new V(-8, 5, -20),
 ];
 const RIM = 50; // the gorge's walls stand beyond this
+
+/* NARRATION WIRING POINT (HELD: the Duat's recordings are pending from the owner's narration
+   pipeline; nothing is invented or synthesized). When they arrive, put each recording's path here
+   (e.g. "audio/duat/hour_1.mp3"): the entry plays as you come into the Duat, each hour's as you
+   first come to it, the dawn's on the stair. Null is silence, as now. */
+export const DUAT_TRACKS: { entry: string | null; hours: (string | null)[]; dawn: string | null } = {
+  entry: null,
+  hours: [null, null, null, null, null, null],
+  dawn: null,
+};
 
 /* ---------------------------------------------------------------- the ground */
 /** Distance (x, z) from the way, and the way's height there. */
@@ -210,7 +220,9 @@ interface Hour {
 const HOURS: Hour[] = [
   {
     at: 1,
-    name: "The waters of Nun",
+    // the first mound rising from the primordial waters, seen as a vision: the Duat itself is dry
+    // ground (the owner); this name is the batch's proposal, awaiting the owner's word
+    name: "The First Mound (Vision of Nun)",
     emblem: "water",
     forms: {
       waters: (n, R) => waters(n, R),
@@ -374,6 +386,8 @@ function emblemSegments(kind: Hour["emblem"] | "wingedSun", s: number): number[]
 export class Duat {
   /** For still frames (?shot=duat-<k>&t=): every hour's clock reads this. */
   static clockOverride: number | null = null;
+  /** Plays a recording (main.ts sets it to the narration's play); see DUAT_TRACKS. */
+  static voice: ((track: string) => void) | null = null;
   group = new THREE.Group();
   private stages: { stage: VisionStage | HourScene; at: THREE.Vector3; stand: THREE.Vector3; face: number; cycle: number; clock: number; named: boolean; name: string }[] = [];
   private river: THREE.CatmullRomCurve3 | null = null;
@@ -654,6 +668,8 @@ export class Duat {
       if (!s.named && d < 12) {
         s.named = true;
         this.say(s.name, 5000);
+        const tr = DUAT_TRACKS.hours[this.stages.indexOf(s)];
+        if (tr) Duat.voice?.(tr);
       }
     }
   }
