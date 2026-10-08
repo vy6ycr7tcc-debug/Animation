@@ -153,8 +153,10 @@ export class BreathGuide {
   /** Each frame: the wanderer's position; `voice` false rests the cues ("Only nature", another voice speaking). */
   update(dt: number, center: THREE.Vector3, voice: boolean): void {
     this.on += ((this.active ? 1 : 0) - this.on) * Math.min(1, dt * (this.active ? 0.8 : 1.6));
-    this.group.visible = this.on > 0.003;
-    if (!this.group.visible) return;
+    // the ring of motes round the wanderer is no longer drawn (the owner: "remove the particles
+    // around the flying ball, leave the lungs only"); the breath's clock still runs for the lungs
+    this.group.visible = false;
+    if (this.on <= 0.003) return;
     this.uOn.value = this.on;
     this.uT.value += dt;
     this.uCenter.value.copy(center);

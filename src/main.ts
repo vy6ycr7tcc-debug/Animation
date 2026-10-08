@@ -1120,9 +1120,13 @@ try {
 } catch {
   /* not remembered: explained again next time */
 }
+/** The overlay comes and goes (the owner: "fade in and out… doesn't need to be on all the time"):
+    shown for the first rounds, then resting a while, then back for a few rounds, and so on. */
+const CUE_SHOW = 3, CUE_REST = 4;
 function breathCueFrame(): void {
   // shown as soon as the breath begins: the lungs settle and "Breathe with me" waits for the first count
-  const on = breath.active && S.mode === "play";
+  const round = Math.max(0, breath.cycles - 1) % (CUE_SHOW + CUE_REST);
+  const on = breath.active && S.mode === "play" && (!breath.counting || round < CUE_SHOW);
   if (on !== cueOn) cueEl.classList.toggle("on", (cueOn = on));
   if (!on) {
     if (cueExplaining && !breath.active) cueExplain.classList.remove("on"), (cueExplaining = false);
