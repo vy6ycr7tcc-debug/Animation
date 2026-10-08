@@ -37,7 +37,7 @@ button:focus-visible, input:focus-visible { outline: 1px solid var(--gold); outl
 }
 #title h1 small { display: block; font-size: 0.42em; letter-spacing: 0.5em; margin-bottom: 0.5em; opacity: 0.8; }
 #title h1 {
-  margin: 0; font-weight: 400; font-size: clamp(30px, 7vw, 56px);
+  margin: 0; font-weight: 400; font-size: clamp(26px, min(7vw, 8vh), 52px);
   letter-spacing: 0.22em; text-transform: uppercase; text-wrap: balance;
   opacity: 0; animation: rise 4s 0.6s ease forwards;
 }
@@ -51,15 +51,24 @@ button:focus-visible, input:focus-visible { outline: 1px solid var(--gold); outl
 #welcome { max-width: 30em; display: flex; flex-direction: column; gap: 0.9rem; }
 #welcome[hidden] { display: none; }
 #welcome .w-copy {
-  font-style: normal; font-size: clamp(15px, 2.2vw, 18px); line-height: 1.65; color: var(--pearl);
+  font-style: normal; font-size: clamp(13.5px, min(2vw, 2.4vh), 16px); line-height: 1.55; color: var(--pearl);
   opacity: 0; animation: rise 4s 3.4s ease forwards;
 }
 #welcome .w-hint {
-  font-size: clamp(13px, 1.9vw, 15px); color: var(--dim); letter-spacing: 0.02em;
+  font-size: clamp(12px, min(1.7vw, 2vh), 14px); color: var(--dim); letter-spacing: 0.02em;
   opacity: 0; animation: rise 3s 6.2s ease forwards;
 }
 #title.first #touch { animation: rise 3s 8.4s ease forwards, breathe 6s 11.4s ease-in-out infinite; }
 #title.first { top: 14%; }
+#title.first #welcome { gap: 0.7rem; max-width: 27em; }
+@media (orientation: landscape) and (max-height: 540px) {
+  #title { gap: 0.7rem; }
+  #title.first { top: calc(4% + env(safe-area-inset-top, 0px)); }
+  #title.first #welcome { max-width: min(62vw, 40em); gap: 0.45rem; }
+  #welcome .w-copy { font-size: 13px; line-height: 1.45; }
+  #welcome .w-hint { font-size: 12px; }
+  #title p { font-size: 15px; }
+}
 #begin { position: fixed; inset: 0; width: 100%; height: 100%; }
 #begin[hidden] { display: none; }
 /* ---- a long press heard: a ring where the finger rests ---- */
@@ -262,8 +271,9 @@ body.touring #nprog { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
 /* ---- frame readings (#stats) ---- */
 #stats {
   position: fixed; left: calc(8px + env(safe-area-inset-left, 0px)); top: calc(8px + env(safe-area-inset-top, 0px));
-  max-width: calc(100% - 70px); background: rgba(10, 10, 20, 0.75); border-radius: 10px; padding: 6px 9px;
+  max-width: calc(100% - 70px); background: rgba(10, 10, 20, 0.75); border-radius: 10px; padding: 6px 9px; z-index: 45;
 }
+#stats button { display: block; margin-top: 6px; min-height: 36px; padding: 4px 12px; border-radius: 18px; border: 1px solid rgba(226, 191, 126, 0.45); color: var(--gold); font: italic 13px Georgia, serif; }
 #stats[hidden] { display: none; }
 #stats pre { margin: 0; font: 10px/1.4 ui-monospace, "SF Mono", Menlo, monospace; white-space: pre-wrap; }
 
@@ -751,14 +761,14 @@ canvas, #gl, #surface { height: var(--fh); }
 
 /* ---- square breathing: the side of the square and its count (main.ts breathCueFrame) ---- */
 #breath-cue {
-  position: fixed; left: 0; right: 0; top: calc(17% + env(safe-area-inset-top, 0px)); z-index: 6;
+  position: fixed; left: 0; right: 0; top: calc(env(safe-area-inset-top, 0px) + 10px); z-index: 6;
   text-align: center; pointer-events: none; opacity: 0; transition: opacity 1.4s ease;
-  padding: 10px 0 20px; background: radial-gradient(ellipse 52% 48% at 50% 42%, rgba(6, 10, 24, 0.32), rgba(6, 10, 24, 0) 72%);
+  padding: 4px 0 12px; background: radial-gradient(ellipse 40% 50% at 50% 45%, rgba(6, 10, 24, 0.28), rgba(6, 10, 24, 0) 72%);
 }
 #breath-cue.on { opacity: 1; }
 #breath-cue p { margin: 0; }
 /* the lungs: a body of small blue lights (ui/breathLungs.ts) that swells, holds and settles with the breath */
-#breath-cue canvas.lungs { position: static; display: block; width: clamp(120px, 36vw, 168px); height: auto; aspect-ratio: 140 / 132; margin: 0 auto 2px; }
+#breath-cue canvas.lungs { position: static; display: block; width: clamp(84px, 25vw, 124px); height: auto; aspect-ratio: 140 / 132; margin: 0 auto; }
 #breath-cue .word {
   font: italic clamp(19px, 5.4vw, 25px)/1.2 var(--serif, Georgia, serif); letter-spacing: 0.08em; color: #d8ecff;
   text-shadow: 0 0 14px rgba(120, 190, 255, 0.35), 0 1px 3px rgba(0, 0, 0, 0.5);
@@ -770,12 +780,22 @@ canvas, #gl, #surface { height: var(--fh); }
 }
 #breath-cue .count.tick { animation: breath-tick 0.9s ease-out; }
 @keyframes breath-tick { from { opacity: 0.25; } to { opacity: 1; } }
+/* the first-time explanation sits low, above the controls, never over the wanderer */
 #breath-cue .explain {
-  max-width: min(86vw, 24em); margin: 12px auto 0; font: italic 14px/1.5 var(--serif, Georgia, serif); color: #e3eefc;
+  position: fixed; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom, 0px) + 214px);
+  max-width: min(80vw, 22em); margin: 0 auto; font: italic 13px/1.45 var(--serif, Georgia, serif); color: #e3eefc;
   opacity: 0; transition: opacity 1.2s ease; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 #breath-cue .explain.on { opacity: 0.86; }
 @media (prefers-reduced-motion: reduce) { #breath-cue .count.tick { animation: none; } }
+/* a phone on its side: little height, so the lungs sit beside the word in one low row at the top */
+@media (orientation: landscape) and (max-height: 540px) {
+  #breath-cue { display: grid; grid-template-columns: auto auto; justify-content: center; align-items: center; column-gap: 14px; top: 6px; padding: 2px 18px 6px; }
+  #breath-cue canvas.lungs { grid-row: span 2; width: 64px; }
+  #breath-cue .word { font-size: 19px; text-align: left; align-self: end; }
+  #breath-cue .count { font-size: 20px; text-align: left; align-self: start; margin-top: 4px; }
+  #breath-cue .explain { bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); max-width: min(52vw, 30em); font-size: 12.5px; }
+}
 
 /* ---- "Start the tour": near a tour place's entrance, or inside it with no tour running ---- */
 #tour-start {
