@@ -43,7 +43,8 @@ const GRAIN_TINT: Record<string, [number, number, number]> = {
   sandstone_blocks_08: [0.788, 0.91, 1.011],
   red_sandstone_pavement: [0.488, 0.553, 0.651],
 };
-export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number, number, number] = [1, 1, 1], masonry?: Masonry, finish?: "marble"): THREE.MeshStandardNodeMaterial {
+/** `finish`: "marble" (pale, veined, smoother), or "fresh" (stone newly cut: no lichen, no rain streaks). */
+export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number, number, number] = [1, 1, 1], masonry?: Masonry, finish?: "marble" | "fresh"): THREE.MeshStandardNodeMaterial {
   const m = new THREE.MeshStandardNodeMaterial({ metalness: 0, roughness: 0.9 });
   // cut masonry draws its own stones: the scan gives only the stone's grain (the block and
   // pavement scans carry bricks of their own, which fought the joints), in the same colour
@@ -55,7 +56,7 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
   const S = scan(set);
   const pw = masonry?.origin ? T.positionWorld.sub(vec3(masonry.origin.x, masonry.origin.y, masonry.origin.z)) : T.positionWorld;
   const n = T.normalWorldGeometry;
-  const dry = masonry?.interior ? 0 : 1;
+  const dry = masonry?.interior || finish === "fresh" ? 0 : 1;
   const wp = T.pow(abs(n), vec3(4));
   const w = wp.div(wp.x.add(wp.y).add(wp.z));
   const h = (v: N) => T.fract(T.sin(T.dot(v, T.vec2(12.9898, 78.233))).mul(43758.5453));

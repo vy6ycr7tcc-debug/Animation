@@ -359,14 +359,21 @@ export const GOBEKLI_PLAN = {
     { id: "B", x: -11, z: -25, r: 8, gap: Math.PI / 2 },
     { id: "A", x: 11.5, z: 20, r: 7.5, gap: -Math.PI / 2 },
   ],
-  /** The tells not yet dug: grass over buried rings; some show the tops of their pillars. */
-  mounds: [
-    { x: 27, z: 36, r: 13, h: 2.3, tops: 2 },
-    { x: -28, z: 24, r: 10, h: 1.8, tops: 1 },
-    { x: -30, z: -8, r: 9, h: 1.6, tops: 0 },
-    { x: 30, z: -32, r: 12, h: 2.4, tops: 3 },
-    { x: 4, z: -44, r: 10, h: 1.9, tops: 1 },
+  /** The houses of those who built it, round the enclosures on the open hilltop (as it stood
+      when built, c. 9500 BCE: rectangular dry-stone houses, flat roofs of timber and earth):
+      centre, size, and the way the door faces (radians, in the site's frame). */
+  houses: [
+    { x: 24, z: 31, w: 6, d: 4.4, face: Math.PI * 1.15 },
+    { x: -27, z: 21, w: 5.4, d: 4, face: Math.PI * 0.75 },
+    { x: -28, z: -7, w: 5, d: 4, face: Math.PI * 0.5 },
+    { x: 29, z: -29, w: 6.2, d: 4.6, face: -Math.PI * 0.3 },
   ],
+  /** The stairs down into D and C, through their gaps, down the bank the enclosure is sunk in:
+      from `out` metres beyond the wall's inner face (the hilltop's edge) to `in` metres inside
+      it, in steps of `rise`. */
+  stair: { out: 1.8, in: 1.6, rise: 0.25, w: 1.7 },
+  /** The cistern cut into the bedrock, where the rain was kept. */
+  cistern: { x: 5, z: -40, r: 2.6 },
   /** The quarry: a shelf of bedrock at the hill's edge with a pillar half cut from it. */
   quarry: { x: -38, z: -36, face: Math.PI * 0.25 },
 };
@@ -393,15 +400,15 @@ export const GOBEKLI_SISTERS: { x: number; z: number; y: number }[] = (() => {
 {
   const G = GOBEKLI, P = GOBEKLI_PLAN;
   PADS.push({ x: G.x, z: G.z, h: G.y, inner: 46, outer: 90 });
-  // the unexcavated tells, raised over the top
-  for (const m of P.mounds) {
-    const [x, z] = gobekliAt(m.x, m.z);
-    PADS.push({ x, z, h: G.y + m.h, inner: 1.5, outer: m.r });
-  }
   // the enclosures dug down into it: the earth stands steep behind each wall
   for (const e of P.enclosures) {
     const [x, z] = gobekliAt(e.x, e.z);
     PADS.push({ x, z, h: G.y - P.depth, inner: e.r + 0.7, outer: e.r + 1.6 });
+  }
+  // the cistern cut into the bedrock
+  {
+    const [x, z] = gobekliAt(P.cistern.x, P.cistern.z);
+    PADS.push({ x, z, h: G.y - 1.3, inner: P.cistern.r - 0.1, outer: P.cistern.r + 0.25 });
   }
   for (const s of GOBEKLI_SISTERS) PADS.push({ x: s.x, z: s.z, h: s.y, inner: 8, outer: 70 });
   KEEP_CLEAR.push({ x: G.x, z: G.z, r: 72 });

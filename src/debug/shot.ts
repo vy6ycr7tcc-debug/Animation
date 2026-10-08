@@ -414,17 +414,19 @@ export function runShot(ctx: ShotCtx): void {
     view = { eye: [ex, e[2], ez], look: [lx, l[2], lz] };
     const [px, pz] = nanMadolAt(e[0], e[1] - 2.5);
     ctx.player.pos.set(px, heightAt(px, pz), pz);
-  } else if (/^gobekli-[a-g]$/.test(id)) {
+  } else if (/^gobekli-[a-i]$/.test(id)) {
     // Göbekli Tepe, in the site's own frame (+z toward the shore): [eye, look] as plan x, z, height
     const T0 = GOBEKLI.y, F = GOBEKLI.y - GOBEKLI_PLAN.depth;
     const V7: Record<string, [[number, number, number], [number, number, number]]> = {
       a: [[0, 46, T0 + 2.4], [-6, 2, T0 - 0.5]], // the ridge, from the approach
-      b: [[-1.4, 7, T0 + 2.2], [-13.5, 4, F + 2.2]], // down into D from the ramp
+      b: [[-1.4, 7, T0 + 2.2], [-13.5, 4, F + 2.2]], // down into D from the stair's head
       c: [[-7.5, 2.5, F + 1.6], [-14.5, 5.5, F + 3.2]], // in D, the central pair
       d: [[-2.6, 2.4, F + 1.9], [-5.6, -1.7, F + 1.9]], // the vulture stone
       e: [[30, 10, T0 + 3.5], [14.5, -8, F + 1.5]], // C and the rim walk
       f: [[-29, -26, T0 + 2.0], [-38, -36, T0 - 1.5]], // the quarry
       g: [[45, 70, T0 + 48], [0, -2, T0]], // from the air
+      h: [[21.5, 22.6, T0 + 1.7], [24, 31, T0 + 1.0]], // a builders' house, its hearth and grinding slab
+      i: [[9.5, -9.5, F + 1.6], [2.5, -8, F + 1.4]], // the stair into C, from its floor
     };
     const [e, l] = V7[id.slice(8)];
     const [ex, ez] = gobekliAt(e[0], e[1]), [lx, lz] = gobekliAt(l[0], l[1]);
