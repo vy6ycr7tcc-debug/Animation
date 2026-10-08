@@ -3930,6 +3930,28 @@ $("#stats").hidden = !showStats;
   });
 }
 window.setInterval(() => showStats && ($("#stats-text").textContent = readings()), 1000);
+/* The feedback tool's switch, in the readings: a Home Screen app keeps its own storage, apart from
+   Safari's, so `?dev=1` opened in Safari never reaches it. Here it can be turned on from inside. */
+{
+  const b = $("#dev-toggle");
+  const on = () => {
+    try {
+      return localStorage.getItem("inward-journey:dev") === "1";
+    } catch {
+      return false;
+    }
+  };
+  b.textContent = on() ? "✎ Feedback mode: on (tap to turn off)" : "✎ Turn on feedback mode";
+  b.addEventListener("click", () => {
+    try {
+      if (on()) localStorage.removeItem("inward-journey:dev");
+      else localStorage.setItem("inward-journey:dev", "1");
+    } catch {
+      /* no storage */
+    }
+    location.reload();
+  });
+}
 let rendererName = "starting…";
 function nameRenderer(): void {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
