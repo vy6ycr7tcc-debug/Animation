@@ -751,23 +751,14 @@ canvas, #gl, #surface { height: var(--fh); }
 
 /* ---- square breathing: the side of the square and its count (main.ts breathCueFrame) ---- */
 #breath-cue {
-  --open: 0;
   position: fixed; left: 0; right: 0; top: calc(17% + env(safe-area-inset-top, 0px)); z-index: 6;
   text-align: center; pointer-events: none; opacity: 0; transition: opacity 1.4s ease;
   padding: 10px 0 20px; background: radial-gradient(ellipse 52% 48% at 50% 42%, rgba(6, 10, 24, 0.32), rgba(6, 10, 24, 0) 72%);
 }
 #breath-cue.on { opacity: 1; }
 #breath-cue p { margin: 0; }
-/* the lungs: soft blue, filling as you breathe in, emptying as you breathe out (main.ts sets --open,
-   eased by the breath itself, so the motion is never mechanical) */
-#breath-cue .lungs {
-  display: block; width: clamp(92px, 26vw, 128px); height: auto; margin: 0 auto 6px; overflow: visible;
-  transform: scale(calc(0.82 + 0.22 * var(--open))); transform-origin: 50% 30%;
-  filter: drop-shadow(0 0 calc(4px + 14px * var(--open)) rgba(120, 190, 255, calc(0.18 + 0.4 * var(--open))));
-}
-#breath-cue .lobe { fill: url(#lung-fill); stroke: rgba(196, 230, 255, 0.78); stroke-width: 0.9; fill-opacity: calc(0.55 + 0.45 * var(--open)); }
-#breath-cue .airway, #breath-cue .twigs { fill: none; stroke: rgba(210, 236, 255, 0.7); stroke-width: 0.8; stroke-linecap: round; }
-#breath-cue .twigs { stroke-width: 0.55; opacity: calc(0.35 + 0.5 * var(--open)); }
+/* the lungs: a body of small blue lights (ui/breathLungs.ts) that swells, holds and settles with the breath */
+#breath-cue canvas.lungs { position: static; display: block; width: clamp(120px, 36vw, 168px); height: auto; aspect-ratio: 140 / 132; margin: 0 auto 2px; }
 #breath-cue .word {
   font: italic clamp(19px, 5.4vw, 25px)/1.2 var(--serif, Georgia, serif); letter-spacing: 0.08em; color: #d8ecff;
   text-shadow: 0 0 14px rgba(120, 190, 255, 0.35), 0 1px 3px rgba(0, 0, 0, 0.5);
@@ -784,7 +775,7 @@ canvas, #gl, #surface { height: var(--fh); }
   opacity: 0; transition: opacity 1.2s ease; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 #breath-cue .explain.on { opacity: 0.86; }
-@media (prefers-reduced-motion: reduce) { #breath-cue .count.tick { animation: none; } #breath-cue .lungs { transform: none; } }
+@media (prefers-reduced-motion: reduce) { #breath-cue .count.tick { animation: none; } }
 
 /* ---- "Start the tour": near a tour place's entrance, or inside it with no tour running ---- */
 #tour-start {
