@@ -30,6 +30,7 @@ import { NAN_FLOOR, NAN_MADOL, heightAt, nanMadolAt, standHooks, WATER_Y, type C
 import { surface } from "../textures";
 import { palmGeometry, palmMaterial } from "../wilds";
 import { Keeper, Swimmers, rng, solidBox } from "./kit";
+import { solid } from "../solidity";
 
 const { abs, clamp, cos, dot, float, fract, length, max, mix, normalWorld, positionWorld, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
 const V3 = THREE.Vector3;
@@ -98,7 +99,7 @@ function basaltMaterial(): THREE.MeshStandardNodeMaterial {
   c = mix(c, vec3(0.32, 0.31, 0.28), dry.mul(T.mx_noise_float(pw.mul(2.3)).mul(0.5).add(0.5)).mul(0.5));
   m.colorNode = vec4(c, 1);
   m.roughnessNode = mix(float(0.88), float(0.28), wet);
-  return m;
+  return solid(m);
 }
 /** The coral rubble that fills the islets: pale broken coral and shell, dark between. */
 function rubbleMaterial(): THREE.MeshStandardNodeMaterial {
@@ -109,7 +110,7 @@ function rubbleMaterial(): THREE.MeshStandardNodeMaterial {
   const tone = T.mx_noise_float(pw.mul(0.6)).mul(0.2).add(0.8);
   const c = mix(vec3(0.16, 0.15, 0.12), vec3(0.62, 0.58, 0.5).mul(tone), piece);
   m.colorNode = vec4(c, 1);
-  return m;
+  return solid(m);
 }
 
 /* ---------------------------------------------------------------- building in logs */

@@ -25,6 +25,7 @@ import { scan, type ScanName } from "../temple";
 import { landStone, type Masonry } from "../stoneworks";
 import { surface } from "../textures";
 import { colliders, heightAt, WATER_Y, type Collider } from "../terrain";
+import { solid } from "../solidity";
 
 const { abs, cameraPosition, float, length, max, mix, positionWorld, pow, sin, smoothstep, uv, vec2, vec3, vec4 } = T;
 export type RGB = [number, number, number];
@@ -114,7 +115,7 @@ export function seaStone(o: StoneOpts, uT: N): THREE.MeshStandardNodeMaterial {
     em = em.add(vec3(...(o.nearCol ?? [1.0, 0.72, 0.32])).mul(cut.add(lip.mul(0.3))).mul(nearK).mul(breathe).mul(0.55));
   }
   m.emissiveNode = em;
-  return m;
+  return solid(m);
 }
 
 /** The game's cut masonry (`landStone`: courses, recessed joints, worn arrises, each stone its

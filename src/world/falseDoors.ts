@@ -21,6 +21,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { T, outOfTheWay, softPoints, spriteCloud, viewDepth, gpuUniforms, type N, softDot, pointR } from "../gpu/tsl";
 import { scan } from "./temple";
 import { colliders, heightAt, PYRAMID } from "./terrain";
+import { solid } from "./solidity";
 
 const { abs, cameraPosition, clamp, float, fract, length, max, mix, positionWorld, pow, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
 const V3 = THREE.Vector3;
@@ -317,7 +318,7 @@ function doorStone(carve: THREE.Texture): THREE.MeshStandardNodeMaterial {
   const base = T.normalize(T.normalView.add(T.cameraViewMatrix.mul(vec4(dn.mul(1.0), 0)).xyz));
   m.normalNode = mix(base, T.bumpMap(float(1).sub(k.r), 1.6), front.mul(0.7));
   m.emissiveNode = c.mul(0.04);
-  return m;
+  return solid(m);
 }
 
 /* ---------------------------------------------------------------- one door, in its own frame */

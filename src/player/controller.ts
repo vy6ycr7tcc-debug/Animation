@@ -8,8 +8,18 @@
    own body (the owner: "swimming becomes flying… you can walk on the floor"); off it, floating,
    you are the orb of light. No breath, no current, nothing to fear. */
 import * as THREE from "three/webgpu";
-import { colliders, pushOut, standAt as heightAt, WATER_Y } from "../world/terrain";
+import { colliders, pushOut, standAt, WATER_Y } from "../world/terrain";
+import { solidity, STEP } from "../world/solidity";
 import type { Pose } from "./wanderer";
+
+/** The ground under a body whose feet are at `y`: the land (and its raised places), or any solid
+    face (a stair, a platform, a roof, a fallen block) up to a step above the feet. */
+function heightAt(x: number, z: number, y = Infinity): number {
+  const g = standAt(x, z);
+  return y === Infinity ? g : Math.max(g, solidity.floor(x, z, y + STEP + 0.05, g));
+}
+/** The orb's and the flier's middle above the feet, and their ball's reach. */
+const BALL_Y = 1.0, BALL_R = 0.5;
 
 // A stroll, not a run. Swimming is buoyant and unhurried.
 const WALK = 1.6;
@@ -222,13 +232,15 @@ export class Controller {
     p.z = nz;
     // Push out of solid features (twice: out of one may be into its neighbour).
     for (let k = 0; k < 2; k++) for (const c of colliders) pushOut(p, this.pos.y, BODY_R, c);
+    // and out of every solid building by its own shape (flight is held as a ball, below)
+    if (!this.flying) solidity.pushWalk(p, this.pos.y, BODY_R);
     const moved = Math.hypot(p.x - this.pos.x, p.z - this.pos.z);
     this.pos.x = p.x;
     this.pos.z = p.z;
     this.odometer += moved;
     this.speed = moved / Math.max(dt, 1e-4);
 
-    const ground = heightAt(this.pos.x, this.pos.z);
+    const ground = heightAt(this.pos.x, this.pos.z, this.pos.y);
     if (this.flying) {
       // Hover unless asked to rise or sink; ease into each.
       // Hold to rise (gathering speed); let go to drift gently down; "Land" brings you down.
@@ -246,6 +258,7 @@ export class Controller {
             : -GLIDE_SINK; // not rising: always a glide, sinking gently
       this.vy += (wantVy - this.vy) * Math.min(1, dt * (input.hold ? 2.5 : 1.8));
       this.pos.y = Math.min(CEILING, this.pos.y + this.vy * dt);
+      this.pushBall();
       const floor = Math.max(ground, WATER_Y - SWIM_DEPTH);
       if (this.pos.y <= floor + 0.02 && this.vy <= 0) {
         // touching down ends the flight: on land you stand, in water you swim
@@ -352,6 +365,16 @@ export class Controller {
             : "walk";
   }
 
+  /** The orb and the flier are a ball: pushed out of any solid face, from any side (a dome from
+      above, a lintel from below). Returns the push (shared; use at once), or null. */
+  private pushBall(): THREE.Vector3 | null {
+    const c = this.ballAt.set(this.pos.x, this.pos.y + BALL_Y, this.pos.z);
+    const push = solidity.pushBall(c, BALL_R);
+    if (push) this.pos.set(c.x, c.y - BALL_Y, c.z);
+    return push;
+  }
+  private ballAt = new THREE.Vector3();
+
   /** Under the water: swim where you look. */
   private swimUnder(dt: number, input: MoveInput, camYaw: number): void {
     const pitch = input.pitch ?? 0.3;
@@ -364,7 +387,7 @@ export class Controller {
     if (mag > 0.001) dir.divideScalar(dir.length());
     this.target = null;
     // on the floor: stand and walk on it, until the button lifts you off (as flight lands and takes off)
-    const floor = heightAt(this.pos.x, this.pos.z);
+    const floor = heightAt(this.pos.x, this.pos.z, this.pos.y);
     if (this.pos.y <= floor + 0.3 && !input.hold && !this.surfacing && this.plunge <= 0 && this.swimVel.y <= 0.05) {
       this.sinking = false;
       this.walkSeabed(dt, input, camYaw, floor);
@@ -403,7 +426,13 @@ export class Controller {
 
     // move, gliding along the floor and the surface rather than stopping at them
     this.pos.addScaledVector(this.swimVel, dt);
-    const ground = heightAt(this.pos.x, this.pos.z);
+    // the orb meets the drowned buildings as it meets the floor: it slides along them, never through
+    const push = this.pushBall();
+    if (push) {
+      const n = push.clone().normalize(), into = this.swimVel.dot(n);
+      if (into < 0) this.swimVel.addScaledVector(n, -into);
+    }
+    const ground = heightAt(this.pos.x, this.pos.z, this.pos.y);
     if (this.pos.y < ground + 0.25) {
       this.pos.y = ground + 0.25;
       if (this.swimVel.y < 0) this.swimVel.y *= 0.2;
@@ -466,7 +495,8 @@ export class Controller {
     this.pos.z += this.swimVel.z * dt;
     // the solid things on the floor (ruins, stones) keep you out as they do on land
     for (const c of colliders) pushOut(this.pos, this.pos.y, BODY_R, c);
-    const g = heightAt(this.pos.x, this.pos.z);
+    solidity.pushWalk(this.pos, this.pos.y, BODY_R);
+    const g = heightAt(this.pos.x, this.pos.z, this.pos.y);
     this.pos.y += (Math.max(g, floor - 0.6) - this.pos.y) * Math.min(1, dt * 12);
     this.speed = Math.hypot(this.swimVel.x, this.swimVel.z);
     this.odometer += this.speed * dt;
