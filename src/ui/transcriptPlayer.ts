@@ -6,15 +6,15 @@
      even if the screen locks and auto load next one"), and the lock screen shows it with
      play/pause, back 15 s and next (Media Session).
    - When one ends, the next follows by itself (`next`, chosen by the game), until closed.
-   - A small card, never a modal, in the top right: the title, the source caption, pause/resume,
-     back 15 s, next, a "source" link to the full record, fold and close. Folded (by its ‹, or by
-     itself after a few seconds), it becomes a half-moon hanging from the top edge beside ⋮
-     (Samuel: "a semi circle… with play pause in the middle", "top right corner"): back 15 s,
-     play/pause in the middle, next, the card again below, its curve filling with the progress.
-     Movement is never locked.
-   - Attribution: interpretive narrations say "An interpretive narration after {entity} ·
-     {date}"; direct quotations say "Quoting {entity} · {session} · {date}"; each source on its
-     own line. */
+   - A small card, never a modal, in the top right, easy to follow at a glance (the owner: "more
+     interactive and easy to follow"): the title, where it comes from (the poetic rotation, never
+     a name), a line filling as it plays with the time heard and the time left, pause/resume, back
+     15 s, next, "Show me where it lives" (the light leads you to its planet, star, tree or crystal:
+     `onWhere`), what comes next, "Only nature", fold and close. No transcript, no subtitles, no
+     source record: nothing of the archive's own record reaches the screen. Folded (by its –, or
+     by itself after a few seconds), it becomes a half-moon hanging from the top edge beside ⋮:
+     back 15 s, play/pause in the middle, next, the card again below, its curve filling with the
+     progress. Movement is never locked. */
 import type { AudioEngine } from "../core/audio";
 import { assetUrl } from "../core/assets";
 import type { Narration } from "../world/sites";
@@ -40,6 +40,8 @@ export class TranscriptPlayer {
   onChange: ((id: string | null) => void) | null = null;
   /** The narration to follow `n` when it ends (or when "next" is asked for); null stops. */
   next: ((n: Narration) => Narration | null) | null = null;
+  /** "Show me where it lives": lead the wanderer to the narration's vessel (main.ts). */
+  onWhere: ((n: Narration) => void) | null = null;
   /** "Only nature": every voice rests (the game's own too), and only the world is heard. */
   onQuiet: ((on: boolean) => void) | null = null;
   private quiet = false;
@@ -54,17 +56,16 @@ export class TranscriptPlayer {
   buffering = false;
   private el = document.getElementById("tp") as HTMLDivElement;
   private titleEl = document.getElementById("tp-title") as HTMLParagraphElement;
-  private captionEl = document.getElementById("tp-caption") as HTMLDivElement;
+  private fromEl = document.getElementById("tp-from") as HTMLParagraphElement;
+  private lineEl = document.querySelector("#tp-line i") as HTMLElement;
+  private timeEl = document.getElementById("tp-time") as HTMLParagraphElement;
+  private upEl = document.getElementById("tp-upnext") as HTMLParagraphElement;
   private pauseBtn = document.getElementById("tp-pause") as HTMLButtonElement;
-  private sourceDlg = document.getElementById("tp-source") as HTMLDivElement;
-  private sub = document.getElementById("sub") as HTMLElement;
   private mini = document.getElementById("tp-mini") as HTMLDivElement;
   private miniPlay = document.getElementById("tp-mini-play") as HTMLButtonElement;
   private arc = document.getElementById("tp-arc") as unknown as SVGPathElement;
   private foldTimer = 0;
   private nextTimer = 0;
-  private cues: { t: number; text: string }[] = [];
-  private cueIndex = -1;
 
   constructor(private audio: AudioEngine) {
     this.media.preload = "none";
@@ -74,7 +75,6 @@ export class TranscriptPlayer {
     // waiting on the network (for the loading mark)
     this.media.addEventListener("waiting", () => (this.buffering = true));
     for (const ev of ["playing", "pause", "canplay", "error", "ended"]) this.media.addEventListener(ev, () => (this.buffering = false));
-    this.media.addEventListener("loadedmetadata", () => this.timeCues());
     this.media.addEventListener("error", () => {
       if (this.current && this.media.error) this.titleEl.textContent = `${this.current.title} (the recording can't be played)`;
     });
@@ -98,6 +98,11 @@ export class TranscriptPlayer {
     tap("tp-back", () => this.back(15));
     tap("tp-next", () => this.skip());
     tap("tp-fold", () => this.fold());
+    tap("tp-where", () => {
+      if (!this.current) return;
+      this.onWhere?.(this.current);
+      this.fold();
+    });
     tap("tp-quiet", () => {
       this.setQuiet(!this.quiet);
       if (this.quiet && this.current) this.close();
@@ -108,8 +113,6 @@ export class TranscriptPlayer {
     tap("tp-mini-next", () => this.skip());
     tap("tp-mini-open", () => this.unfold());
     document.getElementById("tp-close")!.addEventListener("click", () => this.close());
-    document.getElementById("tp-src")!.addEventListener("click", () => this.showSource(true));
-    document.getElementById("tp-source-close")!.addEventListener("click", () => this.showSource(false));
     // the lock screen and the headphones
     const ms = navigator.mediaSession;
     if (ms) {
@@ -149,9 +152,6 @@ export class TranscriptPlayer {
     window.clearTimeout(this.nextTimer);
     this.current = n;
     this.render(n);
-    this.cues = [];
-    this.cueIndex = -1;
-    this.sub.classList.remove("on");
     this.media.preload = "auto";
     this.media.src = assetUrl(n.audio);
     this.media.volume = Math.min(1, this.audio.volume / 0.8);
@@ -228,10 +228,8 @@ export class TranscriptPlayer {
     this.current = null;
     this.el.hidden = true;
     this.mini.hidden = true;
-    this.sub.classList.remove("on");
     this.setResting(this.resting);
     this.audio.duck(false);
-    this.showSource(false);
     if (navigator.mediaSession) navigator.mediaSession.metadata = null;
     this.onChange?.(null);
   }
@@ -243,7 +241,6 @@ export class TranscriptPlayer {
 
   private ended(): void {
     const n = this.current && this.next?.(this.current);
-    this.sub.classList.remove("on");
     if (!n) return this.close();
     // hidden (the phone locked), at once: timers sleep there, and the next must follow the last
     // straight away to be allowed to play; on screen, a breath of quiet between them
@@ -278,21 +275,25 @@ export class TranscriptPlayer {
     window.clearTimeout(this.foldTimer);
     if (!this.current) {
       // nothing playing: the card offers to begin, or to keep only nature's sounds
-      this.titleEl.textContent = "The archive's voices";
-      this.captionEl.replaceChildren();
+      this.titleEl.textContent = "Voices of the planets and trees";
+      this.fromEl.textContent = "Tap a planet, a star, a tree's fruit or a crystal, or play the next one not yet heard.";
+      this.timeEl.textContent = "";
+      this.lineEl.style.transform = "scaleX(0)";
+      const n = this.first?.();
+      this.upEl.textContent = n ? `Next to hear: ${n.title}` : "";
       this.pauseBtn.textContent = "Play";
-      for (const id of ["tp-back", "tp-next", "tp-src"]) document.getElementById(id)!.hidden = true;
+      for (const id of ["tp-back", "tp-next", "tp-where", "tp-line"]) document.getElementById(id)!.hidden = true;
       this.el.hidden = false;
       this.mini.hidden = true;
       this.foldTimer = window.setTimeout(() => this.foldIdle(), 10000);
       return;
     }
-    for (const id of ["tp-back", "tp-next", "tp-src"]) document.getElementById(id)!.hidden = false;
+    for (const id of ["tp-back", "tp-next", "tp-where", "tp-line"]) document.getElementById(id)!.hidden = false;
     this.mini.classList.remove("idle");
     this.el.hidden = false;
     this.mini.hidden = true;
     // the card folds itself away after a moment, so the view stays open
-    this.foldTimer = window.setTimeout(() => this.fold(), 10000);
+    this.foldTimer = window.setTimeout(() => this.fold(), 14000);
   }
 
   private render(n: Narration): void {
@@ -305,46 +306,11 @@ export class TranscriptPlayer {
     this.showPlaying(true);
     this.arc.style.strokeDashoffset = String(ARC);
     this.titleEl.textContent = n.title;
-    this.captionEl.replaceChildren(
-      ...TranscriptPlayer.caption(n).map((l) => {
-        const p = document.createElement("p");
-        p.textContent = l;
-        return p;
-      }),
-    );
-  }
-
-  /** Subtitles, one sentence at a time, spread over the recording by length. */
-  private timeCues(): void {
-    const n = this.current, dur = this.media.duration;
-    if (!n || !isFinite(dur)) return;
-    const parts = n.transcript.split(/(?<=[.!?…])\s+/).filter(Boolean);
-    const total = parts.reduce((a, p) => a + p.length, 0) || 1;
-    let t = 0;
-    this.cues = parts.map((p) => {
-      const c = { t, text: p };
-      t += (p.length / total) * dur;
-      return c;
-    });
-    this.cueIndex = -1;
-  }
-
-  private showSource(on: boolean): void {
-    const n = this.current;
-    if (on && n) {
-      (document.getElementById("tp-source-title") as HTMLElement).textContent = n.title;
-      const who = TranscriptPlayer.attribution(n);
-      (document.getElementById("tp-source-kind") as HTMLElement).textContent = n.interpretive
-        ? `An interpretive narration, an artistic adaptation shaped from ${who}.`
-        : `Words carried from ${who}, as they were spoken.`;
-      (document.getElementById("tp-source-text") as HTMLElement).textContent = n.transcript;
-      // no per-source rows: the sources' metadata stays in the data and never reaches the screen
-      const list = document.getElementById("tp-source-list") as HTMLElement;
-      list.replaceChildren();
-      list.hidden = true;
-    }
-    this.sourceDlg.hidden = !on;
-    if (on) (document.getElementById("tp-source-close") as HTMLButtonElement).focus();
+    this.fromEl.textContent = TranscriptPlayer.caption(n)[0];
+    this.timeEl.textContent = "";
+    this.lineEl.style.transform = "scaleX(0)";
+    const up = this.next?.(n);
+    this.upEl.textContent = up ? `Up next: ${up.title}` : "";
   }
 
   private posAt = -1e9;
@@ -384,13 +350,13 @@ export class TranscriptPlayer {
       }
     }
     this.media.volume = Math.min(1, this.audio.volume / 0.8);
-    if (!this.playing || !this.subtitlesOn) return;
-    let k = -1;
-    for (let i = 0; i < this.cues.length; i++) if (this.cues[i].t <= t + 0.05) k = i;
-    if (k !== this.cueIndex && k >= 0) {
-      this.cueIndex = k;
-      this.sub.textContent = this.cues[k].text;
-      this.sub.classList.add("on");
+    // the card: a line filling as it plays, the time heard and the time left (a few times a second)
+    if (!this.el.hidden && isFinite(dur) && dur > 0 && performance.now() - this.timeAt > 250) {
+      this.timeAt = performance.now();
+      this.lineEl.style.transform = `scaleX(${Math.min(1, t / dur).toFixed(4)})`;
+      const mmss = (x: number) => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, "0")}`;
+      this.timeEl.textContent = `${mmss(t)} · ${mmss(Math.max(0, dur - t))} left`;
     }
   }
+  private timeAt = 0;
 }

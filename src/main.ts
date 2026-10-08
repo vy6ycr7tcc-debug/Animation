@@ -38,6 +38,10 @@ import { T, fogUniforms, gpuUniforms, gradeUniforms, ijFogNode } from "./gpu/tsl
 import { newerBuild, reloadTo } from "./core/fresh";
 import { Presences } from "./world/presences";
 import { Guide, type Destination } from "./world/guide";
+import { NextUp } from "./ui/nextUp";
+import { VEIL_TRACK } from "./scenes/afterVeil/area";
+import { WANDERER_TRACK } from "./scenes/wanderer/area";
+import { SITES } from "./scenes/sites";
 import { ARCHIVE, GROVE_SITES, ORB_SITES } from "./world/sites";
 import { Communion } from "./world/communion";
 import { Creatures } from "./world/creatures";
@@ -637,7 +641,7 @@ function setInside(inside: boolean): void {
 function compileInDark(): Promise<unknown> {
   return Promise.race([renderer.compileAsync(scene, camera).catch(() => undefined), new Promise((r) => window.setTimeout(r, 4000))]);
 }
-function crossTemple(inside: boolean): void {
+function crossTemple(inside: boolean, then?: () => void): void {
   if (crossing) return;
   crossing = true;
   stopAuto();
@@ -646,6 +650,10 @@ function crossTemple(inside: boolean): void {
   window.setTimeout(async () => {
     if (inside) busy(1.5);
     setInside(inside); // the temple is built as you go in, and freed as you come out
+    if (then) {
+      then(); // somewhere else than the door (the tree of life): set down there, still in the dark
+      terrain.update(player.pos.x, player.pos.z, true);
+    }
     // its shaders compile in the dark, never for long (whatever isn't ready compiles on its first draw)
     await compileInDark(); // in, the temple's shaders; out, the world's (its first frame back hitched)
     if (inside) whisper("The temple. The Mind on your left, the Body on your right; the Spirit beyond the gateway. The door behind you leads out.", 8000);
@@ -1676,6 +1684,17 @@ function playArchive(n: Parameters<TranscriptPlayer["play"]>[0]): void {
   tp.unfold(); // tapped on a vessel: its card shows
   say(`Playing: ${n.title}. ${TranscriptPlayer.caption(n).join(". ")}.`);
 }
+// "Show me where it lives": the guide's light goes to the narration's planet, star, tree or
+// crystal, and the wanderer goes after it (on foot or in flight); the stick takes over
+tp.onWhere = (n) => {
+  const v = vessels.vessels.find((x) => x.narration.id === n.id);
+  if (!v) return;
+  stopAuto();
+  standUp();
+  guide.lead({ label: n.title, x: v.pos.x, y: v.pos.y, z: v.pos.z }, player.pos);
+  guideAuto = { since: 0 };
+  whisper(`On the way to where it lives. The stick takes over.`, 5000);
+};
 tp.onChange = (id) => {
   vessels.setPlaying(id);
   if (id) archiveHeard.add(id);
@@ -2454,7 +2473,7 @@ function duatTourEnd(done: boolean): void {
     } catch {
       /* fine */
     }
-    whisper("The walk is complete", 5000);
+    window.setTimeout(() => offerNext("duat", "The Duat, hour by hour"), 1500);
   }
 }
 const duatTo = new THREE.Vector2();
@@ -2567,7 +2586,9 @@ function walkEnd(done: boolean): void {
     }
     const h = inHall();
     if (h) void h.journey.leave();
-    whisper("The walk is complete", 5000);
+    const w0 = WALKS.find((x) => x.id === w.id);
+    // out through the door first (a moment), then where next
+    window.setTimeout(() => offerNext(w.id === "all" ? "duat" : w.id, w0?.label.replace(/, end to end$/, "") ?? "The walk"), h ? 3500 : 1200);
   }
 }
 const walkTo = new THREE.Vector2();
@@ -2803,7 +2824,7 @@ function tourOfferFrame(dt: number): void {
     else driveTo(h.hall.door.x, h.hall.door.z, null, pendingArea.since);
   }
   let want: { place: TourPlace; inside: boolean } | null = null;
-  const free = S.mode === "play" && !walk && !duatTour && !areaTour && !pendingArea && !tourScenes.tour.active && !crossing && !genesis.active &&
+  const free = S.mode === "play" && !walk && !duatTour && !areaTour && !pendingArea && !tourScenes.tour.active && !crossing && !genesis.active && !nextUp.shown &&
     sitting.phase === "none" && !startMap.isOpen && $("#menu").hidden && !temple.cardsOpen && !inHall()?.journey.crossing;
   if (free) {
     for (const pl of TOUR_PLACES) {
@@ -2836,6 +2857,133 @@ offerEl.addEventListener("pointerdown", (e) => {
   o.place.start(o.inside);
 });
 offerEl.addEventListener("click", (e) => (e as MouseEvent).detail === 0 && offered && (offered.place.start(offered.inside), (offerEl.hidden = true), (offered = null)));
+
+/* Where next (the owner: "once the temple tour is done, then you are suggested the next
+   destination… do that for all of them"). When something comes to its end (a monument's walk, the
+   temple's tour, the Duat's hours, the world after the veil, the long descent, a lesson, a vision,
+   an ancient world's telling), a card names it and offers where to go next: the next places along
+   one gentle way through the world not yet done, nearest first among the next few, with which way
+   and how far, and "Stay here" (ui/nextUp.ts). What is done is remembered on the device. A choice
+   goes there the best way it can: a place with a tour begins its tour (which takes you there,
+   walking or flying), anything else is reached by the map's arrival. */
+const nextUp = new NextUp();
+interface Dest { id: string; label: string; at: () => { x: number; z: number }; go: () => void }
+const placeAt = (label: string): Place | undefined => places().find((p) => p.label === label);
+function goPlace(label: string, then?: () => void): void {
+  const p = placeAt(label);
+  if (!p) return;
+  stopAuto();
+  arrive({ place: p, x: p.start.x, z: p.start.z, heading: p.start.heading }, false);
+  if (then) window.setTimeout(then, 700);
+}
+const placeDest = (id: string, label: string, title = label): Dest => ({ id, label: title, at: () => placeAt(label) ?? { x: 0, z: 0 }, go: () => goPlace(label) });
+const areaDest = (id: string, k: number): Dest => ({
+  id,
+  label: halls[k].hall.label,
+  at: () => halls[k].hall.door,
+  // to its door (the map's arrival), then in: going in begins its guide
+  go: () => goPlace(halls[k].hall.label, () => (pendingArea = { k, since: 0 })),
+});
+/** One gentle way through the world: the shore's tree, the temple, the pyramid, the monuments,
+    the areas, the ancient worlds, the lessons and the visions. */
+const DESTS: Dest[] = [
+  { id: "tree", label: "Rest at the tree of life", at: () => SITES.tree, go: () => (temple.inside ? tourScenes.gotoTree() : goPlace("❋ The tree of life")) },
+  { id: "temple", label: "The temple, guided", at: () => temple.gateAt, go: () => walkStart("temple") },
+  { id: "duat", label: "The pyramid and the Duat", at: () => pyramid.door, go: () => duatTourStart() },
+  { id: "densities", label: halls[0].hall.label, at: () => halls[0].hall.door, go: () => walkStart("densities") },
+  { id: "adept", label: halls[1].hall.label, at: () => halls[1].hall.door, go: () => walkStart("adept") },
+  { id: "past", label: halls[2].hall.label, at: () => halls[2].hall.door, go: () => walkStart("past") },
+  areaDest("veil", 3),
+  areaDest("descent", 4),
+  placeDest("gobekli", "Göbekli Tepe"),
+  placeDest("nanmadol", "Nan Madol"),
+  placeDest("mu", "Mu, the drowned land"),
+  placeDest("atlantis", "Atlantis"),
+  placeDest("maya", "The drowned Maya city"),
+  placeDest("shore", "The lesson of the shore"),
+  placeDest("garden", "The lesson of the garden"),
+  placeDest("igloo", "The lesson of the igloo"),
+  placeDest("galaxies", "The lesson of the galaxies"),
+  placeDest("desert", "The lesson of the desert"),
+  placeDest("atoms", "Atoms and light"),
+  placeDest("other-worlds", "Other worlds"),
+  placeDest("greetings", "Psychic greetings"),
+];
+/** The recordings whose end is the end of an experience (heard to the end, not stopped). */
+const TRACK_DEST: Record<string, string> = {
+  L03: "shore", L04: "igloo", L05: "garden", L06: "galaxies", L07: "desert",
+  "audio/standalone/atoms_and_light.mp3": "atoms", "audio/standalone/other_worlds.mp3": "other-worlds", "audio/standalone/psychic_greetings.mp3": "greetings",
+  MAYAN: "maya", ATLANTIS: "atlantis", LEMURIA: "mu", GOBEKLI: "gobekli", "NAN-MADOL": "nanmadol",
+  [VEIL_TRACK(7)]: "veil", [WANDERER_TRACK(7)]: "descent",
+};
+let doneDests = new Set<string>();
+try {
+  doneDests = new Set(JSON.parse(localStorage.getItem("inward-journey:done") || "[]") as string[]);
+} catch {
+  /* nothing done yet */
+}
+function markDone(id: string): void {
+  doneDests.add(id);
+  try {
+    localStorage.setItem("inward-journey:done", JSON.stringify([...doneDests]));
+  } catch {
+    /* fine */
+  }
+}
+/** Where you are in the world, for which way and how far: in a place apart (the temple, the
+    pyramid, a monument's rooms, the deep archive), its door outside. */
+function whereFrom(): { x: number; z: number } {
+  if (temple.inside) return temple.outside();
+  if (pyramid.isInside) return pyramid.outside();
+  const h = inHall();
+  if (h?.journey.inside) return h.hall.outside();
+  if (depths.inside) return depths.outside(depths.mouths[0].site);
+  return player.pos;
+}
+function bearingTo(x: number, z: number): string {
+  const o = whereFrom();
+  const dx = x - o.x, dz = z - o.z, d = Math.hypot(dx, dz);
+  if (d < 60) return "close by";
+  const names = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"];
+  const dir = names[(Math.round(Math.atan2(dx, -dz) / (Math.PI / 4)) + 8) % 8];
+  return `${dir} · ${d < 1000 ? `${Math.round(d / 10) * 10} m` : `${(d / 1000).toFixed(1)} km`}`;
+}
+/** Something has come to its end: remember it, and offer where next. `first`: an option that
+    belongs to this place's own ending (the temple's tree of life). */
+function offerNext(doneId: string, title: string, opts: { first?: Dest; stay?: string } = {}): void {
+  markDone(doneId);
+  if (walk || duatTour || areaTour || isTv || S.mode !== "play") return;
+  const i0 = Math.max(0, DESTS.findIndex((d) => d.id === doneId));
+  // the next few along the way not yet done, nearest of them first
+  const ahead: Dest[] = [];
+  for (let k = 1; k < DESTS.length && ahead.length < 4; k++) {
+    const d = DESTS[(i0 + k) % DESTS.length];
+    if (!doneDests.has(d.id) && d.id !== opts.first?.id) ahead.push(d);
+  }
+  if (!ahead.length) for (let k = 1; k <= 2; k++) ahead.push(DESTS[(i0 + k) % DESTS.length]);
+  const from = whereFrom();
+  const dist = (d: Dest) => {
+    const p = d.at();
+    return Math.hypot(p.x - from.x, p.z - from.z);
+  };
+  const pick = [ahead[0], ...ahead.slice(1).sort((a, b) => dist(a) - dist(b))].slice(0, opts.first ? 1 : 2);
+  const options = [...(opts.first ? [opts.first] : []), ...pick].map((d) => {
+    const p = d.at();
+    return { label: d.label, note: d.id === "tree" && temple.inside ? "out through the temple's door" : bearingTo(p.x, p.z), go: () => d.go() };
+  });
+  nextUp.show(`${title}: complete`, options, opts.stay);
+}
+// a lesson, a vision, an ancient world's telling, an area's last word: heard to its end
+narration.onEnd = (id) => {
+  const d = TRACK_DEST[id];
+  if (!d) return;
+  const dest = DESTS.find((x) => x.id === d);
+  window.setTimeout(() => offerNext(d, dest?.label.replace(/^Rest at /, "") ?? "The telling"), 2500);
+};
+// the card goes when you start on your own way
+function nextUpFrame(): void {
+  if (nextUp.shown && (walk || duatTour || tourScenes.tour.active || Math.hypot(input.move.x, input.move.y) > 0.5)) nextUp.hide();
+}
 
 /* The companion (world/companion.ts): with you on every walk-through and the Duat's tour, ahead on
    the way to where the tour goes next, at your shoulder while a place speaks. The temple tour has
@@ -3716,6 +3864,12 @@ addEventListener("pagehide", persist);
 const tourScenes: TourScenes = initTourScenes({
   scene, narration, player, follow, wanderer, camera, whisper, temple, crossTemple, heightAt, sitting,
 });
+// the temple's tour: its own ending (the tree of life) first, then the way on
+tourScenes.tour.onEnd = () => {
+  if (walk) return; // a walk-through takes the temple in its stride and goes on by itself
+  tourScenes.tour.exit();
+  offerNext("temple", "The temple, guided", { first: DESTS[0], stay: "Stay in the temple" });
+};
 // Lesson scenes are created above, AFTER the startup additiveKeepsAlpha pass (line ~263),
 // so their additive materials were never converted. Re-run to cover them: without this,
 // additive glow punches dark squares into the lakes' reflection texture.
@@ -3933,6 +4087,7 @@ function update(dt: number): void {
   duatTourFrame(realDt);
   arrivalFrame();
   tourOfferFrame(realDt);
+  nextUpFrame();
   companionFrame(realDt);
   if (!walk && !duatTour && !tourScenes.tour.active) setRecording(false);
   if (!apart()) {
@@ -4354,4 +4509,4 @@ function devContext(): [string, string][] {
   return out;
 }
 
-Object.assign(window, { __ij: { player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall } });
+Object.assign(window, { __ij: { offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall } });

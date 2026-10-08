@@ -142,14 +142,17 @@
     <button id="tp-fold" type="button" aria-label="Fold the player away">–</button>
     <button id="tp-close" type="button" aria-label="Close the narration">×</button>
   </div>
-  <div id="tp-caption"></div>
+  <p id="tp-from"></p>
+  <div id="tp-line" aria-hidden="true"><i></i></div>
+  <p id="tp-time" aria-live="off"></p>
   <div id="tp-row">
     <button id="tp-pause" type="button">Pause</button>
-    <button id="tp-back" type="button" aria-label="Back fifteen seconds">Back 15 s</button>
-    <button id="tp-next" type="button" aria-label="The next narration">Next</button>
-    <button id="tp-src" type="button">Source</button>
-    <button id="tp-quiet" type="button" aria-pressed="false">Only nature</button>
+    <button id="tp-back" type="button" aria-label="Back fifteen seconds">⟲ 15 s</button>
+    <button id="tp-next" type="button" aria-label="The next narration">Next ›</button>
   </div>
+  <button id="tp-where" type="button">◎ Show me where it lives</button>
+  <p id="tp-upnext"></p>
+  <button id="tp-quiet" type="button" aria-pressed="false">Only nature</button>
 </div>
 <div id="tp-mini" role="group" aria-label="Narration" hidden>
   <svg viewBox="0 0 152 76" aria-hidden="true"><path id="tp-arc-bg" d="M2 0 A74 74 0 0 0 150 0"/><path id="tp-arc" d="M2 0 A74 74 0 0 0 150 0"/></svg>
@@ -157,13 +160,6 @@
   <button id="tp-mini-play" type="button" aria-label="Pause the narration"><span></span></button>
   <button id="tp-mini-next" type="button" aria-label="The next narration">»</button>
   <button id="tp-mini-open" type="button" aria-label="Show the narration's details">⌄</button>
-</div>
-<div id="tp-source" role="dialog" aria-labelledby="tp-source-title" hidden>
-  <p id="tp-source-title"></p>
-  <p id="tp-source-kind" class="note"></p>
-  <ul id="tp-source-list"></ul>
-  <div id="tp-source-text"></div>
-  <button id="tp-source-close" type="button">Close</button>
 </div>
 <div id="howto" role="dialog" aria-labelledby="howto-title" hidden>
   <p id="howto-title">How to play</p>
@@ -174,7 +170,8 @@
     <dt>The word beside it</dt><dd>What you can do here: Land, Dive, Floor, Surface.</dd>
     <dt>Hold on something</dt><dd>A tree, a rock, a crystal or the ground: you go and lay your hands on it. Hold on your own heart for the genesis of light.</dd>
     <dt>Planets, stars, fruit, crystals</dt><dd>Tap one to hear the voice it keeps.</dd>
-    <dt>The half-moon, top right</dt><dd>The narration player: play or pause, back 15 seconds, next. Its card has "Only nature" to rest every voice.</dd>
+    <dt>The half-moon, top right</dt><dd>The narration player: play or pause, back 15 seconds, next. Its card (⌄) shows how far it has played and what comes next, "Show me where it lives" to be led to its planet, star, tree or crystal, and "Only nature" to rest every voice.</dd>
+    <dt>Where next?</dt><dd>When a tour, a lesson or a telling ends, a card offers where to go next. Tap one and you are taken there; "Stay here" if you'd rather linger.</dd>
     <dt>Tours</dt><dd>⋮ → Map → Tours. A light goes with you and the tour walks (and flies) you from place to place. Its bar: ⟲ back ten seconds, pause, » on, ◉ record mode (everything but the world fades; touch anywhere to bring it back), ✕ end.</dd>
     <dt>↺ Hear again</dt><dd>In the monuments' rooms, starts the room's voice from the beginning.</dd>
     <dt>Contemplation</dt><dd>Be still for about fifteen seconds and you become your own eyes, turned toward whatever moves nearby. Touch anywhere to return.</dd>

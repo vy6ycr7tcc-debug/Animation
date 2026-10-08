@@ -48,7 +48,8 @@ export interface TourHooks2 {
     entry(): { x: number; z: number; heading: number };
     floorAt(x: number, z: number): number;
   };
-  crossTemple: (inside: boolean) => void;
+  /** Through the temple's door; `then` runs once the crossing is done (in the dark, before it lifts). */
+  crossTemple: (inside: boolean, then?: () => void) => void;
   heightAt: (x: number, z: number) => number;
   sitting: { phase: "none" | "walking" | "seated" };
   onTourStateChange?: (active: boolean) => void;
@@ -122,17 +123,20 @@ export function initTourScenes(hooks: TourHooks2): TourScenes {
   /** Leave the tour behind and set the wanderer down at the tree of life. */
   const gotoTree = (): void => {
     tour.exit();
-    hooks.crossTemple(false);
-
-    const site = SITES.tree;
-    hooks.player.pos.set(site.x, hooks.heightAt(site.x, site.z) + 0.6, site.z);
-    hooks.player.heading = site.heading;
-    hooks.player.target = null;
-
-    hooks.follow.yaw = site.heading;
-    hooks.follow.snapTo(hooks.player.pos);
-
-    tree.rest();
+    // set down at the tree once the crossing out is done: placed before it, the crossing's own
+    // step out of the door (650 ms later) put the wanderer back at the temple's door (the owner:
+    // "I clicked, but it just went outside of the temple")
+    const atTree = (): void => {
+      const site = SITES.tree;
+      hooks.player.pos.set(site.x, hooks.heightAt(site.x, site.z) + 0.6, site.z);
+      hooks.player.heading = site.heading;
+      hooks.player.target = null;
+      hooks.follow.yaw = site.heading;
+      hooks.follow.snapTo(hooks.player.pos);
+      tree.rest();
+    };
+    if (hooks.temple.inside) hooks.crossTemple(false, atTree);
+    else atTree();
     hooks.onTourStateChange?.(false);
   };
 
