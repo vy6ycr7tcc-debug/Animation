@@ -805,3 +805,30 @@ canvas, #gl, #surface { height: var(--fh); }
 #next-up .label { font: italic 15.5px/1.25 var(--serif, Georgia, serif); }
 #next-up .note { font: 11.5px/1.3 var(--serif, Georgia, serif); color: var(--pearl); opacity: 0.7; }
 body.touring #next-up { bottom: calc(22px + env(safe-area-inset-bottom, 0px)); }
+
+/* ---- the keys, on a computer (ui/keyHints.ts): a quiet row low on the left ---- */
+#keys {
+  position: fixed; left: calc(16px + env(safe-area-inset-left, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 6; max-width: calc(100vw - 140px); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;
+  font: italic 13px/1.3 Georgia, serif; color: rgba(244, 239, 230, 0.78); pointer-events: none;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); transition: opacity 0.6s ease;
+}
+#keys[hidden] { display: none; }
+#keys .chip { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+#keys kbd {
+  display: inline-block; min-width: 1.5em; padding: 1px 6px; border-radius: 5px; box-sizing: border-box; text-align: center;
+  font: 12px/1.45 ui-monospace, Menlo, monospace; font-style: normal; color: var(--pearl);
+  border: 1px solid rgba(226, 191, 126, 0.45); background: rgba(14, 12, 34, 0.45); box-shadow: 0 1px 0 rgba(226, 191, 126, 0.25);
+}
+#keys .what { margin-left: 4px; }
+#keys .sep { width: 1px; height: 14px; background: rgba(244, 239, 230, 0.25); }
+#keys .chip.fresh kbd { animation: key-fresh 2.4s ease-out; }
+@keyframes key-fresh {
+  0%, 30% { border-color: var(--gold); color: var(--gold); box-shadow: 0 0 10px rgba(226, 191, 126, 0.55); }
+  100% { border-color: rgba(226, 191, 126, 0.45); box-shadow: 0 1px 0 rgba(226, 191, 126, 0.25); }
+}
+body.calm #keys { opacity: 0.35; }
+body.touring #keys { display: none; }
+@media (prefers-reduced-motion: reduce) { #keys .chip.fresh kbd { animation: none; border-color: var(--gold); } }
+#howto:not(.kbd) #howto-keys { display: none; }
+#howto-keys { margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line, rgba(226, 191, 126, 0.28)); }
