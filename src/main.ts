@@ -57,6 +57,7 @@ import { Temple } from "./world/temple";
 import { Autofly } from "./player/autofly";
 import { Autorun } from "./player/autorun";
 import { BreathGuide } from "./world/breath";
+import { LungParticles } from "./ui/breathLungs";
 import { Genesis } from "./world/genesis";
 import { Touch } from "./world/touch";
 import { Depths, RUIN_NAMES, RUIN_SITES } from "./world/depths";
@@ -1112,6 +1113,7 @@ function autoFrame(dt: number): void {
    under it says what square breathing is, for its first two rounds. */
 const cueEl = $("#breath-cue"), cueWord = cueEl.querySelector(".word") as HTMLElement, cueCount = cueEl.querySelector(".count") as HTMLElement, cueExplain = cueEl.querySelector(".explain") as HTMLElement;
 const CUE_WORDS: Record<string, string> = { in: "Breathe in", hold: "Hold", out: "Release", rest: "Rest" };
+const lungs = new LungParticles(cueEl.querySelector("canvas.lungs") as HTMLCanvasElement);
 let cueOn = false, cueWordNow = "", cueCountNow = -1, cueExplaining = false;
 let breathExplained = false;
 try {
@@ -1127,8 +1129,8 @@ function breathCueFrame(): void {
     if (cueExplaining && !breath.active) cueExplain.classList.remove("on"), (cueExplaining = false);
     return;
   }
-  // the lungs fill and empty with the ring of light (style.css reads --open)
-  cueEl.style.setProperty("--open", breath.open.toFixed(3));
+  // the lungs, in lights, fill, hold and empty with the ring of light
+  lungs.draw(breath.open, breath.counting ? breath.phase : "wait", S.reduced);
   cueEl.classList.toggle("counting", breath.counting);
   if (!breath.counting) {
     if (cueWordNow !== "wait") (cueWord.textContent = "Breathe with me"), (cueWordNow = "wait"), (cueCountNow = -1), (cueCount.textContent = "");
