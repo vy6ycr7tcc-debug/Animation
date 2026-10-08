@@ -278,6 +278,9 @@ export class TempleTour implements SceneModule {
   /** It has come to its end (the Choice spoken; rest or stay offered). */
   completed = false;
   onRest: (() => void) | null = null;
+  /** The tour has come to its end: the game offers where next (main.ts), in place of the tour's
+      own two buttons. */
+  onEnd: (() => void) | null = null;
   camera: THREE.Camera | null = null;
 
   private stops: Stop[] = [];
@@ -651,6 +654,11 @@ export class TempleTour implements SceneModule {
   private showChoice(): void {
     this.completed = true;
     tourBar().hide(this.bar);
+    if (this.onEnd) {
+      this.rite(-1);
+      this.onEnd();
+      return;
+    }
     this.choice.hidden = false;
     this.rite(-1);
   }
