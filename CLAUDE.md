@@ -863,7 +863,8 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - The pyramid's whispers name no one: "A pyramid of the teachers…", "The guides called such shapes training wheels…", "Higher guidance speaks of a third spiral…".
   - `presences.ts` `LOOKS` keys are internal only (commented); nothing calls `show`.
   - The `sources` metadata stays in `content/transcript_orbs.json`; it is never displayed. Rule: anything new that shows a narration uses `TranscriptPlayer.attribution(n)`, never `sources[]`.
-  - Left for the owner: the About panel's legal disclaimer names the archive (index.html), and the transcripts' own body text (shown in the Source panel) speaks of the archive and its sessions; both are outside this prompt's scope.
+  - The About panel's disclaimer naming the archive is removed (the owner: "remove disclaimer"; supersedes "⋮ → About carries the L/L Research disclaimer"); About keeps the credits.
+  - Left for the owner: the transcripts' own body text (shown in the Source panel) speaks of the archive and its sessions.
 
 - 2026-10-07: master fix, Phase 1 (`docs/findings-ledger.md` holds every finding, its cause, fix and still).
   - Stills: `?shot=density-0` and `density-7` render (the room factory knew rooms 1–6 only); `ruin-n` frames a drowned city from its own approach and other ruins from 22 m; `meadow` frames the vision of creation; still frames show no whispers.
