@@ -1,25 +1,28 @@
 /* Göbekli Tepe (the owner's brief; the telling `GOBEKLI`, Aria, 331.44 s): a hilltop of great
-   stone enclosures above a plain, at the golden hour. The one ancient telling under the open sky,
-   after the drowned cities: sun, wind, the stones very old and you very new. It stands on the
-   world's own highest dry hill toward the low sun (terrain.ts `GOBEKLI`).
-   - Four enclosures dug down into the hill (D, C, B, A), each a ring of dry-stone wall with
+   stone enclosures above a plain, at the golden hour, as it stood when it was built (c. 9500 BCE;
+   the owner: "like it was when it was built, not a museum"): no boardwalks, no buried tells, the
+   pillars freshly cut. It stands on the world's own highest dry hill toward the low sun
+   (terrain.ts `GOBEKLI`).
+   - Four enclosures sunk into the hill (D, C, B, A), each a ring of dry-stone wall with
      T-pillars set into it facing in, two taller pillars at its centre. The pillars are figures:
      the T's crossbar the shoulders, arms carved down the sides to hands folded over the belly, a
      belt, a fox pelt hung from it. Some carry animals in low relief (fox, boar, lion, snake,
      scorpion, birds). In D, the vulture stone: the great bird with its wing out, the disc over
      it, the scorpion below, the headless man, three "handbags" along its head.
-   - Tells not yet dug: grass over the rest of the hill, a few pillar heads breaking the turf
-     (no movement: their stillness against the moving grass is the effect).
-   - Boardwalks on posts with rope rails: a spine across the site, ramps down into D and C, a ring
-     round C's rim, lookouts over B and A.
+     A stone bench runs round the inside of each wall between the pillars; a stair of stone slabs
+     leads down through the gaps of D and C.
+   - The builders' houses on the open hilltop between the rings: rectangular, dry-stone walls
+     plastered inside, a flat roof of timber beams under packed earth, a door with a lintel; before
+     them hearths of ringed stones with embers, grinding slabs with their handstones, stone bowls.
+     A cistern cut into the bedrock, holding rain.
    - The quarry at the hill's edge: a shelf of bedrock with a pillar half cut from it, the trench
      round it, the work stopped mid-stroke.
    - Dry grass in waves of wind, a few wild flowers, dust turning in the low light, seed heads
      blown along the ground; swifts circling high (the game's small bird model, dark); the three
      sister hills out on the plain, each with a pillar head on its crown.
-   - Two builders (the temple figures' idiom, undyed wool and ochre): one standing still between
-     D's central pillars, facing in with the stones; one walking C's rim, pausing at each pillar.
-     Never on the mounds or at the quarry.
+   - Three builders (the temple figures' idiom, undyed wool and ochre): one standing still between
+     D's central pillars, facing in with the stones; one walking C's rim, pausing at each pillar;
+     one kneeling at a grinding slab before a house. None at the quarry.
    - Its telling begins once, the first time you come onto the hilltop, and plays on wherever you
      go (the owner's rule for these areas). */
 import * as THREE from "three/webgpu";
@@ -31,10 +34,13 @@ import { herdOf, type Animal } from "../creatures";
 import { Keeper, Merge, place, rng, roughBlock, solidBox, solidRound } from "./kit";
 
 const { attribute, clamp, cos, dot, float, fract, length, max, mix, positionGeometry, pow, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
-const V3 = THREE.Vector3;
 const G = GOBEKLI, P = GOBEKLI_PLAN;
 const TOP = G.y, FLOOR = G.y - P.depth;
-const DECK = TOP + 0.45; // the boardwalk over the hilltop
+/** The stairs down into D and C: from this far out from the wall's inner face, on the hilltop,
+    to this far in, on the floor, in steps of `RISE`. */
+const { out: STAIR_OUT, in: STAIR_IN, rise: RISE, w: STAIR_W } = P.stair;
+/** The bench round the inside of each enclosure's wall: its depth and its height. */
+const BENCH_D = 0.5, BENCH_H = 0.46;
 /** The wind's way (site frame): off the plain, the way the grass leans. */
 const WIND = new THREE.Vector2(0.8, -0.6).normalize();
 
@@ -204,99 +210,117 @@ function lumpyStone(w: number, h: number, d: number, R: () => number): THREE.Buf
 }
 
 /* ---------------------------------------------------------------- materials */
-/** The pillars and the bedrock: one pale limestone, cut whole (no courses), weathered. */
-const limestone = () => landStone("sandstone_cracks", FLOOR, 1.7, [1.42, 1.32, 1.1]);
+/** The pillars and the bedrock: one pale limestone, cut whole (no courses), freshly worked. */
+const limestone = () => landStone("sandstone_cracks", FLOOR, 1.7, [1.5, 1.4, 1.17], undefined, "fresh");
 /** The enclosure walls: dry stone, small stones laid in rough courses. */
 const rubble = () => landStone("sandstone_cracks", FLOOR, 2.2, [0.52, 0.44, 0.34]);
 /** The walls' face stones: the same pale limestone, a shade warmer and rougher. */
 const faceStone = () => landStone("sandstone_cracks", FLOOR, 1.3, [1.18, 1.06, 0.86]);
-function woodMaterial(): THREE.MeshStandardNodeMaterial {
-  const m = new THREE.MeshStandardNodeMaterial({ metalness: 0, roughness: 0.92 });
-  // the deck's uv in metres (u across, v along): planks across the walk, grain along each plank
-  const u = uv();
-  const plank = fract(u.y.div(0.19)), id = u.y.div(0.19).floor();
-  const tone = fract(sin(id.mul(12.9898)).mul(43758.5453)).mul(0.22).add(0.86);
-  const grain = sin(u.x.mul(38).add(sin(u.x.mul(3.1).add(id)).mul(2))).mul(0.5).add(0.5);
-  const gap = smoothstep(0.0, 0.06, plank).mul(smoothstep(1.0, 0.94, plank));
-  const c = vec3(0.46, 0.36, 0.25).mul(tone).mul(grain.mul(0.12).add(0.9)).mul(gap.mul(0.75).add(0.25));
-  m.colorNode = vec4(c, 1);
+/** The roof beams: rough timber, the bark mostly gone, darker toward the ends. */
+function timberMaterial(): THREE.MeshStandardNodeMaterial {
+  const m = new THREE.MeshStandardNodeMaterial({ metalness: 0, roughness: 0.95 });
+  const p = positionGeometry;
+  const grain = sin(p.y.mul(40).add(sin(p.x.mul(9)).mul(2))).mul(0.5).add(0.5);
+  m.colorNode = vec4(vec3(0.34, 0.25, 0.16).mul(grain.mul(0.18).add(0.86)), 1);
   return m;
 }
+/** The houses' roofs: earth packed over reeds, dry and pale on top. */
+const earth = () => landStone("sandstone_cracks", TOP, 2.4, [0.62, 0.5, 0.37]);
+/** Lime plaster on the houses' inner walls, worn at the foot. */
+const plaster = () => landStone("sandstone_cracks", TOP, 4, [1.35, 1.27, 1.1], undefined, "fresh");
+/** Embers in a hearth: a slow breathing glow under grey ash (unlit: they are the light). */
+function emberMaterial(uT: N): THREE.MeshBasicNodeMaterial {
+  const m = new THREE.MeshBasicNodeMaterial({ fog: true });
+  const q = uv().sub(0.5).mul(2); // the disc's own uv (kept through the merge)
+  const n = sin(q.x.mul(9.7).add(uT.mul(1.7))).mul(sin(q.y.mul(8).sub(uT.mul(1.3)))).mul(0.5).add(0.5);
+  const r = length(q);
+  const hot = smoothstep(1, 0.2, r).mul(n.mul(0.7).add(0.3)).mul(sin(uT.mul(2.3)).mul(0.12).add(0.88));
+  m.colorNode = vec4(mix(vec3(0.16, 0.15, 0.14), vec3(1.05, 0.3, 0.06), hot), 1);
+  return m;
+}
+/** The cistern's water: still and dark, the sky's light on it only by its sheen. */
+function waterMaterial(): THREE.MeshStandardNodeMaterial {
+  return new THREE.MeshStandardNodeMaterial({ color: new THREE.Color(0.035, 0.05, 0.05), metalness: 0, roughness: 0.12 });
+}
 
-/* ---------------------------------------------------------------- the boardwalks */
-type Run = { a: [number, number, number]; b: [number, number, number]; w: number; rails: boolean };
-function runs(): Run[] {
-  const out: Run[] = [];
-  const run = (a: [number, number, number], b: [number, number, number], w = 1.7, rails = true) => out.push({ a, b, w, rails });
-  // the spine: up from the ground at the near edge, across the top
-  run([0, 47, heightAt(...gobekliAt(0, 47)) + 0.05], [0, 42, DECK], 1.7, false);
-  run([0, 42, DECK], [0, -34, DECK]);
-  // down into D and C, through the gaps in their walls
-  run([-0.85, 4, DECK], [-9.2, 4, FLOOR + 0.18]);
-  run([0.85, -8, DECK], [9.6, -8, FLOOR + 0.18]);
-  // lookouts over B and A, at their rims
-  run([-0.85, -25, DECK], [-1.6, -25, DECK], 2.6);
-  run([0.85, 20, DECK], [2.8, 20, DECK], 2.6);
-  // a ring round C's rim
-  const c = P.enclosures[1], rr = c.r + 2.4, n = 18;
-  for (let i = 0; i < n; i++) {
-    const a0 = (i / n) * Math.PI * 2, a1 = ((i + 1) / n) * Math.PI * 2;
-    run([c.x + Math.sin(a0) * rr, c.z + Math.cos(a0) * rr, DECK], [c.x + Math.sin(a1) * rr, c.z + Math.cos(a1) * rr, DECK], 1.5);
-  }
-  return out;
-}
-/** The deck's height at a point of the site's plan (−Infinity off every deck). */
-function deckAt(list: Run[], lx: number, lz: number): number {
-  let y = -Infinity;
-  for (const r of list) {
-    const dx = r.b[0] - r.a[0], dz = r.b[1] - r.a[1], L2 = dx * dx + dz * dz;
-    const t = ((lx - r.a[0]) * dx + (lz - r.a[1]) * dz) / L2;
-    if (t < -0.02 || t > 1.02) continue;
-    const px = r.a[0] + dx * t - lx, pz = r.a[1] + dz * t - lz;
-    if (px * px + pz * pz > (r.w / 2) * (r.w / 2)) continue;
-    y = Math.max(y, r.a[2] + (r.b[2] - r.a[2]) * THREE.MathUtils.clamp(t, 0, 1) + 0.05);
-  }
-  return y;
-}
-function boardwalk(list: Run[], m: Merge<"lime" | "wall" | "stones" | "floor" | "wood" | "rope">, ground: (lx: number, lz: number) => number): void {
-  for (const r of list) {
-    const dx = r.b[0] - r.a[0], dz = r.b[1] - r.a[1], dy = r.b[2] - r.a[2];
-    const len = Math.hypot(dx, dz), slope = Math.hypot(len, dy);
-    const head = Math.atan2(dx, dz), pitch = -Math.atan2(dy, len);
-    // the deck: its uv in metres, for the planks
-    const g = new THREE.BoxGeometry(r.w, 0.08, slope + 0.05);
-    const u = g.attributes.uv as THREE.BufferAttribute, p = g.attributes.position as THREE.BufferAttribute;
-    for (let i = 0; i < u.count; i++) u.setXY(i, p.getX(i) + r.w / 2, p.getZ(i) + slope / 2);
-    g.rotateX(pitch);
-    m.add("wood", g, place((r.a[0] + r.b[0]) / 2, (r.a[2] + r.b[2]) / 2 - 0.04, (r.a[1] + r.b[1]) / 2, head), true);
-    // posts down to the ground and, along the sides, rail posts with two ropes between them
-    const steps = Math.max(1, Math.round(len / 2.2));
-    const sx = Math.cos(head), sz = -Math.sin(head);
-    let prev: [number, number, number][] | null = null;
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps, x = r.a[0] + dx * t, z = r.a[1] + dz * t, y = r.a[2] + dy * t;
-      const tops: [number, number, number][] = [];
-      for (const s of [-1, 1]) {
-        const px = x + sx * s * (r.w / 2 - 0.06), pz = z + sz * s * (r.w / 2 - 0.06);
-        const gy = ground(px, pz), down = y - 0.08 - gy;
-        if (down > 0.05) m.add("wood", new THREE.BoxGeometry(0.11, down + 0.3, 0.11), place(px, gy + down / 2 - 0.15, pz, head), true);
-        if (r.rails) {
-          m.add("wood", new THREE.CylinderGeometry(0.035, 0.04, 1.0, 6), place(px, y + 0.5, pz), true);
-          tops.push([px, y + 0.95, pz]);
-        }
+/* ---------------------------------------------------------------- the lived-in hilltop */
+type Parts = "lime" | "wall" | "stones" | "floor" | "timber" | "earth" | "plaster" | "ember" | "water";
+/** A builder's house: dry-stone walls plastered inside, a door in the front (+v, the way it
+    faces) under a lintel, a flat roof of beams under packed earth; a hearth, a grinding slab and
+    a stone bowl before it. Its walls are solid. */
+function house(h: (typeof P.houses)[number], m: Merge<Parts>, R: () => number, gy: number, solids: Collider[]): void {
+  const at = (u: number, v: number): [number, number] => [h.x + Math.cos(h.face) * u + Math.sin(h.face) * v, h.z - Math.sin(h.face) * u + Math.cos(h.face) * v];
+  const W = h.w, D = h.d, H = 1.75, TH = 0.55, DOOR = 0.95;
+  // each wall as a run in the house's frame: (u0, v0) → (u1, v1), its outward normal (nu, nv)
+  const walls: [number, number, number, number, number, number][] = [
+    [-W / 2, -D / 2, W / 2, -D / 2, 0, -1],
+    [-W / 2, -D / 2, -W / 2, D / 2, -1, 0],
+    [W / 2, -D / 2, W / 2, D / 2, 1, 0],
+    [-W / 2, D / 2, -DOOR / 2, D / 2, 0, 1],
+    [DOOR / 2, D / 2, W / 2, D / 2, 0, 1],
+  ];
+  for (const [u0, v0, u1, v1, nu, nv] of walls) {
+    const L = Math.hypot(u1 - u0, v1 - v0), du = (u1 - u0) / L, dv = (v1 - v0) / L;
+    const ang = h.face + Math.atan2(-dv, du); // the run's direction as a heading about y
+    // the core, plastered inside, and the face of field stones in rough courses outside
+    const cu = (u0 + u1) / 2 - nu * 0.06, cv = (v0 + v1) / 2 - nv * 0.06;
+    const [cx, cz] = at(cu, cv);
+    m.add("plaster", new THREE.BoxGeometry(L + (nu ? 0 : TH * 0.9), H, TH - 0.12), place(cx, gy + H / 2, cz, ang));
+    for (let y = 0.02; y < H - 0.06; ) {
+      const ch = 0.17 + R() * 0.14;
+      let a = -(TH / 2) * (nu ? 0 : 1) + R() * 0.12;
+      while (a < L + (nu ? 0 : TH / 2) - 0.1) {
+        const len = Math.min(0.3 + R() * 0.5, L + TH / 2 - a);
+        const su = u0 + du * (a + len / 2) + nu * (TH / 2 - 0.13), sv = v0 + dv * (a + len / 2) + nv * (TH / 2 - 0.13);
+        const [sx, sz] = at(su, sv);
+        m.add("stones", lumpyStone(len - 0.05, ch - 0.04 - R() * 0.05, 0.3, R), place(sx, gy + y + ch / 2, sz, ang, 1, 1, 1, (R() - 0.5) * 0.08, (R() - 0.5) * 0.15));
+        a += len;
       }
-      if (r.rails && prev)
-        for (let s = 0; s < 2; s++)
-          for (const hy of [0, -0.42]) {
-            const a = prev[s], b = tops[s];
-            const ax = new V3(a[0], a[1] + hy, a[2]), bx = new V3(b[0], b[1] + hy, b[2]);
-            const L = ax.distanceTo(bx);
-            const c = new THREE.CylinderGeometry(0.013, 0.013, L, 4);
-            const q = new THREE.Quaternion().setFromUnitVectors(new V3(0, 1, 0), bx.clone().sub(ax).normalize());
-            m.add("rope", c, new THREE.Matrix4().compose(ax.clone().add(bx).multiplyScalar(0.5).add(new V3(0, -0.03, 0)), q, new V3(1, 1, 1)));
-          }
-      if (r.rails) prev = tops;
+      y += ch;
     }
+    const [wx, wz] = at((u0 + u1) / 2, (v0 + v1) / 2);
+    solidBox(...gobekliAt(wx, wz), L / 2 + 0.1, TH / 2, ang + G.face, gy + H + 0.6, solids);
+  }
+  // the lintel over the door, and its threshold stone
+  {
+    const [x, z] = at(0, D / 2);
+    m.add("lime", roughBlock(DOOR + 0.9, 0.32, TH + 0.08, R, 0.05), place(x, gy + H - 0.12, z, h.face));
+    m.add("lime", roughBlock(DOOR + 0.1, 0.1, TH + 0.2, R, 0.04), place(x, gy + 0.02, z, h.face));
+  }
+  // the roof: beams across the short way, their ends standing out, under a slab of packed earth
+  const nb = Math.round((W - 0.2) / 0.45);
+  for (let i = 0; i <= nb; i++) {
+    const u = -W / 2 + 0.1 + (i / nb) * (W - 0.2);
+    const [x, z] = at(u + (R() - 0.5) * 0.06, 0);
+    const g = new THREE.CylinderGeometry(0.075 + R() * 0.03, 0.09 + R() * 0.03, D + TH + 0.5 + R() * 0.3, 7);
+    g.rotateX(Math.PI / 2);
+    m.add("timber", g, place(x, gy + H + 0.08, z, h.face + (R() - 0.5) * 0.04));
+  }
+  {
+    const [x, z] = at(0, 0);
+    const g = new THREE.BoxGeometry(W + TH + 0.15, 0.3, D + TH + 0.15, 6, 1, 4);
+    const p = g.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < p.count; i++) if (p.getY(i) > 0) p.setY(i, p.getY(i) + (R() - 0.5) * 0.08 - (Math.abs(p.getX(i)) / W) * 0.12);
+    g.computeVertexNormals();
+    m.add("earth", g, place(x, gy + H + 0.3, z, h.face));
+  }
+  // before the door: a hearth of ringed stones round embers and ash, a grinding slab with its
+  // handstone, a stone bowl
+  {
+    const [hx, hz] = at(-W * 0.22, D / 2 + 2.1);
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2 + R() * 0.3;
+      m.add("stones", lumpyStone(0.26 + R() * 0.1, 0.15 + R() * 0.06, 0.2, R), place(hx + Math.sin(a) * 0.52, gy + 0.06, hz + Math.cos(a) * 0.52, a));
+    }
+    const e = new THREE.CircleGeometry(0.42, 18);
+    e.rotateX(-Math.PI / 2);
+    m.add("ember", e, place(hx, gy + 0.05, hz), true);
+    const [qx, qz] = at(W * 0.25, D / 2 + 1.5);
+    m.add("lime", roughBlock(0.75, 0.2, 0.46, R, 0.05), place(qx, gy + 0.08, qz, h.face + 0.3, 1, 1, 1, 0.06));
+    m.add("lime", roughBlock(0.26, 0.09, 0.15, R, 0.03), place(qx + 0.1, gy + 0.22, qz, h.face + 0.5));
+    const [bx, bz] = at(W * 0.42, D / 2 + 0.8);
+    const bowl = new THREE.LatheGeometry([new THREE.Vector2(0.001, 0), new THREE.Vector2(0.17, 0.02), new THREE.Vector2(0.22, 0.14), new THREE.Vector2(0.19, 0.15), new THREE.Vector2(0.15, 0.05), new THREE.Vector2(0.001, 0.05)], 14);
+    m.add("lime", bowl, place(bx, gy, bz));
   }
 }
 
@@ -393,7 +417,7 @@ export class Gobekli {
     this.group.rotation.y = G.face;
     const ground = (lx: number, lz: number) => heightAt(...gobekliAt(lx, lz));
     const toW = (lx: number, lz: number) => gobekliAt(lx, lz);
-    const m = new Merge<"lime" | "wall" | "stones" | "floor" | "wood" | "rope">();
+    const m = new Merge<Parts>();
     // the enclosures
     for (const e of P.enclosures) {
       const gapped = e.id === "D" || e.id === "C";
@@ -425,6 +449,28 @@ export class Gobekli {
         const fl = new THREE.CircleGeometry(e.r + 0.05, 48);
         fl.rotateX(-Math.PI / 2);
         m.add("floor", fl, place(e.x, FLOOR + 0.03, e.z));
+      }
+      // the bench round the inside of the wall, between the pillars: dry stone under slabs
+      {
+        const nS = Math.round((Math.PI * 2 * (e.r - BENCH_D / 2)) / 0.72);
+        for (let i = 0; i < nS; i++) {
+          const a = phi0 + 0.12 + (i / nS) * (Math.PI * 2 - gapHalf * 2 - 0.24);
+          if (!gapped && i === nS - 1) continue;
+          const rr = e.r - BENCH_D / 2 + 0.03;
+          m.add("wall", roughBlock(0.7, BENCH_H - 0.06, BENCH_D, R, 0.06), place(e.x + Math.sin(a) * rr, FLOOR + (BENCH_H - 0.06) / 2 - 0.03, e.z + Math.cos(a) * rr, a + Math.PI / 2));
+          m.add("lime", roughBlock(0.66, 0.1, BENCH_D + 0.06, R, 0.03), place(e.x + Math.sin(a) * rr, FLOOR + BENCH_H - 0.04, e.z + Math.cos(a) * rr, a + Math.PI / 2, 1, 1, 1, (R() - 0.5) * 0.04, (R() - 0.5) * 0.04));
+        }
+      }
+      // the stair down through the gap: slabs of limestone on dry-stone fill, from the hilltop
+      // to the floor
+      if (gapped) {
+        const n = Math.round((TOP - FLOOR) / RISE), tread = (STAIR_OUT + STAIR_IN) / n;
+        const sx = Math.sin(e.gap), sz = Math.cos(e.gap);
+        for (let i = 0; i < n; i++) {
+          const top = TOP - (i + 1) * RISE, mid = e.r + STAIR_OUT - (i + 0.5) * tread;
+          const hgt = top - FLOOR + 0.25;
+          m.add("stones", roughBlock(STAIR_W, hgt, tread + 0.06, R, 0.05), place(e.x + sx * mid, FLOOR - 0.25 + hgt / 2, e.z + sz * mid, e.gap, 1, 1, 1, (R() - 0.5) * 0.015, (R() - 0.5) * 0.02));
+        }
       }
       // the wall's ends at the gap, and rough stones lying along its top
       if (gapped)
@@ -486,14 +532,17 @@ export class Gobekli {
       const [wx, wz] = toW(x, z);
       solidBox(wx, wz, 0.26, b / 2 + 0.05, a + Math.PI + G.face, FLOOR + h + 0.9, this.solids);
     }
-    // the tells: pillar heads breaking the turf, a little askew
-    for (const mo of P.mounds)
-      for (let i = 0; i < mo.tops; i++) {
-        const a = R() * Math.PI * 2, r = mo.r * (0.15 + R() * 0.3);
-        const x = mo.x + Math.sin(a) * r, z = mo.z + Math.cos(a) * r;
-        const g = tPillar(0.6, 0.8, 0.42, 1.2, R, [], 0.9);
-        m.add("lime", g, place(x, ground(x, z) - 0.7 - R() * 0.25, z, R() * Math.PI, 1, 1, 1, (R() - 0.5) * 0.18, (R() - 0.5) * 0.18));
-      }
+    // the builders' houses round the rings, and the cistern cut into the bedrock
+    for (const h of P.houses) house(h, m, R, ground(h.x, h.z), this.solids);
+    {
+      const c = P.cistern, gy = ground(c.x + c.r + 1.5, c.z);
+      const rim = [new THREE.Vector2(c.r + 0.55, gy + 0.04), new THREE.Vector2(c.r + 0.2, gy + 0.12), new THREE.Vector2(c.r, gy + 0.04), new THREE.Vector2(c.r - 0.04, gy - 1.3)];
+      m.add("lime", new THREE.LatheGeometry(rim, 40), place(c.x, 0, c.z));
+      const wd = new THREE.CircleGeometry(c.r, 32);
+      wd.rotateX(-Math.PI / 2);
+      m.add("water", wd, place(c.x, gy - 0.55, c.z));
+      solidRound(...gobekliAt(c.x, c.z), c.r + 0.2, gy + 0.5, this.solids);
+    }
     // the quarry: a shelf of bedrock, a trench round a pillar still joined to the rock at its foot
     {
       const q = P.quarry, gy = ground(q.x, q.z);
@@ -524,34 +573,56 @@ export class Gobekli {
       if (P.enclosures.some((e) => Math.hypot(x - e.x, z - e.z) < e.r + 4) || Math.abs(x) < 3) continue;
       m.add("lime", roughBlock(1 + R() * 2.4, 0.5 + R() * 0.5, 0.8 + R() * 1.8, R, 0.3), place(x, ground(x, z) - 0.15, z, R() * 3, 1, 1, 1, (R() - 0.5) * 0.2, (R() - 0.5) * 0.2));
     }
-    // the boardwalks
-    const list = runs();
-    boardwalk(list, m, ground);
+    // you walk down the stairs and may sit on the benches: their heights, in the site's frame
     standHooks.push((wx, wz) => {
       const lx0 = wx - G.x, lz0 = wz - G.z;
-      if (lx0 * lx0 + lz0 * lz0 > 70 * 70) return -Infinity;
+      if (lx0 * lx0 + lz0 * lz0 > 60 * 60) return -Infinity;
       const c = Math.cos(G.face), s = Math.sin(G.face);
-      return deckAt(list, lx0 * c - lz0 * s, lx0 * s + lz0 * c);
+      const lx = lx0 * c - lz0 * s, lz = lx0 * s + lz0 * c;
+      for (const e of P.enclosures) {
+        const dx = lx - e.x, dz = lz - e.z, d = Math.hypot(dx, dz);
+        if (d > e.r + STAIR_OUT + 0.2) continue;
+        if (e.id === "D" || e.id === "C") {
+          const along = dx * Math.sin(e.gap) + dz * Math.cos(e.gap), across = Math.abs(dx * Math.cos(e.gap) - dz * Math.sin(e.gap));
+          if (across < STAIR_W / 2 && along > e.r - STAIR_IN && along < e.r + STAIR_OUT) {
+            const n = Math.round((TOP - FLOOR) / RISE), tread = (STAIR_OUT + STAIR_IN) / n;
+            return Math.max(FLOOR, TOP - Math.ceil((e.r + STAIR_OUT - along) / tread) * RISE);
+          }
+        }
+        if (d > e.r - BENCH_D && d < e.r) return FLOOR + BENCH_H;
+      }
+      return -Infinity;
     });
-    const mats = { lime: limestone(), wall: rubble(), stones: faceStone(), floor: landStone("sandstone_cracks", FLOOR - 3, 3.2, [1.0, 0.9, 0.74]), wood: woodMaterial(), rope: new THREE.MeshStandardNodeMaterial({ color: new THREE.Color(0.32, 0.25, 0.17), roughness: 1 }) };
+    const mats: Record<Parts, THREE.Material> = { lime: limestone(), wall: rubble(), stones: faceStone(), floor: landStone("sandstone_cracks", FLOOR - 3, 3.2, [1.0, 0.9, 0.74]), timber: timberMaterial(), earth: earth(), plaster: plaster(), ember: emberMaterial(this.uT), water: waterMaterial() };
     const built = m.build(mats);
     built.traverse((o) => {
       if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true;
     });
     this.group.add(built);
-    // the grass, kept off the enclosures' floors, the decks and the rock
+    // the grass, kept off the enclosures, the stairs' heads, the houses and their yards, the
+    // cistern, the rock and the trodden way across the top
+    const inHouse = (lx: number, lz: number) =>
+      P.houses.some((h) => {
+        const dx = lx - h.x, dz = lz - h.z;
+        const u = dx * Math.cos(h.face) - dz * Math.sin(h.face), v = dx * Math.sin(h.face) + dz * Math.cos(h.face);
+        return Math.abs(u) < h.w / 2 + 1.2 && v > -h.d / 2 - 1.2 && v < h.d / 2 + 3.4;
+      });
     const keep = (lx: number, lz: number) =>
-      !P.enclosures.some((e) => Math.hypot(lx - e.x, lz - e.z) < e.r + 1.8) && deckAt(list, lx, lz) === -Infinity && Math.hypot(lx - P.quarry.x, lz - P.quarry.z) > 9.5 && Math.abs(lx) > 1.2;
+      !P.enclosures.some((e) => Math.hypot(lx - e.x, lz - e.z) < e.r + (e.id === "D" || e.id === "C" ? STAIR_OUT + 0.8 : 1.8)) &&
+      !inHouse(lx, lz) && Math.hypot(lx - P.cistern.x, lz - P.cistern.z) > P.cistern.r + 1.6 && Math.hypot(lx - P.quarry.x, lz - P.quarry.z) > 9.5 && Math.abs(lx) > 1.6;
     this.group.add(dryGrass(phone ? 9000 : 16000, keep, this.uT));
     this.group.add(this.dust(phone));
-    // the sister hills: a pillar head on each crown, seen from far
+    // the sister hills: each has its own pair of pillars standing on its crown, seen from far
     for (const s of GOBEKLI_SISTERS) {
-      const g = tPillar(0.8, 0.85, 0.45, 1.3, R, [], 0.9);
-      const mesh = new THREE.Mesh(g, mats.lime);
-      mesh.position.set(s.x, heightAt(s.x, s.z) - 0.5, s.z);
-      mesh.rotation.set((R() - 0.5) * 0.2, R() * 3, (R() - 0.5) * 0.2);
-      mesh.castShadow = true;
-      this.far.add(mesh);
+      const turn = R() * 3;
+      for (const k of [-1, 1]) {
+        const g = tPillar(3.6, 0.95, 0.46, 1.4, R, [], 0.5);
+        const mesh = new THREE.Mesh(g, mats.lime);
+        mesh.position.set(s.x + Math.cos(turn) * k * 1.2, heightAt(s.x, s.z), s.z - Math.sin(turn) * k * 1.2);
+        mesh.rotation.y = turn;
+        mesh.castShadow = true;
+        this.far.add(mesh);
+      }
     }
     // the builders: undyed wool and ochre, hands rather than priests
     const D = P.enclosures[0], C = P.enclosures[1];
@@ -571,7 +642,14 @@ export class Gobekli {
         path.push({ x, z, look: [lx, lz] });
       }
       const [x0, z0] = [path[0].x, path[0].z];
-      this.keepers.push(new Keeper({ recipe: "GOBEKLI_BUILDER", tint: [0.98, 0.84, 0.62], x: x0, z: z0, face: 0, pose: "walk", path, pause: 9, ground: (x, z) => Math.max(heightAt(x, z), DECK + 0.02) }));
+      this.keepers.push(new Keeper({ recipe: "GOBEKLI_BUILDER", tint: [0.98, 0.84, 0.62], x: x0, z: z0, face: 0, pose: "walk", path, pause: 9 }));
+    }
+    {
+      // kneeling at the grinding slab before the first house
+      const h = P.houses[0];
+      const u = h.w * 0.25, v = h.d / 2 + 2.2;
+      const [x, z] = atW(h.x + Math.cos(h.face) * u + Math.sin(h.face) * v, h.z - Math.sin(h.face) * u + Math.cos(h.face) * v);
+      this.keepers.push(new Keeper({ recipe: "GOBEKLI_BUILDER", tint: [0.86, 0.62, 0.42], x, z, face: -(h.face + G.face), pose: "kneel" }));
     }
     for (const k of this.keepers) this.live.add(k.root);
     // swifts, high over the hill, circling (the game's small bird, dark against the sky)

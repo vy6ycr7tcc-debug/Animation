@@ -828,6 +828,16 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - Two figures (`NAN_MADOL_WATCHER`, the temple figures' particle idiom; bark cloth in sea and basalt tones, a shell collar): the watcher on the seawall facing the open water, and the keeper in the mortuary's inner court. No dialogue, no collision.
   - The telling begins once, the first time you come into the lagoon, and plays on wherever you go.
   - Stills: `?shot=nanmadol-a` … `nanmadol-f` (from the shore, the western canal, the mortuary's gate, its inner court, the seawall, from the air).
+- 2026-10-08: Göbekli Tepe as it stood when it was built (the owner: "like it was when it was built, not a museum with a bridge… realistic"; supersedes the boardwalks, the tells and the pillar heads breaking the turf in the Göbekli entry above).
+  - Gone: the boardwalks, rope rails, ramps and lookouts; the unexcavated tells (`GOBEKLI_PLAN.mounds` and their raised pads).
+  - The enclosures stay sunk into the hill (as built, semi-subterranean). Into D and C a stair of ten stone steps goes down the bank through the gap (`GOBEKLI_PLAN.stair`: from the hilltop's edge to the floor, walkable through `standHooks`). A stone bench of fitted blocks under slabs runs round the inside of every wall between the pillars (you can sit on it).
+  - The pillars are freshly cut: `landStone(…, "fresh")`, a new finish with no lichen and no rain streaks, used for them and for the houses' plaster.
+  - The builders' houses on the open hilltop (`GOBEKLI_PLAN.houses`, four): rectangular dry-stone walls plastered inside, a door with a lintel and threshold, a flat roof of timber beams (their ends showing) under packed earth. Before each, a hearth of ringed stones with embers breathing under ash, a grinding slab with its handstone, a stone bowl. The walls are solid.
+  - A cistern cut into the bedrock holding still dark water (`GOBEKLI_PLAN.cistern`, a pad sinks the ground under it).
+  - The sister hills each carry a pair of whole standing pillars, no longer buried heads.
+  - Three builders now: the third kneels at the first house's grinding slab. The rim walker walks the ground.
+  - Stills: `?shot=gobekli-h` (a house, its hearth and slab), `gobekli-i` (the stair into C, from its floor); `b` is now "down into D from the stair's head".
+
 - 2026-10-07: master fix, Phase 1 (`docs/findings-ledger.md` holds every finding, its cause, fix and still).
   - Stills: `?shot=density-0` and `density-7` render (the room factory knew rooms 1–6 only); `ruin-n` frames a drowned city from its own approach and other ruins from 22 m; `meadow` frames the vision of creation; still frames show no whispers.
   - Room 5 is brighter below and still black above: floor tint ~0.05–0.07, the magician's cool light 20 over 30 m, air glow (0.04, 0.045, 0.07), a cold shadow lift.
