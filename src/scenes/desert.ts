@@ -1,4 +1,6 @@
-/* The desert lesson: L07 "The Dark and the Lantern" (faith), enacted (scenes/enacted.ts). A road
+/* The desert lesson: L07 "The Dark and the Lantern" (faith), enacted (scenes/enacted.ts). You go
+   with the walker: they keep their place before you while the road, its streetlights and the stones
+   along its verge pass by (so the walk reads as a walk, not a stepping on the spot). A road
    runs out from beside the seat into the desert, streetlights along its first stretch. One by one
    they go out, and the road goes on past the last of them into real darkness: while you sit here
    the night around is made truly dark (`lessonDark`). Someone walks that road carrying a lantern,
@@ -61,8 +63,12 @@ function stage(ctx: StageCtx): Stage {
   }
 
   /* ---------------- the streetlights along its first stretch, going out one by one ---------------- */
+  let lampGlow: ReturnType<typeof cloud> | null = null;
   const lampLights: THREE.PointLight[] = [];
   const lampZ = (k: number) => 5 - k * 5.5;
+  // the walk: the road's furniture passes you by as you go with the walker (the owner: it read as
+  // walking on the spot): the streetlights, each light and glow, and the stones along the verge
+  const lampParts: { o: THREE.Object3D; z: number; x: number; dy: number }[] = [];
   {
     const pm = new THREE.MeshStandardNodeMaterial({ roughness: 0.6, metalness: 0.4 });
     pm.colorNode = vec3(0.12, 0.12, 0.13);
@@ -78,6 +84,7 @@ function stage(ctx: StageCtx): Stage {
         const mesh = new THREE.Mesh(geo, pm);
         mesh.position.set(x, y, z);
         g.add(mesh);
+        lampParts.push({ o: mesh, z, x, dy: 0 });
       }
       glowPts.a.position.set([x - 0.62, y + 4.45, z], k * 3);
       glowPts.a.aK.set([k / LAMPS, 0, 0, 0], k * 4);
@@ -86,9 +93,11 @@ function stage(ctx: StageCtx): Stage {
         L.position.set(x - 0.6, y + 4.2, z - 2.5);
         g.add(L);
         lampLights.push(L);
+        lampParts.push({ o: L, z: z - 2.5, x: x - 0.6, dy: 4.2 });
       }
     }
     glowPts.dirty();
+    lampGlow = glowPts;
     const K = glowPts.c.nodes.aK;
     // the far ones go out first, then nearer, until none is left
     const lit = smoothstep(K.x.sub(0.02), K.x.add(0.02), u.lamps);
@@ -161,6 +170,15 @@ function stage(ctx: StageCtx): Stage {
     ours.push(S.m);
   }
 
+  /* ---------------- stones along the verge, passing as you walk ---------------- */
+  const VERGE = 40, SPAN = 64;
+  const verge = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.22, 0), new THREE.MeshStandardNodeMaterial({ color: new THREE.Color(0.2, 0.18, 0.15), roughness: 1 }), VERGE);
+  const vergeAt = Array.from({ length: VERGE }, (_, i) => ({ x: (i % 2 ? 1 : -1) * (2 + R() * 1.6), z: R() * SPAN, s: 0.5 + R() * 1.3, r: R() * 6 }));
+  verge.receiveShadow = verge.castShadow = true;
+  g.add(verge);
+  ours.push(verge.geometry, verge.material as THREE.Material);
+  const vm = new THREE.Matrix4(), vq = new THREE.Quaternion(), ve = new THREE.Euler(), vs = new THREE.Vector3(), vp = new THREE.Vector3();
+
   let walked = 0, time = 0;
   const hand = new THREE.Vector3();
   return {
@@ -185,6 +203,28 @@ function stage(ctx: StageCtx): Stage {
       // how far they have come, a pure function of the telling's seconds (replays and stills agree)
       walked = Math.max(0, Math.min(T0, 529) - 20) * 0.95;
       u.scroll.value = walked;
+      // the streetlights fall behind you as you go
+      for (const lp of lampParts) {
+        const z = lp.z + walked;
+        lp.o.position.set(lp.x, gy(lp.x > 2.2 ? 2.4 : lp.x, z) + lp.dy, z);
+        lp.o.visible = z < 30;
+      }
+      if (lampGlow) {
+        for (let k = 0; k < LAMPS; k++) {
+          const z = lampZ(k) + walked;
+          lampGlow.a.position.set([2.4 - 0.62, gy(2.4, z) + 4.45, z], k * 3);
+        }
+        lampGlow.dirty();
+      }
+      // the verge's stones come toward you out of the dark and pass (each wraps round to the far end)
+      for (let i = 0; i < VERGE; i++) {
+        const v = vergeAt[i];
+        const z = 14 - (((v.z - walked) % SPAN) + SPAN) % SPAN;
+        vp.set(v.x, gy(v.x, z) + 0.05 * v.s, z);
+        vm.compose(vp, vq.setFromEuler(ve.set(v.r, v.r * 1.7, 0)), vs.set(v.s, v.s * 0.6, v.s));
+        verge.setMatrixAt(i, vm);
+      }
+      verge.instanceMatrix.needsUpdate = true;
       const body = folk.bodies[0];
       if (body) {
         // after the lantern is set down, the walker walks on into the dark
@@ -232,5 +272,5 @@ function stage(ctx: StageCtx): Stage {
 }
 
 export function createDesert(scene: THREE.Scene, narration: Narration, whisper: (t: string, ms?: number) => void): SceneModule {
-  return enactedLesson(scene, narration, whisper, { id: "desert", trackId: "L07", site: SITES.desert, reach: 7, make: stage });
+  return enactedLesson(scene, narration, whisper, { id: "desert", trackId: "L07", site: SITES.desert, reach: 7, centreY: 1.8, make: stage }); // the road and the lantern are at a walker's height
 }
