@@ -376,6 +376,30 @@ for (const o of [grass.mesh, blooms.mesh, ...creation.noReflect]) o.layers.set(N
 /* ============ QUALITY ============ */
 let dpr = 1;
 const quality: AdaptiveQuality = new AdaptiveQuality(applyTier);
+/* The graphics level (⋮ → Graphics): automatic by default, the game choosing as it goes; or one
+   level held whatever the frame rate (Best … Lowest). Remembered on the device. */
+{
+  const KEY = "inward-journey:graphics";
+  const sel = $<HTMLSelectElement>("#graphics");
+  let saved = "auto";
+  try {
+    saved = localStorage.getItem(KEY) ?? "auto";
+  } catch {
+    /* private window */
+  }
+  if (![...sel.options].some((o) => o.value === saved)) saved = "auto";
+  sel.value = saved;
+  const set = (v: string) => quality.override(v === "auto" ? null : v);
+  if (saved !== "auto") window.setTimeout(() => set(saved), 0); // once the renderer exists
+  sel.addEventListener("change", () => {
+    set(sel.value);
+    try {
+      localStorage.setItem(KEY, sel.value);
+    } catch {
+      /* private window */
+    }
+  });
+}
 /** The screen's real height in CSS pixels. On the Home Screen iOS reports a window (and so
     100vh/100lvh) short of the screen, which left a dark band at the foot: there, the screen's
     own size is the truth (its long side in portrait). Elsewhere the largest the page reports. */
