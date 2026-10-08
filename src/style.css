@@ -751,42 +751,64 @@ canvas, #gl, #surface { height: var(--fh); }
 
 /* ---- square breathing: the side of the square and its count (main.ts breathCueFrame) ---- */
 #breath-cue {
-  position: fixed; left: 0; right: 0; top: calc(29% + env(safe-area-inset-top, 0px)); z-index: 6;
-  text-align: center; pointer-events: none; opacity: 0; transition: opacity 0.9s ease;
-  padding: 18px 0 22px; background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(6, 6, 18, 0.34), rgba(6, 6, 18, 0) 72%);
+  --open: 0;
+  position: fixed; left: 0; right: 0; top: calc(17% + env(safe-area-inset-top, 0px)); z-index: 6;
+  text-align: center; pointer-events: none; opacity: 0; transition: opacity 1.4s ease;
+  padding: 10px 0 20px; background: radial-gradient(ellipse 52% 48% at 50% 42%, rgba(6, 10, 24, 0.32), rgba(6, 10, 24, 0) 72%);
 }
 #breath-cue.on { opacity: 1; }
 #breath-cue p { margin: 0; }
+/* the lungs: soft blue, filling as you breathe in, emptying as you breathe out (main.ts sets --open,
+   eased by the breath itself, so the motion is never mechanical) */
+#breath-cue .lungs {
+  display: block; width: clamp(92px, 26vw, 128px); height: auto; margin: 0 auto 6px; overflow: visible;
+  transform: scale(calc(0.82 + 0.22 * var(--open))); transform-origin: 50% 30%;
+  filter: drop-shadow(0 0 calc(4px + 14px * var(--open)) rgba(120, 190, 255, calc(0.18 + 0.4 * var(--open))));
+}
+#breath-cue .lobe { fill: url(#lung-fill); stroke: rgba(196, 230, 255, 0.78); stroke-width: 0.9; fill-opacity: calc(0.55 + 0.45 * var(--open)); }
+#breath-cue .airway, #breath-cue .twigs { fill: none; stroke: rgba(210, 236, 255, 0.7); stroke-width: 0.8; stroke-linecap: round; }
+#breath-cue .twigs { stroke-width: 0.55; opacity: calc(0.35 + 0.5 * var(--open)); }
 #breath-cue .word {
-  font: italic clamp(22px, 6.2vw, 30px)/1.2 var(--serif, Georgia, serif); letter-spacing: 0.06em; color: var(--gold);
-  text-shadow: 0 0 14px rgba(255, 200, 120, 0.4), 0 1px 3px rgba(0, 0, 0, 0.5);
+  font: italic clamp(19px, 5.4vw, 25px)/1.2 var(--serif, Georgia, serif); letter-spacing: 0.08em; color: #d8ecff;
+  text-shadow: 0 0 14px rgba(120, 190, 255, 0.35), 0 1px 3px rgba(0, 0, 0, 0.5);
+  transition: opacity 0.6s ease;
 }
 #breath-cue .count {
-  margin-top: 4px; font: clamp(36px, 10vw, 48px)/1 var(--serif, Georgia, serif); font-variant-numeric: tabular-nums;
-  color: var(--pearl); text-shadow: 0 0 12px rgba(255, 230, 190, 0.35), 0 1px 3px rgba(0, 0, 0, 0.5);
+  margin-top: 2px; font: clamp(22px, 6vw, 28px)/1 var(--serif, Georgia, serif); font-variant-numeric: tabular-nums;
+  color: rgba(224, 238, 255, 0.72); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 #breath-cue .count.tick { animation: breath-tick 0.9s ease-out; }
-@keyframes breath-tick { from { opacity: 0.3; transform: scale(0.9); } to { opacity: 1; transform: none; } }
+@keyframes breath-tick { from { opacity: 0.25; } to { opacity: 1; } }
 #breath-cue .explain {
-  max-width: min(86vw, 25em); margin: 14px auto 0; font: italic 14px/1.5 var(--serif, Georgia, serif); color: var(--pearl);
+  max-width: min(86vw, 24em); margin: 12px auto 0; font: italic 14px/1.5 var(--serif, Georgia, serif); color: #e3eefc;
   opacity: 0; transition: opacity 1.2s ease; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
 }
-#breath-cue .explain.on { opacity: 0.88; }
-@media (prefers-reduced-motion: reduce) { #breath-cue .count.tick { animation: none; } }
+#breath-cue .explain.on { opacity: 0.86; }
+@media (prefers-reduced-motion: reduce) { #breath-cue .count.tick { animation: none; } #breath-cue .lungs { transform: none; } }
 
 /* ---- "Start the tour": near a tour place's entrance, or inside it with no tour running ---- */
 #tour-start {
-  position: fixed; left: 50%; transform: translateX(-50%); z-index: 7;
+  position: fixed; left: 0; right: 0; margin: 0 auto; width: max-content; z-index: 7;
   bottom: calc(108px + env(safe-area-inset-bottom, 0px));
-  display: flex; flex-direction: column; align-items: center; gap: 1px;
-  min-height: 48px; min-width: 12em; padding: 7px 22px; border-radius: 26px;
-  background: rgba(24, 16, 8, 0.6); border: 1px solid rgba(226, 191, 126, 0.55);
+  display: flex; flex-direction: row; align-items: center; gap: 12px;
+  min-height: 52px; padding: 8px 24px 8px 12px; border-radius: 28px;
+  background: radial-gradient(ellipse at 30% 50%, rgba(60, 40, 14, 0.62), rgba(14, 10, 22, 0.66));
+  border: 1px solid rgba(226, 191, 126, 0.45);
+  box-shadow: 0 0 0 1px rgba(226, 191, 126, 0.08) inset, 0 0 22px rgba(226, 191, 126, 0.12);
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); animation: rise 0.9s ease;
   color: var(--gold); touch-action: manipulation; -webkit-user-select: none; user-select: none;
 }
 #tour-start[hidden] { display: none; }
-#tour-start .go { font: italic 16px/1.2 var(--serif, Georgia, serif); letter-spacing: 0.03em; }
-#tour-start .where { font: 12px/1.2 var(--serif, Georgia, serif); color: var(--pearl); opacity: 0.75; }
+#tour-start .txt { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left; }
+#tour-start .go { font: italic 16.5px/1.2 var(--serif, Georgia, serif); letter-spacing: 0.05em; }
+#tour-start .where { font: italic 12px/1.2 var(--serif, Georgia, serif); color: var(--pearl); opacity: 0.7; }
+/* the game's seed of light, in thin gold, slowly turning and breathing */
+#tour-start .seed { width: 30px; height: 30px; flex: none; overflow: visible; animation: seed-turn 24s linear infinite, seed-breathe 4.5s ease-in-out infinite; }
+#tour-start .seed circle { fill: none; stroke: var(--gold); stroke-width: 0.7; opacity: 0.85; }
+#tour-start .seed circle:first-child { stroke-width: 0.5; opacity: 0.55; }
+@keyframes seed-turn { to { rotate: 360deg; } }
+@keyframes seed-breathe { 50% { filter: drop-shadow(0 0 4px rgba(240, 200, 130, 0.7)); } }
+@media (prefers-reduced-motion: reduce) { #tour-start .seed { animation: none; } }
 #tour-start:active { background: rgba(226, 191, 126, 0.18); }
 
 /* ---- where next: when a tour, a lesson or a telling ends (ui/nextUp.ts) ---- */

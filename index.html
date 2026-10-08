@@ -186,7 +186,7 @@
     <dt>↺ Hear again</dt><dd>In the monuments' rooms, starts the room's voice from the beginning.</dd>
     <dt>Contemplation</dt><dd>Be still for about fifteen seconds and you become your own eyes, turned toward whatever moves nearby. Touch anywhere to return.</dd>
     <dt>Quiet screen</dt><dd>When you don't touch the screen the controls fade away. Any touch brings them back.</dd>
-    <dt>◌ Square breathing</dt><dd>The small ring above the round button: the wanderer goes on by itself (walking, or flying if you are in the air) and you breathe in a square: breathe in for four seconds, hold for four, release for four, hold for four, and again. The word and the count over the view say which side of the square you are on; the ring of light round the wanderer opens as you breathe in and draws in as you release. A calming breath, slow and even, used by divers, soldiers and meditators alike. The stick or the button takes you back. O on a keyboard.</dd>
+    <dt>◌ Square breathing</dt><dd>The small ring above the round button: the wanderer goes on by itself (walking, or flying if you are in the air) and you breathe in a square: breathe in for four seconds, hold for four, release for four, hold for four, and again. The lungs over the view fill and empty with you, and the word and the count say which side of the square you are on; the ring of light round the wanderer opens as you breathe in and draws in as you release. A calming breath, slow and even, used by divers, soldiers and meditators alike. The stick or the button takes you back. O on a keyboard.</dd>
     <dt>⋮</dt><dd>The map, the guide ("Walk me there" takes you all the way; the stick takes over), autofly, sound and settings.</dd>
   </dl>
   <button id="howto-close" type="button">Close</button>
@@ -204,8 +204,19 @@
 </div>
 
 <p id="whisper" class="whisper" aria-hidden="true"></p>
-<button id="tour-start" type="button" hidden><span class="go">▶ Start the tour</span><span class="where"></span></button>
-<div id="breath-cue" role="status" aria-live="polite"><p class="word"></p><p class="count"></p><p class="explain"></p></div>
+<button id="tour-start" type="button" hidden><svg class="seed" viewBox="-12 -12 24 24" aria-hidden="true"><circle r="10.5"/><circle r="4.2"/><circle cx="4.2" r="4.2"/><circle cx="-4.2" r="4.2"/><circle cx="2.1" cy="3.64" r="4.2"/><circle cx="-2.1" cy="3.64" r="4.2"/><circle cx="2.1" cy="-3.64" r="4.2"/><circle cx="-2.1" cy="-3.64" r="4.2"/></svg><span class="txt"><span class="go">Begin the tour</span><span class="where"></span></span></button>
+<div id="breath-cue" role="status" aria-live="polite">
+  <svg class="lungs" viewBox="0 0 120 112" aria-hidden="true">
+    <defs>
+      <radialGradient id="lung-fill" cx="50%" cy="42%" r="68%"><stop offset="0" stop-color="#bfe4ff" stop-opacity="0.62"/><stop offset="0.55" stop-color="#6fa8e0" stop-opacity="0.34"/><stop offset="1" stop-color="#2f5d9e" stop-opacity="0.12"/></radialGradient>
+    </defs>
+    <path class="airway" d="M60 3 V30 M60 30 C55 35 49 38 43 44 M60 30 C65 35 71 38 77 44"/>
+    <path class="lobe" d="M54 24 C40 26 22 40 16 64 C11 86 18 103 33 104 C45 105 52 96 53 84 C54 66 55 42 54 24 Z"/>
+    <path class="lobe" d="M66 24 C80 26 98 40 104 64 C109 86 102 103 87 104 C75 105 68 96 67 84 C66 66 65 42 66 24 Z"/>
+    <path class="twigs" d="M43 44 C37 52 33 60 31 72 M43 44 C44 56 42 68 40 86 M37 56 C30 60 26 66 23 76 M77 44 C83 52 87 60 89 72 M77 44 C76 56 78 68 80 86 M83 56 C90 60 94 66 97 76"/>
+  </svg>
+  <p class="word"></p><p class="count"></p><p class="explain"></p>
+</div>
 <p id="sub" class="whisper" aria-live="polite"></p>
 
 <div id="joy" hidden aria-hidden="true"><div id="knob"></div></div>
