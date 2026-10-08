@@ -221,6 +221,7 @@ body.touring #nprog { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
 }
 #menu label { font-size: 15px; }
 #menu .check { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+#menu .check[hidden] { display: none; }
 #menu input[type="range"] { width: 100%; accent-color: var(--gold); min-height: 32px; }
 #menu input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--gold); }
 /* the menu in quiet groups: where to go (three tiles), sound, how you move, the rest, and at

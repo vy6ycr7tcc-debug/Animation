@@ -19,6 +19,7 @@ import { RITES, riteAudio, SYNTHESES, synthAudio } from "./world/rites";
 import { SIGNATURES } from "./player/gestures";
 import { heartId, passageId, promptsFor, registerAnswers, registerTunnel, SPECTRUM, trackId, walkId } from "./core/dialogues";
 import { Awake } from "./core/awake";
+import { enterFullscreen, exitFullscreen, fullscreenAvailable, fullscreenOnEnter, fullscreenWanted, isFullscreen, setFullscreenWanted } from "./core/fullscreen";
 import { AdaptiveQuality, FrameStats, loadQualityConfig, MOBILE, type Tier } from "./core/quality";
 import { clear, load, save, type SaveData } from "./core/save";
 import { FollowCamera } from "./player/camera";
@@ -1254,7 +1255,9 @@ function begin(e?: Event): void {
   } catch {
     /* private mode: it shows again next time, which is fine */
   }
-  // Sound starts inside this touch (iOS requirement).
+  // Sound starts inside this touch (iOS requirement); on desktop, full screen too (it must be asked
+  // for inside a click), hiding the browser's toolbar
+  fullscreenOnEnter();
   audio.start();
   audio.bell(587.33, 0.05, 6);
   const pt = e instanceof MouseEvent ? groundPoint(e.clientX, e.clientY) : null;
@@ -3455,6 +3458,22 @@ voiceBox.addEventListener("change", () => {
   tp.setQuiet(!voiceBox.checked);
   persist();
 });
+// Full screen (⋮, desktop only): on by default; the switch goes in or out at once and is remembered.
+// Esc (the browser's way out) leaves it for now; the switch shows what the screen is doing.
+{
+  const fsBox = $<HTMLInputElement>("#fullscreen");
+  const row = fsBox.closest("label") as HTMLElement;
+  row.hidden = !fullscreenAvailable();
+  const sync = () => (fsBox.checked = isFullscreen() || (S.mode === "intro" && fullscreenWanted()));
+  sync();
+  document.addEventListener("fullscreenchange", sync);
+  document.addEventListener("webkitfullscreenchange", sync);
+  fsBox.addEventListener("change", () => {
+    setFullscreenWanted(fsBox.checked);
+    if (fsBox.checked) enterFullscreen();
+    else exitFullscreen();
+  });
+}
 const awakeBox = $<HTMLInputElement>("#awake");
 awakeBox.checked = awake.on;
 awakeBox.addEventListener("change", () => {
@@ -3540,6 +3559,7 @@ $("#restart").addEventListener("click", () => {
   location.reload();
 });
 $("#return").addEventListener("click", () => {
+  fullscreenOnEnter();
   awake.want();
   audio.start();
   audio.fade(true);

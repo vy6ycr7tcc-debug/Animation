@@ -850,6 +850,8 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - Three builders now: the third kneels at the first house's grinding slab. The rim walker walks the ground.
   - Stills: `?shot=gobekli-h` (a house, its hearth and slab), `gobekli-i` (the stair into C, from its floor); `b` is now "down into D from the stair's head".
 
+- 2026-10-08: full screen by default on desktop (the owner: "full screen by default when you entered the game on desktop, so it hides the toolbar"). `core/fullscreen.ts`: browsers allow it only from a click or key, so it is asked for on the click that begins the game ("Touch the water to begin") and on returning from the rest screen. On by default and remembered on the device; ⋮ → "Full screen" (desktop only) goes out or in at once. Esc, the browser's own way out, leaves it for now without changing the choice. Phones and tablets are untouched (`MOBILE`: the Home Screen app is already full screen).
+
 - 2026-10-07: master fix, Phase 1 (`docs/findings-ledger.md` holds every finding, its cause, fix and still).
   - Stills: `?shot=density-0` and `density-7` render (the room factory knew rooms 1–6 only); `ruin-n` frames a drowned city from its own approach and other ruins from 22 m; `meadow` frames the vision of creation; still frames show no whispers.
   - Room 5 is brighter below and still black above: floor tint ~0.05–0.07, the magician's cool light 20 over 30 m, air glow (0.04, 0.045, 0.07), a cold shadow lift.
