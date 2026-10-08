@@ -11,6 +11,7 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { T, fogUniforms, gpuUniforms, skySheen, type N } from "../gpu/tsl";
 import { scan, type ScanName } from "./temple";
+import { solid } from "./solidity";
 
 const { abs, float, mix, smoothstep, vec3 } = T;
 
@@ -208,7 +209,7 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
   // of the moon's or low sun's light where it is behind the stone
   m.emissiveNode = skySheen(n, (marble ? 1.3 : 1) * dry);
   m.maskNode = seeThrough(n);
-  return m;
+  return solid(m);
 }
 
 /** A wall standing between the camera and the wanderer steps out of sight (the owner: going into a
