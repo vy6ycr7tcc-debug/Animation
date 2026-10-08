@@ -320,6 +320,12 @@ export class Wanderer {
   private form = 0;
   /** How present the body is (1 fully; a room of pure light may let it thin toward nothing). */
   presence = 1;
+  /** The ground under the wanderer (world height and its normal), set each frame by main.ts: the
+      contact shadow lies on it, wherever the body is. */
+  groundY = 0;
+  readonly groundNormal = new THREE.Vector3(0, 1, 0);
+  private contact: THREE.Mesh;
+  private contactK = T.uniform(0);
   private flow = 0;
   private landT = 9;
   private tmp = { a: new THREE.Vector3(), b: new THREE.Vector3(), cam: new THREE.Vector3(), off: new THREE.Vector3() };
@@ -333,6 +339,22 @@ export class Wanderer {
     this.halo.position.y = 1.1;
     this.halo.material.depthTest = false; // the ground would slice it along the feet in a hard line
     this.root.add(this.halo);
+    // a soft contact shadow under the feet: darkness, not light (its old pool of light chased it
+    // over the floor), so the body stands on the ground rather than over it. It lies on the
+    // ground's slope, stays there when the body leaves it (a jump, a climb into the air) and
+    // softens and fades with the height, and goes with the body into the water and into flight.
+    {
+      const g = new THREE.CircleGeometry(0.75, 28);
+      g.rotateX(-Math.PI / 2);
+      const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, fog: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+      const r = T.length(T.uv().sub(0.5)).mul(2);
+      m.colorNode = T.vec4(T.vec3(0.0, 0.0, 0.012), 1);
+      m.opacityNode = T.exp(r.mul(r).mul(-2.6)).mul(T.smoothstep(1, 0.75, r)).mul(this.contactK);
+      this.contact = new THREE.Mesh(g, m);
+      this.contact.scale.set(1, 1, 1.25); // a little longer than wide, as the feet are
+      this.contact.renderOrder = -1;
+      this.root.add(this.contact);
+    }
     // its own light no longer falls on the land: a pool that chased it over the floor (and a
     // light every material had to reckon with, every frame)
     this.light = new THREE.PointLight(0xffdcb0, 0, 9, 1.6);
@@ -507,6 +529,19 @@ export class Wanderer {
     this.orb.position.y = 1.22 + (reduced ? 0 : Math.sin(t * 1.3) * 0.04);
     this.orbCore.opacity = orbK;
     this.motes.points.visible = water < 0.5 && flameK < 0.5 && this.presence > 0.3;
+    {
+      // the contact shadow on the ground under the body, in the root's own frame (it turns with
+      // the heading); fainter and wider the higher the body is above it
+      const h = Math.max(0, this.root.position.y - this.groundY);
+      const lift = 1 - THREE.MathUtils.smoothstep(h, 0.15, 2.4);
+      this.contactK.value = 0.6 * lift * (1 - water) * (1 - flameK) * f * this.presence;
+      this.contact.visible = this.contactK.value > 0.004;
+      this.contact.position.set(0, this.groundY - this.root.position.y + 0.03, 0);
+      const n = this.tmp.a.copy(this.groundNormal).applyAxisAngle(this.tmp.b.set(0, 1, 0), -this.root.rotation.y);
+      this.contact.quaternion.setFromUnitVectors(this.tmp.b.set(0, 1, 0), n.normalize());
+      const s = 1 + h * 0.35;
+      this.contact.scale.set(s, 1, s * 1.25);
+    }
     this.light.intensity = 0;
 
     // Place the fluid body along the skeleton.
