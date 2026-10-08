@@ -1110,7 +1110,7 @@ function autoFrame(dt: number): void {
    seconds and a caption saying breathe, hold, release"); the first time on this device, a line
    under it says what square breathing is, for its first two rounds. */
 const cueEl = $("#breath-cue"), cueWord = cueEl.querySelector(".word") as HTMLElement, cueCount = cueEl.querySelector(".count") as HTMLElement, cueExplain = cueEl.querySelector(".explain") as HTMLElement;
-const CUE_WORDS: Record<string, string> = { in: "Breathe", hold: "Hold", out: "Release", rest: "Hold" };
+const CUE_WORDS: Record<string, string> = { in: "Breathe in", hold: "Hold", out: "Release", rest: "Rest" };
 let cueOn = false, cueWordNow = "", cueCountNow = -1, cueExplaining = false;
 let breathExplained = false;
 try {
@@ -1119,10 +1119,18 @@ try {
   /* not remembered: explained again next time */
 }
 function breathCueFrame(): void {
-  const on = breath.active && breath.counting && S.mode === "play";
+  // shown as soon as the breath begins: the lungs settle and "Breathe with me" waits for the first count
+  const on = breath.active && S.mode === "play";
   if (on !== cueOn) cueEl.classList.toggle("on", (cueOn = on));
   if (!on) {
     if (cueExplaining && !breath.active) cueExplain.classList.remove("on"), (cueExplaining = false);
+    return;
+  }
+  // the lungs fill and empty with the ring of light (style.css reads --open)
+  cueEl.style.setProperty("--open", breath.open.toFixed(3));
+  cueEl.classList.toggle("counting", breath.counting);
+  if (!breath.counting) {
+    if (cueWordNow !== "wait") (cueWord.textContent = "Breathe with me"), (cueWordNow = "wait"), (cueCountNow = -1), (cueCount.textContent = "");
     return;
   }
   const word = CUE_WORDS[breath.phase] ?? "";
@@ -1139,7 +1147,7 @@ function breathCueFrame(): void {
   const explain = !breathExplained && breath.cycles <= 2;
   if (explain && !cueExplaining) {
     const say = (p: { name: string; secs: number }, i: number) => `${i === 0 ? "breathe in" : (CUE_WORDS[p.name] ?? "").toLowerCase()} for ${p.secs}${i === 0 ? " seconds" : ""}`;
-    cueExplain.textContent = `Square breathing: ${breath.phases.map(say).join(", ")}, and again. Breathe with the count and the ring of light.`;
+    cueExplain.textContent = `Square breathing: ${breath.phases.map(say).join(", ")}, and again. Let your lungs fill and empty with the light.`;
     cueExplain.classList.add("on");
     cueExplaining = true;
   } else if (!explain && cueExplaining) {
