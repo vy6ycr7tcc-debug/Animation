@@ -4,6 +4,7 @@
    forms (beam, veil, garden, throne, arch, rings) stand as landmarks to wander toward.
    Narration plays in the background the whole time, one recording after another.
    States: intro (title over the night water) → play → rest (after Leave) → play … */
+import { KeyHints } from "./ui/keyHints";
 import { solidity } from "./world/solidity";
 import { setShadowSize } from "./gpu/lightRig";
 import { loadFailed } from "./core/assets";
@@ -1062,6 +1063,7 @@ addEventListener("keydown", (e) => {
   if (e.key.toLowerCase() === "o" && !e.repeat && S.mode === "play" && !(e.target as HTMLElement)?.closest?.("input, #menu")) toggleAuto();
 });
 let autoShown = false;
+const keyHints = new KeyHints();
 function autoFrame(dt: number): void {
   const show = !$("#menu-btn").hidden && !apart() && S.mode === "play";
   if (show !== autoShown) $("#auto").hidden = !(autoShown = show);
@@ -3416,6 +3418,8 @@ $("#about-open").addEventListener("click", () => {
 $("#about-close").addEventListener("click", () => ($("#about").hidden = true));
 $("#howto-open").addEventListener("click", () => {
   setMenu(false);
+  // on a computer, the keys come first
+  $("#howto").classList.toggle("kbd", !(MOBILE || input.touchUsed));
   $("#howto").hidden = false;
   $<HTMLButtonElement>("#howto-close").focus({ preventScroll: true });
   $("#howto").scrollTop = 0;
@@ -3645,6 +3649,13 @@ menuBtn.addEventListener("pointerdown", (e) => {
 menuBtn.addEventListener("click", (e) => e.detail === 0 && setMenu(menu.hidden)); // the keyboard
 addEventListener("keydown", (e) => {
   if (e.key === "Escape" && S.mode === "play") setMenu(menu.hidden);
+  // M the map, G the guide, ? every key (How to play): as ⋮ offers them
+  if (S.mode === "play" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !startMap.isOpen && !(e.target as HTMLElement)?.closest?.("input, textarea")) {
+    const k = e.key.toLowerCase();
+    if (k === "m") $("#map-open").click();
+    else if (k === "g") $("#guide-open").click();
+    else if (k === "?" || k === "/") $("#howto-open").click();
+  }
   if ((e.key === "e" || e.key === "E") && S.mode === "play") (sitting.phase === "none" ? offerSit() : standUp());
   if (e.key === "Enter" && S.mode === "play" && !(e.target as HTMLElement)?.closest?.("button, input, [role=slider]")) {
     const v = vessels.nearest(player.pos);
@@ -3915,6 +3926,11 @@ function update(dt: number): void {
     const word = sitting.phase === "seated" ? "" : high ? "Land" : player.swimming ? (player.seabed || player.sinking ? "Surface" : player.diving ? "Floor" : "Dive") : "";
     ctx.hidden = !(MOBILE || input.touchUsed) || !word;
     if (ctx.textContent !== word) ctx.textContent = word;
+    // on a keyboard there is no button and no word: the keys that matter here, low on the left
+    keyHints.set(
+      !(MOBILE || input.touchUsed) && menu.hidden,
+      autofly.active || autorun.active ? "auto" : sitting.phase === "seated" ? "seated" : player.flying ? "fly" : player.swimming ? (player.seabed ? "floor" : player.diving || player.sinking ? "under" : "surface") : "land",
+    );
     document.body.classList.toggle("flying", player.flying);
     if (player.swimming && !S.toldDive) {
       S.toldDive = true;
