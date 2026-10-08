@@ -687,6 +687,13 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - The Spirit's seven now stand apart in a wide horseshoe round the room (`ringSpots`: from the left wall, round the back, to the right wall, ~6 m between each, all facing the room's heart, the way to the Choice's door clear). The vessels by the walls keep clear of them.
   - Every carving (all 22) carries its title over it in glowing letters (`glowTitle`: "I · The Magician", warm gold with a breath of its own colour, additive, contained), in place of the carved stone plaques.
   - Stills: `?shot=temple-sanctuary`, `?shot=temple-tour&t=<s>&live=8` (the tour's own view at a stop), `?shot=temple-shrine-<i>&live=8&inward=0` (standing at a shrine). `&live=` now works for any still (the game's camera after that many seconds), and `&inward=0` keeps it short of contemplation.
+- 2026-10-08: square breathing explained and counted (the owner: "not explained at all anywhere… I want a counter in seconds and caption saying: breathe, hold, release"; supersedes "no text, numbers or bars" in the auto-walk entry above).
+  - While you breathe (auto-walk or autofly), over the view (`#breath-cue`, `breathCueFrame` in main.ts): the side of the square, "Breathe", "Hold", "Release", "Hold" (the fourth side is the hold after releasing), and under it its seconds counting 1 to 4, each arriving softly. A faint dark backdrop keeps it legible on a bright sky. It stays through the quiet screen; record mode hides it.
+  - The first time on the device, a line under it says what square breathing is, built from the pattern in `breathing.json` ("Square breathing: breathe in for 4 seconds, hold for 4, release for 4, hold for 4, and again. Breathe with the count and the ring of light."), for the first two rounds (`inward-journey:breath-explained`).
+  - ⋮ → How to play: "◌ Square breathing" explains it in full.
+  - The words are on the audio clock with the ring, so they never drift from it. Aria's voice slot is unchanged (still pending).
+  - Still: `?shot=breath&t=0.6&webgl` (the cue held at "Breathe 3").
+
 - 2026-10-07: the world after the veil (v5 item 6; the owner's brief `prompts/opus-densities-area-prompt.md`; audio `public/audio/densities-area/densities-area-cine-1…7.mp3`, Aria, used as they are).
   - The one door (`scenes/afterVeil/door.ts`, site `VEIL_HALL` in `terrain.ts`, toward the deep night):
     - a tall door of old dark stone in courses, a heavy lintel, its seams fine lines of light, a faint pale light in its opening;

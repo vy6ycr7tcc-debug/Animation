@@ -1,7 +1,8 @@
 /* Square breathing while the world carries you (v5 item 3; the owner). While auto-walk or autofly
    moves the wanderer, a ring of warm gold motes breathes round it at the heart's height: it opens
-   on the inhale, holds, draws in on the exhale, rests, and again. No words, numbers or bars on
-   screen: the eye follows the breath. The pattern is config (`public/breathing.json`: 4-4-4-4 by
+   on the inhale, holds, draws in on the exhale, rests, and again. Over the view, the side of the
+   square ("Breathe", "Hold", "Release", "Hold") and its seconds counting (the owner; main.ts
+   `breathCueFrame`); the first time, a line says what square breathing is. The pattern is config (`public/breathing.json`: 4-4-4-4 by
    default; 4-4-6-2 or any other is an edit there, no code).
 
    The voice: Aria will guide it ("Breathe in." / "Hold." / "Breathe out." / "Rest."), from the
@@ -50,6 +51,13 @@ export class BreathGuide {
   debugOpen: number | null = null;
   /** Cycles begun since it last started (for checking the timing). */
   cycles = 0;
+  /** The count is running (past the pause before the first inhale), and the phase's length. */
+  counting = false;
+  secs = 4;
+  /** The pattern (phases and their seconds), for the words that explain it. */
+  get phases(): readonly BreathPhase[] {
+    return this.cfg.phases;
+  }
   private cfg: BreathConfig = DEFAULT;
   private cycle = 16;
   /** The cycle's start on the clock (seconds). */
@@ -114,7 +122,7 @@ export class BreathGuide {
 
   /** Begin (from the start of an inhale) or end. */
   set(on: boolean): void {
-    if (on === this.active) return;
+    if (on === this.active || (!on && this.debugOpen !== null)) return; // a still frame holds it open
     this.active = on;
     if (on) {
       this.t0 = this.now() + 0.6; // a breath's pause before the first inhale
@@ -153,6 +161,11 @@ export class BreathGuide {
     if (!this.active) return;
     if (this.debugOpen !== null) {
       this.uOpen.value = this.open = this.debugOpen;
+      // a still frame: the inhale, this far through
+      this.counting = true;
+      this.phase = "in";
+      this.secs = this.cfg.phases[0].secs;
+      this.phaseK = Math.min(0.99, this.debugOpen);
       return;
     }
     const now = this.now();
@@ -161,6 +174,7 @@ export class BreathGuide {
       // the pause before the first breath: drawn in, still
       this.open += (0 - this.open) * Math.min(1, dt * 2);
       this.uOpen.value = this.open;
+      this.counting = false;
       return;
     }
     const n = Math.floor(s / this.cycle);
@@ -169,6 +183,8 @@ export class BreathGuide {
     while (i < this.cfg.phases.length - 1 && s >= this.cfg.phases[i].secs) s -= this.cfg.phases[i++].secs;
     const ph = this.cfg.phases[i];
     this.phase = ph.name;
+    this.secs = ph.secs;
+    this.counting = true;
     this.phaseK = Math.min(1, s / ph.secs);
     const e = this.phaseK * this.phaseK * (3 - 2 * this.phaseK);
     this.open = ph.name === "in" ? e : ph.name === "hold" ? 1 : ph.name === "out" ? 1 - e : 0;

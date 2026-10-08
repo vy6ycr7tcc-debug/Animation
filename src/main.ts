@@ -1060,6 +1060,56 @@ function autoFrame(dt: number): void {
   breath.set(on);
   // the voice rests for "Only nature", and while another voice is speaking
   breath.update(dt, player.pos, playlist.on && !narration.progress() && !tp.playing);
+  breathCueFrame();
+}
+/* The side of the square and its count, over the view while you breathe (the owner: "a counter in
+   seconds and a caption saying breathe, hold, release"); the first time on this device, a line
+   under it says what square breathing is, for its first two rounds. */
+const cueEl = $("#breath-cue"), cueWord = cueEl.querySelector(".word") as HTMLElement, cueCount = cueEl.querySelector(".count") as HTMLElement, cueExplain = cueEl.querySelector(".explain") as HTMLElement;
+const CUE_WORDS: Record<string, string> = { in: "Breathe", hold: "Hold", out: "Release", rest: "Hold" };
+let cueOn = false, cueWordNow = "", cueCountNow = -1, cueExplaining = false;
+let breathExplained = false;
+try {
+  breathExplained = localStorage.getItem("inward-journey:breath-explained") === "1";
+} catch {
+  /* not remembered: explained again next time */
+}
+function breathCueFrame(): void {
+  const on = breath.active && breath.counting && S.mode === "play";
+  if (on !== cueOn) cueEl.classList.toggle("on", (cueOn = on));
+  if (!on) {
+    if (cueExplaining && !breath.active) cueExplain.classList.remove("on"), (cueExplaining = false);
+    return;
+  }
+  const word = CUE_WORDS[breath.phase] ?? "";
+  if (word !== cueWordNow) cueWord.textContent = cueWordNow = word;
+  const n = Math.min(breath.secs, Math.floor(breath.phaseK * breath.secs) + 1);
+  if (n !== cueCountNow) {
+    cueCountNow = n;
+    cueCount.textContent = String(n);
+    cueCount.classList.remove("tick");
+    void cueCount.offsetWidth; // restart the count's soft arrival
+    cueCount.classList.add("tick");
+  }
+  // the first time: what square breathing is, for the first two rounds
+  const explain = !breathExplained && breath.cycles <= 2;
+  if (explain && !cueExplaining) {
+    const say = (p: { name: string; secs: number }, i: number) => `${i === 0 ? "breathe in" : (CUE_WORDS[p.name] ?? "").toLowerCase()} for ${p.secs}${i === 0 ? " seconds" : ""}`;
+    cueExplain.textContent = `Square breathing: ${breath.phases.map(say).join(", ")}, and again. Breathe with the count and the ring of light.`;
+    cueExplain.classList.add("on");
+    cueExplaining = true;
+  } else if (!explain && cueExplaining) {
+    cueExplain.classList.remove("on");
+    cueExplaining = false;
+    if (!breathExplained) {
+      breathExplained = true;
+      try {
+        localStorage.setItem("inward-journey:breath-explained", "1");
+      } catch {
+        /* fine */
+      }
+    }
+  }
 }
 $("#autofly").addEventListener("click", () => {
   setAutofly(!autofly.active);
@@ -4093,6 +4143,7 @@ renderer
           breath.debugOpen = open;
           breath.set(true);
           for (let k = 0; k < 120; k++) breath.update(1 / 30, player.pos, false);
+          breathCueFrame();
         },
         templeStand: (i) => {
           setInside(true);

@@ -736,3 +736,28 @@ canvas, #gl, #surface { height: var(--fh); }
 #rest.away { background: transparent; }
 #rest.away p { display: none; }
 #rest.away #return { position: fixed; left: 0; top: 0; width: 100%; height: var(--fh); opacity: 0; }
+
+/* ---- square breathing: the side of the square and its count (main.ts breathCueFrame) ---- */
+#breath-cue {
+  position: fixed; left: 0; right: 0; top: calc(29% + env(safe-area-inset-top, 0px)); z-index: 6;
+  text-align: center; pointer-events: none; opacity: 0; transition: opacity 0.9s ease;
+  padding: 18px 0 22px; background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(6, 6, 18, 0.34), rgba(6, 6, 18, 0) 72%);
+}
+#breath-cue.on { opacity: 1; }
+#breath-cue p { margin: 0; }
+#breath-cue .word {
+  font: italic clamp(22px, 6.2vw, 30px)/1.2 var(--serif, Georgia, serif); letter-spacing: 0.06em; color: var(--gold);
+  text-shadow: 0 0 14px rgba(255, 200, 120, 0.4), 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+#breath-cue .count {
+  margin-top: 4px; font: clamp(36px, 10vw, 48px)/1 var(--serif, Georgia, serif); font-variant-numeric: tabular-nums;
+  color: var(--pearl); text-shadow: 0 0 12px rgba(255, 230, 190, 0.35), 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+#breath-cue .count.tick { animation: breath-tick 0.9s ease-out; }
+@keyframes breath-tick { from { opacity: 0.3; transform: scale(0.9); } to { opacity: 1; transform: none; } }
+#breath-cue .explain {
+  max-width: min(86vw, 25em); margin: 14px auto 0; font: italic 14px/1.5 var(--serif, Georgia, serif); color: var(--pearl);
+  opacity: 0; transition: opacity 1.2s ease; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+#breath-cue .explain.on { opacity: 0.88; }
+@media (prefers-reduced-motion: reduce) { #breath-cue .count.tick { animation: none; } }
