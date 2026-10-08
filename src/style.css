@@ -223,6 +223,12 @@ body.touring #nprog { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
 #menu .check { display: flex; align-items: center; gap: 10px; min-height: 44px; }
 #menu input[type="range"] { width: 100%; accent-color: var(--gold); min-height: 32px; }
 #menu input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--gold); }
+/* the graphics level: a quiet choice on one row (automatic by default) */
+#menu .pick { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+#menu select {
+  min-height: 36px; max-width: 62%; padding: 4px 10px; border-radius: 10px; font: 14px Georgia, serif;
+  color: var(--pearl); background: rgba(3, 4, 10, 0.55); border: 1px solid var(--line, rgba(226, 191, 126, 0.28)); accent-color: var(--gold);
+}
 /* the menu in quiet groups: where to go (three tiles), sound, how you move, the rest, and at
    the foot the two ways out */
 #menu { z-index: 40; }
