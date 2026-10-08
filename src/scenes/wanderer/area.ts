@@ -175,6 +175,28 @@ function moodsAt(s: number): number[] {
   return moodNow;
 }
 
+/** The way's glass: clear and unlit (no light bounces off it, the beams pass through it), tinted
+    faintly with the sky, more of it seen at a grazing angle (Fresnel), panes of ~1.8 m joined by
+    fine bright seams, its edges a thin line, so the way still reads underfoot. */
+function wayGlass(): THREE.MeshBasicNodeMaterial {
+  const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
+  const P = roomPos;
+  const V = normalize(cameraPosition.sub(positionWorld));
+  const facing = abs(T.dot(T.normalWorld, V));
+  const fres = pow(float(1).sub(facing), 3);
+  // pane seams: a square grid laid in the room's frame, hairline wide by its own derivative
+  const q = P.xz.div(1.8);
+  const f = abs(fract(q).sub(0.5)).mul(2); // 1 at a seam
+  const w = T.fwidth(q).mul(1.6);
+  const seam = smoothstep(float(1).sub(w.x), float(1), f.x).max(smoothstep(float(1).sub(w.y), float(1), f.y));
+  const far = smoothstep(14, 60, length(cameraPosition.sub(positionWorld)));
+  const tint = mix(vec3(0.42, 0.56, 0.7), skyUniforms.uHor, 0.35);
+  const lineCol = vec3(1.0, 0.9, 0.7);
+  m.colorNode = mix(tint, lineCol, seam.mul(0.6));
+  m.opacityNode = float(0.04).add(fres.mul(0.2)).add(seam.mul(float(0.34).mul(float(1).sub(far)))).min(0.5);
+  return m;
+}
+
 /* ---------------------------------------------------------------- the area */
 export function createLongDescent(scene: THREE.Scene, narration: Narration, whisper: (t: string, ms?: number) => void): Room {
   const g = new THREE.Group();
@@ -213,10 +235,12 @@ export function createLongDescent(scene: THREE.Scene, narration: Narration, whis
     geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
     geo.setIndex(idx);
     geo.computeVertexNormals();
-    const m = etchedStone("#1c1a2c", "#e9c37d", 2.2);
+    // glass (the owner: the stone "too reflective… change to glass and you see stuff beneath the
+    // glass and rays go thru instead of light bouncing"): unlit, so nothing bounces off it; clear
+    // looking down, a little more seen at a grazing angle, its panes' seams and edges fine lines
+    const m = wayGlass();
     m.side = THREE.DoubleSide; // where it crosses over the ramp below, a bridge seen from beneath
     const band = new THREE.Mesh(geo, m);
-    band.receiveShadow = true;
     g.add(band);
     ours.push(geo, m);
     // (it used to hang on a band of soft cloud points; it is cut into the land now: land.ts)
@@ -224,7 +248,6 @@ export function createLongDescent(scene: THREE.Scene, narration: Narration, whis
     const disc = new THREE.CylinderGeometry(15, 13.5, 1.2, 72, 1);
     disc.translate(COUNCIL.x, HIGH - 0.65, COUNCIL.z);
     const dm = new THREE.Mesh(disc, m);
-    dm.receiveShadow = true;
     g.add(dm);
     ours.push(disc);
   }
@@ -290,12 +313,13 @@ export function createLongDescent(scene: THREE.Scene, narration: Narration, whis
   /* ---------------- 1 the council ---------------- */
   {
     // twelve tall pale beams leaning in, breathing
-    const beam = new THREE.CylinderGeometry(0.55, 0.8, 22, 18, 1, true);
-    beam.translate(0, 11, 0);
+    // they carry on down through the glass floor and fade into the depth beneath (rays go through)
+    const beam = new THREE.CylinderGeometry(0.55, 0.95, 38, 18, 1, true);
+    beam.translate(0, 3, 0);
     const bm = keepAlpha(new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.FrontSide, fog: false }));
     const core = pow(abs(T.dot(T.normalView, vec3(0, 0, 1))), 3);
     const breath = sin(t.mul(0.5).add(T.positionWorld.x.mul(0.3))).mul(0.25).add(0.75);
-    const ends = smoothstep(0, 2, T.positionGeometry.y).mul(smoothstep(22, 12, T.positionGeometry.y));
+    const ends = smoothstep(-16, -4, T.positionGeometry.y).mul(smoothstep(22, 12, T.positionGeometry.y));
     bm.colorNode = vec4(vec3(0.72, 0.82, 1.0).mul(core).mul(ends).mul(breath).mul(0.32).mul(smoothstep(2, 7, length(cameraPosition.sub(positionWorld)))), 1);
     ours.push(beam, bm);
     const tops: THREE.Vector3[] = [];

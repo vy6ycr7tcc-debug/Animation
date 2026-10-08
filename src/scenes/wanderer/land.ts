@@ -67,9 +67,12 @@ export function landHeight(P: LandPath, M: Massif, x: number, z: number): number
   // toward the sheet's edges the land sinks under the cloud sea, so it never ends in a cut
   const edge = Math.min(x - LAND.x0, LAND.x1 - x, z - LAND.z0, LAND.z1 - z);
   if (edge < 70) h = h + (-12 - h) * (1 - Math.max(0, edge) / 70) ** 2;
-  // just beside the way, ease from the way to the land (the way itself a little proud)
-  const e = Math.min(1, Math.max(0, (d - w) / 2.5));
-  const out = o.h - 0.12 + (h - (o.h - 0.12)) * e * e * (3 - 2 * e);
+  // under the way the land falls away beneath its glass (area.ts wayGlass), deep high in the air,
+  // a shallow hollow in the country, so what lies beneath is seen through it; it rises to meet
+  // the land again just beyond the glass's edge
+  const under = o.h - 1.6 - 12 * k;
+  const e = Math.min(1, Math.max(0, (d - w + 0.6) / 3.5));
+  const out = under + (h - under) * e * e * (3 - 2 * e);
   // clear above every stretch of the way, last of all: beside any road the land rises no faster
   // than a bank (where the ramp passes under the way it came by, the upper way's own ground made
   // a gully round it; the upper way crosses there as a bridge of its own stone)
