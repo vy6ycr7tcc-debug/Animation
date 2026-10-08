@@ -856,6 +856,16 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - The desert lesson's focus is at a walker's height (`centreY` 1.8, was the default 6 m): the view rests on the road, the walker, the lantern and the footprints.
   - The desert's walk reads as a walk: the walker keeps their place before you, as before, but now the streetlights (poles, lights and glows) pass by and fall behind, and forty stones along the verge come out of the dark and go by (they read as walking on the spot while only the road's grain moved).
 
+- 2026-10-08: no channeled entity's name, session, date or archive reaches the player (the owner's build prompt; the project's narration rule). Supersedes the captions "An interpretive narration after …" / "Quoting …" naming the source, the source rows in the player, and "the entity's name still whispers once when a narration begins".
+  - Vessel labels (planets, stars, fruit, crystals; `vessels.ts`) show the narration's title only.
+  - The archive player (`ui/transcriptPlayer.ts`): attribution in the poetic rotation only ("cosmic wisdom", "the teachers", "the guides", "higher guidance", "those who have come before us in this time vortex"), one per narration by a hash of its id, so it varies across the archive and reads the same wherever it shows (`TranscriptPlayer.attribution`): the card says "An interpretive narration after …" or "In the words of …"; the Source panel says "An interpretive narration, an artistic adaptation shaped from …" or "Words carried from …, as they were spoken.", and has no per-source rows. The lock screen's artist is "Inward Journey".
+  - No whisper of the entity when a narration begins (main.ts `tp.onChange`).
+  - The pyramid's whispers name no one: "A pyramid of the teachers…", "The guides called such shapes training wheels…", "Higher guidance speaks of a third spiral…".
+  - `presences.ts` `LOOKS` keys are internal only (commented); nothing calls `show`.
+  - The `sources` metadata stays in `content/transcript_orbs.json`; it is never displayed. Rule: anything new that shows a narration uses `TranscriptPlayer.attribution(n)`, never `sources[]`.
+  - The About panel's disclaimer naming the archive is removed (the owner: "remove disclaimer"; supersedes "⋮ → About carries the L/L Research disclaimer"); About keeps the credits.
+  - Left for the owner: the transcripts' own body text (shown in the Source panel) speaks of the archive and its sessions.
+
 - 2026-10-07: master fix, Phase 1 (`docs/findings-ledger.md` holds every finding, its cause, fix and still).
   - Stills: `?shot=density-0` and `density-7` render (the room factory knew rooms 1–6 only); `ruin-n` frames a drowned city from its own approach and other ruins from 22 m; `meadow` frames the vision of creation; still frames show no whispers.
   - Room 5 is brighter below and still black above: floor tint ~0.05–0.07, the magician's cool light 20 over 30 m, air glow (0.04, 0.045, 0.07), a cold shadow lift.

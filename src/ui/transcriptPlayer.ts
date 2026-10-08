@@ -21,6 +21,9 @@ import type { Narration } from "../world/sites";
 
 const ARC = 232.5; // the half-moon's curve, in its own units
 
+/** How the player hears where a narration comes from (the poetic rotation; never a name). */
+const ATTRIBUTIONS = ["cosmic wisdom", "the teachers", "the guides", "higher guidance", "those who have come before us in this time vortex"];
+
 export class TranscriptPlayer {
   current: Narration | null = null;
   /** The player is showing (playing or paused). */
@@ -126,9 +129,18 @@ export class TranscriptPlayer {
     }
   }
 
-  /** The source caption lines for a narration. */
+  /** Who a narration comes from, as the player hears of it: never an entity's name, a session, a
+      date or an archive (the project's narration rule), only the poetic rotation, varied from one
+      narration to the next (fixed for each, so it reads the same wherever it shows). */
+  static attribution(n: Narration): string {
+    let h = 0;
+    for (const c of n.id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    return ATTRIBUTIONS[h % ATTRIBUTIONS.length];
+  }
+  /** The caption lines for a narration. */
   static caption(n: Narration): string[] {
-    return n.sources.map((s) => (n.interpretive ? `An interpretive narration after ${s.entity} · ${s.date}` : `Quoting ${s.entity} · ${s.session_label} · ${s.date}`));
+    const who = TranscriptPlayer.attribution(n);
+    return [n.interpretive ? `An interpretive narration after ${who}` : `In the words of ${who}`];
   }
 
   /** Begin a narration. Call inside the tap (a phone lets media start only from a gesture; the
@@ -147,7 +159,7 @@ export class TranscriptPlayer {
     this.audio.duck(true);
     const ms = navigator.mediaSession;
     if (ms && "MediaMetadata" in window) {
-      ms.metadata = new MediaMetadata({ title: n.title, artist: n.sources.map((s) => s.entity).filter((e, i, a) => a.indexOf(e) === i).join(", "), album: "Inward Journey" });
+      ms.metadata = new MediaMetadata({ title: n.title, artist: "Inward Journey", album: "Inward Journey" });
     }
     this.onChange?.(n.id);
   }
@@ -321,18 +333,15 @@ export class TranscriptPlayer {
     const n = this.current;
     if (on && n) {
       (document.getElementById("tp-source-title") as HTMLElement).textContent = n.title;
+      const who = TranscriptPlayer.attribution(n);
       (document.getElementById("tp-source-kind") as HTMLElement).textContent = n.interpretive
-        ? "An interpretive narration: an artistic adaptation, not the channeling itself."
-        : "A direct quotation from the archive.";
+        ? `An interpretive narration, an artistic adaptation shaped from ${who}.`
+        : `Words carried from ${who}, as they were spoken.`;
       (document.getElementById("tp-source-text") as HTMLElement).textContent = n.transcript;
+      // no per-source rows: the sources' metadata stays in the data and never reaches the screen
       const list = document.getElementById("tp-source-list") as HTMLElement;
-      list.replaceChildren(
-        ...n.sources.map((s) => {
-          const li = document.createElement("li");
-          li.textContent = `${s.entity} · ${s.session_label} · ${s.date}`;
-          return li;
-        }),
-      );
+      list.replaceChildren();
+      list.hidden = true;
     }
     this.sourceDlg.hidden = !on;
     if (on) (document.getElementById("tp-source-close") as HTMLButtonElement).focus();

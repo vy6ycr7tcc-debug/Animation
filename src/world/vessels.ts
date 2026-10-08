@@ -438,10 +438,8 @@ export class Vessels {
       for (const s of this.seen) s.el.style.opacity = "0";
       this.seen.length = 0;
       const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
-      const line = (n: Narration) => () => {
-        const s = n.sources[0];
-        return `<b>${esc(n.title)}</b>${s ? `<span>${esc(s.entity)} · ${esc(s.date)}</span>` : ""}`;
-      };
+      // the title only: no entity, session or date ever reaches the label (the narration rule)
+      const line = (n: Narration) => () => `<b>${esc(n.title)}</b>`;
       const add = (key: object, html: () => string, cls: string, k: number, at: (v: THREE.Vector3) => THREE.Vector3) => {
         if (k < 0.02) return;
         this.seen.push({ el: this.label(key, html, cls), at, k });

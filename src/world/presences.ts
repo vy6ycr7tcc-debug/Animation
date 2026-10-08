@@ -24,6 +24,9 @@ interface Look {
   pose: "Idle_Loop" | "Spell_Simple_Idle_Loop";
   form: "rings" | "three" | "heart" | "motes" | "veil" | "ripples" | "notes" | "none";
 }
+// INTERNAL ONLY: keyed by the source entity's name to choose a colour and form. No key, and no
+// `entity` passed to `show`, is ever displayed, spoken or put in metadata (the narration rule);
+// the presences themselves are no longer shown (2026-09-26), and nothing calls `show`.
 const LOOKS: Record<string, Look> = {
   Ra: { tint: [1.25, 1.0, 0.62], pose: "Spell_Simple_Idle_Loop", form: "rings" },
   "Q'uo": { tint: [1.0, 0.92, 1.2], pose: "Idle_Loop", form: "three" },

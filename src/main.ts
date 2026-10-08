@@ -1680,8 +1680,6 @@ tp.onChange = (id) => {
   vessels.setPlaying(id);
   if (id) archiveHeard.add(id);
   else playlist.held = false; // closed: the journey's own voices may speak again
-  const who = id ? tp.current?.sources[0]?.entity ?? null : null;
-  if (who && !/^unknown/i.test(who)) whisper(who, 3500);
 };
 // when one ends, the next follows by itself (the phone may be locked in a pocket by now): the
 // archive in its own order, episodes 1 to 86, those not yet heard first
@@ -2931,8 +2929,8 @@ function crossPyr(inside: boolean): void {
     if (inside) busy(1.5);
     setPyr(inside); // the Duat is built as you go in, and freed as you come out
     await compileInDark();
-    if (inside) whisper("Ra's pyramid, built from thought of living stone, for healing and for initiation, one work. Later its power was kept by a few, which was never meant. Enter as one who seeks.", 10000);
-    else whisper("Ra called such shapes training wheels: in time the heart holds, without them, what they gather.", 8000);
+    if (inside) whisper("A pyramid of the teachers, built from thought of living stone, for healing and for initiation, one work. Later its power was kept by a few, which was never meant. Enter as one who seeks.", 10000);
+    else whisper("The guides called such shapes training wheels: in time the heart holds, without them, what they gather.", 8000);
     window.setTimeout(() => {
       fadeEl.classList.remove("on");
       crossing = false;
@@ -3094,7 +3092,7 @@ function pyramidFrame(dt: number): void {
   if (S.mode !== "play") return;
   if (!pyramid.isInside) {
     if (player.pos.distanceTo(pyramid.door) < 90) tellPyr("near", "A pyramid. Its door is on the north face; or climb its faces to the apex.", 6000);
-    if (atApex) tellPyr("apex", "At the apex. Ra spoke of a third spiral leaving it, like a candle flame.", 7000);
+    if (atApex) tellPyr("apex", "At the apex. Higher guidance speaks of a third spiral leaving it, like a candle flame.", 7000);
     if (!crossing && !autofly.active && !genesis.active && !player.flying && pyramid.atDoor(player.pos)) crossPyr(true);
     return;
   }
