@@ -92,7 +92,7 @@ import { bodyForms } from "./world/forms";
 import { glyphsLoaded } from "./world/glyphs";
 import { Duat } from "./world/duat";
 
-import { downloadAssets, requestPersistentStorage, checkAssetUpdates } from "./core/offline";
+import { downloadAssets, requestPersistentStorage, downloadedBefore, fetchAssetList, megabytes, plan } from "./core/offline";
 
 // Register Service Worker
 registerSW({
@@ -124,7 +124,6 @@ function bootProgress(f: number, label = "Building the world", creep = 0.6): voi
   if (pct) pct.textContent = creep > 1 ? label : `${label} · ${Math.round(bootShown * 100)}%`;
 }
 bootProgress(0.12);
-checkAssetUpdates();
 
 /** If anything fails on the phone, say so quietly on screen (for a screenshot), instead of the
     game silently losing a control or a voice. */
@@ -3679,6 +3678,25 @@ function setMenu(open: boolean): void {
   if (open) $<HTMLInputElement>("#vol").focus();
 }
 
+/* Offline play (core/offline.ts): the button says what it would cost. Never downloaded: the whole
+   game's size. Downloaded: "ready" when nothing changed, or the size of the update when a new
+   version brought new or changed files (only those are fetched; a quiet word says so once). */
+async function offlineLabel(announce = false): Promise<void> {
+  const btn = $<HTMLButtonElement>("#offline-btn");
+  try {
+    const list = await fetchAssetList();
+    if (!downloadedBefore()) {
+      btn.textContent = `Download for offline play (${megabytes(list.reduce((s, a) => s + a.s, 0))})`;
+      return;
+    }
+    const p = await plan(list);
+    btn.textContent = p.need.length ? `Update offline play (${megabytes(p.bytes)})` : "Offline play: ready ✓";
+    if (announce && p.need.length) whisper(`An update for offline play is ready (${megabytes(p.bytes)}), in ⋮`, 6000);
+  } catch {
+    /* off line: keep the label it has */
+  }
+}
+window.setTimeout(() => void offlineLabel(true), 12000); // after the world has loaded
 $("#offline-btn").addEventListener("click", async () => {
   const btn = $<HTMLButtonElement>("#offline-btn");
   const prog = $("#offline-progress");
@@ -3692,19 +3710,19 @@ $("#offline-btn").addEventListener("click", async () => {
   const persisted = await requestPersistentStorage();
 
   try {
-    const listRes = await fetch("./assets.json");
-    if (!listRes.ok) throw new Error(`Could not fetch assets list: ${listRes.status} ${listRes.statusText}`);
-    const assets: string[] = await listRes.json();
-
-    await downloadAssets(assets, (p) => {
+    const r = await downloadAssets((p) => {
       bar.style.width = `${p.percentage}%`;
       text.textContent = `${p.percentage}% (${p.downloaded}/${p.total})`;
     });
-
-    text.textContent = persisted ? "Download complete." : "Download complete, but persistent storage was denied.";
+    const got = r.bytes ? `${megabytes(r.bytes)} downloaded.` : "Everything was already here.";
+    text.textContent = r.failed
+      ? `${r.failed} file${r.failed > 1 ? "s" : ""} could not be fetched; tap again to finish.`
+      : `${got} The game now plays without a connection${persisted ? "." : " (the device may clear it if storage runs low)."}`;
+    btn.disabled = false;
+    if (!r.failed) btn.textContent = "Offline play: ready ✓";
   } catch (err) {
     console.error("Offline download failed:", err);
-    text.textContent = `Download failed: ${err instanceof Error ? err.message : 'Unknown error'}. Please try again.`;
+    text.textContent = `Download failed: ${err instanceof Error ? err.message : "Unknown error"}. Please try again.`;
     btn.disabled = false;
   }
 });

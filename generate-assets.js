@@ -1,5 +1,9 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
+
+// The files offline play keeps (src/core/offline.ts): every file in public/, each with a short
+// hash of its content and its size, so an update downloads only what changed.
 
 function getFiles(dir, files = []) {
   if (!fs.existsSync(dir)) return files;
@@ -15,10 +19,17 @@ function getFiles(dir, files = []) {
   return files;
 }
 
-const publicFiles = getFiles('public').map(f => f.replace(/\\/g, '/').replace(/^public\//, ''));
 // Do NOT include the content files here because they are bundled by Vite
 // into the app shell and do not exist at runtime in the public dist directory.
 // Attempting to manually cache them causes infinite 404 fetch loops.
-const allFiles = [...publicFiles];
+const entries = getFiles('public')
+  .map((f) => f.replace(/\\/g, '/'))
+  .filter((f) => f !== 'public/assets.json')
+  .sort()
+  .map((f) => {
+    const buf = fs.readFileSync(f);
+    return { p: f.replace(/^public\//, ''), h: crypto.createHash('sha1').update(buf).digest('hex').slice(0, 12), s: buf.length };
+  });
 
-fs.writeFileSync('public/assets.json', JSON.stringify(allFiles, null, 2));
+// one file a line, so a change shows plainly in a diff
+fs.writeFileSync('public/assets.json', '[\n' + entries.map((e) => JSON.stringify(e)).join(',\n') + '\n]\n');
