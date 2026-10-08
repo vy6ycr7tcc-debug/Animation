@@ -4,8 +4,6 @@
    forms (beam, veil, garden, throne, arch, rings) stand as landmarks to wander toward.
    Narration plays in the background the whole time, one recording after another.
    States: intro (title over the night water) → play → rest (after Leave) → play … */
-import { Whispers, whisperOf, type WhisperId } from "./world/whispers";
-import { RapaNui } from "./world/ancient/rapaNui";
 import { solidity } from "./world/solidity";
 import { setShadowSize } from "./gpu/lightRig";
 import { loadFailed } from "./core/assets";
@@ -66,6 +64,8 @@ import { Pyramid, DUAT_ORIGIN } from "./world/pyramid";
 import { FalseDoors } from "./world/falseDoors";
 import { Gobekli } from "./world/ancient/gobekli";
 import { NanMadol } from "./world/ancient/nanMadol";
+import { RapaNui } from "./world/ancient/rapaNui";
+import { Whispers, whisperOf, type WhisperId } from "./world/whispers";
 import { DUAT_TRACKS } from "./world/duat";
 import { Companion } from "./world/companion";
 import { Vision } from "./world/vision";
@@ -4587,4 +4587,5 @@ function devContext(): [string, string][] {
   return out;
 }
 
-Object.assign(window, { __ij: { solidity, whispers, hearWhisper, rapaNui, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall } });
+Object.assign(window, { __ij: { solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall } });
+Object.assign((window as unknown as { __ij: object }).__ij, { whispers, hearWhisper, rapaNui });
