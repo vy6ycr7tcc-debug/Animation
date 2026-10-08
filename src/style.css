@@ -761,3 +761,18 @@ canvas, #gl, #surface { height: var(--fh); }
 }
 #breath-cue .explain.on { opacity: 0.88; }
 @media (prefers-reduced-motion: reduce) { #breath-cue .count.tick { animation: none; } }
+
+/* ---- "Start the tour": near a tour place's entrance, or inside it with no tour running ---- */
+#tour-start {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 7;
+  bottom: calc(108px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  min-height: 48px; min-width: 12em; padding: 7px 22px; border-radius: 26px;
+  background: rgba(24, 16, 8, 0.6); border: 1px solid rgba(226, 191, 126, 0.55);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); animation: rise 0.9s ease;
+  color: var(--gold); touch-action: manipulation; -webkit-user-select: none; user-select: none;
+}
+#tour-start[hidden] { display: none; }
+#tour-start .go { font: italic 16px/1.2 var(--serif, Georgia, serif); letter-spacing: 0.03em; }
+#tour-start .where { font: 12px/1.2 var(--serif, Georgia, serif); color: var(--pearl); opacity: 0.75; }
+#tour-start:active { background: rgba(226, 191, 126, 0.18); }

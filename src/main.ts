@@ -2028,7 +2028,7 @@ function contemplationFrame(dt: number): void {
   }
   // otherwise a slow drift between the loveliest views: the room's points of interest, the
   // vision of creation, and out in the world the sky (where the moon or low sun glows, a peak
-  // standing against it, the stars overhead), never a wall
+  // standing against it, the stars low over the land), never a wall
   let pts = inHall()?.journey.focus() ?? [];
   if (!pts.length && !apart()) {
     if (player.pos.distanceTo(vision.group.position) < 70) pts = [vision.group.position.clone().setY(vision.group.position.y + 3)];
@@ -2041,7 +2041,7 @@ function contemplationFrame(dt: number): void {
       pts = [
         eye.clone().addScaledVector(glow, 400),
         eye.clone().addScaledVector(toPeak, 400).setY(eye.y + 400 * 0.12),
-        eye.clone().addScaledVector(up, 300).setY(eye.y + 300 * 0.9),
+        eye.clone().addScaledVector(up, 300).setY(eye.y + 300 * 0.2), // the sky low over the land, not overhead
       ];
     }
   }
@@ -2763,6 +2763,81 @@ function arrivalFrame(): void {
     if (!duatTour && !walk) duatTourStart();
   }
 }
+
+/* "Start the tour" (the owner: "add start tour in a big enough radius within the entrance to those
+   areas"): within 45 m of a tour place's entrance (the three monuments, the world after the veil,
+   the long descent, the temple, the pyramid for the Duat), or inside its start (a monument's lobby,
+   the area, the temple hall, the pyramid's rooms or the Duat) while no tour runs, a button offers
+   its tour. From outside it takes you to the door and in, and the tour begins there; inside, at
+   once. Arriving through a door still begins the tour by itself; this is for coming near, for
+   arriving another way, and for after a tour was ended. */
+const OFFER_R = 45;
+interface TourPlace { label: string; door: () => { x: number; z: number }; inside: () => boolean; start: (inside: boolean) => void }
+let pendingArea: { k: number; since: number } | null = null;
+const TOUR_PLACES: TourPlace[] = [
+  ...[0, 1, 2].map((k): TourPlace => ({
+    label: halls[k].hall.label,
+    door: () => halls[k].hall.door,
+    inside: () => halls[k].journey.inside && halls[k].journey.at === 0,
+    start: () => walkStart(HALL_WALKS[k]),
+  })),
+  ...[3, 4].map((k): TourPlace => ({
+    label: halls[k].hall.label,
+    door: () => halls[k].hall.door,
+    inside: () => halls[k].journey.inside,
+    start: (inside) => {
+      if (inside) areaTourStart(halls[k].journey, halls[k].hall.label);
+      else pendingArea = { k, since: 0 }; // walked to the door; going in begins it
+    },
+  })),
+  { label: "The temple", door: () => temple.outside(), inside: () => temple.inside, start: (inside) => (inside ? tourScenes.beginTour() : walkStart("temple")) },
+  { label: "The Duat, hour by hour", door: () => pyramid.outside(), inside: () => pyramid.isInside, start: () => duatTourStart() },
+];
+const offerEl = $("#tour-start"), offerWhere = offerEl.querySelector(".where") as HTMLElement;
+let offered: { place: TourPlace; inside: boolean } | null = null;
+function tourOfferFrame(dt: number): void {
+  // on the way to a door to begin an area's tour: the stick or the button takes over
+  if (pendingArea) {
+    const h = halls[pendingArea.k];
+    pendingArea.since += dt;
+    if (h.journey.inside || h.journey.crossing || crossing) pendingArea = null;
+    else if (Math.hypot(input.move.x, input.move.y) > 0.25 || input.hold || pendingArea.since > 60) (pendingArea = null), (player.target = null);
+    else driveTo(h.hall.door.x, h.hall.door.z, null, pendingArea.since);
+  }
+  let want: { place: TourPlace; inside: boolean } | null = null;
+  const free = S.mode === "play" && !walk && !duatTour && !areaTour && !pendingArea && !tourScenes.tour.active && !crossing && !genesis.active &&
+    sitting.phase === "none" && !startMap.isOpen && $("#menu").hidden && !temple.cardsOpen && !inHall()?.journey.crossing;
+  if (free) {
+    for (const pl of TOUR_PLACES) {
+      if (pl.inside()) {
+        want = { place: pl, inside: true };
+        break;
+      }
+      if (apart()) continue;
+      const d = pl.door();
+      if (Math.hypot(player.pos.x - d.x, player.pos.z - d.z) < OFFER_R && !player.swimming && !player.flying) {
+        want = { place: pl, inside: false };
+        break;
+      }
+    }
+  }
+  if (want?.place !== offered?.place || want?.inside !== offered?.inside) {
+    offered = want;
+    offerEl.hidden = !want;
+    if (want) offerWhere.textContent = want.place.label;
+  }
+}
+offerEl.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  const o = offered;
+  if (!o) return;
+  offerEl.hidden = true;
+  offered = null;
+  stopAuto();
+  o.place.start(o.inside);
+});
+offerEl.addEventListener("click", (e) => (e as MouseEvent).detail === 0 && offered && (offered.place.start(offered.inside), (offerEl.hidden = true), (offered = null)));
 
 /* The companion (world/companion.ts): with you on every walk-through and the Duat's tour, ahead on
    the way to where the tour goes next, at your shoulder while a place speaks. The temple tour has
@@ -3859,6 +3934,7 @@ function update(dt: number): void {
   walkFrame(realDt);
   duatTourFrame(realDt);
   arrivalFrame();
+  tourOfferFrame(realDt);
   companionFrame(realDt);
   if (!walk && !duatTour && !tourScenes.tour.active) setRecording(false);
   if (!apart()) {

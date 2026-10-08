@@ -166,6 +166,17 @@ export class FollowCamera {
       this.cam.position.lerp(eye, s * (1 - w));
       look.lerp(this.gazeAt, s);
     } else this.gazeHeld = false;
+    // a view steered for you (the gravity point, contemplation's gaze) keeps to a natural pitch:
+    // never craning up a pole or into the sky, never staring at the ground (the owner: "awkward
+    // angle focus"); the hand's own look is never limited
+    const steer = Math.max(this.seatK < 0.5 ? THREE.MathUtils.smoothstep(this.frameK, 0, 1) : 0, this.inward > 0.001 ? THREE.MathUtils.smoothstep(this.inward, 0, 1) : 0);
+    if (steer > 0.001) {
+      const cp = this.cam.position, vx = look.x - cp.x, vz = look.z - cp.z, h = Math.hypot(vx, vz);
+      if (h > 0.05) {
+        const el = Math.atan2(look.y - cp.y, h), lim = THREE.MathUtils.clamp(el, -0.3, 0.22);
+        if (lim !== el) look.y += (cp.y + Math.tan(lim) * h - look.y) * steer;
+      }
+    }
     this.cam.lookAt(look);
   }
 }
