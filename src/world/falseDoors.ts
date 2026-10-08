@@ -479,6 +479,12 @@ export class FalseDoors {
   private uNear: { value: number }[] = [];
   /** Where the pyramid meditation begins: the plaza before the north face. */
   readonly calm: { x: number; z: number; r: number };
+  /** The door that breathes deepest: the second on the west face (the west, where the sun goes
+      down, was the land of the dead). Coming near it, its breath grows longer and fuller; a
+      passer-by who stops before it in stillness is answered (world/whispers.ts). */
+  readonly deepest = 7;
+  /** Its offering: once answered, a small flame on its offering table (the voice offering made). */
+  private offered = uniform(0);
 
   constructor() {
     const R = rng(4402);
@@ -525,11 +531,12 @@ export class FalseDoors {
         // the breath of dust: motes born in the niche, drifting out and up on the exhale
         const motes = breathMotes(this.uT, uB, uN, R, i);
         door.add(mesh, slab, glow, motes);
+        if (i === this.deepest) door.add(offeringFlame(this.uT, this.offered));
         this.group.add(door);
         // solid: the door's block (its jambs and plinth), turned with it
         colliders.push({ x: bx - f.nx * 1.2, z: bz - f.nz * 1.2, r: 0, hx: 3.2, hz: 1.45, ang: head, top: by + 5.6 });
         const out = new V3(f.nx, 0, f.nz);
-        this.doors.push({ at: new V3(bx + f.nx * 0.5, by + 1.5, bz + f.nz * 0.5), out, period: 8 + ((i * 7) % 9) * 0.5, phase: R() * 12, near: 0, breath: 0 });
+        this.doors.push({ at: new V3(bx + f.nx * 0.5, by + 1.5, bz + f.nz * 0.5), out, period: i === this.deepest ? 12 : 8 + ((i * 7) % 9) * 0.5, phase: R() * 12, near: 0, breath: 0 });
         this.uBreath.push(uB as unknown as { value: number });
         this.uNear.push(uN as unknown as { value: number });
         i++;
@@ -554,12 +561,18 @@ export class FalseDoors {
       const want = 1 - THREE.MathUtils.smoothstep(dist, 3.5, 6);
       d.near += (want - d.near) * Math.min(1, dt * 0.8);
       d.breath = this.breathOf(d, reduced ? t * 0.7 : t);
-      this.uBreath[i].value = d.breath;
+      // the deepest door: as you come near, its exhale fills further (its light, its dust)
+      this.uBreath[i].value = i === this.deepest ? d.breath * (1 + 0.9 * d.near) : d.breath;
       this.uNear[i].value = d.near;
       // heard only within a few metres
       loud = Math.max(loud, d.breath * (1 - THREE.MathUtils.smoothstep(dist, 2.5, 7)));
     });
     return loud;
+  }
+
+  /** The deepest door's offering lit (found) or not. */
+  setOffered(on: boolean): void {
+    this.offered.value = on ? 1 : 0;
   }
 
   /** In the calm zone before the north face, on the ground (not climbing the faces). */
@@ -592,5 +605,25 @@ function breathMotes(uT: N, uB: N, uN: N, R: () => number, seed: number): THREE.
   mat.colorNode = vec4(vec3(1.0, 0.82, 0.55).mul(soft).mul(k).mul(0.6).mul(outOfTheWay(wp)), 1);
   void pow;
   void cameraPosition;
+  return c.sprite;
+}
+
+/** A small flame on the deepest door's offering table, lit once its whisper is found: a soft core
+    and a licking tongue of light (door frame: on the low table's top, 0.24 m up, ~1 m out). */
+function offeringFlame(uT: N, on: N): THREE.Sprite {
+  const n = 18;
+  const mat = softPoints();
+  const c = spriteCloud(n, { aK: 4 }, mat);
+  const a = c.attrs.aK.array as Float32Array;
+  for (let i = 0; i < n; i++) a.set([i / n, Math.sin(i * 12.9898) * 0.5 + 0.5, Math.sin(i * 78.233) * 0.5 + 0.5, 0], i * 4);
+  const K = c.nodes.aK;
+  const life = fract(uT.mul(0.8).add(K.x));
+  const p = vec3(float(0.22).add(sin(uT.mul(3).add(K.y.mul(20))).mul(0.015).mul(life)), float(0.3).add(life.mul(0.16)), float(0.98).add(K.z.sub(0.5).mul(0.02)));
+  mat.positionNode = p;
+  const wp = T.modelWorldMatrix.mul(vec4(p, 1)).xyz;
+  mat.sizeNode = clamp(gpuUniforms.px.mul(float(0.05).mul(float(1).sub(life.mul(0.7)))).div(max(viewDepth(wp), 0.4)), float(1).div(gpuUniforms.dpr), 18);
+  const soft = softDot(pointR()).mul(1.59);
+  const col = mix(vec3(1.0, 0.92, 0.7), vec3(1.0, 0.5, 0.18), life);
+  mat.colorNode = vec4(col.mul(soft).mul(float(1).sub(life)).mul(0.55).mul(on), 1);
   return c.sprite;
 }

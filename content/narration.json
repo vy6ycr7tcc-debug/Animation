@@ -8275,6 +8275,69 @@
      "text": "It is still waiting, not for rulers, for witnesses."
     }
    ]
+  },
+  {
+   "id": "WHISPER-DOOR",
+   "title": "A door of the unseen",
+   "voice": "female",
+   "file": "audio/eggs/egg-grey-pyramid.mp3",
+   "duration": 166.2,
+   "trigger": "whisper-door",
+   "cues": []
+  },
+  {
+   "id": "WHISPER-DAYS",
+   "title": "The count of days",
+   "voice": "female",
+   "file": "audio/eggs/egg-maya-calendar.mp3",
+   "duration": 145.28,
+   "trigger": "whisper-days",
+   "cues": []
+  },
+  {
+   "id": "WHISPER-RAPA-NUI",
+   "title": "Rapa Nui",
+   "voice": "female",
+   "file": "audio/eggs/egg-easter-island.mp3",
+   "duration": 109.08,
+   "trigger": "rapa-nui",
+   "cues": []
+  },
+  {
+   "id": "WHISPER-WORLDS",
+   "title": "Worlds",
+   "voice": "female",
+   "file": "audio/contact/contact_1_worlds.mp3",
+   "duration": 240.16,
+   "trigger": "whisper-worlds",
+   "cues": []
+  },
+  {
+   "id": "WHISPER-SKY",
+   "title": "Look up",
+   "voice": "female",
+   "file": "audio/contact/contact_2_disclosure.mp3",
+   "duration": 306.2,
+   "trigger": "whisper-sky",
+   "cues": []
+  },
+  {
+   "id": "WHISPER-TREE",
+   "title": "Reaching out",
+   "voice": "female",
+   "file": "audio/contact/contact_3_reaching_out.mp3",
+   "duration": 246.36,
+   "trigger": "whisper-tree",
+   "cues": []
+  },
+  {
+   "id": "WHISPER-QUARTZ",
+   "title": "The quartz",
+   "voice": "female",
+   "file": "audio/contact/contact_4_quartz.mp3",
+   "duration": 252.31,
+   "trigger": "whisper-quartz",
+   "cues": []
   }
  ]
 }

@@ -4,7 +4,7 @@
 import { SITES } from "../scenes/sites";
 import { DUAT_ORIGIN } from "../world/pyramid";
 import { AREA_SITES, RUIN_SITES, type AreaId } from "../world/depths";
-import { ADEPT_HALL, DENSITY_HALL, GOBEKLI, GOBEKLI_PLAN, gobekliAt, nanMadolAt, LANDMARK_SITES, MONUMENT, PAST_HALL, PEAKS, PYRAMID, SPAWN, heightAt } from "../world/terrain";
+import { ADEPT_HALL, DENSITY_HALL, GOBEKLI, GOBEKLI_PLAN, gobekliAt, nanMadolAt, RAPA_NUI, rapaNuiAt, LANDMARK_SITES, MONUMENT, PAST_HALL, PEAKS, PYRAMID, SPAWN, heightAt } from "../world/terrain";
 import { JOURNEY_ORIGIN } from "../scenes/journey";
 
 export interface Shot {
@@ -110,6 +110,9 @@ export interface ShotCtx {
   templeStand?(i: number): void;
   /** No touch for a long while (the gravity point and contemplation answer to stillness). */
   idle?(): void;
+  /** A whisper's discovery (`whisper-<id>&t=<0..1>`, its cue held that far along): where to stand
+      and look, in the world. */
+  whisper?(id: string, k: number): { eye: XYZ; look: XYZ; stand: XYZ } | null;
   /** Build density room `n` alone (the open world hidden); `density-<n>` still frames. */
   room?(n: number): Promise<{ onSit(): void; update(dt: number): void }>;
 }
@@ -413,6 +416,28 @@ export function runShot(ctx: ShotCtx): void {
     base = [0, 0, 0];
     view = { eye: [ex, e[2], ez], look: [lx, l[2], lz] };
     const [px, pz] = nanMadolAt(e[0], e[1] - 2.5);
+    ctx.player.pos.set(px, heightAt(px, pz), pz);
+  } else if (/^whisper-[a-z]+$/.test(id) && ctx.whisper) {
+    const v = ctx.whisper(id.slice(8), t) ?? { eye: [0, 3, 10] as XYZ, look: [0, 2, 0] as XYZ, stand: [0, 0, 8] as XYZ };
+    base = [0, 0, 0];
+    view = { eye: v.eye, look: v.look };
+    ctx.player.pos.set(v.stand[0], v.stand[1], v.stand[2]);
+  } else if (/^rapanui-[a-f]$/.test(id)) {
+    // Rapa Nui, in the headland's own frame (+z out to sea, the ahu's middle at 0): [eye, look] as plan x, z, height
+    const top = RAPA_NUI.y;
+    const V8: Record<string, [[number, number, number], [number, number, number]]> = {
+      a: [[3, -24, top + 2.2], [0, 12, top + 5]], // the court: the ancestors facing you, the sea behind them
+      b: [[-3, 0, top + 1.8], [-1.5, 12, top + 6.2]], // nearer: their faces, the one with eyes
+      c: [[14, 30, top + 4], [0, 8, top + 4]], // from the cliff's edge behind them, inland to the volcano
+      d: [[-24, -6, top + 2], [-11, 4, top + 0.6]], // the fallen one, face down before the ahu
+      e: [[30, 60, top + 22], [-10, -120, top + 25]], // from over the sea: headland, ahu, volcano
+      f: [[0, -60, top + 40], [0, 20, top]], // from the air, inland
+    };
+    const [e, l] = V8[id.slice(8)];
+    const [ex, ez] = rapaNuiAt(e[0], e[1]), [lx, lz] = rapaNuiAt(l[0], l[1]);
+    base = [0, 0, 0];
+    view = { eye: [ex, e[2], ez], look: [lx, l[2], lz] };
+    const [px, pz] = rapaNuiAt(e[0], e[1] - 2.5);
     ctx.player.pos.set(px, heightAt(px, pz), pz);
   } else if (/^gobekli-[a-i]$/.test(id)) {
     // Göbekli Tepe, in the site's own frame (+z toward the shore): [eye, look] as plan x, z, height

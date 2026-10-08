@@ -42,7 +42,8 @@ const { out: STAIR_OUT, in: STAIR_IN, rise: RISE, w: STAIR_W } = P.stair;
 /** The bench round the inside of each enclosure's wall: its depth and its height. */
 const BENCH_D = 0.5, BENCH_H = 0.46;
 /** The wind's way (site frame): off the plain, the way the grass leans. */
-const WIND = new THREE.Vector2(0.8, -0.6).normalize();
+const WIND0 = new THREE.Vector2(0.8, -0.6).normalize();
+const WIND = WIND0;
 
 /* ---------------------------------------------------------------- a T-pillar, as a figure */
 type Relief = "fox" | "boar" | "lion" | "snake" | "scorpion" | "bird" | "vulture";
@@ -327,7 +328,13 @@ function house(h: (typeof P.houses)[number], m: Merge<Parts>, R: () => number, g
 /* ---------------------------------------------------------------- the grass */
 /** Dry grass over the hilltop, in tufts, leaning and running in waves with the wind; a few wild
     flowers among it. One draw; it thins to nothing 40–58 m from the eye. */
-function dryGrass(n: number, keep: (lx: number, lz: number) => boolean, uT: N): THREE.Mesh {
+export function dryGrass(
+  n: number,
+  keep: (lx: number, lz: number) => boolean,
+  uT: N,
+  o: { at?: (lx: number, lz: number) => [number, number]; r?: number; wind?: THREE.Vector2; green?: boolean } = {},
+): THREE.Mesh {
+  const at = o.at ?? gobekliAt, RAD = o.r ?? 84, WIND = o.wind ?? WIND0;
   const geo = new THREE.InstancedBufferGeometry();
   const v = [-0.5, 0, 0.5, 0, -0.32, 0.5, 0.32, 0.5, 0, 1];
   const pos: number[] = [], uvs: number[] = [];
@@ -342,7 +349,7 @@ function dryGrass(n: number, keep: (lx: number, lz: number) => boolean, uT: N): 
   const R = rng(1107);
   let made = 0;
   for (let tries = 0; made < n && tries < n * 4; tries++) {
-    const r = Math.sqrt(R()) * 84, a = R() * Math.PI * 2;
+    const r = Math.sqrt(R()) * RAD, a = R() * Math.PI * 2;
     const lx = Math.sin(a) * r, lz = Math.cos(a) * r;
     if (!keep(lx, lz)) continue;
     // a tuft: a few blades from one root
@@ -351,7 +358,7 @@ function dryGrass(n: number, keep: (lx: number, lz: number) => boolean, uT: N): 
     const flower = R() < 0.05 ? 1 + Math.floor(R() * 3) : 0;
     for (let k = 0; k < tuft && made < n; k++, made++) {
       const x = lx + (R() - 0.5) * 0.22, z = lz + (R() - 0.5) * 0.22;
-      const [wx, wz] = gobekliAt(x, z);
+      const [wx, wz] = at(x, z);
       base.push(x, heightAt(wx, wz) - 0.02, z);
       prm.push(hgt * (0.7 + R() * 0.5), R() * Math.PI, R() * 6.28, k === 0 ? flower : 0);
     }
@@ -384,7 +391,10 @@ function dryGrass(n: number, keep: (lx: number, lz: number) => boolean, uT: N): 
       T.Discard();
     });
     // straw from a dun root to a pale head lit gold by the low sun; the waves pass as a sheen
-    const straw = mix(vec3(0.16, 0.12, 0.06), vec3(0.72, 0.56, 0.3), vY).add(vec3(0.38, 0.26, 0.1).mul(pow(vY, 3)).mul(vWave.mul(0.7).add(0.3)));
+    // (or, by the sea, a windswept green going to straw at the tips)
+    const straw = o.green
+      ? mix(vec3(0.025, 0.04, 0.022), vec3(0.15, 0.18, 0.09), vY).add(vec3(0.12, 0.09, 0.04).mul(pow(vY, 3)).mul(vWave.mul(0.7).add(0.3)))
+      : mix(vec3(0.16, 0.12, 0.06), vec3(0.72, 0.56, 0.3), vY).add(vec3(0.38, 0.26, 0.1).mul(pow(vY, 3)).mul(vWave.mul(0.7).add(0.3)));
     const bloom = vFl.greaterThan(2.5).select(vec3(0.9, 0.78, 0.25), vFl.greaterThan(1.5).select(vec3(0.62, 0.42, 0.8), vec3(0.85, 0.16, 0.1)));
     const col = mix(straw, bloom, vFl.greaterThan(0.5).select(smoothstep(0.8, 0.95, vY), float(0)));
     return vec4(withFog(col, vW), 1);

@@ -650,6 +650,30 @@ export class AudioEngine {
     this.sigh.gain.setTargetAtTime(k * 0.05, c.currentTime, 0.4);
   }
 
+  private hum: GainNode | null = null;
+  /** One quartz that sings (0–1): a clear high tone over its fifth and octave, each pair a few
+      cents apart so it beats slowly, heard only near it; unlike any other crystal's voice. */
+  quartzHum(k: number): void {
+    if (!this.ctx) return;
+    const c = this.ctx;
+    if (!this.hum) {
+      if (k < 0.01) return;
+      this.hum = c.createGain();
+      this.hum.gain.value = 0;
+      this.hum.connect(this.worldDry);
+      for (const [f, a] of [[432, 0.5], [648, 0.28], [864, 0.18], [1296, 0.06]] as const)
+        for (const det of [0, 4]) {
+          const o = c.createOscillator(), g = c.createGain();
+          o.frequency.value = f;
+          o.detune.value = det;
+          g.gain.value = a * 0.5;
+          o.connect(g).connect(this.hum);
+          o.start();
+        }
+    }
+    this.hum.gain.setTargetAtTime(k * 0.035, c.currentTime, 0.5);
+  }
+
   private surfBus: GainNode | null = null;
   /** Surf breaking softly on a seawall far off (0–1): low noise in slow swells, each set rising
       and falling over some seconds, kept above the phone's lost low end. */

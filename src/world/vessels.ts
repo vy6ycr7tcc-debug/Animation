@@ -46,7 +46,7 @@ function raysTexture(): THREE.Texture {
 }
 const RAYS = raysTexture();
 
-function halo(color: THREE.Color, size: number): THREE.Sprite {
+export function halo(color: THREE.Color, size: number): THREE.Sprite {
   const c = document.createElement("canvas");
   c.width = c.height = 64;
   const g = c.getContext("2d")!;
@@ -72,7 +72,7 @@ const colourFor = (i: number) => new THREE.Color().setHSL(...(PALETTE[i % PALETT
 
 /* ---------------------------------------------------------------- orbs */
 type PlanetMaterial = THREE.MeshBasicNodeMaterial & { uniforms: { uT: { value: number }; uNear: { value: number }; uPlaying: { value: number } } };
-function planetMaterial(a: THREE.Color, b: THREE.Color, seed: number): PlanetMaterial {
+export function planetMaterial(a: THREE.Color, b: THREE.Color, seed: number): PlanetMaterial {
   const { abs, cameraPosition, cos, dot, float, floor, Fn, fract, max, mix, normalize, normalWorldGeometry, positionGeometry, positionWorld, pow, sin, smoothstep, uniform, vec3, vec4 } = T;
   const uA = vec3(a.r, a.g, a.b), uB = vec3(b.r, b.g, b.b);
   const uT = uniform(0), uNear = uniform(0), uPlaying = uniform(0);

@@ -29,6 +29,9 @@ export interface Area {
   /** The water about it: its colour (×), its shafts' strength and colour. */
   water: { tint: RGB; shaft: number; shaftCol: RGB };
   loaded: Promise<void>;
+  /** A hidden place in it that keeps a whisper (world/whispers.ts): where it is, the way in, and
+      how much of it is woken (`lit`) and whether its whisper was found. */
+  secret?: { at: THREE.Vector3; door: THREE.Vector3; set(lit: number, found: boolean): void };
   /** `telling`: what is speaking and how far in (seconds), for what answers the telling. */
   update(dt: number, t: number, visitor: THREE.Vector3, reduced: boolean, telling: { id: string | null; t: number }): void;
 }
