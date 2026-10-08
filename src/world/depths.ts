@@ -19,6 +19,7 @@ import { etchedStone } from "./etching";
 import { columnGeometry, scan, type ScanName } from "./temple";
 import { surface } from "./textures";
 import { colliders, heightAt, LANDMARK_KINDS, LANDMARK_SITES, levelGround, SPAWN, WATER_Y } from "./terrain";
+import { solid } from "./solidity";
 
 const { abs, atan, cos, float, fract, length, max, mix, positionGeometry, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
 const V = THREE.Vector3;
@@ -267,7 +268,7 @@ function ruinStone(set: ScanName, _inlay: "bands" | "grid" | "none", uT: N, pain
   m.normalNode = T.normalize(T.normalView.add(T.cameraViewMatrix.mul(vec4(dn.mul(1.6), 0)).xyz));
   const remember = sin(uT.mul(0.35).add(pw.x.mul(0.07)).add(pw.z.mul(0.05))).mul(0.5).add(0.5);
   m.emissiveNode = c.mul(0.14).add(vec3(0.45, 0.8, 0.9).mul(cut.mul(float(1).sub(silt)).mul(remember.mul(0.05).add(0.012))));
-  return m;
+  return solid(m);
 }
 
 /** Crystals left on the stones: clear, faintly lit from within; never a rainbow. */

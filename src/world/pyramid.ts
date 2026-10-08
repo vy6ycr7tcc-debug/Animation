@@ -28,6 +28,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { release } from "../core/residency";
 import { colliders, PYRAMID, standHooks, type Collider } from "./terrain";
 import { Duat, DUAT_PATH, duatHeight } from "./duat";
+import { solid } from "./solidity";
 
 const { abs, cos, float, floor, fract, mix, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
 const V = THREE.Vector3;
@@ -98,7 +99,7 @@ function limestone(uT: N, tint: [number, number, number], alive = 1, tile = 2.4,
   const wave = sin(pw.y.mul(0.35).sub(uT.mul(0.9))).mul(0.5).add(0.5);
   const beat = T.pow(sin(uT.mul(1.1)).mul(0.5).add(0.5), 6);
   m.emissiveNode = vec3(1.0, 0.8, 0.5).mul(wave.mul(0.045).add(beat.mul(0.02)).mul(alive)).add(c.mul(0.05)).add(skySheen(T.normalWorldGeometry));
-  return m;
+  return solid(m);
 }
 /** The chambers' limestone: the game's cut masonry (courses, flagstones, recessed joints seen in
     depth, worn arrises), laid in the pyramid's own frame and dry (no lichen, no streaks). The
@@ -127,7 +128,7 @@ function granite(uT: N, origin?: THREE.Vector3): THREE.MeshStandardNodeMaterial 
   const fleck = h(cell);
   const glint = smoothstep(0.994, 1.0, h(cell.add(7))).mul(sin(uT.mul(1.7).add(fleck.mul(40))).mul(0.5).add(0.5));
   m.emissiveNode = vec3(1.0, 0.9, 0.8).mul(glint.mul(0.9)).add(c.mul(0.04));
-  return m;
+  return solid(m);
 }
 function crystalGlow(uT: N): THREE.MeshBasicNodeMaterial {
   const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.CustomBlending, blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneFactor, blendEquation: THREE.AddEquation, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor, fog: false });
