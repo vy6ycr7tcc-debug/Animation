@@ -49,6 +49,8 @@ export class Touch {
   points: THREE.Sprite;
   phase: "none" | "going" | "touching" = "none";
   target: Target | null = null;
+  /** Things to lay hands on beyond the world's own trees and stones (world/whispers.ts). */
+  extra: (() => ReturnType<Creation["touchables"]>) | null = null;
   /** For main.ts: a stone or crystal being touched vibrates with light (etching.ts vibe). */
   vibe = 0;
   /** How far the body leans in toward a trunk it holds (metres). */
@@ -93,7 +95,7 @@ export class Touch {
     const p = this.player.pos;
     const s = new THREE.Vector3();
     let best: ReturnType<Creation["touchables"]>[number] | null = null, bd = Infinity;
-    for (const c of this.creation.touchables()) {
+    for (const c of [...this.creation.touchables(), ...(this.extra?.() ?? [])]) {
       const d = Math.hypot(c.x - p.x, c.z - p.z);
       if (d > 36) continue;
       // a trunk: anywhere along it from the foot to well above the head; a stone: on its face

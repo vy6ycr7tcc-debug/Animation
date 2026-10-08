@@ -4,6 +4,8 @@
    forms (beam, veil, garden, throne, arch, rings) stand as landmarks to wander toward.
    Narration plays in the background the whole time, one recording after another.
    States: intro (title over the night water) → play → rest (after Leave) → play … */
+import { Whispers, whisperOf, type WhisperId } from "./world/whispers";
+import { RapaNui } from "./world/ancient/rapaNui";
 import { setShadowSize } from "./gpu/lightRig";
 import { loadFailed } from "./core/assets";
 import { EgyptGate } from "./world/egyptGate";
@@ -50,7 +52,7 @@ import { TranscriptPlayer } from "./ui/transcriptPlayer";
 import { tourBar, type TourBarOwner } from "./ui/tourBar";
 import { StartMap, type Choice, type Place } from "./ui/map";
 import { buildSky, skyUniforms, starDirection } from "./world/sky";
-import { floorHook, GOBEKLI, gobekliAt, NAN_MADOL, nanMadolAt, groundUniforms, heightAt, heightCoarse, LANDMARK_SITES, MONUMENT, PEAKS, SPAWN, standAt, Terrain, WATER_Y } from "./world/terrain";
+import { floorHook, GOBEKLI, gobekliAt, NAN_MADOL, nanMadolAt, RAPA_NUI, rapaNuiAt, groundUniforms, heightAt, heightCoarse, LANDMARK_SITES, MONUMENT, PEAKS, SPAWN, standAt, Terrain, WATER_Y } from "./world/terrain";
 import { Temple } from "./world/temple";
 import { Autofly } from "./player/autofly";
 import { Autorun } from "./player/autorun";
@@ -577,6 +579,14 @@ input.onTap = (x, y, touch) => {
     return;
   }
   if (tapOnOrb(x, y)) return;
+  // a whisper's thing under the tap: a door, a stone, a wandering world, a quartz, a star, a tree
+  {
+    const w = apart() ? null : whispers.pick(x, y, camera);
+    if (w) {
+      hearWhisper(w, true);
+      return;
+    }
+  }
   // an orb or a fruit under the tap: its narration begins (never by itself)
   const v = vessels.pick(x, y, camera);
   if (v) {
@@ -1313,6 +1323,10 @@ function places(): Place[] {
       return { numeral: "", label: "Nan Madol", group: "Shore" as const, section: "Ancient" as const, note: "Pohnpei, c. 1180–1628", order: 5, x: NAN_MADOL.x, z: NAN_MADOL.z, narration: "J01", start: { x, z, heading: NAN_MADOL.face + Math.PI } };
     })(),
     (() => {
+      const [x, z] = rapaNuiAt(0, -30);
+      return { numeral: "", label: "Rapa Nui", group: "Shore" as const, section: "Ancient" as const, note: "the ancestors over the sea, c. 1250–1650", order: 6, x: RAPA_NUI.x, z: RAPA_NUI.z, narration: "J01", start: { x, z, heading: RAPA_NUI.face + Math.PI } };
+    })(),
+    (() => {
       const [x, z] = gobekliAt(0, 50);
       return { numeral: "", label: "Göbekli Tepe", group: "Shore" as const, section: "Ancient" as const, note: "c. 9500 BCE", order: 2, x: GOBEKLI.x, z: GOBEKLI.z, narration: "J01", start: { x, z, heading: GOBEKLI.face } };
     })(),
@@ -1805,6 +1819,34 @@ scene.add(gobekli.group, gobekli.far, gobekli.live);
 // Nan Madol (world/ancient/nanMadol.ts): the basalt islets in their lagoon, toward the dawn
 const nanMadol = new NanMadol(MOBILE);
 scene.add(nanMadol.group, nanMadol.live);
+// Rapa Nui (world/ancient/rapaNui.ts): the ancestors on their headland over the sea, westward
+const rapaNui = new RapaNui(MOBILE);
+scene.add(rapaNui.group, rapaNui.live);
+/* Whispers (world/whispers.ts): seven tellings hidden in the world, each found by being there
+   (a door that breathes deeper, a stone of days, a wandering world, a singing quartz, a star, a
+   tree alone, Rapa Nui). Found once, they wait under the map. */
+const whispers = new Whispers(MOBILE, falseDoors, ancients.areas.find((a) => a.id === "mayan"));
+scene.add(whispers.group);
+touch.extra = () => whispers.touchables();
+/** A whisper found (or asked for again from the map). Found by stillness it waits for the voices
+    ("Only nature" rests them) and never breaks into a tour or an archive narration; a tap, a
+    hand laid on it or the map's list is your own choice, and speaks. Each plays once on its
+    finding; in the world after that it only answers with a soft tone. */
+function hearWhisper(id: WhisperId, chosen: boolean, again = false): void {
+  if (S.mode !== "play") return;
+  if (!again && (walk || duatTour || tourScenes.tour.active)) return;
+  if (!again && whispers.has(id)) {
+    if (chosen) audio.bowl(528, 0.03, undefined, 5);
+    return;
+  }
+  if (!chosen && (!playlist.on || tp.playing)) return;
+  if (tp.playing) tp.close();
+  whispers.markFound(id);
+  // a moment of grace before the voice: one soft bowl, the world going a little quieter
+  audio.bowl(396, 0.045, undefined, 8);
+  const track = whisperOf(id).track;
+  window.setTimeout(() => void narration.play(track), again ? 300 : 1600);
+}
 
 /* The monuments (scenes/journey.ts): through each one's door, a lobby, then its rooms one after
    another, each crossing pitch black, each room's recording beginning as you arrive, and home to
@@ -3356,7 +3398,30 @@ function deepFrame(dt: number, wt: number, inWater: boolean): void {
       return true;
     });
   else nanMadol.group.visible = nanMadol.live.visible = false;
-  audio.surf(apart() ? 0 : nanMadol.surf);
+  // Rapa Nui: its telling begins the first time you come onto the headland, and plays on; it is
+  // a whisper too (found by arriving)
+  const atRest = player.speed < 0.3 && !player.flying;
+  if (!apart())
+    rapaNui.update(dt, wt, player.pos, S.reduced, atRest, () => {
+      if (S.mode !== "play" || !playlist.on || tp.playing || walk || duatTour) return false;
+      hearWhisper("rapa", false);
+      return true;
+    });
+  else rapaNui.group.visible = rapaNui.live.visible = false;
+  audio.surf(apart() ? 0 : Math.max(nanMadol.surf, rapaNui.surf));
+  // the whispers: what answers a visitor who is still, or near
+  {
+    const outdoors = !apart() && S.mode === "play";
+    whispers.group.visible = !apart();
+    const got = whispers.update(dt, wt, { pos: player.pos, still: atRest && !tourScenes.tour.active, under: follow.underwater, camera, outdoors, reduced: S.reduced });
+    audio.quartzHum(whispers.hum);
+    if (got) hearWhisper(got, false);
+    // hands laid on the lone tree or the singing quartz
+    if (touch.phase === "touching" && touch.target) {
+      const id = whispers.touched(touch.target.centre);
+      if (id && !whispers.has(id)) hearWhisper(id, true);
+    }
+  }
   if (S.mode !== "play") return;
   if (depths.inside) {
     if (!player.swimming) player.placeUnder();
@@ -3561,11 +3626,13 @@ $("#guide-go").addEventListener("click", () => {
 });
 startMap.onGuide = openGuide;
 startMap.onTour = (id) => (id === "duat" ? duatTourStart() : walkStart(id));
+startMap.onWhisper = (id) => hearWhisper(id as WhisperId, true, true);
 
 $("#map-open").addEventListener("click", () => {
   setMenu(false);
   input.enabled = false;
   startMap.tours = [...WALKS.map((w) => ({ id: w.id, label: w.label, walked: walked.has(w.id) })), { id: "duat", label: "The Duat, hour by hour", walked: walked.has("duat") }];
+  startMap.whispers = whispers.list().map((w) => ({ id: w.id, label: w.title, note: w.where }));
   void startMap.open(places(), { x: player.pos.x, z: player.pos.z }, true).then((c) => {
     input.enabled = true;
     if (c) arrive(c, false);
@@ -4278,6 +4345,15 @@ renderer
     }
     if (shot)
       runShot({
+        whisper: (id: string, k: number) => {
+          const w = id as WhisperId;
+          if (!["door", "days", "worlds", "quartz", "sky", "tree"].includes(w)) return null;
+          whispers.hold = { id: w, k: Math.max(0, Math.min(1, k)) };
+          if (w === "door" && k >= 1) falseDoors.setOffered(true);
+          const v = whispers.shotView(w);
+          if (w === "days") player.placeUnder();
+          return { eye: v.eye.toArray() as [number, number, number], look: v.look.toArray() as [number, number, number], stand: v.stand.toArray() as [number, number, number] };
+        },
         journey: async (name: string, i: number, tt: number) => {
           const j = (halls.find((h) => h.journey.name === name) ?? halls[0]).journey;
           await j.jump(i);
@@ -4509,4 +4585,4 @@ function devContext(): [string, string][] {
   return out;
 }
 
-Object.assign(window, { __ij: { offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall } });
+Object.assign(window, { __ij: { whispers, hearWhisper, rapaNui, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall } });

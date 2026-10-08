@@ -457,6 +457,66 @@ export const NAN_FLOOR = -0.72;
   PADS.push({ x: N.x, z: N.z, h: NAN_FLOOR, inner: 56, outer: 84 });
   KEEP_CLEAR.push({ x: N.x, z: N.z, r: 90 });
 }
+/** Rapa Nui (world/ancient/rapaNui.ts): a grassy headland over deep water toward the red sunset
+    (south-west, 0.9–1.9 km out), its ahu near the cliff's edge with its back to the sea, a
+    volcano inland behind it with a crater in its top, a small islet offshore. `x, z`: the ahu's
+    middle; `face`: the heading out to sea (the site's +z). */
+export const RAPA_NUI = (() => {
+  let best = { x: -1100, z: 1100, ox: -0.7, oz: 0.7 }, bestScore = -Infinity;
+  for (let r = 900; r <= 1900; r += 15)
+    for (let k = -24; k <= 24; k++) {
+      const a = -Math.PI / 4 + k * 0.025, x = SPAWN.x + Math.sin(a) * r, z = SPAWN.z + Math.cos(a) * r;
+      const h = rawHeight(x, z);
+      if (h < -0.8 || h > 1.5) continue;
+      const gx = rawHeight(x + 4, z) - rawHeight(x - 4, z), gz = rawHeight(x, z + 4) - rawHeight(x, z - 4), g = Math.hypot(gx, gz);
+      if (g < 1e-3) continue;
+      const ox = -gx / g, oz = -gz / g; // downhill: out to the sea
+      let sea = -Infinity;
+      for (const d of [70, 120, 200]) sea = Math.max(sea, rawHeight(x + ox * d, z + oz * d));
+      const land = Math.min(rawHeight(x - ox * 60, z - oz * 60), rawHeight(x - ox * 120, z - oz * 120));
+      const vx = x - ox * 250, vz = z - oz * 250; // the volcano, inland behind
+      if (sea > -4 || land < 1 || rawHeight(vx, vz) < 0.5) continue;
+      const clear = (px: number, pz: number, m: number) =>
+        !LANDMARK_SITES.some(([lx, lz]) => Math.hypot(px - lx, pz - lz) < m) &&
+        !MONUMENT_SITES.some((s) => Math.hypot(px - s.x, pz - s.z) < s.r + m) &&
+        Math.hypot(px - PYRAMID.x, pz - PYRAMID.z) > 350 + m &&
+        Math.hypot(px - GOBEKLI.x, pz - GOBEKLI.z) > 300 + m &&
+        Math.hypot(px - NAN_MADOL.x, pz - NAN_MADOL.z) > 300 + m &&
+        !PEAKS.some((p) => Math.hypot(px - p.x, pz - p.z) < p.r + m);
+      if (!clear(x, z, 200) || !clear(vx, vz, 160)) continue;
+      let side = 0;
+      for (const s of [-40, 40]) side = Math.max(side, Math.abs(rawHeight(x - oz * s, z + ox * s)));
+      const score = -side - Math.abs(k) * 0.04 + Math.min(6, -sea) * 0.1;
+      if (score > bestScore) (bestScore = score), (best = { x, z, ox, oz });
+    }
+  const { x, z, ox, oz } = best;
+  return {
+    x: x + ox * 8,
+    z: z + oz * 8,
+    face: Math.atan2(ox, oz),
+    /** The headland's top. */
+    y: 12,
+    volcano: { x: x - ox * 250, z: z - oz * 250, y: 46, crater: 35 },
+    islet: { x: x + ox * 210 - oz * 50, z: z + oz * 210 + ox * 50 },
+  };
+})();
+/** A point of Rapa Nui's plan (+z out to sea, the ahu's middle at the origin) in the world. */
+export function rapaNuiAt(lx: number, lz: number): [number, number] {
+  const c = Math.cos(RAPA_NUI.face), s = Math.sin(RAPA_NUI.face);
+  return [RAPA_NUI.x + lx * c + lz * s, RAPA_NUI.z - lx * s + lz * c];
+}
+{
+  const N = RAPA_NUI;
+  // the headland: flat on top about a point a little inland of the ahu, falling to the sea in a cliff
+  const [hx, hz] = rapaNuiAt(0, -8);
+  PADS.push({ x: hx, z: hz, h: N.y, inner: 30, outer: 48 });
+  // the volcano: a broad cone, and its crater sunk in the top
+  PADS.push({ x: N.volcano.x, z: N.volcano.z, h: N.volcano.y, inner: 26, outer: 150 });
+  PADS.push({ x: N.volcano.x, z: N.volcano.z, h: N.volcano.crater, inner: 15, outer: 30 });
+  // the islet offshore, where the sea birds come
+  PADS.push({ x: N.islet.x, z: N.islet.z, h: 5, inner: 6, outer: 19 });
+  KEEP_CLEAR.push({ x: hx, z: hz, r: 52 }, { x: N.volcano.x, z: N.volcano.z, r: 60 }, { x: N.islet.x, z: N.islet.z, r: 18 });
+}
 /** Its platform's rise at distance `d` from its centre (walked up; scenes/past/monument.ts). */
 const pastRise = (d: number): number => (d < 12.4 ? 1.3 : d < 22 ? 0.9 : d < 23 ? 0.6 : d < 24 ? 0.3 : 0);
 /** The stepped platform's rise at distance `d` from a monument's centre (three steps of 0.45 m). */

@@ -76,6 +76,9 @@ export class StartMap {
   /** The walk-throughs (end to end, the narrations timed): a tab of their own, each marked once walked. */
   tours: { id: string; label: string; walked: boolean }[] = [];
   onTour: ((id: string) => void) | null = null;
+  /** The whispers found so far (world/whispers.ts): a quiet list, each heard again on a tap. */
+  whispers: { id: string; label: string; note: string }[] = [];
+  onWhisper: ((id: string) => void) | null = null;
   /** "Ask the guide" (while travelling): the map closes and the guide asks where to go. */
   onGuide: (() => void) | null = null;
   private places: Place[] = [];
@@ -187,7 +190,7 @@ export class StartMap {
       by kind (the monuments, the ancient worlds by era, the lessons, the archetypes by realm,
       the deep, the tours). Any destination is two taps away: its tab, then its name. Each name
       says which way it lies and how far, from where you stand. */
-  private tab: Section | "Tours" = "Monuments";
+  private tab: Section | "Tours" | "Whispers" = "Monuments";
   private sectionOf(p: Place): Section {
     if (p.section) return p.section;
     if (p.group === "Deep") return "Deep";
@@ -209,21 +212,23 @@ export class StartMap {
     head.append(tabs);
     const body = document.createElement("div");
     body.className = "map-group";
-    const SECTIONS: { s: Section | "Tours"; title: string }[] = [
+    const SECTIONS: { s: Section | "Tours" | "Whispers"; title: string }[] = [
       { s: "Monuments", title: "Monuments" },
       { s: "Ancient", title: "Ancient" },
       { s: "Lessons", title: "Lessons" },
       { s: "Archetypes", title: "Archetypes" },
       { s: "Deep", title: "Deep" },
       { s: "Tours", title: "Tours" },
+      { s: "Whispers", title: "Whispers" },
     ];
-    const has = (s: Section | "Tours") => (s === "Tours" ? this.tours.length > 0 && !this.closeBtn.hidden : this.places.some((q) => q !== shore && this.sectionOf(q) === s));
+    const has = (s: Section | "Tours" | "Whispers") =>
+      s === "Tours" ? this.tours.length > 0 && !this.closeBtn.hidden : s === "Whispers" ? this.whispers.length > 0 && !this.closeBtn.hidden : this.places.some((q) => q !== shore && this.sectionOf(q) === s);
     const shown = SECTIONS.filter(({ s }) => has(s));
-    const show = (s: Section | "Tours") => {
+    const show = (s: Section | "Tours" | "Whispers") => {
       this.tab = s;
       for (const b of tabs.children) b.setAttribute("aria-selected", String((b as HTMLElement).dataset.s === s));
       body.className = s === "Archetypes" ? "map-group map-realms" : "map-group";
-      body.replaceChildren(...(s === "Tours" ? this.tourButtons() : s === "Archetypes" ? this.realms() : this.sectionButtons(s, shore)));
+      body.replaceChildren(...(s === "Tours" ? this.tourButtons() : s === "Whispers" ? this.whisperButtons() : s === "Archetypes" ? this.realms() : this.sectionButtons(s, shore)));
     };
     for (const { s: sec, title } of shown) {
       const b = document.createElement("button");
@@ -296,6 +301,26 @@ export class StartMap {
       b.addEventListener("click", () => {
         this.finish(null);
         this.onTour?.(t.id);
+      });
+      return b;
+    });
+  }
+
+  /** The whispers found: each by its name and, quietly, where it was; a tap hears it again. */
+  private whisperButtons(): HTMLElement[] {
+    return this.whispers.map((w) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      const name = document.createElement("span");
+      name.className = "map-name";
+      name.textContent = w.label;
+      const sub = document.createElement("span");
+      sub.className = "map-sub";
+      sub.textContent = w.note;
+      b.append(name, sub);
+      b.addEventListener("click", () => {
+        this.finish(null);
+        this.onWhisper?.(w.id);
       });
       return b;
     });

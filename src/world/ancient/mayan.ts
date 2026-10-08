@@ -31,7 +31,7 @@ import { Keeper, Merge, place, rng, roughBlock, seaMasonry, seaStone, shafts, so
 import type { Area } from "./index";
 import { surface } from "../textures";
 
-const { float, mix, positionWorld, sin, smoothstep, uniform, uv, vec3, vec4 } = T;
+const { float, length, mix, positionWorld, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
 const V3 = THREE.Vector3;
 
 /* ---------------------------------------------------------------- the carvings */
@@ -340,6 +340,26 @@ export function buildMayan(site: RuinSite): Area {
   stelae.receiveShadow = true;
   group.add(stelae);
 
+  // the shrine of the count (world/whispers.ts): off the way, behind the pyramid's far corner, a
+  // small vaulted room of the same stone, its door turned away from the plaza; within, upright
+  // against its back wall, a round stone carved with the days
+  const shrineAt = { x: 20.5, z: -41.5 };
+  {
+    const { x: sx, z: sz } = shrineAt;
+    const H = 2.3, Wd = 4.6, th = 0.5;
+    mg.add("plaster", new THREE.BoxGeometry(Wd + 0.6, 0.3, Wd + 0.6), place(sx, 0.0, sz));
+    // back and sides, and the front either side of a doorway (the door opens toward +x)
+    for (const [w, d, x, z] of [[th, Wd, -Wd / 2, 0], [Wd, th, 0, -Wd / 2], [Wd, th, 0, Wd / 2], [th, 1.55, Wd / 2, -1.55], [th, 1.55, Wd / 2, 1.55]] as const) {
+      mg.add("stone", new THREE.BoxGeometry(w, H, d), place(sx + x, H / 2 + 0.15, sz + z));
+      box(sx + x, sz + z, w / 2 + 0.05, d / 2 + 0.05, 0, H + 1.6);
+    }
+    // the lintel over the doorway, then the vault: courses stepping inward to a capstone
+    mg.add("stone", new THREE.BoxGeometry(th + 0.1, 0.45, 1.9), place(sx + Wd / 2, H - 0.05, sz));
+    for (let k = 0; k < 4; k++) {
+      const w2 = Wd + 0.4 - k * 0.9;
+      mg.add(k % 2 ? "plaster" : "stone", new THREE.BoxGeometry(w2, 0.32, w2), place(sx, H + 0.33 + k * 0.32, sz));
+    }
+  }
   const city = mg.build({ stone, plaster });
   group.add(city, lintel, sand);
 
@@ -387,6 +407,18 @@ export function buildMayan(site: RuinSite): Area {
     { file: "manta", length: 2.4, tint: [0.8, 0.85, 1.15], count: 1, cx: site.x + 10, cz: site.z - 8, rx: 60, rz: 75, y: 15, speed: -0.018, spread: 0, phase: 3 },
   ]);
 
+  // the stone of days within the shrine, and the warm light at its door
+  const days = dayStone(uT);
+  days.mesh.position.set(shrineAt.x - 1.95, 1.45, shrineAt.z);
+  days.mesh.rotation.y = Math.PI / 2; // its face toward the door (+x)
+  group.add(days.mesh);
+  const doorGlow = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 2.0), days.doorMat);
+  doorGlow.position.set(shrineAt.x + 2.05, 1.15, shrineAt.z);
+  doorGlow.rotation.y = Math.PI / 2;
+  group.add(doorGlow);
+  const [dsx, dsz] = W(shrineAt.x - 1.4, shrineAt.z);
+  const [dox, doz] = W(shrineAt.x + 4, shrineAt.z);
+
   // the world: a few things outside the rotated group (in world space)
   const world = new THREE.Group();
   world.add(group, light, keeperGroup, swim.group);
@@ -400,6 +432,14 @@ export function buildMayan(site: RuinSite): Area {
     group: world,
     solids,
     water: { tint: [0.92, 1.12, 1.0], shaft: 1.9, shaftCol: [0.42, 0.66, 0.6] },
+    secret: {
+      at: new V3(dsx, site.y + 1.3, dsz),
+      door: new V3(dox, site.y + 1.3, doz),
+      set: (lit: number, found: boolean) => {
+        days.uLit.value = lit;
+        days.uFound.value = found ? 1 : 0;
+      },
+    },
     loaded: Promise.all(keepers.map((k) => k.loaded)).then(() => undefined),
     update(dt: number, t: number, visitor: THREE.Vector3, reduced: boolean) {
       uT.value = t;
@@ -414,6 +454,121 @@ export function buildMayan(site: RuinSite): Area {
       swim.update(dt, reduced ? t * 0.5 : t);
     },
   };
+}
+
+/** The stone of days: a round stone set upright, carved as the Maya carved their round altars
+    for the end of a count. In its middle a great day-sign cartouche (a face in the manner of
+    Ajaw, the lord, the day that closes a count), about it a ring of twenty small cartouches (the
+    twenty named days), and about those thirteen bar-and-dot numbers. All of it decorative, in the
+    manner of the glyphs, never a real word or date. `uLit` (0–20): how many of the twenty days
+    hold a light, counted one by one as a visitor rests still before it; `uFound`: the count
+    completed once, its carving keeping a low warmth. */
+function dayStone(uT: N): { mesh: THREE.Mesh; doorMat: THREE.MeshBasicNodeMaterial; uLit: { value: number }; uFound: { value: number } } {
+  const S = 512, c = document.createElement("canvas");
+  c.width = c.height = S;
+  const g = c.getContext("2d")!;
+  // R: the relief (0.5 flat, darker cut, lighter lip); G: which day a pixel belongs to ((k+0.5)/20)
+  g.fillStyle = "rgb(128,0,0)";
+  g.fillRect(0, 0, S, S);
+  const cx = S / 2, cy = S / 2;
+  const cut = (draw: () => void, shade: number, w: number) => {
+    g.lineWidth = w;
+    g.strokeStyle = `rgb(${shade},0,0)`;
+    g.beginPath();
+    draw();
+    g.stroke();
+  };
+  // the rims
+  for (const r of [250, 236, 176, 164, 98]) cut(() => g.arc(cx, cy, r, 0, Math.PI * 2), 70, 5);
+  // the twenty days: cartouches between 176 and 236, each its own little face of shapes
+  for (let k = 0; k < 20; k++) {
+    const a = (k / 20) * Math.PI * 2 - Math.PI / 2, x = cx + Math.cos(a) * 206, y = cy + Math.sin(a) * 206;
+    g.save();
+    g.translate(x, y);
+    g.rotate(a + Math.PI / 2);
+    g.fillStyle = `rgb(150,${Math.round(((k + 0.5) / 20) * 255)},0)`;
+    g.beginPath();
+    g.roundRect(-22, -22, 44, 44, 12);
+    g.fill();
+    g.lineWidth = 4;
+    g.strokeStyle = "rgb(70,0,0)";
+    g.stroke();
+    // its sign, a few cut strokes (decorative)
+    g.lineWidth = 3;
+    g.strokeStyle = "rgb(80,0,0)";
+    g.beginPath();
+    const v = k % 5;
+    if (v === 0) (g.arc(0, 0, 9, 0, Math.PI * 2), g.moveTo(-6, 12), g.lineTo(6, 12));
+    else if (v === 1) (g.moveTo(-10, -8), g.quadraticCurveTo(0, 10, 10, -8), g.moveTo(-4, 4), g.arc(0, 4, 4, Math.PI, 0));
+    else if (v === 2) (g.arc(-6, -4, 4, 0, Math.PI * 2), g.moveTo(10, -4), g.arc(6, -4, 4, 0, Math.PI * 2), g.moveTo(-8, 10), g.lineTo(8, 10));
+    else if (v === 3) (g.moveTo(0, -12), g.lineTo(10, 0), g.lineTo(0, 12), g.lineTo(-10, 0), g.closePath());
+    else (g.moveTo(-10, 0), g.bezierCurveTo(-4, -14, 4, 14, 10, 0), g.moveTo(-2, -12), g.lineTo(2, -12));
+    g.stroke();
+    g.restore();
+  }
+  // thirteen numbers between 98 and 164: bars and dots
+  for (let k = 0; k < 13; k++) {
+    const a = (k / 13) * Math.PI * 2 - Math.PI / 2, x = cx + Math.cos(a) * 131, y = cy + Math.sin(a) * 131;
+    g.save();
+    g.translate(x, y);
+    g.rotate(a + Math.PI / 2);
+    g.fillStyle = "rgb(84,0,0)";
+    const n = k + 1, bars = Math.floor(n / 5), dots = n % 5;
+    for (let b = 0; b < bars; b++) g.fillRect(-16, 6 - b * 9, 32, 6);
+    for (let d = 0; d < dots; d++) {
+      g.beginPath();
+      g.arc(-((dots - 1) * 8) / 2 + d * 8, -6 - bars * 9 + 6, 3.2, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.restore();
+  }
+  // the great day-sign in the middle: a face in a cartouche (decorative)
+  g.fillStyle = "rgb(150,0,0)";
+  g.beginPath();
+  g.roundRect(cx - 70, cy - 70, 140, 140, 34);
+  g.fill();
+  g.lineWidth = 6;
+  g.strokeStyle = "rgb(66,0,0)";
+  g.stroke();
+  g.lineWidth = 5;
+  g.strokeStyle = "rgb(78,0,0)";
+  g.beginPath();
+  g.arc(cx - 24, cy - 14, 13, 0, Math.PI * 2);
+  g.moveTo(cx + 37, cy - 14);
+  g.arc(cx + 24, cy - 14, 13, 0, Math.PI * 2);
+  g.moveTo(cx - 20, cy + 30);
+  g.quadraticCurveTo(cx, cy + 46, cx + 20, cy + 30);
+  g.moveTo(cx - 44, cy - 44);
+  g.lineTo(cx + 44, cy - 44);
+  g.stroke();
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.NoColorSpace;
+  tex.anisotropy = 4;
+  const uLit = uniform(0), uFound = uniform(0);
+  const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.9, metalness: 0 });
+  const t = T.texture(tex, uv());
+  const relief = t.r.sub(0.5);
+  const day = t.g.mul(20); // 0.5…19.5 within a day's cartouche, 0 elsewhere
+  const isDay = t.g.greaterThan(0.01);
+  const lit = isDay.select(smoothstep(day.sub(0.5), day.add(0.3), uLit), float(0));
+  const breath = sin(uT.mul(1.1)).mul(0.5).add(0.5);
+  const base = vec3(0.62, 0.6, 0.52).mul(float(1).add(relief.mul(1.6)));
+  m.colorNode = vec4(base, 1);
+  // the stone's own pale lift (the water swallows plain stone), the days' warm light, and once
+  // the count is complete a low warmth in every cut
+  m.emissiveNode = base.mul(0.18).add(vec3(1.0, 0.72, 0.36).mul(lit.mul(breath.mul(0.25).add(0.75)).mul(0.9))).add(vec3(0.9, 0.6, 0.3).mul(uFound).mul(relief.lessThan(-0.1).select(float(0.35), float(0.08))));
+  const geo = new THREE.CylinderGeometry(0.88, 0.9, 0.26, 48, 1);
+  geo.rotateX(Math.PI / 2); // its face toward +z
+  // the cap's uv is a disc: map it from the face's position
+  const p = geo.attributes.position as THREE.BufferAttribute, u = geo.attributes.uv as THREE.BufferAttribute;
+  for (let i = 0; i < p.count; i++) u.setXY(i, p.getX(i) / 1.8 + 0.5, p.getY(i) / 1.8 + 0.5);
+  const mesh = new THREE.Mesh(geo, m);
+  mesh.receiveShadow = true;
+  // a warm light standing in its doorway, breathing slowly: something inside is kept
+  const doorMat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, side: THREE.DoubleSide });
+  const q = uv().sub(vec2(0.5, 0.42)).mul(vec2(1.8, 1.1));
+  doorMat.colorNode = vec4(vec3(1.0, 0.72, 0.4).mul(smoothstep(1, 0.1, length(q))).mul(breath.mul(0.5).add(0.5).mul(0.16).add(uLit.div(20).mul(0.25))), 1);
+  return { mesh, doorMat, uLit: uLit as unknown as { value: number }, uFound: uFound as unknown as { value: number } };
 }
 
 function mergeAll(list: THREE.BufferGeometry[]): THREE.BufferGeometry {
