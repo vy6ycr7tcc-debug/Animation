@@ -2331,19 +2331,80 @@ function lessonUxFrame(dt: number): void {
    marked on the map's Tours tab. */
 /** A stop: a monument's room (hall, stage), or a place with its own guided tour (the temple's,
     the Duat's), walked inside the walk. */
-interface WalkStop { hall: number; stage: number; place?: "temple" | "duat" }
+interface WalkStop { hall: number; stage: number; place?: "temple" | "duat" | "site"; site?: SiteStop }
+/** A narrated place out in the world, walked as a stop (the owner: "add all of the narrated tours
+    to tours… end to end goes thru all of them in a sense making manner"): a lesson's or a vision's
+    seat (sitting begins it), the world after the veil or the long descent (going in begins its
+    guide), or a telling heard where it is (the ancient worlds, the pyramid's meditation). The walk
+    goes there, lets its recording play to its end, and goes on. */
+interface SiteStop {
+  label: string;
+  /** Its recording (a catalogue id or a path): heard to its end, the stop is done. */
+  track: string;
+  /** Where the walk goes to first. */
+  at: () => { x: number; z: number; heading?: number };
+  /** A lesson's seat: the wanderer walks onto it and sits. */
+  seat?: { x: number; z: number; heading: number };
+  /** An area (the halls' index): in through its door, then its guide leads. */
+  area?: number;
+}
+const seatStop = (id: keyof typeof SITES, label: string, track: string): SiteStop => {
+  const st = SITES[id];
+  return { label, track, seat: st, at: () => ({ x: st.x + Math.sin(st.heading) * 2.4, z: st.z + Math.cos(st.heading) * 2.4, heading: st.heading }) };
+};
+const hereStop = (label: string, track: string, mapLabel = label): SiteStop => ({ label, track, at: () => placeAt(mapLabel)?.start ?? { x: 0, z: 0 } });
+const SITE_STOPS = (): Record<string, SiteStop> => ({
+  meditation: { label: "The pyramid's meditation", track: "PYRAMID-MEDITATION", at: () => falseDoors.calm },
+  veil: { label: halls[3].hall.label, track: VEIL_TRACK(7), area: 3, at: () => halls[3].hall.outside() },
+  descent: { label: halls[4].hall.label, track: WANDERER_TRACK(7), area: 4, at: () => halls[4].hall.outside() },
+  gobekli: hereStop("Göbekli Tepe", "GOBEKLI"),
+  nanmadol: hereStop("Nan Madol", "NAN-MADOL"),
+  mu: hereStop("Mu, the drowned land", "LEMURIA"),
+  atlantis: hereStop("Atlantis", "ATLANTIS"),
+  maya: hereStop("The drowned Maya city", "MAYAN"),
+  shore: seatStop("shore", "The lesson of the shore", "L03"),
+  garden: seatStop("garden", "The lesson of the garden", "L05"),
+  igloo: seatStop("igloo", "The lesson of the igloo", "L04"),
+  galaxies: seatStop("galaxies", "The lesson of the galaxies", "L06"),
+  desert: seatStop("desert", "The lesson of the desert", "L07"),
+  "tree-station": seatStop("tree-station", "The tree station", "TREE"),
+  atoms: seatStop("atoms", "Atoms and light", "audio/standalone/atoms_and_light.mp3"),
+  "other-worlds": seatStop("other-worlds", "Other worlds", "audio/standalone/other_worlds.mp3"),
+  greetings: seatStop("greetings", "Psychic greetings", "audio/standalone/psychic_greetings.mp3"),
+});
+const sites = (...ids: string[]): WalkStop[] => {
+  const all = SITE_STOPS();
+  return ids.map((id) => ({ hall: -1, stage: 0, place: "site" as const, site: all[id] }));
+};
 const monumentStops = (h: number): WalkStop[] => halls[h].journey.stages.map((_, i) => ({ hall: h, stage: i }));
+const TEMPLE_STOP: WalkStop = { hall: -1, stage: 0, place: "temple" };
+const DUAT_STOP: WalkStop = { hall: -1, stage: 0, place: "duat" };
+const ANCIENT = ["gobekli", "nanmadol", "mu", "atlantis", "maya"];
+const LESSONS = ["shore", "garden", "igloo", "galaxies", "desert", "tree-station"];
+const VISIONS = ["atoms", "other-worlds", "greetings"];
 const WALKS: { id: string; label: string; stops: () => WalkStop[] }[] = [
-  { id: "densities", label: "The densities, end to end", stops: () => halls[0].journey.stages.map((_, i) => ({ hall: 0, stage: i })) },
-  { id: "adept", label: "The school of the adept, end to end", stops: () => halls[1].journey.stages.map((_, i) => ({ hall: 1, stage: i })) },
-  { id: "past", label: "Past choices, end to end", stops: () => halls[2].journey.stages.map((_, i) => ({ hall: 2, stage: i })) },
-  { id: "temple", label: "The temple, guided", stops: () => [{ hall: -1, stage: 0, place: "temple" }] },
   {
-    // the grand tour: every monument, the temple and the Duat, flying from one to the next
+    // everything narrated, along the one gentle way through the world (DESTS): the temple and its
+    // archetypes, the pyramid and the Duat, the three monuments, the two guided areas, the
+    // ancient worlds oldest first, the lessons, and last the three visions; flying between
     id: "all",
-    label: "The grand tour: everything, end to end",
-    stops: () => [...[0, 1, 2].flatMap(monumentStops), { hall: -1, stage: 0, place: "temple" }, { hall: -1, stage: 0, place: "duat" }],
+    label: "Everything, end to end",
+    stops: () => [
+      TEMPLE_STOP, ...sites("meditation"), DUAT_STOP,
+      ...[0, 1, 2].flatMap(monumentStops), ...sites("veil", "descent"),
+      ...sites(...ANCIENT), ...sites(...LESSONS), ...sites(...VISIONS),
+    ],
   },
+  { id: "temple", label: "The temple, guided", stops: () => [TEMPLE_STOP] },
+  { id: "pyramid", label: "The pyramid's meditation and the Duat", stops: () => [...sites("meditation"), DUAT_STOP] },
+  { id: "densities", label: "The densities, end to end", stops: () => monumentStops(0) },
+  { id: "adept", label: "The school of the adept, end to end", stops: () => monumentStops(1) },
+  { id: "past", label: "Past choices, end to end", stops: () => monumentStops(2) },
+  { id: "veil", label: "The world after the veil, guided", stops: () => sites("veil") },
+  { id: "descent", label: "The long descent, guided", stops: () => sites("descent") },
+  { id: "ancient", label: "The ancient worlds, end to end", stops: () => sites(...ANCIENT) },
+  { id: "lessons", label: "The lessons, end to end", stops: () => sites(...LESSONS) },
+  { id: "visions", label: "The three visions, end to end", stops: () => sites(...VISIONS) },
 ];
 let walked = new Set<string>();
 try {
@@ -2361,6 +2422,10 @@ const walkBar: TourBarOwner = {
     if (duatTour) {
       const h = pyramid.duatHours()[duatTour.i];
       return h && duatTour.phase === "watch" ? duatTour.t / (h.cycle + 1.5) : duatTour.i >= pyramid.duatHours().length ? 1 : 0;
+    }
+    if (walk?.phase === "place" && walk.stops[walk.i].place === "site") {
+      const pr = narration.progress();
+      return pr ? pr.t / pr.total : 0;
     }
     if (!walk || walk.phase === "travel" || walk.phase === "place" || walk.phase === "leaving") return 0;
     if (walk.phase === "linger" || walk.phase === "go") return 1;
@@ -2412,6 +2477,7 @@ const crossingSettled = (): Promise<void> => new Promise((done) => {
 function stopApproach(s: WalkStop): { x: number; z: number } {
   if (s.place === "temple") return temple.outside();
   if (s.place === "duat") return pyramid.outside();
+  if (s.place === "site") return s.site!.at();
   return halls[s.hall].hall.outside();
 }
 async function walkEnterStop(): Promise<void> {
@@ -2482,9 +2548,19 @@ function walkArrive(): void {
   walk.t = 0;
   if (s.place === "temple") crossTemple(true); // its own tour begins as you go in
   else if (s.place === "duat") duatTourStart(true);
+  else if (s.place === "site") siteArrive(s.site!);
   else void halls[s.hall].journey.enter(s.stage);
 }
-const stopName = (s: WalkStop): string => (s.place === "temple" ? "The temple" : s.place === "duat" ? "The Duat" : halls[s.hall].hall.label);
+/** At a narrated place: reached through the dark when it was too far to fly (the map's arrival),
+    then left to its own way of beginning (walkFrame). */
+function siteArrive(st: SiteStop): void {
+  const a = st.at();
+  if (Math.hypot(a.x - player.pos.x, a.z - player.pos.z) > 40) {
+    const place: Place = { numeral: "", label: st.label, group: "Shore", x: a.x, z: a.z, narration: "J01", start: { x: a.x, z: a.z, heading: a.heading ?? player.heading } };
+    arrive({ place, x: a.x, z: a.z, heading: a.heading ?? player.heading }, false);
+  }
+}
+const stopName = (s: WalkStop): string => (s.place === "temple" ? "The temple" : s.place === "duat" ? "The Duat" : s.place === "site" ? s.site!.label : halls[s.hall].hall.label);
 /** Skip always answers: mid-crossing it is kept and taken as soon as the crossing ends. */
 /* Pause (the half-moon's ❚❚ while the archive is quiet): the voice speaking stops where it is,
    and with it its clock, so rooms, lessons and the tours' advance all stand still; play goes on
@@ -2605,6 +2681,53 @@ function duatTourFrame(dt: number): void {
     }
   } else if (d.t > h.cycle + 1.5) Object.assign(d, { i: d.i + 1, phase: "walk", t: 0 });
 }
+/** Each frame at a narrated place: begin it its own way, hear it to the end, then on. */
+function siteFrame(st: SiteStop): void {
+  if (!walk) return;
+  const playing = narration.current === st.track;
+  if (st.area !== undefined) {
+    // an area: in through its door; inside, its guide leads from place to place; out at the
+    // path's end (or its ✕, which ends the walk)
+    const h = halls[st.area], j = h.journey;
+    if (!walk.begun) {
+      if (j.inside && !j.crossing) {
+        walk.begun = true;
+        areaTourStart(j, h.hall.label);
+      } else if (!j.crossing) {
+        driveTo(h.hall.door.x, h.hall.door.z, null, walk.t);
+        tourGoal(h.hall.door.x, h.hall.door.z);
+        if (walk.t > 60) walkNext(); // the door never took us in: on
+      }
+    } else if (!j.inside && !j.crossing) walkNext();
+    else if (j.inside && !j.crossing && !areaTour) walkEnd(false);
+    return;
+  }
+  if (playing) walk.heard = true;
+  if (!walk.begun) {
+    if (st.seat) {
+      // a lesson's seat: onto it, and sitting begins its telling
+      walkTo.set(st.seat.x, st.seat.z);
+      player.target = walkTo.clone();
+      tourGoal(st.seat.x, st.seat.z);
+      if (sitting.phase === "seated" || playing) (walk.begun = true), (player.target = null), (walk.t = 0);
+      else if (walk.t > 25) (walk.begun = true), (player.target = null), (walk.t = 0), void narration.play(st.track); // never sat: told where it stands
+    } else {
+      // a telling heard where it is
+      walk.begun = true;
+      walk.t = 0;
+      if (st.track === "PYRAMID-MEDITATION") meditationHeard = true;
+      if (!playing) void narration.play(st.track);
+    }
+    return;
+  }
+  // heard to its end (or never begun after a while): a moment's stillness, then on
+  if (walk.done) {
+    if (walk.t > 3) walkNext();
+  } else if ((walk.heard && !playing && !narration.paused) || (!walk.heard && walk.t > 20)) {
+    walk.done = true;
+    walk.t = 0;
+  }
+}
 /** ⟲ in a walk-through: ten seconds back in the room's telling (back into it if it has just
     ended); near its start or in a room without a voice, the room before. */
 function walkBack(): void {
@@ -2643,14 +2766,25 @@ function walkSkip(): void {
 }
 function walkNext(): void {
   if (!walk) return;
+  siteLeave();
   walk.skip = false;
   walk.tries = 0;
   walk.i++;
   if (walk.i >= walk.stops.length) return walkEnd(true);
   void walkEnterStop();
 }
+/** Going on from a narrated place: its voice gives way, the seat is left, its guide stops. */
+function siteLeave(): void {
+  const s = walk?.stops[walk.i];
+  if (s?.place !== "site") return;
+  if (narration.current === s.site!.track) narration.stop(1.2);
+  if (sitting.phase === "seated") standUp();
+  if (areaTour) areaTourEnd();
+  player.target = null;
+}
 function walkEnd(done: boolean): void {
   if (!walk) return;
+  if (!done) siteLeave();
   const w = walk;
   walk = null;
   player.target = null;
@@ -2670,7 +2804,7 @@ function walkEnd(done: boolean): void {
     if (h) void h.journey.leave();
     const w0 = WALKS.find((x) => x.id === w.id);
     // out through the door first (a moment), then where next
-    window.setTimeout(() => offerNext(w.id === "all" ? "duat" : w.id, w0?.label.replace(/, end to end$/, "") ?? "The walk"), h ? 3500 : 1200);
+    window.setTimeout(() => offerNext(({ all: "greetings", pyramid: "duat", ancient: "maya", lessons: "desert", visions: "greetings" } as Record<string, string>)[w.id] ?? w.id, w0?.label.replace(/, end to end$/, "") ?? "The walk"), h ? 3500 : 1200);
   }
 }
 const walkTo = new THREE.Vector2();
@@ -2714,6 +2848,8 @@ function walkFrame(dt: number): void {
         if (temple.inside) crossTemple(false);
         walkEnd(false);
       } else if (walk.t > 15) walkNext(); // it never opened: on
+    } else if (s0.place === "site") {
+      siteFrame(s0.site!);
     } else if (s0.place === "duat") {
       if (duatTour) walk.begun = true;
       else if (walk.begun) {
