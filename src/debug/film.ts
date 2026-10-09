@@ -459,7 +459,8 @@ async function intoTheWorld(host: FilmHost, ui: Screen, wait: (ms: number) => Pr
     const f = fps.tick();
     let hint = f > 0 ? ` ${f.toFixed(0)} fps.` : "";
     if (f > 0 && f < 8) hint += slowNote(f);
-    else if (f === 0 && s > 10) hint += " No frames have been drawn for a few seconds: the game has stopped drawing. Reload the page; if it happens again, tell me what the card says.";
+    else if (f === 0 && s > 120) hint += " No frames have been drawn for two minutes: the game may have stopped drawing. Reload the page and try &res=1080p or &res=720p; if it happens again, tell me what this line says.";
+    else if (f === 0 && s > 10) hint += " Nothing is drawn yet, which is normal while the shaders are prepared (a minute or two the first time, longer at a large size such as 4K). Keep this tab in front.";
     if (document.hidden) hint += " Bring this tab to the front: the world only wakes while it is in view.";
     else if (s > 90) hint += " Still working: the first time it fetches the world and prepares the shaders, which can take a couple of minutes.";
     ui.line_(`Waking the world: ${host.waking()} · ${s} s.${hint}`);
