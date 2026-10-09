@@ -238,16 +238,18 @@ export class StartMap {
       body.className = s === "Archetypes" ? "map-group map-realms" : "map-group";
       body.replaceChildren(...(s === "Tours" ? this.tourButtons() : s === "Whispers" ? this.whisperButtons() : s === "Archetypes" ? this.realms() : this.sectionButtons(s, shore)));
     };
+    const keepTab = (): void => (tabs.querySelector('[aria-selected="true"]') as HTMLElement | null)?.scrollIntoView({ inline: "center", block: "nearest" });
     for (const { s: sec, title } of shown) {
       const b = document.createElement("button");
       b.type = "button";
       b.setAttribute("role", "tab");
       b.dataset.s = sec;
       b.textContent = title;
-      b.addEventListener("click", () => show(sec));
+      b.addEventListener("click", () => (show(sec), keepTab()));
       tabs.append(b);
     }
     show(shown.some(({ s: sec }) => sec === this.tab) ? this.tab : (shown[0]?.s ?? "Monuments"));
+    window.requestAnimationFrame(keepTab);
     return [head, body];
   }
   /** Which way, and how far, from where you stand (or the shore). */
@@ -437,7 +439,18 @@ export class StartMap {
   /* ---------------------------------------------------------------- drawing */
   private layout(): void {
     const w = Math.floor(Math.min(innerWidth * 0.94, 680));
-    const h = Math.floor(Math.min(w, innerHeight * 0.5));
+    // the map takes what the screen has left after the title, the line under it, the tabs and a few
+    // rows of names (the names scroll within their own space), so the whole screen fits without scrolling
+    const short = innerHeight < 520;
+    let h = Math.floor(Math.min(w, innerHeight * 0.5));
+    if (!short && this.el.clientHeight) {
+      const cs = getComputedStyle(this.el);
+      const gap = parseFloat(cs.rowGap) || 0;
+      const kids = [...this.el.children].filter((c) => !(c as HTMLElement).hidden && c !== this.canvas.parentElement && c.id !== "map-places") as HTMLElement[];
+      const used = kids.reduce((n, c) => n + c.offsetHeight + gap, 0) + (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0) + gap * 2;
+      const rest = this.el.clientHeight - used - 250; // the shore row, the tabs and about three rows of names
+      h = Math.floor(Math.max(170, Math.min(w, rest)));
+    }
     const dpr = Math.min(2, devicePixelRatio || 1);
     this.canvas.style.width = `${w}px`;
     this.canvas.style.height = `${h}px`;
