@@ -4840,6 +4840,7 @@ if (FILM) {
       fadeEl,
       tours: [...WALKS.map((w) => ({ id: w.id, label: w.label })), { id: "duat", label: "The Duat, hour by hour" }],
       ready: () => shadersReady && opening === "done" && !startMap.isOpen,
+      waking: () => (!shadersReady ? "preparing the light (the shaders)" : opening !== "done" ? "raising the water" : S.mode !== "intro" ? "arriving" : "ready"),
       playing: () => S.mode === "play" && !crossing && !fadeEl.classList.contains("on"),
       begin: () => begin(),
       start: (kind, id) => {

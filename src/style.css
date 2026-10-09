@@ -878,6 +878,8 @@ body.film > :not(#gl):not(#film-ui) { visibility: hidden !important; pointer-eve
   opacity: 0; visibility: hidden; transition: opacity 0.6s ease; pointer-events: auto;
 }
 #film-ui.card-on .film-card { opacity: 1; visibility: visible; }
+#film-ui .film-ring { display: none; width: 30px; height: 30px; margin: 0 auto 14px; border: 1px solid var(--gold); border-radius: 50%; animation: ring-pulse 2.4s ease-in-out infinite; }
+#film-ui.waiting .film-ring { display: block; }
 #film-ui .film-title { margin: 0 0 8px; font-style: italic; font-size: 22px; letter-spacing: 0.06em; color: var(--gold); }
 #film-ui .film-line { margin: 0; font-size: 15px; line-height: 1.5; color: var(--dim); overflow-wrap: anywhere; }
 #film-ui .film-btns { display: flex; gap: 10px; justify-content: center; margin-top: 18px; }
