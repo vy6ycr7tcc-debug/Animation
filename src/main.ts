@@ -4,6 +4,7 @@
    forms (beam, veil, garden, throne, arch, rings) stand as landmarks to wander toward.
    Narration plays in the background the whole time, one recording after another.
    States: intro (title over the night water) → play → rest (after Leave) → play … */
+import { FILM } from "./debug/filmClock"; // first: in film mode it seeds Math.random and (fast capture) owns time
 import { KeyHints } from "./ui/keyHints";
 import { solidity } from "./world/solidity";
 import { setShadowSize } from "./gpu/lightRig";
@@ -455,7 +456,7 @@ addEventListener("orientationchange", () => window.setTimeout(resize, 300));
 for (const ms of [500, 2000]) window.setTimeout(resize, ms);
 
 /* ============ SAVE ============ */
-const saved = load();
+const saved = FILM ? null : load(); // a film always wakes at the shore, whatever the device has saved
 const awake = new Awake();
 awake.on = saved?.settings?.awake ?? true;
 // a place apart (the temple, the halls, x > 20 km) is never a place to wake in: those are
@@ -479,7 +480,7 @@ if (saved) {
 }
 let resetting = false;
 function persist(): void {
-  if (S.mode === "intro" || resetting) return;
+  if (S.mode === "intro" || resetting || FILM) return; // a film never overwrites the device's own journey
   const d: SaveData = {
     v: 1,
     pos: inHall() ? ((o) => [o.x, o.y, o.z] as [number, number, number])(inHall()!.hall.outside()) : temple.inside ? templeReturnPos() : depths.inside ? deepReturnPos() : pyramid.isInside ? [pyramid.outside().x, heightAt(pyramid.outside().x, pyramid.outside().z), pyramid.outside().z] : [player.pos.x, player.pos.y, player.pos.z],
@@ -4469,7 +4470,9 @@ function frame(now: number): void {
   }
   gpuDiagEnd();
   frameDraws = renderer.info.render.drawCalls;
+  filmFrame?.(); // film mode: this frame's picture is drawn and still on the canvas
 }
+let filmFrame: (() => void) | null = null;
 let drawFaults = 0, lastFault = "", faultAt = 0, cpuMs = 0;
 function frameFault(e: unknown): void {
   const m = String((e as Error)?.message ?? e);
@@ -4817,5 +4820,28 @@ function devContext(): [string, string][] {
   return out;
 }
 
+/* Film mode (`?film=<tour>`; debug/film.ts): the game records its own tour. Loaded only then. */
+if (FILM) {
+  void import("./debug/film").then((m) =>
+    m.startFilm({
+      canvas: renderer.domElement,
+      audio,
+      narration,
+      fadeEl,
+      tours: [...WALKS.map((w) => ({ id: w.id, label: w.label })), { id: "duat", label: "The Duat, hour by hour" }],
+      ready: () => shadersReady && opening === "done" && !startMap.isOpen,
+      playing: () => S.mode === "play" && !crossing,
+      begin: () => begin(),
+      start: (id) => (id === "duat" ? duatTourStart() : walkStart(id)),
+      active: () => !!walk || !!duatTour || tourScenes.tour.active,
+      pin: (scale) => {
+        quality.override("full"); // the best picture, held whatever the frame rate
+        quality.scale = scale;
+        resize();
+      },
+      onFrame: (cb) => (filmFrame = cb),
+    }),
+  );
+}
 Object.assign(window, { __ij: { solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall } });
 Object.assign((window as unknown as { __ij: object }).__ij, { whispers, hearWhisper, rapaNui });

@@ -1,0 +1,688 @@
+/* Film mode: the game records its own tour. Loaded only when the address asks for it.
+
+     ?film=<tour>      a tour id (see Tours on the map: all, temple, pyramid, densities, adept, past,
+                       veil, descent, ancient, lessons, visions, duat); `grand` is the whole walk
+     &fps=30           frames a second (default 30)
+     &scale=1          render scale multiplier (2 renders at twice the pixels, for a larger capture)
+     &until=<seconds>  stop after this long (otherwise at the tour's end)
+     &fast=1           offline capture: the game steps on a fixed 1/fps timestep with no wall clock,
+                       every frame is drawn and encoded, and the audio is laid in on the same
+                       timeline (see the notes on what it holds, below)
+     &seed=<n>         the seed for what the tours leave to chance
+
+   Real-time (the default): the game plays as the player would see and hear it. The picture is a
+   composite canvas (the game's canvas, and the dark or white of a crossing's fade, which is DOM
+   and so would otherwise be missing) recorded by MediaRecorder; the audio is the engine's whole
+   master bus (voice, bed, tones, one-shots), tapped after its compressor. A .webm comes out.
+
+   Fast: the same picture, but time is virtual (debug/filmClock.ts), frames are encoded with
+   WebCodecs as fast as the GPU draws them, and the sound is rebuilt from a timeline of what the
+   audio engine played: the voice (every start, stop and fade, on the audio clock), the water bed
+   and its ducking, and the master level. The generated layer (the modal pad, bowls, chimes, the
+   one-shot sounds) is made live by the engine from random choices and is not in this mix: a fast
+   capture has the voice and the water, a real-time one has everything. A timeline.json (every
+   event with the frame it fires on) comes with the video. Without WebCodecs a zip of frames, the
+   timeline and an ffmpeg command is offered instead. */
+import { ArrayBufferTarget, Muxer } from "webm-muxer";
+import type { AudioEngine, Tape } from "../core/audio";
+import { crossfadeLoop } from "../core/audio";
+import type { Narration } from "../core/narration";
+import { FAST, real, vclock } from "./filmClock";
+
+export interface FilmHost {
+  canvas: HTMLCanvasElement;
+  audio: AudioEngine;
+  narration: Narration;
+  fadeEl: HTMLElement;
+  tours: { id: string; label: string }[];
+  /** the world is built, the shaders compiled and the title is up */
+  ready(): boolean;
+  /** in the world, awake, not in a crossing */
+  playing(): boolean;
+  begin(): void;
+  start(id: string): void;
+  active(): boolean;
+  /** the best picture, held, at this render scale */
+  pin(scale: number): void;
+  onFrame(cb: () => void): void;
+}
+
+const q = new URLSearchParams(location.search);
+const num = (k: string, d: number, lo: number, hi: number): number => {
+  const v = Number(q.get(k));
+  return Number.isFinite(v) && q.get(k) !== null && q.get(k) !== "" ? Math.min(hi, Math.max(lo, v)) : d;
+};
+const FPS = Math.round(num("fps", 30, 10, 60));
+const SCALE = num("scale", 1, 0.25, 4);
+const UNTIL = q.has("until") ? num("until", 0, 1, 24 * 3600) : 0;
+const TAIL = 3; // seconds kept after the tour's last word, so the end isn't cut
+
+/* ------------------------------------------------------------------ the film's own screen */
+
+class Screen {
+  el = document.createElement("div");
+  private title = document.createElement("p");
+  private line = document.createElement("p");
+  private btns = document.createElement("div");
+  private rec = document.createElement("div");
+  private recText = document.createElement("span");
+  constructor() {
+    this.el.id = "film-ui";
+    this.el.innerHTML = `<div class="film-card"><p class="film-title"></p><p class="film-line"></p><div class="film-btns"></div></div><div class="film-rec" hidden><i></i><span></span></div>`;
+    document.body.append(this.el);
+    this.title = this.el.querySelector(".film-title")!;
+    this.line = this.el.querySelector(".film-line")!;
+    this.btns = this.el.querySelector(".film-btns")!;
+    this.rec = this.el.querySelector(".film-rec")!;
+    this.recText = this.rec.querySelector("span")!;
+  }
+  card(title: string, line: string, buttons: { label: string; go: () => void; href?: string; name?: string }[] = []): void {
+    this.el.classList.add("card-on");
+    this.title.textContent = title;
+    this.line.textContent = line;
+    this.btns.replaceChildren(
+      ...buttons.map((b) => {
+        const e = document.createElement(b.href ? "a" : "button") as HTMLButtonElement & HTMLAnchorElement;
+        e.textContent = b.label;
+        e.className = "film-btn";
+        if (b.href) {
+          e.href = b.href;
+          e.download = b.name ?? "";
+        } else e.type = "button";
+        e.addEventListener("click", () => b.go());
+        return e;
+      }),
+    );
+  }
+  /** The card steps away while it records; the dot says it does. */
+  recording(on: boolean, text = ""): void {
+    this.el.classList.toggle("card-on", !on);
+    this.rec.hidden = !on;
+    this.recText.textContent = text && `${text} · keep this tab in front`;
+  }
+  status(text: string): void {
+    this.recText.textContent = `${text} · keep this tab in front`;
+  }
+}
+
+/* ------------------------------------------------------------------ the picture */
+
+/** The game's canvas plus the fade of a crossing, in one canvas: the fade is a DOM layer, which a
+    canvas capture would otherwise leave out, so every crossing would cut instead of dipping. */
+class Picture {
+  readonly canvas = document.createElement("canvas");
+  private g: CanvasRenderingContext2D;
+  private level = 0;
+  private from = 0;
+  private to = 0;
+  private t0 = 0;
+  private dur = 1.3;
+  constructor(private host: FilmHost) {
+    this.canvas.width = host.canvas.width;
+    this.canvas.height = host.canvas.height;
+    this.g = this.canvas.getContext("2d", { alpha: false })!;
+  }
+  private fade(now: number): number {
+    const el = this.host.fadeEl;
+    const target = el.classList.contains("on") ? 1 : 0;
+    if (target !== this.to) {
+      this.from = this.level;
+      this.to = target;
+      this.t0 = now;
+      const d = parseFloat(getComputedStyle(el).transitionDuration);
+      this.dur = Number.isFinite(d) && d > 0 ? d : 1.3;
+    }
+    const p = Math.min(1, Math.max(0, (now - this.t0) / this.dur));
+    // CSS `ease`, near enough: slow at both ends
+    const e = p * p * (3 - 2 * p);
+    return (this.level = this.from + (this.to - this.from) * e);
+  }
+  draw(now: number): void {
+    const { g, canvas } = this;
+    g.globalAlpha = 1;
+    g.drawImage(this.host.canvas, 0, 0, canvas.width, canvas.height);
+    const a = this.fade(now);
+    if (a > 0.002) {
+      g.globalAlpha = a;
+      g.fillStyle = this.host.fadeEl.classList.contains("white") ? "#fff6e6" : "#07061a";
+      g.fillRect(0, 0, canvas.width, canvas.height);
+      g.globalAlpha = 1;
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ small helpers */
+
+const tick = (): Promise<void> => new Promise((r) => (tickPort.port1.onmessage = () => r(), tickPort.port2.postMessage(0)));
+const tickPort = new MessageChannel();
+const sleep = (ms: number): Promise<void> => new Promise((r) => real.setTimeout(r, ms));
+const mmss = (s: number): string => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+const bytesText = (n: number): string => (n >= 1e9 ? `${(n / 1e9).toFixed(2)} GB` : n >= 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1e3))} kB`);
+
+function download(blob: Blob, name: string): string {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  return url;
+}
+
+interface Status {
+  state: "boot" | "waiting" | "recording" | "encoding" | "done" | "error";
+  frames: number;
+  seconds: number;
+  bytes: number;
+  name: string;
+  files: string[];
+  note: string;
+  error: string;
+  /** the timeline (fast capture) */
+  timeline: unknown;
+}
+const status: Status = { state: "boot", frames: 0, seconds: 0, bytes: 0, name: "", files: [], note: "", error: "", timeline: null };
+(window as unknown as { __film: object }).__film = status;
+
+/* ------------------------------------------------------------------ start */
+
+export function startFilm(host: FilmHost): void {
+  document.body.classList.add("film");
+  const ui = new Screen();
+  const asked = q.get("film")!;
+  const id = asked === "grand" ? "all" : asked;
+  const tour = host.tours.find((t) => t.id === id);
+  const fail = (msg: string): void => {
+    status.state = "error";
+    status.error = msg;
+    ui.recording(false);
+    ui.card("Film mode", msg);
+  };
+  if (!tour) return fail(`There is no tour called “${asked}”. Try: grand, ${host.tours.map((t) => t.id).join(", ")}.`);
+  const label = asked === "grand" ? "The grand tour, end to end" : tour.label;
+  const webcodecs = "VideoEncoder" in window && "AudioEncoder" in window && "VideoFrame" in window && "AudioData" in window;
+  if (!FAST && (typeof MediaRecorder === "undefined" || !("captureStream" in HTMLCanvasElement.prototype))) {
+    return fail("This browser cannot record the screen from the game (MediaRecorder or canvas capture is missing). Try Chrome or Edge on a computer, or add &fast=1.");
+  }
+  host.pin(SCALE);
+  status.state = "waiting";
+  const go = (): void => void (FAST ? runFast(host, ui, id, label, !webcodecs) : runLive(host, ui, id, label)).catch((e) => fail(String(e?.message ?? e)));
+  if (FAST) return go();
+  // wake the audio without a click when the browser allows it; otherwise one click, which also
+  // lets the file download at the end
+  void autoplayOk().then((ok) => (ok ? go() : ui.card("Film mode", `${label}. Click to begin; the game plays the tour by itself and the file is offered at the end.`, [{ label: "Begin filming", go }])));
+}
+
+async function autoplayOk(): Promise<boolean> {
+  try {
+    const c = new AudioContext();
+    await Promise.race([c.resume().catch(() => void 0), sleep(400)]);
+    const ok = c.state === "running";
+    void c.close();
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Past the title, into the world, and settled. */
+async function intoTheWorld(host: FilmHost, ui: Screen, wait: (ms: number) => Promise<void>, settle: (secs: number) => Promise<void>): Promise<void> {
+  ui.card("Film mode", "Waking the world…");
+  while (!host.ready()) await wait(100);
+  host.begin(); // sound starts here, inside the click (or the allowed autoplay)
+  await wait(400);
+  while (!host.playing()) await wait(100);
+  await settle(2.5); // the land streams in; the first moments are never filmed
+}
+
+/* ------------------------------------------------------------------ real time */
+
+async function runLive(host: FilmHost, ui: Screen, id: string, label: string): Promise<void> {
+  await intoTheWorld(host, ui, sleep, (secs) => sleep(secs * 1000));
+  const pic = new Picture(host);
+  const video = pic.canvas.captureStream(FPS);
+  const sound = host.audio.tapStream();
+  const note: string[] = [];
+  if (!sound) note.push("The audio could not be tapped: this recording has no sound.");
+  else for (const t of sound.getAudioTracks()) video.addTrack(t);
+  const mime = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"].find((m) => MediaRecorder.isTypeSupported(m));
+  if (!mime) throw new Error("This browser's recorder has no WebM format to offer.");
+  const px = pic.canvas.width * pic.canvas.height;
+  const rec = new MediaRecorder(video, { mimeType: mime, videoBitsPerSecond: Math.min(40e6, Math.round(px * FPS * 0.12)), audioBitsPerSecond: 192000 });
+  const chunks: Blob[] = [];
+  let size = 0;
+  rec.ondataavailable = (e) => e.data.size && (chunks.push(e.data), (size += e.data.size));
+  const stopped = new Promise<void>((r) => (rec.onstop = () => r()));
+
+  const t0 = real.now();
+  let started = false, idleSince = 0, finished = false;
+  const elapsed = (): number => (real.now() - t0) / 1000;
+  host.onFrame(() => {
+    if (!started || finished) return;
+    pic.draw(elapsed());
+    const s = elapsed();
+    status.seconds = s;
+    status.bytes = size;
+    status.state = "recording";
+    ui.status(`REC ${mmss(s)}`);
+    if (UNTIL && s >= UNTIL) finished = true;
+    else if (!host.active()) {
+      idleSince ||= s;
+      if (s - idleSince >= TAIL) finished = true;
+    } else idleSince = 0;
+  });
+  pic.draw(0);
+  rec.start(1000);
+  started = true;
+  ui.recording(true, "REC 0:00");
+  host.start(id);
+  while (!finished) await sleep(250);
+  // one last frame, and a moment for the encoder to take it before the recorder is closed
+  pic.draw(elapsed());
+  await sleep(900);
+  if (rec.state !== "inactive") rec.requestData();
+  rec.stop();
+  await stopped;
+  for (const t of video.getTracks()) t.stop();
+  const blob = new Blob(chunks, { type: "video/webm" });
+  if (blob.size < 1000) throw new Error("The recorder produced no data (the game drew no frames while it was recording). Try again with the tab in front.");
+  const name = `inward-journey-${q.get("film")}.webm`;
+  status.state = "done";
+  status.bytes = blob.size;
+  status.name = name;
+  status.files = [name];
+  status.note = note.join(" ");
+  ui.recording(false);
+  const url = download(blob, name);
+  ui.card("Film complete", `${label}: ${name} · ${bytesText(blob.size)} · ${mmss(status.seconds)}. ${note.join(" ")}`, [{ label: "Download again", href: url, name, go: () => void 0 }]);
+}
+
+/* ------------------------------------------------------------------ fast capture */
+
+interface Ev {
+  frame: number;
+  t: number;
+  kind: string;
+  [k: string]: unknown;
+}
+
+/** A gain that moves in the straight ramps the engine asked for (each one starting from wherever the
+    last had got to). */
+class Env {
+  private segs: { t0: number; v0: number; t1: number; v1: number }[] = [];
+  constructor(private init: number) {}
+  at(t: number): number {
+    for (let i = this.segs.length - 1; i >= 0; i--) {
+      const s = this.segs[i];
+      if (s.t0 <= t) return t >= s.t1 ? s.v1 : s.v0 + ((s.v1 - s.v0) * (t - s.t0)) / Math.max(1e-6, s.t1 - s.t0);
+    }
+    return this.init;
+  }
+  ramp(at: number, to: number, secs: number): void {
+    this.segs.push({ t0: at, v0: this.at(at), t1: at + Math.max(0.001, secs), v1: to });
+  }
+}
+
+interface Voice {
+  at: number;
+  file: string;
+  off: number;
+  dur?: number;
+  fadeIn: number;
+  stopAt?: number;
+  stopFade: number;
+}
+
+const RATE = 48000;
+
+/** The sound of a fast capture, rebuilt from the audio engine's own record of what it played. */
+class Mixer {
+  voices: Voice[] = [];
+  bedAt: number | null = null;
+  private bed = new Env(1);
+  private master = new Env(0);
+  private buffers = new Map<string, Promise<AudioBuffer | null>>();
+  private bedBuf: Promise<AudioBuffer | null> | null = null;
+  private decoder = new OfflineAudioContext(2, 1, RATE);
+
+  push(e: Tape): void {
+    if (e.k === "voice") this.voices.push({ at: e.at, file: e.file, off: e.off, dur: e.dur, fadeIn: e.fadeIn, stopFade: 0.1 });
+    else if (e.k === "voiceStop") {
+      for (let i = this.voices.length - 1; i >= 0; i--) {
+        const v = this.voices[i];
+        if (v.stopAt !== undefined) continue;
+        v.stopAt = Math.max(e.at, v.at);
+        v.stopFade = Math.max(0.02, e.fade);
+        break;
+      }
+    } else if (e.k === "gain") (e.w === "bed" ? this.bed : this.master).ramp(e.at, e.to, e.secs);
+    else if (e.k === "bed") this.bedAt ??= e.at;
+  }
+
+  private load(url: string): Promise<AudioBuffer | null> {
+    let p = this.buffers.get(url);
+    if (!p) {
+      p = fetch(`./${url}`)
+        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+        .then((b) => this.decoder.decodeAudioData(b))
+        .catch(() => null);
+      this.buffers.set(url, p);
+      // keep only the few most recent (a long recording decoded is large)
+      while (this.buffers.size > 6) this.buffers.delete(this.buffers.keys().next().value!);
+    }
+    return p;
+  }
+
+  private voiceEnd(v: Voice, buf: AudioBuffer): number {
+    let end = v.at + (v.dur ?? buf.duration - v.off);
+    if (v.stopAt !== undefined) end = Math.min(end, v.stopAt + v.stopFade + 0.05);
+    return Math.min(end, v.at + buf.duration - v.off);
+  }
+  private voiceGain(v: Voice, t: number): number {
+    let g = Math.min(1, Math.max(0, (t - v.at) / v.fadeIn));
+    if (v.dur !== undefined) {
+      const f0 = v.at + Math.max(v.fadeIn, v.dur - 0.5);
+      if (t > f0) g *= Math.max(0, 1 - (t - f0) / Math.max(0.001, v.at + v.dur - f0));
+    }
+    if (v.stopAt !== undefined && t > v.stopAt) g *= Math.max(0, 1 - (t - v.stopAt) / v.stopFade);
+    return g;
+  }
+
+  /** Seconds [c0, c1) of the film (times are on the audio clock, shifted by `origin`). */
+  async render(c0: number, c1: number, origin: number): Promise<AudioBuffer> {
+    const a0 = c0 + origin, a1 = c1 + origin;
+    const len = Math.round((c1 - c0) * RATE);
+    const ctx = new OfflineAudioContext(2, len, RATE);
+    const curve = (param: AudioParam, from: number, to: number, f: (t: number) => number): void => {
+      const n = Math.max(2, Math.ceil((to - from) * 100) + 1);
+      const arr = new Float32Array(n);
+      for (let i = 0; i < n; i++) arr[i] = f(from + ((to - from) * i) / (n - 1));
+      param.setValueCurveAtTime(arr, from - a0, to - from);
+    };
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -14;
+    comp.ratio.value = 2.5;
+    comp.connect(ctx.destination);
+    const master = ctx.createGain();
+    master.gain.value = 0;
+    curve(master.gain, a0, a1, (t) => this.master.at(t));
+    master.connect(comp);
+    for (const v of this.voices) {
+      if (v.at >= a1) continue;
+      const buf = await this.load(v.file);
+      if (!buf) continue;
+      const end = this.voiceEnd(v, buf);
+      if (end <= a0) continue;
+      const s0 = Math.max(v.at, a0), s1 = Math.min(end, a1);
+      if (s1 - s0 < 0.002) continue;
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      curve(g.gain, s0, s1, (t) => this.voiceGain(v, t));
+      src.connect(g).connect(master);
+      src.start(s0 - a0, v.off + (s0 - v.at), s1 - s0);
+    }
+    if (this.bedAt !== null && this.bedAt < a1) {
+      this.bedBuf ??= this.load("audio/water-bed.mp3").then((b) => (b ? crossfadeLoop(this.decoder, b, 2.5) : null));
+      const b = await this.bedBuf;
+      if (b) {
+        const src = ctx.createBufferSource();
+        src.buffer = b;
+        src.loop = true;
+        const g = ctx.createGain();
+        g.gain.value = 0;
+        const s0 = Math.max(this.bedAt, a0);
+        curve(g.gain, s0, a1, (t) => 0.9 * this.bed.at(t));
+        src.connect(g).connect(master);
+        src.start(s0 - a0, (s0 - this.bedAt) % b.duration);
+      }
+    }
+    return ctx.startRendering();
+  }
+}
+
+async function runFast(host: FilmHost, ui: Screen, id: string, label: string, zip: boolean): Promise<void> {
+  const mixer = new Mixer();
+  let origin = 0; // audio-clock seconds at the film's first frame
+  const raw: Tape[] = [];
+  const tape = (e: Tape): void => {
+    mixer.push(e);
+    raw.push(e);
+  };
+  host.audio.tape = tape;
+  host.narration.tape = tape;
+
+  // the virtual clock is stepped from the very beginning: nothing else would move time. While the
+  // world loads (in real time) it goes on at a rate the loading can keep up with.
+  const step = (): void => vclock.step(1000 / FPS);
+  const pace = async (ms: number): Promise<void> => {
+    const t = real.now();
+    while (real.now() - t < ms) {
+      step();
+      await sleep(8);
+    }
+  };
+  // (the settle counts the game's own seconds: a slow machine draws fewer frames in the same wall time)
+  const settle = async (secs: number): Promise<void> => {
+    const end = vclock.t + secs;
+    while (vclock.t < end) {
+      step();
+      await tick();
+    }
+  };
+  await intoTheWorld(host, ui, pace, settle);
+  const pic = new Picture(host);
+
+  const W = pic.canvas.width, H = pic.canvas.height;
+  if (!zip && (W % 2 || H % 2)) throw new Error(`The canvas is ${W}×${H}: video needs even sides. Resize the window by a pixel and try again.`);
+  let venc: VideoEncoder | null = null, aenc: AudioEncoder | null = null, muxer: Muxer<ArrayBufferTarget> | null = null;
+  let encErr: unknown = null;
+  const jpegs: { name: string; blob: Blob }[] = [];
+  const pending: Promise<void>[] = [];
+  if (!zip) {
+    muxer = new Muxer({ target: new ArrayBufferTarget(), video: { codec: "V_VP9", width: W, height: H, frameRate: FPS }, audio: { codec: "A_OPUS", numberOfChannels: 2, sampleRate: RATE }, firstTimestampBehavior: "offset" });
+    venc = new VideoEncoder({ output: (c, m) => muxer!.addVideoChunk(c, m), error: (e) => (encErr = e) });
+    venc.configure({ codec: "vp09.00.10.08", width: W, height: H, framerate: FPS, bitrate: Math.min(40e6, Math.round(W * H * FPS * 0.14)) });
+    aenc = new AudioEncoder({ output: (c, m) => muxer!.addAudioChunk(c, m), error: (e) => (encErr = e) });
+    aenc.configure({ codec: "opus", sampleRate: RATE, numberOfChannels: 2, bitrate: 160000 });
+  }
+  const limit = UNTIL ? Math.round(UNTIL * FPS) : Infinity;
+  let captured = 0, capturing = false, idleFrames = 0, finished = false;
+
+  host.onFrame(() => {
+    if (!capturing || finished) return;
+    const f = captured++;
+    pic.draw(f / FPS);
+    if (venc) {
+      const vf = new VideoFrame(pic.canvas, { timestamp: Math.round((f * 1e6) / FPS), duration: Math.round(1e6 / FPS) });
+      venc.encode(vf, { keyFrame: f % (FPS * 2) === 0 });
+      vf.close();
+    } else pending.push(new Promise((r) => pic.canvas.toBlob((b) => (b && jpegs.push({ name: `frames/f${String(f).padStart(6, "0")}.jpg`, blob: b }), r()), "image/jpeg", 0.92)));
+    status.frames = captured;
+    status.seconds = captured / FPS;
+    if (captured >= limit) finished = true;
+    else if (!host.active()) {
+      if (++idleFrames >= TAIL * FPS) finished = true;
+    } else idleFrames = 0;
+  });
+
+  const encodeAudio = async (c0: number, c1: number): Promise<void> => {
+    if (!aenc || c1 - c0 < 0.01) return;
+    const buf = await mixer.render(c0, c1, origin);
+    const n = buf.length, data = new Float32Array(n * 2);
+    data.set(buf.getChannelData(0), 0);
+    data.set(buf.getChannelData(1), n);
+    const ad = new AudioData({ format: "f32-planar", sampleRate: RATE, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round(c0 * 1e6), data });
+    aenc.encode(ad);
+    ad.close();
+  };
+
+  // the film begins now: its first frame is the next one the game draws
+  origin = vclock.t + 1 / FPS;
+  capturing = true;
+  status.state = "recording";
+  ui.recording(true, "REC");
+  host.start(id);
+  const CHUNK = 10;
+  let audioDone = 0, counted = 0;
+  const startedAt = real.now();
+  while (!finished) {
+    step();
+    if (captured > counted) {
+      counted = captured;
+      const t = captured / FPS;
+      // the sound of everything up to a finished 10 s is known by now: mix and encode it
+      if (aenc && t - audioDone >= CHUNK + 1) {
+        await encodeAudio(audioDone, audioDone + CHUNK);
+        audioDone += CHUNK;
+      }
+      if (encErr) throw encErr;
+      if (venc) while (venc.encodeQueueSize > 8) await sleep(2);
+      if (captured % FPS === 0) {
+        ui.status(`REC ${mmss(t)}${limit < Infinity ? ` of ${mmss(limit / FPS)}` : ""} · filmed in ${mmss((real.now() - startedAt) / 1000)}`);
+        await sleep(0);
+      }
+    }
+    await tick();
+  }
+  const total = captured;
+  const duration = total / FPS;
+  status.state = "encoding";
+  ui.status("encoding…");
+  host.audio.tape = null;
+  host.narration.tape = null;
+  const timeline = {
+    tour: q.get("film"),
+    label,
+    fps: FPS,
+    frames: total,
+    duration: Math.round(duration * 1000) / 1000,
+    size: { width: W, height: H },
+    scale: SCALE,
+    seed: Number(q.get("seed") ?? 20260930),
+    audioNote: "The voice and the water bed are laid in from these events (frame = the film frame each fires on; negative = before the first frame). The generated layer (pad, bowls, chimes, one-shots) is live and random and is not in a fast capture.",
+    // each event with the film frame it fires on (negative: before the first frame)
+    events: raw.map((e) => {
+      const t = e.at - origin;
+      const { k, ...rest } = e;
+      return { ...rest, frame: Math.round(t * FPS), t: Math.round(t * 1000) / 1000, kind: k === "voice" ? "narration" : k === "voiceStop" ? "narration-stop" : k === "bed" ? "bed" : `${(e as { w: string }).w}-gain` };
+    }),
+  };
+  status.timeline = timeline;
+  const base = `inward-journey-${q.get("film")}`;
+  const tl = new Blob([JSON.stringify(timeline, null, 1)], { type: "application/json" });
+
+  if (!zip && venc && aenc && muxer) {
+    await encodeAudio(audioDone, duration);
+    await venc.flush();
+    await aenc.flush();
+    if (encErr) throw encErr;
+    muxer.finalize();
+    const blob = new Blob([muxer.target.buffer], { type: "video/webm" });
+    const name = `${base}.webm`;
+    status.state = "done";
+    status.bytes = blob.size;
+    status.name = name;
+    status.files = [name, `${base}.timeline.json`];
+    ui.recording(false);
+    const url = download(blob, name);
+    download(tl, `${base}.timeline.json`);
+    ui.card("Film complete", `${name} · ${bytesText(blob.size)} · ${mmss(duration)} · ${total} frames. The timeline came with it.`, [{ label: "Download again", href: url, name, go: () => void 0 }]);
+    return;
+  }
+
+  // no WebCodecs: a zip of the frames, the timeline and the command that makes the video
+  await Promise.all(pending);
+  const sh = ffmpegScript(timeline as unknown as { fps: number; duration: number; events: Ev[] }, base);
+  const z = await zipStore([...jpegs, { name: "timeline.json", blob: tl }, { name: "make-video.sh", blob: new Blob([sh], { type: "text/plain" }) }]);
+  const name = `${base}.frames.zip`;
+  status.state = "done";
+  status.bytes = z.size;
+  status.name = name;
+  status.files = [name];
+  status.note = "This browser has no WebCodecs: a zip of frames, the timeline and make-video.sh (run it in the unzipped folder, with ffmpeg and the game's audio files beside it).";
+  ui.recording(false);
+  const url = download(z, name);
+  ui.card("Frames ready", `${name} · ${bytesText(z.size)}. ${status.note}`, [{ label: "Download again", href: url, name, go: () => void 0 }]);
+}
+
+/** The ffmpeg command that lays the voice and the bed on the frames, at the timeline's moments. */
+function ffmpegScript(tl: { fps: number; duration: number; events: Ev[] }, base: string): string {
+  const voices = tl.events.filter((e) => e.kind === "narration");
+  const stops = tl.events.filter((e) => e.kind === "narration-stop");
+  const inputs: string[] = [];
+  const parts: string[] = [];
+  voices.forEach((v, i) => {
+    const next = stops.find((s) => s.t >= (v.t as number)) ?? null;
+    const t0 = Math.max(0, v.t as number);
+    let dur = typeof v.dur === "number" ? (v.dur as number) : 1e9;
+    if (next) dur = Math.min(dur, next.t - t0 + (next.fade as number));
+    inputs.push(`-i "../public/${v.file}"`);
+    parts.push(`[${i}:a]atrim=start=${v.off}:duration=${dur.toFixed(3)},asetpts=PTS-STARTPTS,afade=t=in:d=${v.fadeIn},adelay=${Math.round(t0 * 1000)}|${Math.round(t0 * 1000)}[v${i}]`);
+  });
+  const mix = voices.map((_, i) => `[v${i}]`).join("");
+  const filter = voices.length ? `${parts.join(";")};${mix}amix=inputs=${voices.length}:normalize=0[a]` : "";
+  return [
+    "#!/bin/sh",
+    `# Frames at ${tl.fps} fps, ${tl.duration} s. The voice is laid in at the timeline's moments; the water bed and the`,
+    "# generated tones are not part of a fast capture. Adjust the ../public path to where the game's audio files are.",
+    `ffmpeg -framerate ${tl.fps} -i frames/f%06d.jpg ${inputs.join(" ")} ${filter ? `-filter_complex "${filter}" -map 0:v -map "[a]"` : ""} -c:v libx264 -pix_fmt yuv420p -crf 16 -c:a aac -b:a 192k -t ${tl.duration} ${base}.mp4`,
+    "",
+  ].join("\n");
+}
+
+/** A zip with nothing compressed (frames are already JPEG): enough, and no library. */
+async function zipStore(files: { name: string; blob: Blob }[]): Promise<Blob> {
+  const crcTable = (() => {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+  const crc = (b: Uint8Array): number => {
+    let c = 0xffffffff;
+    for (let i = 0; i < b.length; i++) c = crcTable[(c ^ b[i]) & 255] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const enc = new TextEncoder();
+  const parts: BlobPart[] = [];
+  const central: Uint8Array<ArrayBuffer>[] = [];
+  let offset = 0;
+  for (const f of files) {
+    const data = new Uint8Array(await f.blob.arrayBuffer());
+    const name = enc.encode(f.name) as Uint8Array<ArrayBuffer>;
+    const c = crc(data);
+    const local = new DataView(new ArrayBuffer(30));
+    local.setUint32(0, 0x04034b50, true);
+    local.setUint16(4, 20, true);
+    local.setUint32(14, c, true);
+    local.setUint32(18, data.length, true);
+    local.setUint32(22, data.length, true);
+    local.setUint16(26, name.length, true);
+    parts.push(local.buffer, name, data);
+    const cd = new DataView(new ArrayBuffer(46));
+    cd.setUint32(0, 0x02014b50, true);
+    cd.setUint16(4, 20, true);
+    cd.setUint16(6, 20, true);
+    cd.setUint32(16, c, true);
+    cd.setUint32(20, data.length, true);
+    cd.setUint32(24, data.length, true);
+    cd.setUint16(28, name.length, true);
+    cd.setUint32(42, offset, true);
+    central.push(new Uint8Array(cd.buffer), name);
+    offset += 30 + name.length + data.length;
+  }
+  const cdSize = central.reduce((a, b) => a + b.length, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true);
+  end.setUint16(8, files.length, true);
+  end.setUint16(10, files.length, true);
+  end.setUint32(12, cdSize, true);
+  end.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, end.buffer], { type: "application/zip" });
+}

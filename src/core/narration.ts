@@ -3,7 +3,7 @@
    fades gently, never cuts. The bed ducks while a voice speaks. */
 import catalogue from "../../content/narration.json";
 import { loadBytes } from "./assets";
-import type { AudioEngine } from "./audio";
+import type { AudioEngine, Tape } from "./audio";
 
 export interface Cue {
   t: number;
@@ -50,9 +50,11 @@ export class Narration {
   subtitlesOn = false;
   current: string | null = null;
   onEnd: ((id: string) => void) | null = null;
+  /** Film mode: told when a voice starts and when it is stopped (the fast capture lays it in). */
+  tape: ((e: Tape) => void) | null = null;
   private raw = new Map<string, Promise<ArrayBuffer | null>>();
   private decoded = new Map<string, Promise<AudioBuffer | null>>();
-  private playing: { id: string; src: AudioBufferSourceNode; gain: GainNode; start: number; scale: number; from: number; end: number } | null = null;
+  private playing: { id: string; src: AudioBufferSourceNode; gain: GainNode; start: number; scale: number; from: number; end: number; endAt: number } | null = null;
   private cueIndex = -1;
   /** Bumped by every play and stop: a track still loading when another is asked for never starts. */
   private token = 0;
@@ -134,7 +136,7 @@ export class Narration {
     const p = this.playing;
     const ctx = this.audio.ctx;
     if (!p || !ctx) return 0;
-    return p.from + Math.max(0, (ctx.currentTime - p.start) / p.scale);
+    return p.from + Math.max(0, (this.audio.now() - p.start) / p.scale);
   }
 
   private partFrom = 0;
@@ -179,7 +181,7 @@ export class Narration {
     // A re-voiced recording has its own pace: stretch the cue times to fit it.
     const scale = buf.duration / (track.duration || buf.duration);
     const gain = ctx.createGain();
-    const at = ctx.currentTime + handoff;
+    const at = this.audio.now() + handoff;
     // in at once (a 40 ms ramp only keeps it from clicking): every recording's first word starts
     // ~0.16–0.27 s in, and the old 0.4 s fade-in swallowed its start. Resuming mid-word, softer.
     const fadeIn = this.softStart ? 0.12 : 0.04;
@@ -194,7 +196,8 @@ export class Narration {
       gain.gain.linearRampToValueAtTime(0, at + dur);
       src.start(at, off, dur);
     } else src.start(at, off);
-    this.playing = { id, src, gain, start: at, scale, from: off / scale, end: Number.isFinite(to) ? to : buf.duration / scale };
+    this.playing = { id, src, gain, start: at, scale, from: off / scale, end: Number.isFinite(to) ? to : buf.duration / scale, endAt: at + (dur ?? buf.duration - off) };
+    this.tape?.({ k: "voice", at, file: fileFor(track), off, dur, fadeIn });
     this.resumeHold = null;
     this.last = null;
     this.partFrom = from;
@@ -221,6 +224,7 @@ export class Narration {
     this.playing = null;
     this.token++;
     const t = ctx.currentTime;
+    this.tape?.({ k: "voiceStop", at: this.audio.now(), fade: 0.15 });
     p.gain.gain.cancelScheduledValues(t);
     p.gain.gain.setValueAtTime(p.gain.gain.value, t);
     p.gain.gain.linearRampToValueAtTime(0, t + 0.15);
@@ -272,6 +276,7 @@ export class Narration {
     this.token++;
     if (p && ctx) {
       const t = ctx.currentTime;
+      this.tape?.({ k: "voiceStop", at: this.audio.now(), fade: fadeSecs });
       p.gain.gain.cancelScheduledValues(t);
       p.gain.gain.setValueAtTime(p.gain.gain.value, t);
       p.gain.gain.linearRampToValueAtTime(0, t + fadeSecs);
@@ -313,7 +318,14 @@ export class Narration {
     const p = this.playing;
     const ctx = this.audio.ctx;
     if (!p || !ctx) return;
-    const t = p.from + (ctx.currentTime - p.start) / p.scale;
+    // fast film capture plays nothing, so a voice's end is the clock reaching it (no `ended` event)
+    if (this.audio.virtual && this.audio.now() >= p.endAt) {
+      this.last = { id: p.id, at: p.end, end: p.end, partFrom: this.partFrom };
+      this.playing = null;
+      this.finish(p.id);
+      return;
+    }
+    const t = p.from + (this.audio.now() - p.start) / p.scale;
     const cues = TRACKS[p.id].cues;
     let k = -1;
     for (let i = 0; i < cues.length; i++) if (cues[i].t <= t + 0.05) k = i;
