@@ -463,7 +463,7 @@ async function intoTheWorld(host: FilmHost, ui: Screen, wait: (ms: number) => Pr
     else if (f === 0 && s > 10) hint += " Nothing is drawn yet, which is normal while the shaders are prepared (a minute or two the first time, longer at a large size such as 4K). Keep this tab in front.";
     if (document.hidden) hint += " Bring this tab to the front: the world only wakes while it is in view.";
     else if (s > 90) hint += " Still working: the first time it fetches the world and prepares the shaders, which can take a couple of minutes.";
-    ui.line_(`Waking the world: ${host.waking()} · ${s} s.${hint}`);
+    ui.line_(`Waking the world: ${host.waking()} · ${s} s · drawing at ${host.canvas.width}×${host.canvas.height}, ${host.frames()} frames so far.${hint}`);
     real.setTimeout(say, 500);
   };
   say();
