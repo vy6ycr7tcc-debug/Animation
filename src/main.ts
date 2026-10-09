@@ -4849,10 +4849,41 @@ if (FILM) {
       fadeEl,
       tours: [...WALKS.map((w) => ({ id: w.id, label: w.label })), { id: "duat", label: "The Duat, hour by hour" }],
       ready: () => shadersReady && opening === "done" && !startMap.isOpen,
-      playing: () => S.mode === "play" && !crossing,
+      playing: () => S.mode === "play" && !crossing && !fadeEl.classList.contains("on"),
       begin: () => begin(),
-      start: (id) => (id === "duat" ? duatTourStart() : walkStart(id)),
-      active: () => !!walk || !!duatTour || tourScenes.tour.active,
+      start: (kind, id) => {
+        if (kind === "autofly") setAutofly(true);
+        else if (kind === "autowalk") setAutorun(true);
+        else if (kind === "genesis") beginGenesis();
+        else if (id === "duat") duatTourStart();
+        else walkStart(id);
+      },
+      active: () => !!walk || !!duatTour || tourScenes.tour.active || genesis.active,
+      chapter: () => {
+        const where = devPlace();
+        const info = tourBar().info();
+        if (info) {
+          const travel = /on the way/.test(info.hint);
+          return { key: `${walk?.id ?? ""}|${info.title}|${travel ? "t" : "s"}`, label: info.title, detail: info.hint, kind: travel ? "travel" : tourScenes.tour.active ? "temple" : duatTour ? "duat" : "stop", where };
+        }
+        if (autofly.active) return { key: "autofly", label: "Autofly", detail: "", kind: "autofly", where };
+        if (autorun.active) return { key: "autowalk", label: "Auto-walk", detail: "", kind: "autowalk", where };
+        if (genesis.active) return { key: "genesis", label: "The heart: genesis", detail: "", kind: "genesis", where };
+        return { key: "free", label: "The world", detail: "", kind: "free", where };
+      },
+      reset: async () => {
+        if (walk) walkEnd(false);
+        if (duatTour) duatTourEnd(false);
+        if (areaTour) areaTourEnd();
+        if (tourScenes.tour.active) tourScenes.tour.exit();
+        stopAuto();
+        narration.stop(0.5);
+        standUp();
+        // back on foot (an autofly clip leaves the wanderer flying, and genesis needs it standing)
+        Object.assign(player, { flying: false, landing: false, gliding: false, vy: 0 });
+        const shore = places()[0];
+        arrive({ place: shore, ...shore.start }, false);
+      },
       pin: (scale) => {
         quality.override("full"); // the best picture, held whatever the frame rate
         quality.scale = scale;

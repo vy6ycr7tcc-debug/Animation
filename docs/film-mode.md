@@ -18,6 +18,51 @@ every control, label and word hidden, and offers `inward-journey-<tour>.webm` at
 size. If the browser won't let sound start by itself it shows one "Begin filming" button first.
 Keep the tab in front while it records. The REC dot is DOM, so it is never in the picture.
 
+## Everything, walk-away (`?film=everything`)
+
+One address films every part of the game as its own clip and writes a manifest for the TV app:
+
+```
+?film=everything                    temple, pyramid, densities, adept, past, veil, descent, ancient,
+                                    lessons, visions, duat, then autofly, autowalk and genesis
+&only=temple,autofly                just these      &skip=duat     all but these
+&grand=1                            also the whole walk as one long clip
+&flysecs=240  &walksecs=150         how long the autofly and auto-walk clips run
+&fast=1                             as above, offline (see below)
+&fresh=1                            film clips again that are already done
+```
+
+It asks for one click (a folder to save into, which writes each file straight to disk, or plain
+downloads) and then needs nothing. Between clips every tour and automatic mode is put away and the
+wanderer goes back to the shore. Clips already filmed are remembered on the device, so if the page
+restarts (the GPU can be taken away on a long run) reload the address, click, and it carries on with
+the rest. Keep the tab in front and the computer awake.
+
+Each clip writes `<id>.webm` and `<id>.chapters.json` (fast mode also `<id>.timeline.json`), and
+after every clip `manifest.json` is rewritten, so a stopped run still leaves a usable set.
+
+### Chapters and the manifest (for the TV app)
+
+`manifest.json`:
+
+```json
+{ "app": "inward-journey", "mode": "live", "fps": 30, "size": { "width": 1920, "height": 1080 },
+  "clips": [ { "id": "temple", "label": "The temple, guided", "kind": "tour",
+               "file": "temple.webm", "chaptersFile": "temple.chapters.json", "duration": 812.4,
+               "bytes": 183000000, "warning": "(only if something looks wrong)",
+               "chapters": [ { "id": "03-iii-the-empress", "label": "III · The Empress",
+                               "detail": "3 of 24", "kind": "temple",
+                               "where": "The temple › III Empress",
+                               "start": 143.2, "end": 171.8 } ] } ] }
+```
+
+A chapter is one stop of a tour (a shrine, a room, a walk between places, a story of the Duat), or
+the whole of autofly, auto-walk or genesis. `start` and `end` are seconds from the clip's first
+frame; `kind` is `stop`, `travel`, `temple`, `duat`, `autofly`, `autowalk`, `genesis` or `free`;
+`where` is the game's own place name when the chapter began. To jump to a part: open the clip,
+seek to the chapter's `start`, play to its `end`. A TV page config can name a clip and a chapter id
+(or a clip and a time), e.g. `{ "clip": "temple", "chapter": "03-iii-the-empress" }`.
+
 ## Real time (default)
 
 Chrome or Edge on a computer. The picture is a composite canvas (the game plus the dark or white of
