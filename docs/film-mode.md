@@ -7,7 +7,8 @@ Open a URL, walk away, come back to a video file with the tour's picture and sou
 ?film=<tour>                one tour: temple, pyramid, densities, adept, past, veil, descent,
                             ancient, lessons, visions, duat (the same ids as ⋮ → Map → Tours)
 &fps=30                     frames a second (10–60, default 30)
-&scale=1                    render scale multiplier (2 = twice the pixels, for a bigger capture)
+&res=1080                   height of the video in pixels (default 1080; the game renders about that many)
+&scale=1                    multiplies the render size and, unless &res is given, the video height
 &until=<seconds>            stop after this long (otherwise: 3 s after the tour's end)
 &fast=1                     offline capture (below)
 &seed=<n>                   seed for what the tours leave to chance (Math.random is seeded)
