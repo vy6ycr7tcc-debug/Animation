@@ -4480,8 +4480,10 @@ function frame(now: number): void {
   }
   gpuDiagEnd();
   frameDraws = renderer.info.render.drawCalls;
+  frameCount++;
   filmFrame?.(); // film mode: this frame's picture is drawn and still on the canvas
 }
+let frameCount = 0;
 let filmFrame: (() => void) | null = null;
 let drawFaults = 0, lastFault = "", faultAt = 0, cpuMs = 0;
 function frameFault(e: unknown): void {
@@ -4876,11 +4878,18 @@ if (FILM) {
         const shore = places()[0];
         arrive({ place: shore, ...shore.start }, false);
       },
-      pin: (scale) => {
-        quality.override("full"); // the best picture, held whatever the frame rate
-        quality.scale = scale;
+      pin: (scale, fixed, targetH) => {
+        // fast capture holds the best picture (its time is its own); a real-time one lets the game
+        // adapt as it always does, or a laptop that cannot draw the best level at full size draws a
+        // frame every few seconds and the whole scene stands still
+        if (fixed) quality.override("full");
+        const el = renderer.domElement;
+        const native = (el.clientHeight || innerHeight) * Math.min(devicePixelRatio || 1, quality.current.dpr);
+        // render about as many pixels as the film will hold (more is thrown away when it is shrunk)
+        quality.scale = Math.min(Math.max(targetH / native, 0.5), Math.max(1, scale));
         resize();
       },
+      frames: () => frameCount,
       onFrame: (cb) => (filmFrame = cb),
     }),
   );

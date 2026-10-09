@@ -50,8 +50,10 @@ export interface FilmHost {
   chapter(): ChapterInfo;
   /** between clips: every tour and automatic mode put away, back at the shore */
   reset(): Promise<void>;
-  /** the best picture, held, at this render scale */
-  pin(scale: number): void;
+  /** render about `targetH` pixels high (times `scale`); `fixed` holds the best quality level */
+  pin(scale: number, fixed: boolean, targetH: number): void;
+  /** frames the game has drawn so far (for a live frame rate) */
+  frames(): number;
   onFrame(cb: () => void): void;
 }
 
@@ -62,6 +64,9 @@ const num = (k: string, d: number, lo: number, hi: number): number => {
 };
 const FPS = Math.round(num("fps", 30, 10, 60));
 const SCALE = num("scale", 1, 0.25, 4);
+/** The height of the video, in pixels: 1080 unless asked (`&res=`), times `&scale=`. A bigger canvas
+    than this is drawn smaller into the film; a laptop cannot encode a 5-megapixel picture in real time. */
+const RES = Math.round(num("res", 1080, 240, 4320) * (q.has("res") ? 1 : SCALE));
 const UNTIL = q.has("until") ? num("until", 0, 1, 24 * 3600) : 0;
 const TAIL = 3; // seconds kept after the tour's last word, so the end isn't cut
 
@@ -134,8 +139,10 @@ class Picture {
   private t0 = 0;
   private dur = 1.3;
   constructor(private host: FilmHost) {
-    this.canvas.width = host.canvas.width;
-    this.canvas.height = host.canvas.height;
+    // the film's size: the canvas, shrunk to fit RES high (video wants even sides)
+    const k = Math.min(1, RES / Math.max(1, host.canvas.height));
+    this.canvas.width = Math.max(2, 2 * Math.round((host.canvas.width * k) / 2));
+    this.canvas.height = Math.max(2, 2 * Math.round((host.canvas.height * k) / 2));
     this.g = this.canvas.getContext("2d", { alpha: false })!;
   }
   private fade(now: number): number {
@@ -168,6 +175,28 @@ class Picture {
 }
 
 /* ------------------------------------------------------------------ small helpers */
+
+/** The game's frame rate, as it is drawn (read from the frame counter about once a second). */
+class Fps {
+  private n0 = 0;
+  private t0 = 0;
+  value = 0;
+  constructor(private host: FilmHost) {
+    this.n0 = host.frames();
+    this.t0 = real.now();
+  }
+  tick(): number {
+    const t = real.now();
+    if (t - this.t0 >= 1000) {
+      const n = this.host.frames();
+      this.value = ((n - this.n0) * 1000) / (t - this.t0);
+      this.n0 = n;
+      this.t0 = t;
+    }
+    return this.value;
+  }
+}
+const slowNote = (fps: number): string => (fps > 0 && fps < 8 ? ` The game is drawing only ${fps.toFixed(1)} frames a second here, so the film will be choppy: try &res=720, a smaller window, or close other tabs.` : "");
 
 const tick = (): Promise<void> => new Promise((r) => (tickPort.port1.onmessage = () => r(), tickPort.port2.postMessage(0)));
 const tickPort = new MessageChannel();
@@ -373,7 +402,7 @@ export function startFilm(host: FilmHost): void {
     return fail("This browser cannot record the screen from the game (MediaRecorder or canvas capture is missing). Try Chrome or Edge on a computer, or add &fast=1.");
   }
   if (!clips.length) return fail(`Every clip of this list is already filmed (kept on this device). Add &fresh=1 to film them again.`);
-  host.pin(SCALE);
+  host.pin(SCALE, FAST, RES);
   status.state = "waiting";
   status.clips = [];
   const go = (dir: FileSystemDirectoryHandle | null): void => void session(host, ui, clips, asked.clips.length, many, makeSink(dir), !webcodecs).catch((e) => fail(String(e?.message ?? e)));
@@ -414,13 +443,17 @@ async function intoTheWorld(host: FilmHost, ui: Screen, wait: (ms: number) => Pr
   ui.card("Film mode", "Waking the world…");
   ui.waiting(true);
   const t0 = real.now();
+  const fps = new Fps(host);
   let stopped = false;
   const say = (): void => {
     if (stopped) return;
     const s = Math.round((real.now() - t0) / 1000);
-    let hint = "";
-    if (document.hidden) hint = " Bring this tab to the front: the world only wakes while it is in view.";
-    else if (s > 90) hint = " Still working: the first time it fetches the world and prepares the shaders, which can take a couple of minutes.";
+    const f = fps.tick();
+    let hint = f > 0 ? ` ${f.toFixed(0)} fps.` : "";
+    if (f > 0 && f < 8) hint += slowNote(f);
+    else if (f === 0 && s > 10) hint += " No frames have been drawn for a few seconds: the game has stopped drawing. Reload the page; if it happens again, tell me what the card says.";
+    if (document.hidden) hint += " Bring this tab to the front: the world only wakes while it is in view.";
+    else if (s > 90) hint += " Still working: the first time it fetches the world and prepares the shaders, which can take a couple of minutes.";
     ui.line_(`Waking the world: ${host.waking()} · ${s} s.${hint}`);
     real.setTimeout(say, 500);
   };
@@ -587,6 +620,7 @@ async function captureLive(host: FilmHost, ui: Screen, clip: Clip, base: string)
 
   const t0 = real.now();
   let started = false, idleSince = 0, finished = false, lastNote = -1;
+  const fps = new Fps(host);
   const elapsed = (): number => (real.now() - t0) / 1000;
   host.onFrame(() => {
     if (!started || finished) return;
@@ -595,7 +629,8 @@ async function captureLive(host: FilmHost, ui: Screen, clip: Clip, base: string)
     status.seconds = s;
     status.bytes = size;
     status.state = "recording";
-    ui.status(`REC ${clip.id} ${mmss(s)}${status.progress ? ` · clip ${status.progress}` : ""}`);
+    const f = fps.tick();
+    ui.status(`REC ${clip.id} ${mmss(s)}${status.progress ? ` · clip ${status.progress}` : ""}${f ? ` · ${f.toFixed(0)} fps` : ""}${slowNote(f) ? " · slow: try &res=720" : ""}`);
     if (s - lastNote >= 0.25) {
       lastNote = s;
       chapters.note(s, host.chapter());
