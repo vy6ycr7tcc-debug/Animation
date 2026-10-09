@@ -14,7 +14,7 @@ Open a URL, walk away, come back to a video file with the tour's picture and sou
 &seed=<n>                   seed for what the tours leave to chance (Math.random is seeded)
 ```
 
-The game wakes at the shore (the device's save is neither read nor written), plays the tour with
+In real time the file is an `.mp4` (H.264, made by the computer's own video hardware, so recording barely slows the game) where the browser can, else a `.webm`. The game wakes at the shore (the device's save is neither read nor written), plays the tour with
 every control, label and word hidden, and offers `inward-journey-<tour>.webm` at the end, with its
 size. If the browser won't let sound start by itself it shows one "Begin filming" button first.
 Keep the tab in front while it records. The REC dot is DOM, so it is never in the picture.
