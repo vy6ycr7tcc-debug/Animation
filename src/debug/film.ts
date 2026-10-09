@@ -37,6 +37,8 @@ export interface FilmHost {
   tours: { id: string; label: string }[];
   /** the world is built, the shaders compiled and the title is up */
   ready(): boolean;
+  /** what the game is waiting for before it is ready, in words */
+  waking(): string;
   /** in the world, awake, not in a crossing */
   playing(): boolean;
   begin(): void;
@@ -74,7 +76,7 @@ class Screen {
   private recText = document.createElement("span");
   constructor() {
     this.el.id = "film-ui";
-    this.el.innerHTML = `<div class="film-card"><p class="film-title"></p><p class="film-line"></p><div class="film-btns"></div></div><div class="film-rec" hidden><i></i><span></span></div>`;
+    this.el.innerHTML = `<div class="film-card"><div class="film-ring"></div><p class="film-title"></p><p class="film-line"></p><div class="film-btns"></div></div><div class="film-rec" hidden><i></i><span></span></div>`;
     document.body.append(this.el);
     this.title = this.el.querySelector(".film-title")!;
     this.line = this.el.querySelector(".film-line")!;
@@ -99,6 +101,14 @@ class Screen {
         return e;
       }),
     );
+  }
+  /** Only the card's line changes (the title and buttons stay). */
+  line_(text: string): void {
+    if (this.line.textContent !== text) this.line.textContent = text;
+  }
+  /** A pulsing ring on the card while something is being waited for. */
+  waiting(on: boolean): void {
+    this.el.classList.toggle("waiting", on);
   }
   /** The card steps away while it records; the dot says it does. */
   recording(on: boolean, text = ""): void {
@@ -400,11 +410,27 @@ async function autoplayOk(): Promise<boolean> {
 
 /** Past the title, into the world, and settled. */
 async function intoTheWorld(host: FilmHost, ui: Screen, wait: (ms: number) => Promise<void>, settle: (secs: number) => Promise<void>): Promise<void> {
+  // the card says what is being waited for and for how long (a still card looks like a hung page)
   ui.card("Film mode", "Waking the world…");
+  ui.waiting(true);
+  const t0 = real.now();
+  let stopped = false;
+  const say = (): void => {
+    if (stopped) return;
+    const s = Math.round((real.now() - t0) / 1000);
+    let hint = "";
+    if (document.hidden) hint = " Bring this tab to the front: the world only wakes while it is in view.";
+    else if (s > 90) hint = " Still working: the first time it fetches the world and prepares the shaders, which can take a couple of minutes.";
+    ui.line_(`Waking the world: ${host.waking()} · ${s} s.${hint}`);
+    real.setTimeout(say, 500);
+  };
+  say();
   while (!host.ready()) await wait(100);
   host.begin(); // sound starts here, inside the click (or the allowed autoplay)
   await wait(400);
   while (!host.playing()) await wait(100);
+  stopped = true;
+  ui.waiting(false);
   await settle(2.5); // the land streams in; the first moments are never filmed
 }
 
