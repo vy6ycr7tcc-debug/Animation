@@ -3971,6 +3971,25 @@ freeBox.addEventListener("change", () => {
     /* fine */
   }
 });
+// Auto jump (⋮): walking into a ledge too tall to step over hops up it (on by default)
+{
+  const KEY = "inward-journey:autojump";
+  const box = $<HTMLInputElement>("#autojump");
+  try {
+    player.autoJump = localStorage.getItem(KEY) !== "0";
+  } catch {
+    /* no storage: on */
+  }
+  box.checked = player.autoJump;
+  box.addEventListener("change", () => {
+    player.autoJump = box.checked;
+    try {
+      localStorage.setItem(KEY, box.checked ? "1" : "0");
+    } catch {
+      /* fine */
+    }
+  });
+}
 const reducedBox = $<HTMLInputElement>("#reduced");
 reducedBox.checked = S.reduced;
 reducedBox.addEventListener("change", () => {
