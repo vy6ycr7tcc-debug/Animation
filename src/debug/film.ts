@@ -13,7 +13,8 @@
    Real-time (the default): the game plays as the player would see and hear it. The picture is a
    composite canvas (the game's canvas, and the dark or white of a crossing's fade, which is DOM
    and so would otherwise be missing) recorded by MediaRecorder; the audio is the engine's whole
-   master bus (voice, bed, tones, one-shots), tapped after its compressor. A .webm comes out.
+   master bus (voice, bed, tones, one-shots), tapped after its compressor. An .mp4 (H.264, made by the
+   computer's own video hardware) where the browser can, else a .webm, comes out.
 
    Fast: the same picture, but time is virtual (debug/filmClock.ts), frames are encoded with
    WebCodecs as fast as the GPU draws them, and the sound is rebuilt from a timeline of what the
@@ -607,8 +608,20 @@ async function captureLive(host: FilmHost, ui: Screen, clip: Clip, base: string)
   const note: string[] = [];
   if (!sound) note.push("The audio could not be tapped: this recording has no sound.");
   else for (const t of sound.getAudioTracks()) video.addTrack(t);
-  const mime = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"].find((m) => MediaRecorder.isTypeSupported(m));
-  if (!mime) throw new Error("This browser's recorder has no WebM format to offer.");
+  // H.264 first: it is encoded by the computer's own video hardware, so recording takes almost nothing
+  // from the game (software VP9 at 1080p does, and the scene stutters); and an mp4 can be seeked.
+  const mime = [
+    "video/mp4;codecs=avc1.640028,mp4a.40.2",
+    "video/mp4;codecs=avc1,mp4a.40.2",
+    "video/mp4;codecs=avc1.640028,opus",
+    "video/webm;codecs=h264,opus",
+    "video/webm;codecs=vp9,opus",
+    "video/webm;codecs=vp8,opus",
+    "video/webm",
+  ].find((m) => MediaRecorder.isTypeSupported(m));
+  if (!mime) throw new Error("This browser's recorder has no video format to offer.");
+  const ext = mime.startsWith("video/mp4") ? "mp4" : "webm";
+  if (mime.includes("vp9") || mime.includes("vp8")) note.push("This browser recorded with its software encoder (no H.264): it is heavier, and the game may run slower while it records.");
   const px = pic.canvas.width * pic.canvas.height;
   const rec = new MediaRecorder(video, { mimeType: mime, videoBitsPerSecond: Math.min(40e6, Math.round(px * FPS * 0.12)), audioBitsPerSecond: 192000 });
   const chunks: Blob[] = [];
@@ -619,18 +632,25 @@ async function captureLive(host: FilmHost, ui: Screen, clip: Clip, base: string)
   const limit = clipLimit(clip), timed = clip.secs !== undefined;
 
   const t0 = real.now();
-  let started = false, idleSince = 0, finished = false, lastNote = -1;
+  let started = false, idleSince = 0, finished = false, lastNote = -1, lastDraw = -1, lastStatus = -1;
   const fps = new Fps(host);
   const elapsed = (): number => (real.now() - t0) / 1000;
   host.onFrame(() => {
     if (!started || finished) return;
     const s = elapsed();
-    pic.draw(s);
+    // the film takes FPS pictures a second: copying the game's canvas more often (it draws 60) is work for nothing
+    if (s - lastDraw >= 0.9 / FPS) {
+      pic.draw(s);
+      lastDraw = s;
+    }
     status.seconds = s;
     status.bytes = size;
     status.state = "recording";
-    const f = fps.tick();
-    ui.status(`REC ${clip.id} ${mmss(s)}${status.progress ? ` · clip ${status.progress}` : ""}${f ? ` · ${f.toFixed(0)} fps` : ""}${slowNote(f) ? " · slow: try &res=720" : ""}`);
+    if (s - lastStatus >= 0.5) {
+      lastStatus = s;
+      const f = fps.tick();
+      ui.status(`REC ${clip.id} ${mmss(s)}${status.progress ? ` · clip ${status.progress}` : ""}${f ? ` · ${f.toFixed(0)} fps` : ""}${slowNote(f) ? " · slow: try &res=720" : ""}`);
+    }
     if (s - lastNote >= 0.25) {
       lastNote = s;
       chapters.note(s, host.chapter());
@@ -656,9 +676,9 @@ async function captureLive(host: FilmHost, ui: Screen, clip: Clip, base: string)
   rec.stop();
   await stopped;
   for (const t of video.getTracks()) t.stop();
-  const blob = new Blob(chunks, { type: "video/webm" });
+  const blob = new Blob(chunks, { type: ext === "mp4" ? "video/mp4" : "video/webm" });
   if (blob.size < 1000) throw new Error("The recorder produced no data (the game drew no frames while it was recording). Try again with the tab in front.");
-  return { files: [{ name: `${base}.webm`, blob }], duration: Math.round(duration * 100) / 100, size: { width: pic.canvas.width, height: pic.canvas.height }, chapters: chapters.finish(duration), timeline: null, note: note.join(" ") };
+  return { files: [{ name: `${base}.${ext}`, blob }], duration: Math.round(duration * 100) / 100, size: { width: pic.canvas.width, height: pic.canvas.height }, chapters: chapters.finish(duration), timeline: null, note: note.join(" ") };
 }
 
 /* ------------------------------------------------------------------ fast capture */
