@@ -40,8 +40,14 @@ export interface FilmHost {
   /** in the world, awake, not in a crossing */
   playing(): boolean;
   begin(): void;
-  start(id: string): void;
+  /** begin a clip: a tour (by its walk id), autofly, auto-walk or genesis */
+  start(kind: string, tour: string): void;
+  /** a tour or genesis is still going */
   active(): boolean;
+  /** what the game is doing now (the chapter it belongs to) */
+  chapter(): ChapterInfo;
+  /** between clips: every tour and automatic mode put away, back at the shore */
+  reset(): Promise<void>;
   /** the best picture, held, at this render scale */
   pin(scale: number): void;
   onFrame(cb: () => void): void;
@@ -181,37 +187,201 @@ interface Status {
   error: string;
   /** the timeline (fast capture) */
   timeline: unknown;
+  clip: string;
+  progress: string;
+  clips: { id: string; file: string; duration: number; bytes: number; chapters: number }[];
 }
-const status: Status = { state: "boot", frames: 0, seconds: 0, bytes: 0, name: "", files: [], note: "", error: "", timeline: null };
+const status: Status = { state: "boot", frames: 0, seconds: 0, bytes: 0, name: "", files: [], note: "", error: "", timeline: null, clip: "", progress: "", clips: [] };
 (window as unknown as { __film: object }).__film = status;
+
+/* ------------------------------------------------------------------ clips and chapters */
+
+/** One recording: a tour, autofly, auto-walk or the heart's genesis. */
+interface Clip {
+  id: string;
+  label: string;
+  kind: "tour" | "autofly" | "autowalk" | "genesis";
+  /** for a tour: the walk's id */
+  tour?: string;
+  /** for the timed kinds: how long to film */
+  secs?: number;
+}
+
+/** What the game is doing now, as the host describes it (see main.ts `chapter`). */
+export interface ChapterInfo {
+  key: string;
+  label: string;
+  detail: string;
+  kind: string;
+  where: string;
+}
+/** A part of a clip, with when it starts and ends (seconds from the clip's first frame). */
+export interface Chapter {
+  id: string;
+  label: string;
+  detail: string;
+  kind: string;
+  where: string;
+  start: number;
+  end: number;
+}
+
+const slug = (t: string): string => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "part";
+
+class Chapters {
+  private list: Chapter[] = [];
+  private cur: Chapter | null = null;
+  private key = "";
+  note(t: number, c: ChapterInfo): void {
+    if (this.cur && c.key === this.key) return;
+    this.close(t);
+    this.key = c.key;
+    this.cur = { id: "", label: c.label, detail: c.detail, kind: c.kind, where: c.where, start: Math.round(t * 100) / 100, end: Math.round(t * 100) / 100 };
+    this.list.push(this.cur);
+  }
+  private close(t: number): void {
+    if (this.cur) this.cur.end = Math.round(t * 100) / 100;
+  }
+  /** Close the last, drop blips (under a second, which are the tour changing its mind), number them. */
+  finish(t: number): Chapter[] {
+    this.close(t);
+    let out = this.list.filter((c) => c.end - c.start >= 1);
+    if (!out.length) out = this.list.slice(0, 1);
+    out.forEach((c, i) => (c.id = `${String(i + 1).padStart(2, "0")}-${slug(c.label)}`));
+    if (out.length) out[0].start = 0; // the first part begins with the clip (the first frame may come a moment late)
+    return out;
+  }
+}
+
+/** Where the files go: a folder the owner chose (written straight to disk), or downloads. */
+interface Sink {
+  where: string;
+  save(name: string, blob: Blob): Promise<string | null>;
+}
+function makeSink(dir: FileSystemDirectoryHandle | null): Sink {
+  if (dir) {
+    return {
+      where: `the folder “${dir.name}”`,
+      async save(name, blob) {
+        const fh = await dir.getFileHandle(name, { create: true });
+        const w = await fh.createWritable();
+        await w.write(blob);
+        await w.close();
+        return null;
+      },
+    };
+  }
+  return {
+    where: "your downloads",
+    async save(name, blob) {
+      const url = download(blob, name);
+      await sleep(500); // one at a time, so the browser doesn't fold them into a refusal
+      return url;
+    },
+  };
+}
+
+/** What the clips were, for whoever plays them (the TV app: `docs/film-mode.md`). */
+interface ClipResult {
+  id: string;
+  label: string;
+  kind: string;
+  file: string;
+  chaptersFile: string;
+  timelineFile?: string;
+  duration: number;
+  bytes: number;
+  chapters: Chapter[];
+  /** set when something looks wrong with the clip (a tour that ended almost at once) */
+  warning?: string;
+}
+
+/** The clips `?film=` asks for. */
+function clipsAsked(host: FilmHost): { clips: Clip[]; many: boolean } | string {
+  const asked = q.get("film")!;
+  const flySecs = num("flysecs", 240, 20, 3600), walkSecs = num("walksecs", 150, 20, 3600);
+  const timed: Clip[] = [
+    { id: "autofly", label: "Autofly", kind: "autofly", secs: flySecs },
+    { id: "autowalk", label: "Auto-walk", kind: "autowalk", secs: walkSecs },
+    { id: "genesis", label: "Genesis, the heart", kind: "genesis" },
+  ];
+  if (asked === "everything" || asked === "all-clips") {
+    let clips: Clip[] = [...host.tours.filter((t) => t.id !== "all").map((t) => ({ id: t.id, label: t.label, kind: "tour" as const, tour: t.id })), ...timed];
+    if (q.get("grand") === "1") clips.push({ id: "grand", label: "The grand tour, end to end", kind: "tour", tour: "all" });
+    const only = (q.get("only") ?? "").split(",").filter(Boolean), skip = (q.get("skip") ?? "").split(",").filter(Boolean);
+    if (only.length) clips = clips.filter((c) => only.includes(c.id));
+    if (skip.length) clips = clips.filter((c) => !skip.includes(c.id));
+    if (!clips.length) return "No clips match that list.";
+    return { clips, many: true };
+  }
+  const t = timed.find((c) => c.id === asked);
+  if (t) return { clips: [t], many: false };
+  const id = asked === "grand" ? "all" : asked;
+  const tour = host.tours.find((x) => x.id === id);
+  if (!tour) return `There is no tour called “${asked}”. Try: everything, grand, autofly, autowalk, genesis, ${host.tours.map((x) => x.id).join(", ")}.`;
+  return { clips: [{ id: asked, label: asked === "grand" ? "The grand tour, end to end" : tour.label, kind: "tour", tour: id }], many: false };
+}
+
+/** Clips already filmed (kept on this device, so a restart carries on where it stopped). */
+const DONE_KEY = `inward-journey:film-done:${FAST ? "fast" : "live"}`;
+const doneIds = (): string[] => {
+  if (q.get("fresh") === "1") return [];
+  try {
+    return JSON.parse(localStorage.getItem(DONE_KEY) ?? "[]") as string[];
+  } catch {
+    return [];
+  }
+};
+const markDone = (ids: string[]): void => {
+  try {
+    localStorage.setItem(DONE_KEY, JSON.stringify(ids));
+  } catch {
+    /* fine */
+  }
+};
 
 /* ------------------------------------------------------------------ start */
 
 export function startFilm(host: FilmHost): void {
   document.body.classList.add("film");
   const ui = new Screen();
-  const asked = q.get("film")!;
-  const id = asked === "grand" ? "all" : asked;
-  const tour = host.tours.find((t) => t.id === id);
   const fail = (msg: string): void => {
     status.state = "error";
     status.error = msg;
     ui.recording(false);
     ui.card("Film mode", msg);
   };
-  if (!tour) return fail(`There is no tour called “${asked}”. Try: grand, ${host.tours.map((t) => t.id).join(", ")}.`);
-  const label = asked === "grand" ? "The grand tour, end to end" : tour.label;
+  const asked = clipsAsked(host);
+  if (typeof asked === "string") return fail(asked);
+  const { many } = asked;
+  const finished = many && q.get("fresh") !== "1" ? doneIds() : [];
+  const clips = asked.clips.filter((c) => !finished.includes(c.id));
   const webcodecs = "VideoEncoder" in window && "AudioEncoder" in window && "VideoFrame" in window && "AudioData" in window;
   if (!FAST && (typeof MediaRecorder === "undefined" || !("captureStream" in HTMLCanvasElement.prototype))) {
     return fail("This browser cannot record the screen from the game (MediaRecorder or canvas capture is missing). Try Chrome or Edge on a computer, or add &fast=1.");
   }
+  if (!clips.length) return fail(`Every clip of this list is already filmed (kept on this device). Add &fresh=1 to film them again.`);
   host.pin(SCALE);
   status.state = "waiting";
-  const go = (): void => void (FAST ? runFast(host, ui, id, label, !webcodecs) : runLive(host, ui, id, label)).catch((e) => fail(String(e?.message ?? e)));
-  if (FAST) return go();
-  // wake the audio without a click when the browser allows it; otherwise one click, which also
-  // lets the file download at the end
-  void autoplayOk().then((ok) => (ok ? go() : ui.card("Film mode", `${label}. Click to begin; the game plays the tour by itself and the file is offered at the end.`, [{ label: "Begin filming", go }])));
+  status.clips = [];
+  const go = (dir: FileSystemDirectoryHandle | null): void => void session(host, ui, clips, asked.clips.length, many, makeSink(dir), !webcodecs).catch((e) => fail(String(e?.message ?? e)));
+  if (!many) {
+    if (FAST) return go(null);
+    // wake the audio without a click when the browser allows it; otherwise one click, which also
+    // lets the file download at the end
+    return void autoplayOk().then((ok) => (ok ? go(null) : ui.card("Film mode", `${clips[0].label}. Click to begin; the game plays by itself and the file is offered at the end.`, [{ label: "Begin filming", go: () => go(null) }])));
+  }
+  const names = clips.map((c) => c.id).join(", ");
+  const resumed = finished.length ? ` ${finished.length} already filmed (${finished.join(", ")}) are skipped.` : "";
+  const picker = (window as unknown as { showDirectoryPicker?: (o?: object) => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker;
+  ui.card(
+    "Film everything",
+    `${clips.length} clips: ${names}.${resumed} Each is its own video with its chapters, and manifest.json lists them all. Then leave this tab in front and walk away.`,
+    [
+      ...(picker ? [{ label: "Choose a folder and begin", go: () => void picker.call(window, { mode: "readwrite" }).then(go, () => ui.card("Film everything", "No folder was chosen. Try again, or begin with downloads.")) }] : []),
+      { label: picker ? "Begin (files download)" : "Begin", go: () => go(null) },
+    ],
+  );
 }
 
 async function autoplayOk(): Promise<boolean> {
@@ -236,10 +406,137 @@ async function intoTheWorld(host: FilmHost, ui: Screen, wait: (ms: number) => Pr
   await settle(2.5); // the land streams in; the first moments are never filmed
 }
 
+/** Between clips: every tour and automatic mode put away, the voice stopped, back at the shore. */
+async function betweenClips(host: FilmHost, wait: (ms: number) => Promise<void>, settle: (secs: number) => Promise<void>): Promise<void> {
+  await host.reset();
+  await wait(300);
+  while (!host.playing()) await wait(100);
+  await settle(3);
+}
+
+/** The timed clips end at their time; a tour, when it has ended (or at `until`). */
+function clipLimit(clip: Clip): number {
+  return clip.secs ?? (UNTIL || 0);
+}
+
+/* ------------------------------------------------------------------ the whole run */
+
+async function session(host: FilmHost, ui: Screen, clips: Clip[], total: number, many: boolean, sink: Sink, zip: boolean): Promise<void> {
+  const results: ClipResult[] = [];
+  const doneBefore = many ? doneIds() : [];
+  // time: real, or the film's own (fast capture steps the game on a fixed timestep)
+  let wait: (ms: number) => Promise<void> = sleep;
+  let settle = (secs: number): Promise<void> => sleep(secs * 1000);
+  let steps: Steps | null = null;
+  const log: Tape[] = []; // what the audio engine has done to its gains, from the start (fast capture)
+  let current: { mixer: Mixer; raw: Tape[] } | null = null;
+  if (FAST) {
+    const step = (): void => vclock.step(1000 / FPS);
+    // the virtual clock is stepped from the very beginning: nothing else would move time. While the
+    // world loads (in real time) it goes on at a rate the loading can keep up with.
+    wait = async (ms) => {
+      const t = real.now();
+      while (real.now() - t < ms) {
+        step();
+        await sleep(8);
+      }
+    };
+    // (the settle counts the game's own seconds: a slow machine draws fewer frames in the same wall time)
+    settle = async (secs) => {
+      const end = vclock.t + secs;
+      while (vclock.t < end) {
+        step();
+        await tick();
+      }
+    };
+    steps = { step };
+    const tape = (e: Tape): void => {
+      if (e.k === "gain" || e.k === "bed") log.push(e);
+      current?.mixer.push(e);
+      current?.raw.push(e);
+    };
+    host.audio.tape = tape;
+    host.narration.tape = tape;
+  }
+  await intoTheWorld(host, ui, wait, settle);
+
+  let size = { width: 0, height: 0 };
+  for (let n = 0; n < clips.length; n++) {
+    const clip = clips[n];
+    if (n > 0) await betweenClips(host, wait, settle);
+    status.clip = clip.id;
+    status.progress = `${doneBefore.length + n + 1} of ${total}`;
+    const prefix = many ? "" : "inward-journey-";
+    const base = many ? clip.id : `${prefix}${q.get("film")}`;
+    let out: Captured;
+    if (FAST) {
+      const mixer = new Mixer();
+      for (const e of log) mixer.push(e);
+      current = { mixer, raw: [...log] };
+      out = await captureFast(host, ui, clip, zip, steps!, current, base);
+      current = null;
+    } else out = await captureLive(host, ui, clip, base);
+    size = out.size;
+    // the files: the video, its chapters, and (fast) its timeline
+    const chaptersFile = `${base}.chapters.json`;
+    const chaptersBlob = new Blob([JSON.stringify({ clip: clip.id, label: clip.label, duration: out.duration, chapters: out.chapters }, null, 1)], { type: "application/json" });
+    ui.status(`saving ${base}…`);
+    let url: string | null = null;
+    for (const f of out.files) url = (await sink.save(f.name, f.blob)) ?? url;
+    await sink.save(chaptersFile, chaptersBlob);
+    const bytes = out.files.reduce((a, f) => a + f.blob.size, 0);
+    const video = out.files[0].name;
+    const warning = clip.secs === undefined && !UNTIL && out.duration < 10 ? `This clip lasted only ${out.duration} s: the tour or animation probably did not start. Film it again with ?film=${clip.id}.` : undefined;
+    results.push({ id: clip.id, label: clip.label, kind: clip.kind, file: video, chaptersFile, timelineFile: out.files.find((f) => f.name.endsWith(".timeline.json"))?.name, duration: out.duration, bytes, chapters: out.chapters, warning });
+    if (warning) status.note += `${clip.id}: ${warning} `;
+    status.clips.push({ id: clip.id, file: video, duration: out.duration, bytes, chapters: out.chapters.length });
+    status.files.push(video, chaptersFile);
+    status.bytes += bytes;
+    status.name = video;
+    status.timeline = out.timeline;
+    if (many) {
+      markDone([...doneBefore, ...results.map((r) => r.id)]);
+      await sink.save("manifest.json", new Blob([JSON.stringify(manifestOf(results, size), null, 1)], { type: "application/json" }));
+    }
+    if (!many) {
+      ui.recording(false);
+      ui.card("Film complete", `${clip.label}: ${video} · ${bytesText(bytes)} · ${mmss(out.duration)} · ${out.chapters.length} chapters. ${out.note}`, url ? [{ label: "Download again", href: url, name: video, go: () => void 0 }] : []);
+    }
+  }
+  status.state = "done";
+  if (many) {
+    ui.recording(false);
+    ui.card("Everything is filmed", `${results.length} clips saved to ${sink.where}, with manifest.json. ${bytesText(status.bytes)} in all. You can close this tab.`);
+  }
+}
+
+function manifestOf(results: ClipResult[], size: { width: number; height: number }): object {
+  return {
+    app: "inward-journey",
+    generated: new Date().toISOString(),
+    mode: FAST ? "fast" : "live",
+    fps: FPS,
+    size,
+    note: "Each clip is its own video; chapters give where in it each part of the tour is (seconds from the clip's start). To jump: pick the clip, seek to the chapter's start, play to its end.",
+    clips: results,
+  };
+}
+
+interface Captured {
+  files: { name: string; blob: Blob }[];
+  duration: number;
+  size: { width: number; height: number };
+  chapters: Chapter[];
+  timeline: unknown;
+  note: string;
+}
+interface Steps {
+  step: () => void;
+}
+
 /* ------------------------------------------------------------------ real time */
 
-async function runLive(host: FilmHost, ui: Screen, id: string, label: string): Promise<void> {
-  await intoTheWorld(host, ui, sleep, (secs) => sleep(secs * 1000));
+async function captureLive(host: FilmHost, ui: Screen, clip: Clip, base: string): Promise<Captured> {
   const pic = new Picture(host);
   const video = pic.canvas.captureStream(FPS);
   const sound = host.audio.tapStream();
@@ -254,20 +551,26 @@ async function runLive(host: FilmHost, ui: Screen, id: string, label: string): P
   let size = 0;
   rec.ondataavailable = (e) => e.data.size && (chunks.push(e.data), (size += e.data.size));
   const stopped = new Promise<void>((r) => (rec.onstop = () => r()));
+  const chapters = new Chapters();
+  const limit = clipLimit(clip), timed = clip.secs !== undefined;
 
   const t0 = real.now();
-  let started = false, idleSince = 0, finished = false;
+  let started = false, idleSince = 0, finished = false, lastNote = -1;
   const elapsed = (): number => (real.now() - t0) / 1000;
   host.onFrame(() => {
     if (!started || finished) return;
-    pic.draw(elapsed());
     const s = elapsed();
+    pic.draw(s);
     status.seconds = s;
     status.bytes = size;
     status.state = "recording";
-    ui.status(`REC ${mmss(s)}`);
-    if (UNTIL && s >= UNTIL) finished = true;
-    else if (!host.active()) {
+    ui.status(`REC ${clip.id} ${mmss(s)}${status.progress ? ` · clip ${status.progress}` : ""}`);
+    if (s - lastNote >= 0.25) {
+      lastNote = s;
+      chapters.note(s, host.chapter());
+    }
+    if (limit && s >= limit) finished = true;
+    else if (!timed && !host.active()) {
       idleSince ||= s;
       if (s - idleSince >= TAIL) finished = true;
     } else idleSince = 0;
@@ -275,27 +578,21 @@ async function runLive(host: FilmHost, ui: Screen, id: string, label: string): P
   pic.draw(0);
   rec.start(1000);
   started = true;
-  ui.recording(true, "REC 0:00");
-  host.start(id);
+  ui.recording(true, `REC ${clip.id} 0:00`);
+  host.start(clip.kind, clip.tour ?? "");
   while (!finished) await sleep(250);
   // one last frame, and a moment for the encoder to take it before the recorder is closed
   pic.draw(elapsed());
   await sleep(900);
+  const duration = elapsed();
+  host.onFrame(() => void 0);
   if (rec.state !== "inactive") rec.requestData();
   rec.stop();
   await stopped;
   for (const t of video.getTracks()) t.stop();
   const blob = new Blob(chunks, { type: "video/webm" });
   if (blob.size < 1000) throw new Error("The recorder produced no data (the game drew no frames while it was recording). Try again with the tab in front.");
-  const name = `inward-journey-${q.get("film")}.webm`;
-  status.state = "done";
-  status.bytes = blob.size;
-  status.name = name;
-  status.files = [name];
-  status.note = note.join(" ");
-  ui.recording(false);
-  const url = download(blob, name);
-  ui.card("Film complete", `${label}: ${name} · ${bytesText(blob.size)} · ${mmss(status.seconds)}. ${note.join(" ")}`, [{ label: "Download again", href: url, name, go: () => void 0 }]);
+  return { files: [{ name: `${base}.webm`, blob }], duration: Math.round(duration * 100) / 100, size: { width: pic.canvas.width, height: pic.canvas.height }, chapters: chapters.finish(duration), timeline: null, note: note.join(" ") };
 }
 
 /* ------------------------------------------------------------------ fast capture */
@@ -443,37 +740,12 @@ class Mixer {
   }
 }
 
-async function runFast(host: FilmHost, ui: Screen, id: string, label: string, zip: boolean): Promise<void> {
-  const mixer = new Mixer();
-  let origin = 0; // audio-clock seconds at the film's first frame
-  const raw: Tape[] = [];
-  const tape = (e: Tape): void => {
-    mixer.push(e);
-    raw.push(e);
-  };
-  host.audio.tape = tape;
-  host.narration.tape = tape;
-
-  // the virtual clock is stepped from the very beginning: nothing else would move time. While the
-  // world loads (in real time) it goes on at a rate the loading can keep up with.
-  const step = (): void => vclock.step(1000 / FPS);
-  const pace = async (ms: number): Promise<void> => {
-    const t = real.now();
-    while (real.now() - t < ms) {
-      step();
-      await sleep(8);
-    }
-  };
-  // (the settle counts the game's own seconds: a slow machine draws fewer frames in the same wall time)
-  const settle = async (secs: number): Promise<void> => {
-    const end = vclock.t + secs;
-    while (vclock.t < end) {
-      step();
-      await tick();
-    }
-  };
-  await intoTheWorld(host, ui, pace, settle);
+async function captureFast(host: FilmHost, ui: Screen, clip: Clip, zip: boolean, steps: Steps, current: { mixer: Mixer; raw: Tape[] }, base: string): Promise<Captured> {
+  const { mixer, raw } = current;
+  let origin = 0; // audio-clock seconds at the clip's first frame
+  const step = steps.step;
   const pic = new Picture(host);
+  const chapters = new Chapters();
 
   const W = pic.canvas.width, H = pic.canvas.height;
   if (!zip && (W % 2 || H % 2)) throw new Error(`The canvas is ${W}×${H}: video needs even sides. Resize the window by a pixel and try again.`);
@@ -488,7 +760,7 @@ async function runFast(host: FilmHost, ui: Screen, id: string, label: string, zi
     aenc = new AudioEncoder({ output: (c, m) => muxer!.addAudioChunk(c, m), error: (e) => (encErr = e) });
     aenc.configure({ codec: "opus", sampleRate: RATE, numberOfChannels: 2, bitrate: 160000 });
   }
-  const limit = UNTIL ? Math.round(UNTIL * FPS) : Infinity;
+  const limit = clipLimit(clip) ? Math.round(clipLimit(clip) * FPS) : Infinity, timed = clip.secs !== undefined;
   let captured = 0, capturing = false, idleFrames = 0, finished = false;
 
   host.onFrame(() => {
@@ -500,10 +772,11 @@ async function runFast(host: FilmHost, ui: Screen, id: string, label: string, zi
       venc.encode(vf, { keyFrame: f % (FPS * 2) === 0 });
       vf.close();
     } else pending.push(new Promise((r) => pic.canvas.toBlob((b) => (b && jpegs.push({ name: `frames/f${String(f).padStart(6, "0")}.jpg`, blob: b }), r()), "image/jpeg", 0.92)));
+    if (f % 8 === 0) chapters.note(f / FPS, host.chapter());
     status.frames = captured;
     status.seconds = captured / FPS;
     if (captured >= limit) finished = true;
-    else if (!host.active()) {
+    else if (!timed && !host.active()) {
       if (++idleFrames >= TAIL * FPS) finished = true;
     } else idleFrames = 0;
   });
@@ -519,12 +792,12 @@ async function runFast(host: FilmHost, ui: Screen, id: string, label: string, zi
     ad.close();
   };
 
-  // the film begins now: its first frame is the next one the game draws
+  // the clip begins now: its first frame is the next one the game draws
   origin = vclock.t + 1 / FPS;
   capturing = true;
   status.state = "recording";
-  ui.recording(true, "REC");
-  host.start(id);
+  ui.recording(true, `REC ${clip.id}`);
+  host.start(clip.kind, clip.tour ?? "");
   const CHUNK = 10;
   let audioDone = 0, counted = 0;
   const startedAt = real.now();
@@ -541,21 +814,20 @@ async function runFast(host: FilmHost, ui: Screen, id: string, label: string, zi
       if (encErr) throw encErr;
       if (venc) while (venc.encodeQueueSize > 8) await sleep(2);
       if (captured % FPS === 0) {
-        ui.status(`REC ${mmss(t)}${limit < Infinity ? ` of ${mmss(limit / FPS)}` : ""} · filmed in ${mmss((real.now() - startedAt) / 1000)}`);
+        ui.status(`REC ${clip.id} ${mmss(t)}${limit < Infinity ? ` of ${mmss(limit / FPS)}` : ""}${status.progress ? ` · clip ${status.progress}` : ""} · filmed in ${mmss((real.now() - startedAt) / 1000)}`);
         await sleep(0);
       }
     }
     await tick();
   }
+  host.onFrame(() => void 0);
   const total = captured;
   const duration = total / FPS;
   status.state = "encoding";
   ui.status("encoding…");
-  host.audio.tape = null;
-  host.narration.tape = null;
   const timeline = {
-    tour: q.get("film"),
-    label,
+    tour: clip.id,
+    label: clip.label,
     fps: FPS,
     frames: total,
     duration: Math.round(duration * 1000) / 1000,
@@ -563,16 +835,16 @@ async function runFast(host: FilmHost, ui: Screen, id: string, label: string, zi
     scale: SCALE,
     seed: Number(q.get("seed") ?? 20260930),
     audioNote: "The voice and the water bed are laid in from these events (frame = the film frame each fires on; negative = before the first frame). The generated layer (pad, bowls, chimes, one-shots) is live and random and is not in a fast capture.",
-    // each event with the film frame it fires on (negative: before the first frame)
+    // each event with the clip frame it fires on (negative: before the first frame)
     events: raw.map((e) => {
       const t = e.at - origin;
       const { k, ...rest } = e;
       return { ...rest, frame: Math.round(t * FPS), t: Math.round(t * 1000) / 1000, kind: k === "voice" ? "narration" : k === "voiceStop" ? "narration-stop" : k === "bed" ? "bed" : `${(e as { w: string }).w}-gain` };
     }),
   };
-  status.timeline = timeline;
-  const base = `inward-journey-${q.get("film")}`;
   const tl = new Blob([JSON.stringify(timeline, null, 1)], { type: "application/json" });
+  const ch = chapters.finish(duration);
+  const common = { duration: Math.round(duration * 100) / 100, size: { width: W, height: H }, chapters: ch, timeline };
 
   if (!zip && venc && aenc && muxer) {
     await encodeAudio(audioDone, duration);
@@ -581,31 +853,14 @@ async function runFast(host: FilmHost, ui: Screen, id: string, label: string, zi
     if (encErr) throw encErr;
     muxer.finalize();
     const blob = new Blob([muxer.target.buffer], { type: "video/webm" });
-    const name = `${base}.webm`;
-    status.state = "done";
-    status.bytes = blob.size;
-    status.name = name;
-    status.files = [name, `${base}.timeline.json`];
-    ui.recording(false);
-    const url = download(blob, name);
-    download(tl, `${base}.timeline.json`);
-    ui.card("Film complete", `${name} · ${bytesText(blob.size)} · ${mmss(duration)} · ${total} frames. The timeline came with it.`, [{ label: "Download again", href: url, name, go: () => void 0 }]);
-    return;
+    return { ...common, files: [{ name: `${base}.webm`, blob }, { name: `${base}.timeline.json`, blob: tl }], note: "The timeline came with it." };
   }
 
   // no WebCodecs: a zip of the frames, the timeline and the command that makes the video
   await Promise.all(pending);
   const sh = ffmpegScript(timeline as unknown as { fps: number; duration: number; events: Ev[] }, base);
   const z = await zipStore([...jpegs, { name: "timeline.json", blob: tl }, { name: "make-video.sh", blob: new Blob([sh], { type: "text/plain" }) }]);
-  const name = `${base}.frames.zip`;
-  status.state = "done";
-  status.bytes = z.size;
-  status.name = name;
-  status.files = [name];
-  status.note = "This browser has no WebCodecs: a zip of frames, the timeline and make-video.sh (run it in the unzipped folder, with ffmpeg and the game's audio files beside it).";
-  ui.recording(false);
-  const url = download(z, name);
-  ui.card("Frames ready", `${name} · ${bytesText(z.size)}. ${status.note}`, [{ label: "Download again", href: url, name, go: () => void 0 }]);
+  return { ...common, files: [{ name: `${base}.frames.zip`, blob: z }], note: "This browser has no WebCodecs: a zip of frames, the timeline and make-video.sh (run it in the unzipped folder, with ffmpeg and the game's audio files beside it)." };
 }
 
 /** The ffmpeg command that lays the voice and the bed on the frames, at the timeline's moments. */
