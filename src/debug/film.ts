@@ -190,8 +190,10 @@ interface Status {
   clip: string;
   progress: string;
   clips: { id: string; file: string; duration: number; bytes: number; chapters: number }[];
+  /** every file written, with its size (what the page believes it saved) */
+  saved: { name: string; bytes: number }[];
 }
-const status: Status = { state: "boot", frames: 0, seconds: 0, bytes: 0, name: "", files: [], note: "", error: "", timeline: null, clip: "", progress: "", clips: [] };
+const status: Status = { state: "boot", frames: 0, seconds: 0, bytes: 0, name: "", files: [], note: "", error: "", timeline: null, clip: "", progress: "", clips: [], saved: [] };
 (window as unknown as { __film: object }).__film = status;
 
 /* ------------------------------------------------------------------ clips and chapters */
@@ -299,7 +301,7 @@ interface ClipResult {
 /** The clips `?film=` asks for. */
 function clipsAsked(host: FilmHost): { clips: Clip[]; many: boolean } | string {
   const asked = q.get("film")!;
-  const flySecs = num("flysecs", 240, 20, 3600), walkSecs = num("walksecs", 150, 20, 3600);
+  const flySecs = num("flysecs", 240, 5, 3600), walkSecs = num("walksecs", 150, 5, 3600);
   const timed: Clip[] = [
     { id: "autofly", label: "Autofly", kind: "autofly", secs: flySecs },
     { id: "autowalk", label: "Auto-walk", kind: "autowalk", secs: walkSecs },
@@ -482,7 +484,10 @@ async function session(host: FilmHost, ui: Screen, clips: Clip[], total: number,
     const chaptersBlob = new Blob([JSON.stringify({ clip: clip.id, label: clip.label, duration: out.duration, chapters: out.chapters }, null, 1)], { type: "application/json" });
     ui.status(`saving ${base}…`);
     let url: string | null = null;
-    for (const f of out.files) url = (await sink.save(f.name, f.blob)) ?? url;
+    for (const f of out.files) {
+      url = (await sink.save(f.name, f.blob)) ?? url;
+      status.saved.push({ name: f.name, bytes: f.blob.size });
+    }
     await sink.save(chaptersFile, chaptersBlob);
     const bytes = out.files.reduce((a, f) => a + f.blob.size, 0);
     const video = out.files[0].name;
