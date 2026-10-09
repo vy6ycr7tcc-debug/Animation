@@ -67,7 +67,14 @@ const FPS = Math.round(num("fps", 30, 10, 60));
 const SCALE = num("scale", 1, 0.25, 4);
 /** The height of the video, in pixels: 1080 unless asked (`&res=`), times `&scale=`. A bigger canvas
     than this is drawn smaller into the film; a laptop cannot encode a 5-megapixel picture in real time. */
-const RES = Math.round(num("res", 1080, 240, 4320) * (q.has("res") ? 1 : SCALE));
+const RES = (() => {
+  // `&res=4k`, `2160`, `1440p`, `1080p`, `720p`, or a number of pixels high
+  const word = (q.get("res") ?? "").toLowerCase().replace(/p$/, "");
+  const named: Record<string, number> = { "4k": 2160, uhd: 2160, "2k": 1440, qhd: 1440, hd: 720, fhd: 1080 };
+  const h = named[word] ?? Number(word);
+  if (q.has("res") && Number.isFinite(h) && h >= 240) return Math.min(4320, Math.round(h));
+  return Math.round(1080 * SCALE);
+})();
 const UNTIL = q.has("until") ? num("until", 0, 1, 24 * 3600) : 0;
 const TAIL = 3; // seconds kept after the tour's last word, so the end isn't cut
 
@@ -610,7 +617,9 @@ async function captureLive(host: FilmHost, ui: Screen, clip: Clip, base: string)
   else for (const t of sound.getAudioTracks()) video.addTrack(t);
   // H.264 first: it is encoded by the computer's own video hardware, so recording takes almost nothing
   // from the game (software VP9 at 1080p does, and the scene stutters); and an mp4 can be seeked.
+  const big = pic.canvas.height > 1100; // above 1080p needs a higher H.264 level (5.1, not 4.0)
   const mime = [
+    ...(big ? ["video/mp4;codecs=avc1.640033,mp4a.40.2"] : []),
     "video/mp4;codecs=avc1.640028,mp4a.40.2",
     "video/mp4;codecs=avc1,mp4a.40.2",
     "video/mp4;codecs=avc1.640028,opus",
@@ -842,7 +851,7 @@ async function captureFast(host: FilmHost, ui: Screen, clip: Clip, zip: boolean,
   if (!zip) {
     muxer = new Muxer({ target: new ArrayBufferTarget(), video: { codec: "V_VP9", width: W, height: H, frameRate: FPS }, audio: { codec: "A_OPUS", numberOfChannels: 2, sampleRate: RATE }, firstTimestampBehavior: "offset" });
     venc = new VideoEncoder({ output: (c, m) => muxer!.addVideoChunk(c, m), error: (e) => (encErr = e) });
-    venc.configure({ codec: "vp09.00.10.08", width: W, height: H, framerate: FPS, bitrate: Math.min(40e6, Math.round(W * H * FPS * 0.14)) });
+    venc.configure({ codec: "vp09.00.51.08", width: W, height: H, framerate: FPS, bitrate: Math.min(40e6, Math.round(W * H * FPS * 0.14)) });
     aenc = new AudioEncoder({ output: (c, m) => muxer!.addAudioChunk(c, m), error: (e) => (encErr = e) });
     aenc.configure({ codec: "opus", sampleRate: RATE, numberOfChannels: 2, bitrate: 160000 });
   }

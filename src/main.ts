@@ -4878,7 +4878,7 @@ if (FILM) {
         const shore = places()[0];
         arrive({ place: shore, ...shore.start }, false);
       },
-      pin: (scale, fixed, targetH) => {
+      pin: (_scale, fixed, targetH) => {
         // fast capture holds the best picture (its time is its own); a real-time one lets the game
         // adapt as it always does, or a laptop that cannot draw the best level at full size draws a
         // frame every few seconds and the whole scene stands still
@@ -4886,7 +4886,9 @@ if (FILM) {
         const el = renderer.domElement;
         const native = (el.clientHeight || innerHeight) * Math.min(devicePixelRatio || 1, quality.current.dpr);
         // render about as many pixels as the film will hold (more is thrown away when it is shrunk)
-        quality.scale = Math.min(Math.max(targetH / native, 0.5), Math.max(1, scale));
+        // (and more pixels than the screen has when the film is larger than the screen: a 4K film
+        // from a 1080p window is drawn at 2×, not stretched)
+        quality.scale = Math.max(targetH / native, 0.5);
         resize();
       },
       frames: () => frameCount,
