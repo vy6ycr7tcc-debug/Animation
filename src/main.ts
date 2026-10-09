@@ -1108,13 +1108,13 @@ function autoFrame(dt: number): void {
   breath.update(dt, player.pos, playlist.on && !narration.progress() && !tp.playing);
   breathCueFrame();
 }
-/* The side of the square and its count, over the view while you breathe (the owner: "a counter in
-   seconds and a caption saying breathe, hold, release"); the first time on this device, a line
+/* The side of the square, over the view while you breathe: the lungs and one word, Breathe in, Hold,
+   Release, Wait (the owner: "remove numbers… just make the lungs breathe, hold, release, wait"). The first time on this device, a line
    under it says what square breathing is, for its first two rounds. */
-const cueEl = $("#breath-cue"), cueWord = cueEl.querySelector(".word") as HTMLElement, cueCount = cueEl.querySelector(".count") as HTMLElement, cueExplain = cueEl.querySelector(".explain") as HTMLElement;
-const CUE_WORDS: Record<string, string> = { in: "Breathe in", hold: "Hold", out: "Release", rest: "Rest" };
+const cueEl = $("#breath-cue"), cueWord = cueEl.querySelector(".word") as HTMLElement, cueExplain = cueEl.querySelector(".explain") as HTMLElement;
+const CUE_WORDS: Record<string, string> = { in: "Breathe in", hold: "Hold", out: "Release", rest: "Wait" };
 const lungs = new LungParticles(cueEl.querySelector("canvas.lungs") as HTMLCanvasElement);
-let cueOn = false, cueWordNow = "", cueCountNow = -1, cueExplaining = false;
+let cueOn = false, cueWordNow = "", cueExplaining = false;
 let breathExplained = false;
 try {
   breathExplained = localStorage.getItem("inward-journey:breath-explained") === "1";
@@ -1137,24 +1137,15 @@ function breathCueFrame(): void {
   lungs.draw(breath.open, breath.counting ? breath.phase : "wait", S.reduced);
   cueEl.classList.toggle("counting", breath.counting);
   if (!breath.counting) {
-    if (cueWordNow !== "wait") (cueWord.textContent = "Breathe with me"), (cueWordNow = "wait"), (cueCountNow = -1), (cueCount.textContent = "");
+    if (cueWordNow !== "wait") (cueWord.textContent = "Breathe with me"), (cueWordNow = "wait");
     return;
   }
   const word = CUE_WORDS[breath.phase] ?? "";
   if (word !== cueWordNow) cueWord.textContent = cueWordNow = word;
-  const n = Math.min(breath.secs, Math.floor(breath.phaseK * breath.secs) + 1);
-  if (n !== cueCountNow) {
-    cueCountNow = n;
-    cueCount.textContent = String(n);
-    cueCount.classList.remove("tick");
-    void cueCount.offsetWidth; // restart the count's soft arrival
-    cueCount.classList.add("tick");
-  }
   // the first time: what square breathing is, for the first two rounds
   const explain = !breathExplained && breath.cycles <= 2;
   if (explain && !cueExplaining) {
-    const say = (p: { name: string; secs: number }, i: number) => `${i === 0 ? "breathe in" : (CUE_WORDS[p.name] ?? "").toLowerCase()} for ${p.secs}${i === 0 ? " seconds" : ""}`;
-    cueExplain.textContent = `Square breathing: ${breath.phases.map(say).join(", ")}, and again. Let your lungs fill and empty with the light.`;
+    cueExplain.textContent = "Square breathing: breathe in, hold, release, wait, and again, each as long as the others. Let your lungs fill and empty with the light.";
     cueExplain.classList.add("on");
     cueExplaining = true;
   } else if (!explain && cueExplaining) {
