@@ -20,6 +20,10 @@ every control, label and word hidden, and offers `inward-journey-<tour>.webm` at
 size. If the browser won't let sound start by itself it shows one "Begin filming" button first.
 Keep the tab in front while it records. The REC dot is DOM, so it is never in the picture.
 
+## The setup page (`/film.html`)
+
+Open `film.html` beside the game (same address, `film.html` instead of the page). Tick what to record (each tour, autofly, auto-walk, genesis, the grand tour), pick the quality (720p, 1080p, 1440p, 4K), fast or live, and the frame rate, then press Start filming. It builds the `?film=` address for you (shown at the foot) and remembers your choices on the device.
+
 ## Everything, walk-away (`?film=everything`)
 
 One address films every part of the game as its own clip and writes a manifest for the TV app:
