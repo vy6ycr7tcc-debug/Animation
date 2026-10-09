@@ -78,6 +78,9 @@ export class Controller {
   private airTime = 0;
   /** A jump tapped just before touching down, kept a moment so it happens on landing. */
   private jumpQueued = 0;
+  /** Auto jump (⋮, on by default): walking into a ledge too tall to step over hops up it. */
+  autoJump = true;
+  private hopWait = 0;
   /** How far below the surface the swimmer has dived (0 at the surface). */
   depth = 0;
   get diving(): boolean {
@@ -168,6 +171,26 @@ export class Controller {
     }
   }
 
+  /** Held up by a ledge or block (not a slope, which is walked up) whose top is within a jump's
+      reach and lies just ahead: jump it. The jump is a small hop, not a leap (apex ~1 m). */
+  private autoHop(dx: number, dz: number, mag: number, moved: number, intended: number, dt: number): void {
+    this.hopWait = Math.max(0, this.hopWait - dt);
+    if (!this.autoJump || !this.grounded || this.flying || this.swimming || this.hopWait > 0 || mag < 0.4 || intended < 1e-4) return;
+    if (moved > intended * 0.45) return; // not held up
+    const len = Math.hypot(dx, dz) || 1;
+    const ax = this.pos.x + (dx / len) * (BODY_R + 0.3), az = this.pos.z + (dz / len) * (BODY_R + 0.3);
+    const reach = this.pos.y + (JUMP_V * JUMP_V) / (2 * GRAVITY) - 0.15; // the highest top a hop can clear
+    const g = standAt(ax, az);
+    const top = Math.max(g, solidity.floor(ax, az, reach, g));
+    const rise = top - this.pos.y;
+    if (rise > STEP - 0.05 && rise < reach - this.pos.y) {
+      this.vy = JUMP_V;
+      this.grounded = false;
+      this.airTime = 1;
+      this.hopWait = 0.5;
+    }
+  }
+
   /** Put the wanderer under the water at once, still (coming into or out of a place apart). */
   placeUnder(): void {
     Object.assign(this, { flying: false, landing: false, grounded: false, swimming: true, gliding: false, vy: 0, target: null, plunge: 0, burst: 0, surfacing: false });
@@ -235,6 +258,7 @@ export class Controller {
     // and out of every solid building by its own shape (flight is held as a ball, below)
     if (!this.flying) solidity.pushWalk(p, this.pos.y, BODY_R);
     const moved = Math.hypot(p.x - this.pos.x, p.z - this.pos.z);
+    this.autoHop(dx, dz, mag, moved, Math.hypot(nx - this.pos.x, nz - this.pos.z), dt);
     this.pos.x = p.x;
     this.pos.z = p.z;
     this.odometer += moved;
