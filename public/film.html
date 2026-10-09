@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inward Journey · Film</title>
+<style>
+:root{color-scheme:dark}
+body{margin:0;background:#05070d;color:#d9dce6;font:16px/1.5 system-ui,sans-serif}
+main{max-width:640px;margin:0 auto;padding:28px 18px 60px}
+h1{font-weight:300;letter-spacing:.08em;color:#e8cf8e;margin:0 0 4px}
+p.s{margin:0 0 22px;color:#8d93a6}
+h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#8d93a6;margin:26px 0 8px;font-weight:500}
+label.r{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border:1px solid #1d2233;border-radius:10px;margin:6px 0;cursor:pointer}
+label.r:has(input:checked){border-color:#b99a52;background:#0e121d}
+label.r small{display:block;color:#7b8195}
+input[type=checkbox],input[type=radio]{margin-top:5px;accent-color:#e8cf8e}
+.row{display:flex;gap:8px;flex-wrap:wrap}.row button,select,input[type=number]{background:#0e121d;color:#d9dce6;border:1px solid #2a3150;border-radius:8px;padding:8px 12px;font:inherit}
+.go{display:block;width:100%;margin-top:24px;padding:14px;border:1px solid #e8cf8e;background:#17140a;color:#e8cf8e;border-radius:12px;font:inherit;letter-spacing:.08em;cursor:pointer}
+code{display:block;margin-top:14px;padding:10px;background:#0b0e17;border-radius:8px;color:#8d93a6;font-size:12px;word-break:break-all}
+</style></head><body><main>
+<h1>Film</h1><p class="s">Choose what the game records, and how sharp. Then press Start.</p>
+
+<h2>What to record</h2>
+<div class="row"><button type="button" id="all">All</button><button type="button" id="none">None</button></div>
+<div id="clips"></div>
+
+<h2>Quality</h2>
+<div id="res"></div>
+
+<h2>How</h2>
+<label class="r"><input type="radio" name="mode" value="fast" checked><span>Fast, set it and walk away<small>Renders at its own pace, so any laptop makes a smooth file. Sound: the voices and the water bed only.</small></span></label>
+<label class="r"><input type="radio" name="mode" value="live"><span>Live, in real time<small>Records what you see, with all the sound. Needs a strong GPU, and 4K needs a hardware encoder. Keep the tab in view.</small></span></label>
+<div class="row" style="margin-top:10px;align-items:center">Frames a second <select id="fps"><option>24</option><option selected>30</option><option>60</option></select></div>
+
+<button class="go" id="go" type="button">Start filming</button>
+<code id="url"></code>
+</main>
+<script>
+const CLIPS=[
+["temple","The temple, guided"],["pyramid","The pyramid’s meditation and the Duat"],["duat","The Duat, hour by hour"],
+["densities","The densities, end to end"],["adept","The school of the adept"],["past","Past choices"],
+["veil","The world after the veil"],["descent","The long descent"],["ancient","The ancient worlds"],
+["lessons","The lessons"],["visions","The three visions"],
+["autofly","Autofly","flying among the planets and stars"],["autowalk","Auto-walk","walking on its own"],["genesis","Genesis, the heart","the world goes dark and is rebuilt"],
+["grand","The grand tour, in one go","everything in one long clip"]];
+const RES=[["720p","720p","small, quick"],["1080p","1080p","full HD"],["1440p","1440p","sharper"],["4k","4K","2160 high, the sharpest"]];
+const KEY="inward-journey:film-config";
+let saved={};try{saved=JSON.parse(localStorage.getItem(KEY)||"{}")}catch{}
+const $=s=>document.querySelector(s);
+const clipsEl=$("#clips"),resEl=$("#res");
+for(const [id,l,sub] of CLIPS){const on=saved.clips?saved.clips.includes(id):id!=="grand";
+ clipsEl.insertAdjacentHTML("beforeend",`<label class="r"><input type="checkbox" value="${id}" ${on?"checked":""}><span>${l}${sub?`<small>${sub}</small>`:""}</span></label>`)}
+for(const [id,l,sub] of RES){resEl.insertAdjacentHTML("beforeend",`<label class="r"><input type="radio" name="res" value="${id}" ${(saved.res||"1080p")===id?"checked":""}><span>${l}<small>${sub}</small></span></label>`)}
+if(saved.mode)document.querySelector(`input[name=mode][value=${saved.mode}]`).checked=true;
+if(saved.fps)$("#fps").value=saved.fps;
+function build(){
+ const picked=[...clipsEl.querySelectorAll("input:checked")].map(i=>i.value);
+ const res=document.querySelector("input[name=res]:checked").value;
+ const mode=document.querySelector("input[name=mode]:checked").value;
+ const fps=$("#fps").value;
+ const p=new URLSearchParams();
+ if(!picked.length)return {picked,res,mode,fps,url:""};
+ if(picked.length===1)p.set("film",picked[0]==="grand"?"grand":picked[0]);
+ else{p.set("film","everything");p.set("only",picked.join(","));if(picked.includes("grand"))p.set("grand","1");}
+ p.set("res",res);p.set("fps",fps);if(mode==="fast")p.set("fast","1");
+ return {picked,res,mode,fps,url:"./?"+p.toString()};
+}
+function refresh(){const b=build();$("#url").textContent=b.url||"Choose at least one thing to record.";$("#go").disabled=!b.url;
+ try{localStorage.setItem(KEY,JSON.stringify({clips:b.picked,res:b.res,mode:b.mode,fps:b.fps}))}catch{}}
+document.addEventListener("change",refresh);
+$("#all").onclick=()=>{clipsEl.querySelectorAll("input").forEach(i=>i.checked=i.value!=="grand");refresh()};
+$("#none").onclick=()=>{clipsEl.querySelectorAll("input").forEach(i=>i.checked=false);refresh()};
+$("#go").onclick=()=>{const b=build();if(b.url)location.href=b.url};
+refresh();
+</script></body></html>
