@@ -572,7 +572,7 @@ async function session(host: FilmHost, ui: Screen, clips: Clip[], total: number,
     }
     if (!many) {
       ui.recording(false);
-      ui.card("Film complete", `${clip.label}: ${video} · ${bytesText(bytes)} · ${mmss(out.duration)} · ${out.chapters.length} chapters. ${out.note}`, url ? [{ label: "Download again", href: url, name: video, go: () => void 0 }] : []);
+      ui.card("Film complete", `${clip.label}: ${video} saved to ${sink.where} · ${bytesText(bytes)} · ${mmss(out.duration)} · ${out.chapters.length} chapters. ${out.note}`, url ? [{ label: "Download again", href: url, name: video, go: () => void 0 }] : []);
     }
   }
   status.state = "done";
@@ -641,6 +641,7 @@ async function captureLive(host: FilmHost, ui: Screen, clip: Clip, base: string)
   const limit = clipLimit(clip), timed = clip.secs !== undefined;
 
   const t0 = real.now();
+  let asleepMsg = "";
   let started = false, idleSince = 0, finished = false, lastNote = -1, lastDraw = -1, lastStatus = -1;
   const fps = new Fps(host);
   const elapsed = (): number => (real.now() - t0) / 1000;
@@ -658,7 +659,7 @@ async function captureLive(host: FilmHost, ui: Screen, clip: Clip, base: string)
     if (s - lastStatus >= 0.5) {
       lastStatus = s;
       const f = fps.tick();
-      ui.status(`REC ${clip.id} ${mmss(s)}${status.progress ? ` · clip ${status.progress}` : ""}${f ? ` · ${f.toFixed(0)} fps` : ""}${slowNote(f) ? " · slow: try &res=720" : ""}`);
+      ui.status(asleepMsg || `REC ${clip.id} ${mmss(s)}${status.progress ? ` · clip ${status.progress}` : ""}${f ? ` · ${f.toFixed(0)} fps` : ""}${slowNote(f) ? " · slow: try &res=720" : ""}`);
     }
     if (s - lastNote >= 0.25) {
       lastNote = s;
@@ -675,7 +676,30 @@ async function captureLive(host: FilmHost, ui: Screen, clip: Clip, base: string)
   started = true;
   ui.recording(true, `REC ${clip.id} 0:00`);
   host.start(clip.kind, clip.tour ?? "");
-  while (!finished) await sleep(250);
+  // The game's clocks (the voices, so the tours) run on the audio clock: if the browser has put the
+  // sound to sleep (no click yet, or the tab was in the background) everything waits for it, and
+  // wakes only when a click does. Keep asking it to wake, and say so when it won't.
+  let asleepSince = 0;
+  const wake = (): void => host.audio.start();
+  addEventListener("pointerdown", wake);
+  addEventListener("keydown", wake);
+  while (!finished) {
+    await sleep(250);
+    const st = host.audio.ctx?.state;
+    if (st && st !== "running" && !document.hidden) {
+      asleepSince ||= real.now();
+      host.audio.resume();
+      if (real.now() - asleepSince > 2500) {
+        asleepMsg = `REC ${clip.id} · THE SOUND IS ASLEEP, so the game waits. Click once anywhere to wake it.`;
+        status.note = "sound asleep: click once";
+      }
+    } else {
+      asleepSince = 0;
+      asleepMsg = "";
+    }
+  }
+  removeEventListener("pointerdown", wake);
+  removeEventListener("keydown", wake);
   // one last frame, and a moment for the encoder to take it before the recorder is closed
   pic.draw(elapsed());
   await sleep(900);
