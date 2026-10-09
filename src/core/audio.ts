@@ -12,10 +12,25 @@ import { loadBytes } from "./assets";
 export const HEART_START = 0.3, HEART_PERIOD = 0.95;
 
 type AudioSessionNav = Navigator & { audioSession?: { type: string } };
+import { FAST, vclock } from "../debug/filmClock";
+
+/** Film mode's record of the sounds that come from files (debug/film.ts, fast capture): enough to
+    lay the voice and the bed in afterwards at their exact moments on the audio clock. */
+export type Tape =
+  | { k: "voice"; at: number; file: string; off: number; dur?: number; fadeIn: number }
+  | { k: "voiceStop"; at: number; fade: number }
+  | { k: "gain"; w: "bed" | "master"; at: number; to: number; secs: number }
+  | { k: "bed"; at: number };
+
 type WebkitWindow = Window & { webkitAudioContext?: typeof AudioContext };
 
 export class AudioEngine {
   ctx: AudioContext | null = null;
+  /** Film mode: told every file-based sound as it starts (null otherwise). */
+  tape: ((e: Tape) => void) | null = null;
+  /** Fast film capture: the audio clock is the film's virtual clock, and nothing is played. */
+  readonly virtual = FAST;
+  private comp: DynamicsCompressorNode | null = null;
   volume = 0.8;
   sessionType = "unsupported";
   master!: GainNode;
@@ -60,8 +75,10 @@ export class AudioEngine {
     }
     const AC = window.AudioContext || (window as WebkitWindow).webkitAudioContext;
     if (!AC) return;
-    const c = (this.ctx = new AC());
-    c.resume();
+    // fast film capture: a context that is never rendered (no sound plays; decoding works), and the
+    // film's own clock stands in for its time
+    const c = (this.ctx = FAST ? (new OfflineAudioContext(2, 48000, 48000) as unknown as AudioContext) : new AC());
+    if (!FAST) c.resume();
     const silent = c.createBufferSource(); // fully unlocks output on older iOS
     silent.buffer = c.createBuffer(1, 1, c.sampleRate);
     silent.connect(c.destination);
@@ -69,7 +86,7 @@ export class AudioEngine {
 
     this.master = c.createGain();
     this.master.gain.value = 0;
-    const comp = c.createDynamicsCompressor();
+    const comp = (this.comp = c.createDynamicsCompressor());
     comp.threshold.value = -14;
     comp.ratio.value = 2.5;
     this.master.connect(comp).connect(c.destination);
@@ -134,7 +151,22 @@ export class AudioEngine {
     this.setVolume(this.volume, 3);
   }
 
+  /** The audio clock, in seconds: the context's own, or in fast film capture the film's. */
+  now(): number {
+    return FAST ? vclock.t : (this.ctx?.currentTime ?? 0);
+  }
+
+  /** Film mode: the whole mix (voice, bed, tones, one-shots) as a stream for the recorder. */
+  tapStream(): MediaStream | null {
+    const c = this.ctx;
+    if (!c || !this.comp || FAST || !("createMediaStreamDestination" in c)) return null;
+    const d = c.createMediaStreamDestination();
+    this.comp.connect(d);
+    return d.stream;
+  }
+
   resume(): void {
+    if (FAST) return;
     if (this.ctx && this.ctx.state !== "running") this.ctx.resume();
   }
   suspend(): void {
@@ -174,6 +206,10 @@ export class AudioEngine {
 
   private ramp(p: AudioParam | undefined, to: number, secs: number): void {
     if (!this.ctx || !p) return;
+    if (this.tape) {
+      const w = p === this.bed?.gain ? "bed" : p === this.master?.gain ? "master" : null;
+      if (w) this.tape({ k: "gain", w, at: this.now(), to, secs });
+    }
     const t = this.ctx.currentTime;
     p.cancelScheduledValues(t);
     p.setValueAtTime(p.value, t);
@@ -203,6 +239,7 @@ export class AudioEngine {
     g.gain.value = 0.9;
     src.connect(g).connect(this.worldDry);
     src.start();
+    this.tape?.({ k: "bed", at: this.now() });
   }
 
   /** Generative lapping water, used only if the bed file can't be played. */
@@ -978,7 +1015,7 @@ export class AudioEngine {
 }
 
 /** Fold the tail of a buffer over its head so it loops without a seam. */
-function crossfadeLoop(c: BaseAudioContext, src: AudioBuffer, secs: number): AudioBuffer {
+export function crossfadeLoop(c: BaseAudioContext, src: AudioBuffer, secs: number): AudioBuffer {
   const x = Math.min(Math.floor(secs * src.sampleRate), Math.floor(src.length / 4));
   const n = src.length - x;
   const out = c.createBuffer(src.numberOfChannels, n, src.sampleRate);

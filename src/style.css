@@ -885,3 +885,26 @@ body.touring #keys { display: none; }
 @media (prefers-reduced-motion: reduce) { #keys .chip.fresh kbd { animation: none; border-color: var(--gold); } }
 #howto:not(.kbd) #howto-keys { display: none; }
 #howto-keys { margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line, rgba(226, 191, 126, 0.28)); }
+
+/* ---- film mode (?film=<tour>; debug/film.ts): the game records itself. Nothing here applies
+   without the `film` class on the body. ---- */
+body.film > :not(#gl):not(#film-ui) { visibility: hidden !important; pointer-events: none !important; }
+#film-ui { position: fixed; inset: 0; z-index: 100; pointer-events: none; font-family: var(--serif); color: var(--pearl); }
+#film-ui .film-card {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: min(34em, 88vw); text-align: center;
+  padding: 26px 30px; border: 1px solid var(--line); border-radius: 22px; background: var(--panel);
+  opacity: 0; visibility: hidden; transition: opacity 0.6s ease; pointer-events: auto;
+}
+#film-ui.card-on .film-card { opacity: 1; visibility: visible; }
+#film-ui .film-title { margin: 0 0 8px; font-style: italic; font-size: 22px; letter-spacing: 0.06em; color: var(--gold); }
+#film-ui .film-line { margin: 0; font-size: 15px; line-height: 1.5; color: var(--dim); overflow-wrap: anywhere; }
+#film-ui .film-btns { display: flex; gap: 10px; justify-content: center; margin-top: 18px; }
+#film-ui .film-btns:empty { display: none; }
+#film-ui .film-btn {
+  min-height: 44px; padding: 8px 22px; border: 1px solid var(--gold); border-radius: 22px; background: transparent;
+  color: var(--gold); font: italic 16px var(--serif); text-decoration: none; display: inline-flex; align-items: center; cursor: pointer;
+}
+#film-ui .film-rec { position: absolute; left: calc(14px + env(safe-area-inset-left, 0px)); top: calc(12px + env(safe-area-inset-top, 0px)); display: flex; align-items: center; gap: 8px; font-size: 12px; letter-spacing: 0.08em; color: rgba(244, 239, 230, 0.55); }
+#film-ui .film-rec[hidden] { display: none; }
+#film-ui .film-rec i { width: 8px; height: 8px; border-radius: 50%; background: #d65a5a; animation: film-rec 2s ease-in-out infinite; }
+@keyframes film-rec { 50% { opacity: 0.35; } }
