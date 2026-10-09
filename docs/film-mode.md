@@ -7,7 +7,8 @@ Open a URL, walk away, come back to a video file with the tour's picture and sou
 ?film=<tour>                one tour: temple, pyramid, densities, adept, past, veil, descent,
                             ancient, lessons, visions, duat (the same ids as ⋮ → Map → Tours)
 &fps=30                     frames a second (10–60, default 30)
-&res=1080                   height of the video in pixels (default 1080; the game renders about that many)
+&res=1080                   height of the video in pixels: 1080 (default), 1440p, 4k (2160), 720p, or a number.
+                            The game draws that many pixels, even more than your screen has.
 &scale=1                    multiplies the render size and, unless &res is given, the video height
 &until=<seconds>            stop after this long (otherwise: 3 s after the tour's end)
 &fast=1                     offline capture (below)
@@ -97,3 +98,11 @@ Without WebCodecs (Firefox, Safari) a zip comes instead: `frames/f000000.jpg…`
   `ffmpeg -i in.webm -c copy out.webm` writes one. Fast captures have it.
 - Verified headless (software GPU): real time with `&until=20` gives VP9 + Opus; fast gives an exact
   frame count and duration. A real GPU/laptop pass is the owner's.
+
+## 4K
+
+`?film=<tour>&res=4k` records 3840×2160. The game then renders about 8.3 million pixels a frame, which
+no laptop can do in real time, so for 4K use fast capture: `?film=<tour>&res=4k&fast=1`. It takes as
+long as the computer needs (minutes of film can take an hour) and the video is exact; the sound is the
+voice and the water (see above). Real-time 4K needs a strong desktop GPU and hardware H.264 encoding;
+the card's frame rate says if the machine keeps up. `?film=everything&res=4k&fast=1` films every clip.
