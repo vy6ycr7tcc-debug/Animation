@@ -36,7 +36,7 @@ export interface Choice {
   heading: number;
 }
 
-const RES = 300;
+const RES = 360;
 const GROUPS: { g: Group; title: string }[] = [
   { g: "Shore", title: "" },
   { g: "Mind", title: "The Mind" },
@@ -52,6 +52,13 @@ const INK: Record<Group, string> = {
   Spirit: "rgba(206,170,255,0.95)",
   Choice: "rgba(255,246,228,0.98)",
   Deep: "rgba(150,225,215,0.95)",
+};
+/** The places that aren't archetypes, by their tab: monuments gold, ancient worlds sand, lessons rose. */
+const SECTION_INK: Partial<Record<Section, string>> = {
+  Monuments: "rgba(236,200,130,0.95)",
+  Ancient: "rgba(232,176,128,0.95)",
+  Lessons: "rgba(240,184,206,0.95)",
+  Deep: INK.Deep,
 };
 const SERIF = '"Iowan Old Style", Palatino, Georgia, serif';
 
@@ -178,6 +185,7 @@ export class StartMap {
     this.base = null;
     this.list.replaceChildren(...this.buildList());
     this.el.hidden = false;
+    document.body.classList.add("mapping");
     requestAnimationFrame(() => this.el.classList.add("on"));
     this.layout();
     this.renderBase();
@@ -328,6 +336,7 @@ export class StartMap {
 
   private finish(c: Choice | null): void {
     this.el.classList.remove("on");
+    document.body.classList.remove("mapping");
     window.setTimeout(() => (this.el.hidden = true), 600);
     const r = this.resolve;
     this.resolve = null;
@@ -479,22 +488,26 @@ export class StartMap {
     const g = c.getContext("2d")!;
     const img = g.createImageData(RES, RES);
     const mix = (a: number[], b: number[], t: number) => a.map((v, k) => v + (b[k] - v) * Math.min(1, Math.max(0, t)));
-    // contour lines in gold, spaced to suit the map's scale
+    // contour lines in gold, spaced to suit the map's scale. Lines are drawn by their distance in
+    // pixels from the level (height over the slope), so they come out smooth, never stair-stepped.
     const ci = Math.max(3, Math.round(box.size / 220));
+    const clamp01 = (t: number) => Math.min(1, Math.max(0, t));
     for (let j = 0; j < RES; j++)
       for (let i = 0; i < RES; i++) {
         const v = h[j * n + i], vr = h[j * n + i + 1], vd = h[(j + 1) * n + i];
-        let col: number[];
-        if (v < WATER_Y) {
-          col = mix([26, 30, 78], [7, 8, 26], -v / 40);
-        } else {
-          col = mix([44, 37, 72], [86, 72, 104], v / 40);
-          const shade = Math.max(-1, Math.min(1, (v - vr + (v - vd)) * 0.35 * (RES / box.size) * 8)); // light from the north-west
-          col = col.map((x) => x * (0.85 + shade * 0.25));
-          if (Math.floor(v / ci) !== Math.floor(vr / ci) || Math.floor(v / ci) !== Math.floor(vd / ci)) col = mix(col, [226, 184, 110], 0.4);
+        const slope = Math.max(1e-3, Math.hypot(vr - v, vd - v));
+        const wet = mix([26, 30, 78], [7, 8, 26], -v / 40);
+        let col: number[] = mix([44, 37, 72], [86, 72, 104], v / 40);
+        const shade = Math.max(-1, Math.min(1, (v - vr + (v - vd)) * 0.35 * (RES / box.size) * 8)); // light from the north-west
+        col = col.map((x) => x * (0.85 + shade * 0.25));
+        if (v >= WATER_Y) {
+          const f = v / ci, line = (Math.abs(f - Math.round(f)) * ci) / slope;
+          col = mix(col, [226, 184, 110], 0.32 * clamp01(1 - line));
         }
-        // the shoreline, in pearl
-        if ((v < WATER_Y) !== (vr < WATER_Y) || (v < WATER_Y) !== (vd < WATER_Y)) col = [236, 226, 206];
+        // land and water meet softly, and the shoreline is a fine line of pearl along that meeting
+        const d = (v - WATER_Y) / slope;
+        col = mix(wet, col, clamp01(d + 0.5));
+        col = mix(col, [236, 226, 206], 0.9 * clamp01(1.1 - Math.abs(d)));
         img.data.set([col[0], col[1], col[2], 255], (j * RES + i) * 4);
       }
     g.putImageData(img, 0, 0);
@@ -588,6 +601,8 @@ export class StartMap {
     // Names are gathered as the marks are drawn, then placed most important first, each only
     // where it overlaps nothing already written (they piled into an unreadable knot)
     const labels: { text: string; x: number; y: number; align: CanvasTextAlign; font: string; fill: string; rank: number }[] = [];
+    // every mark's own room, so no name is written across a mark
+    const marks: [number, number, number, number][] = [];
     // the planets and stars overhead: a ringed disc, a four-pointed sparkle
     for (const m of this.sky) {
       const x = this.toMapX(m.x), y = this.toMapY(m.z);
@@ -636,6 +651,7 @@ export class StartMap {
         g.closePath();
         g.fill();
       }
+      marks.push([x - 7 * k, y - 7 * k, x + 7 * k, y + 7 * k]);
       if (close)
         labels.push({ text: m.label, x: x + 11 * k, y: y + 3 * k, align: "left", font: `italic ${10.5 * k}px ${SERIF}`, fill: m.kind === "grove" ? "rgba(255,236,200,0.9)" : "rgba(220,228,255,0.85)", rank: 3 });
       g.restore();
@@ -662,7 +678,7 @@ export class StartMap {
       if (p.numeral) {
         g.font = `${(p.numeral.length > 3 ? 7.5 : p.numeral.length > 2 ? 8.5 : 10) * k}px ${SERIF}`;
         g.fillText(p.numeral, x, y + (p.group === "Spirit" ? 2 : 0.5) * k);
-      } else {
+      } else if (p.label === "The shore") {
         // the shore: a small spiral, the drawings' own mark
         g.strokeStyle = "#f4efe6";
         g.lineWidth = 1 * k;
@@ -673,6 +689,25 @@ export class StartMap {
           else g.moveTo(x, y);
         }
         g.stroke();
+      } else {
+        // any other place: a small point of its kind's colour in a fine ring (they were all
+        // the shore's spiral, a field of identical whorls)
+        const ink = SECTION_INK[this.sectionOf(p)] ?? INK.Shore;
+        g.save();
+        g.shadowColor = ink;
+        g.shadowBlur = (on ? 12 : 5) * k;
+        g.fillStyle = ink;
+        g.beginPath();
+        g.arc(x, y, (on ? 3.6 : 2.6) * k, 0, Math.PI * 2);
+        g.fill();
+        g.restore();
+        g.strokeStyle = ink;
+        g.globalAlpha = 0.55;
+        g.lineWidth = 0.9 * k;
+        g.beginPath();
+        g.arc(x, y, (on ? 8 : 5.5) * k, 0, Math.PI * 2);
+        g.stroke();
+        g.globalAlpha = 1;
       }
       if (p.deep) {
         // a wave beneath: this home is in the deep
@@ -686,6 +721,8 @@ export class StartMap {
         }
         g.stroke();
       }
+      const rm = (p.numeral ? r * 1.2 : 6 * k) + 1.5 * k;
+      marks.push([x - rm, y - rm, x + rm, y + rm + (p.deep ? 9 * k : 0)]);
       // names only where there is room for them, and always the one you've chosen
       const right = x > W * 0.72;
       labels.push({
@@ -701,7 +738,8 @@ export class StartMap {
       const w = g.measureText(l.text).width, h = 13 * k;
       const x0 = l.align === "right" ? l.x - w : l.x, y0 = l.y - h / 2;
       if (x0 < 2 || x0 + w > W - 2 || y0 < 2 || y0 + h > H - 2) continue;
-      if (taken.some(([a, b, c, d]) => x0 < c + 4 * k && x0 + w + 4 * k > a && y0 < d && y0 + h > b)) continue;
+      if (l.rank > 0 && taken.some(([a, b, c, d]) => x0 < c + 4 * k && x0 + w + 4 * k > a && y0 < d && y0 + h > b)) continue;
+      if (l.rank > 0 && marks.some(([a, b, c, d]) => x0 < c && x0 + w > a && y0 + 2 * k < d && y0 + h - 2 * k > b)) continue;
       taken.push([x0, y0, x0 + w, y0 + h]);
       g.textAlign = l.align;
       g.fillStyle = l.fill;

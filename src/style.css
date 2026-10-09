@@ -373,10 +373,12 @@ body.touring #busy { right: calc(22px + env(safe-area-inset-right, 0px)); bottom
   position: fixed; inset: 0; z-index: 20; overflow-y: auto; overscroll-behavior: contain;
   display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 0.6rem;
   padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px));
-  background: radial-gradient(ellipse at center, rgba(11, 10, 28, 0.55), rgba(11, 10, 28, 0.92));
+  background: radial-gradient(ellipse at 50% 30%, rgba(14, 12, 34, 0.9), rgba(9, 8, 22, 0.98));
   opacity: 0; transition: opacity 0.6s ease;
 }
 #map.on { opacity: 1; }
+/* while the map is open the game's own controls, hints and player rest, so nothing shows through it */
+body.mapping :is(#joy, #act, #ctx, #auto, #menu-btn, #tp, #tp-mini, #whisper, #keys, #tour-start, #breath-cue, #hear-again, #nprog, #seat-hint, #labels) { visibility: hidden; }
 #map > * { flex-shrink: 0; }
 #map[hidden] { display: none; }
 #map-title { margin: 0; font-style: italic; font-size: clamp(18px, 3vw, 24px); letter-spacing: 0.06em; }
@@ -400,12 +402,13 @@ body.touring #busy { right: calc(22px + env(safe-area-inset-right, 0px)); bottom
 #map-go, #map-continue { border: 1px solid var(--gold); border-radius: 22px; min-height: 44px; padding: 8px 20px; color: var(--gold); }
 #map-places { display: flex; flex-direction: column; gap: 0.5rem; max-width: 44em; width: 100%; }
 .map-head { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.map-tabs { display: flex; justify-content: center; gap: 2px; flex-wrap: nowrap; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.map-tabs { display: flex; justify-content: center; gap: 2px; flex-wrap: nowrap; max-width: 100%; overflow-x: auto; scrollbar-width: none; padding: 3px; }
 .map-tabs::-webkit-scrollbar { display: none; }
 .map-tabs button {
   min-height: 44px; padding: 6px 8px; border-radius: 22px; font-size: 13.5px; color: var(--dim); white-space: nowrap; flex: none;
   border: 1px solid transparent;
 }
+.map-tabs button:focus-visible { outline-offset: -1px; }
 .map-tabs button[aria-selected="true"] { color: var(--gold); border-color: var(--line); background: rgba(226, 191, 126, 0.08); }
 /* the places of one tab: a tidy grid of names, each with where it lies beneath */
 .map-group { display: grid; grid-template-columns: repeat(auto-fill, minmax(11.5em, 1fr)); gap: 2px 10px; }
@@ -418,7 +421,8 @@ body.touring #busy { right: calc(22px + env(safe-area-inset-right, 0px)); bottom
 #map-places .map-home { display: flex; flex-direction: row; gap: 8px; align-items: baseline; color: var(--gold); padding: 6px 12px; }
 #map-places button { font-size: 14px; color: var(--dim); padding: 6px 4px; min-height: 44px; }
 #map-places button:hover, #map-places button:focus-visible { color: var(--pearl); }
-#map .note { margin: 0; font-size: 13px; color: var(--dim); font-style: italic; }
+#map .note { margin: 0; font-size: 12.5px; color: var(--dim); font-style: italic; text-align: center; max-width: 30em; opacity: 0.8; }
+#map .map-foot { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
 #map-close { font-size: 14px; color: var(--gold); padding: 6px 12px; }
 #map-close[hidden] { display: none; }
 
