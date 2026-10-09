@@ -370,7 +370,7 @@ body.touring #busy { right: calc(22px + env(safe-area-inset-right, 0px)); bottom
 
 /* ---- the map you begin from ---- */
 #map {
-  position: fixed; inset: 0; z-index: 20; overflow-y: auto; overscroll-behavior: contain;
+  position: fixed; inset: 0; z-index: 20; overflow: hidden; overscroll-behavior: contain;
   display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 0.6rem;
   padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px));
   background: radial-gradient(ellipse at 50% 30%, rgba(14, 12, 34, 0.9), rgba(9, 8, 22, 0.98));
@@ -379,7 +379,7 @@ body.touring #busy { right: calc(22px + env(safe-area-inset-right, 0px)); bottom
 #map.on { opacity: 1; }
 /* while the map is open the game's own controls, hints and player rest, so nothing shows through it */
 body.mapping :is(#joy, #act, #ctx, #auto, #menu-btn, #tp, #tp-mini, #whisper, #keys, #tour-start, #breath-cue, #hear-again, #nprog, #seat-hint, #labels) { visibility: hidden; }
-#map > * { flex-shrink: 0; }
+#map > :not(#map-places) { flex-shrink: 0; }
 #map[hidden] { display: none; }
 #map-title { margin: 0; font-style: italic; font-size: clamp(18px, 3vw, 24px); letter-spacing: 0.06em; }
 #map-frame { position: relative; flex: none; }
@@ -400,7 +400,17 @@ body.mapping :is(#joy, #act, #ctx, #auto, #menu-btn, #tp, #tp-mini, #whisper, #k
 #map-pick p { margin: 0; font-style: italic; text-align: center; }
 #map-continue[hidden] { display: none; }
 #map-go, #map-continue { border: 1px solid var(--gold); border-radius: 22px; min-height: 44px; padding: 8px 20px; color: var(--gold); }
-#map-places { display: flex; flex-direction: column; gap: 0.5rem; max-width: 44em; width: 100%; }
+#map-places { display: flex; flex-direction: column; gap: 0.5rem; max-width: 44em; width: 100%; flex: 1 1 0; min-height: 0; }
+#map-places > .map-head { flex: none; }
+/* the names scroll in their own space, so the map and the tabs stay in view and the screen never scrolls */
+#map-places > .map-group { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; align-content: start; -webkit-overflow-scrolling: touch; }
+#map-places > .map-realms { display: flex; flex-direction: column; }
+/* a phone on its side has no room to share: there the whole page scrolls */
+@media (max-height: 520px) {
+  #map { overflow-y: auto; }
+  #map-places { flex: none; }
+  #map-places > .map-group { overflow: visible; }
+}
 .map-head { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .map-tabs { display: flex; justify-content: center; gap: 2px; flex-wrap: nowrap; max-width: 100%; overflow-x: auto; scrollbar-width: none; padding: 3px; }
 .map-tabs::-webkit-scrollbar { display: none; }
