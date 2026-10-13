@@ -48,6 +48,7 @@ import { SITES } from "./scenes/sites";
 import { ARCHIVE, GROVE_SITES, ORB_SITES } from "./world/sites";
 import { Communion } from "./world/communion";
 import { Creatures } from "./world/creatures";
+import { SpiritHorses } from "./world/spiritHorses";
 import { Vessels } from "./world/vessels";
 import { TranscriptPlayer } from "./ui/transcriptPlayer";
 import { tourBar, type TourBarOwner } from "./ui/tourBar";
@@ -350,8 +351,10 @@ scene.add(communion.group);
 // The archive's vessels: orbs and groves, and the quiet player for their narrations.
 const vessels = new Vessels();
 scene.add(vessels.group);
-const creatures = new Creatures(MOBILE ? 6 : 8, MOBILE ? 12 : 18); // modest herds and flocks
+const creatures = new Creatures(MOBILE ? 12 : 18); // modest flocks
 scene.add(creatures.group);
+const spiritHorses = new SpiritHorses(MOBILE ? 6 : 8, MOBILE ? 1400 : 2200); // horses of light that come and go
+scene.add(spiritHorses.group);
 
 /** Glow materials add light but leave alpha alone, so they don't punch dark squares into
     the water's reflection texture (which uses alpha to know where the world is). */
@@ -4326,7 +4329,8 @@ function update(dt: number): void {
       vibeUniforms.uVibeK.value = Math.max(vibeUniforms.uVibeK.value, touch.vibe);
     }
   }
-  if (S.mode !== "intro" && world) creatures.update(wt, dt, player.pos, medK, player.speed > 3 || player.gliding, S.reduced);
+  if (S.mode !== "intro" && world) creatures.update(wt, dt, player.pos, S.reduced);
+  if (S.mode !== "intro") spiritHorses.update(wt, dt, player.pos, medK, player.speed > 3 || player.gliding, S.reduced, !world || player.swimming);
   const camUnder = camera.position.y < WATER_Y - 0.05;
   post.under.value = camUnder ? 1 : 0;
   post.raysOn.value = camUnder ? 0 : 1 - 0.7 * moods.weights[3]; // the deep night keeps the star's glow small
@@ -4651,7 +4655,14 @@ renderer
         gate: egyptGate.at,
         setInside,
         ready: bodyForms(),
-        settle: glyphsLoaded,
+        settle:
+          shot.id === "horses"
+            ? async () => {
+                await glyphsLoaded();
+                await spiritHorses.loaded;
+                spiritHorses.summon(player.pos, { x: 2 * player.pos.x - MONUMENT.x, z: 2 * player.pos.z - MONUMENT.z });
+              }
+            : glyphsLoaded,
         genesisAt: (tt) => {
           beginGenesis();
           genesis.t = Math.max(0, tt - 1 / 60); // the one update that follows brings it to tt

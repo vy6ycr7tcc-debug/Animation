@@ -331,7 +331,7 @@ export function runShot(ctx: ShotCtx): void {
     base = [px, heightAt(px, pz), pz];
     view = { eye: [Math.sin(f) * 6 + Math.cos(f) * 5, 2.4, Math.cos(f) * 6 - Math.sin(f) * 5], look: [H.x - px, 12, H.z - pz] };
     ctx.player.pos.set(px, heightAt(px, pz), pz);
-  } else if (id === "meadow") {
+  } else if (id === "meadow" || id === "horses") {
     // the open land near the start: from a little rise, across the meadow to the vision of
     // creation standing on it, the sky above (it framed bare ground before)
     // a dry vantage 34 m off with a clear line of sight (sampled round it, nearest the shore first)
@@ -355,6 +355,8 @@ export function runShot(ctx: ShotCtx): void {
     }
     base = [px, heightAt(px, pz), pz];
     view = { eye: [0, 2.4, 0], look: [MONUMENT.x - px, heightAt(MONUMENT.x, MONUMENT.z) - base[1] + 5, MONUMENT.z - pz] };
+    // the horses: the other way, inland, where they are summoned (main.ts), the camera behind
+    if (id === "horses") view = { eye: [(MONUMENT.x - px) * 0.12, 3.2, (MONUMENT.z - pz) * 0.12], look: [px - MONUMENT.x, 0, pz - MONUMENT.z] };
     ctx.player.pos.set(px, heightAt(px, pz), pz);
   } else if (/^ancient-[a-z]+-[a-z]$/.test(id)) {
     // a drowned city (world/ancient), from one of its views (local frame: +z toward the shore)
