@@ -331,6 +331,15 @@ export function runShot(ctx: ShotCtx): void {
     base = [px, heightAt(px, pz), pz];
     view = { eye: [Math.sin(f) * 6 + Math.cos(f) * 5, 2.4, Math.cos(f) * 6 - Math.sin(f) * 5], look: [H.x - px, 12, H.z - pz] };
     ctx.player.pos.set(px, heightAt(px, pz), pz);
+  } else if (id === "reading") {
+    // a readable artifact, from a few steps away (main.ts places it; `&id=` names which)
+    const id2 = new URLSearchParams(location.search).get("id") ?? "sample";
+    const at = (window as unknown as { __readingAt?: (id: string) => { x: number; y: number; z: number } | null }).__readingAt?.(id2);
+    const ax = at?.x ?? SPAWN.x, az = at?.z ?? SPAWN.z, a = Math.atan2(SPAWN.x - ax, SPAWN.z - az) || 0;
+    const px = ax + Math.sin(a) * 3.4, pz = az + Math.cos(a) * 3.4;
+    base = [px, heightAt(px, pz), pz];
+    view = { eye: [Math.sin(a) * 1.6 + Math.cos(a) * 0.8, 1.7, Math.cos(a) * 1.6 - Math.sin(a) * 0.8], look: [ax - px, (at?.y ?? base[1]) - base[1] + 0.4, az - pz] };
+    ctx.player.pos.set(px, heightAt(px, pz), pz);
   } else if (id === "critters") {
     // the rabbit and the squirrel (main.ts summons them 3–4 m east of the wanderer): the levellest
     // glade near the shore, seen from the side a little above
