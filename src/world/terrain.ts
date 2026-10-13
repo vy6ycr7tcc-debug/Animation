@@ -531,6 +531,8 @@ export const floorHook: { fn: ((x: number, z: number) => number) | null } = { fn
     autofly's look ahead, the shadow's target), not the exact ground under a foot. Places apart
     answer exactly (their floors change). */
 const COARSE = 4;
+/** The eight taps of the sky-seen shading (pairs: across, along), with the border of four cells. */
+const SKY_TAPS = [-4, 0, 4, 0, 0, -4, 0, 4, -2, -2, 2, 2, -2, 2, 2, -2];
 const coarse = new Map<number, number>();
 function corner(ix: number, iz: number): number {
   const key = (ix + 50000) * 100003 + (iz + 50000);
@@ -1035,14 +1037,20 @@ export class Terrain {
 
   /** Whether the finer level stands (and stays) over this spot, so this level may sink here. */
   private coveredBelow(li: number, x: number, z: number): boolean {
-    const L = LEVELS[li - 1], tiles = this.tiles[li - 1];
-    for (const dx of [-0.01, 0.01])
-      for (const dz of [-0.01, 0.01]) {
-        const k = `${Math.floor((x + dx) / L.chunk)},${Math.floor((z + dz) / L.chunk)}`;
-        if (!tiles.has(k) || !this.wanted(li - 1, k)) return false;
-      }
+    // integer keys, remembered for the tile being filled (it asks four times for each vertex,
+    // mostly about the same few finer tiles): no strings built per vertex
+    const L = LEVELS[li - 1], [cx, cz] = this.centre[li - 1];
+    for (let c = 0; c < 4; c++) {
+      const i = Math.floor((x + (c & 1 ? 0.01 : -0.01)) / L.chunk), j = Math.floor((z + (c & 2 ? 0.01 : -0.01)) / L.chunk);
+      if (Math.abs(i - cx) > L.ring || Math.abs(j - cz) > L.ring) return false; // not wanted
+      const key = (i + 50000) * 100003 + (j + 50000);
+      let has = this.coverMemo.get(key);
+      if (has === undefined) this.coverMemo.set(key, (has = this.tiles[li - 1].has(`${i},${j}`)));
+      if (!has) return false;
+    }
     return true;
   }
+  private coverMemo = new Map<number, boolean>();
 
   private newMesh(L: Level, isNear: boolean): THREE.Mesh {
     const g = new THREE.PlaneGeometry(L.chunk, L.chunk, L.seg, L.seg);
@@ -1069,6 +1077,7 @@ export class Terrain {
     const W = n + 2 * B;
     const step = L.chunk / L.seg;
     const H = new Float32Array(W * W);
+    this.coverMemo.clear();
     for (let b = 0; b < W; b++)
       for (let a = 0; a < W; a++) H[b * W + a] = heightAt(ox + ((a - B) - L.seg / 2) * step, oz + ((b - B) - L.seg / 2) * step);
     for (let v = 0; v < pos.count; v++) {
@@ -1084,7 +1093,7 @@ export class Terrain {
       nor.setXYZ(v, dx * inv, 2 * step * inv, dz * inv);
       // how much sky this spot sees: hollows darker, crests a little brighter
       let avg = 0;
-      for (const [da, db] of [[-B, 0], [B, 0], [0, -B], [0, B], [-2, -2], [2, 2], [-2, 2], [2, -2]]) avg += H[(b + db) * W + a + da];
+      for (let o = 0; o < 16; o += 2) avg += H[(b + SKY_TAPS[o + 1]) * W + a + SKY_TAPS[o]];
       avg /= 8;
       const sky = Math.min(1.12, Math.max(0.5, 1 - ((avg - h) * 0.9) / Math.max(4, step * B)));
       const k = groundKind(x, z, h);
