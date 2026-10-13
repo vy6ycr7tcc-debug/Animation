@@ -695,30 +695,14 @@ export const groundUniforms = { uT: T.uniform(0) };
 
 const tmix = T.mix;
 const {
-  abs, attribute, cameraPosition, If, cameraViewMatrix, dFdx, dFdy, dot, exp, float, floor, Fn, fract, length, max, min, normalize, normalView,
+  abs, attribute, cameraPosition, If, cameraViewMatrix, dFdx, dFdy, dot, float, floor, Fn, fract, length, max, normalize, normalView,
   fwidth, normalWorld, positionWorld, pow, sin, smoothstep, step, texture, vec2, vec3, vec4,
 } = T;
 const gH = (p: N): N => fract(sin(dot(p, vec2(127.1, 311.7))).mul(43758.5453));
-const cH2 = (p: N): N => fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))).mul(43758.5453));
 const gN = Fn(([p]: N[]) => {
   const i = floor(p), f0 = fract(p), f = f0.mul(f0).mul(float(3).sub(f0.mul(2)));
   return tmix(tmix(gH(i), gH(i.add(vec2(1, 0))), f.x), tmix(gH(i.add(vec2(0, 1))), gH(i.add(vec2(1, 1))), f.x), f.y);
 });
-/** Caustics: light through the moving surface, gathered into a slowly shifting web of cell edges. */
-const cWeb = Fn(([p, t]: N[]) => {
-  const i = floor(p), f = fract(p);
-  const d1 = float(8).toVar(), d2 = float(8).toVar();
-  for (let y = -1; y <= 1; y++)
-    for (let x = -1; x <= 1; x++) {
-      const g = vec2(x, y);
-      const o = sin(t.add(cH2(i.add(g)).mul(6.2831))).mul(0.42).add(0.5);
-      const d = length(g.add(o).sub(f));
-      d2.assign(min(d2, max(d1, d)));
-      d1.assign(min(d1, d));
-    }
-  return d2.sub(d1);
-});
-
 function groundMaterial(): THREE.MeshStandardNodeMaterial {
   // matte earth: no sheen of sky or moon sliding over it as the camera moves (Samuel: "you
   // don't need to be ray tracing the floor")
@@ -726,7 +710,6 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 1, metalness: 0 });
   m.envMapIntensity = 0.35;
   const [sand, meadow, rock, cliff] = [surface("sand"), surface("meadow"), surface("rock"), surface("cliff")];
-  const uT = groundUniforms.uT;
   const moon = vec3(...starDirection().toArray());
   // x: sky seen (1 open … darker in hollows), y: how sandy, z: how rocky
   const gr = attribute("aGround", "vec3");
@@ -910,15 +893,6 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
     const dot_ = smoothstep(0.22, 0, length(fract(gq).sub(0.5))); // a point of light, not a fleck
     const glit = step(0.975, gH(cell)).mul(step(0.6, tw)).mul(dot_).mul(gr.y).mul(float(1).sub(smoothstep(4, 30, camD))).mul(step(0, vGW.y));
     const e = vec3(1.0, 0.93, 0.82).mul(glit).mul(2.2).toVar();
-    // caustics on the floor of the lakes; the web is warped by slow noise, so no cell is ever regular
-    const dep = vGW.y.negate();
-    const cq0 = vGW.xz.mul(0.32);
-    const cq = cq0.add(vec2(gN(cq0.mul(0.9).add(uT.mul(0.05))), gN(cq0.mul(0.9).sub(uT.mul(0.04)).add(5))).mul(1.4));
-    const web = min(cWeb(cq, uT.mul(0.5)), cWeb(cq.mul(1.37).add(7.3), uT.mul(-0.4)));
-    const cau = pow(float(1).sub(smoothstep(0, 0.32, web)), 2.2).mul(gN(cq.mul(0.35).add(uT.mul(0.03))).mul(0.45).add(0.55));
-    const k = exp(dep.mul(-0.08)).mul(smoothstep(0.3, 1.5, dep)).mul(float(1).sub(smoothstep(12, 40, camD)));
-    // (left out: Samuel found the moving web on the floor "annoying", like a reflection)
-    void cau, k;
     // a soft sheen where the ground faces away toward the moon (light through the haze)
     // Journey's sand: a liquid sheen toward the low sun or the moon, off the rippled surface (soft,
     // broad and faint: never a glare sliding over the ground), and a pale rim at grazing angles
