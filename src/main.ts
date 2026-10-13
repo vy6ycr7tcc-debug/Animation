@@ -49,6 +49,7 @@ import { ARCHIVE, GROVE_SITES, ORB_SITES } from "./world/sites";
 import { Communion } from "./world/communion";
 import { Creatures } from "./world/creatures";
 import { SpiritHorses } from "./world/spiritHorses";
+import { SpiritCritters } from "./world/spiritCritters";
 import { Vessels } from "./world/vessels";
 import { TranscriptPlayer } from "./ui/transcriptPlayer";
 import { tourBar, type TourBarOwner } from "./ui/tourBar";
@@ -355,6 +356,11 @@ const creatures = new Creatures(MOBILE ? 12 : 18); // modest flocks
 scene.add(creatures.group);
 const spiritHorses = new SpiritHorses(MOBILE ? 6 : 8, MOBILE ? 1400 : 2200); // horses of light that come and go
 scene.add(spiritHorses.group);
+// rabbits in the meadows and squirrels about the trees, small spirits of light that come and go
+const spiritCritters = new SpiritCritters(3, 3, MOBILE ? 900 : 1300, () =>
+  creation.touchables().filter((t) => t.kind === "tree"),
+);
+scene.add(spiritCritters.group);
 
 /** Glow materials add light but leave alpha alone, so they don't punch dark squares into
     the water's reflection texture (which uses alpha to know where the world is). */
@@ -4331,6 +4337,7 @@ function update(dt: number): void {
   }
   if (S.mode !== "intro" && world) creatures.update(wt, dt, player.pos, S.reduced);
   if (S.mode !== "intro") spiritHorses.update(wt, dt, player.pos, medK, player.speed > 3 || player.gliding, S.reduced, !world || player.swimming);
+  if (S.mode !== "intro") spiritCritters.update(wt, dt, player.pos, medK, player.speed > 3 || player.gliding, S.reduced, !world || player.swimming);
   const camUnder = camera.position.y < WATER_Y - 0.05;
   post.under.value = camUnder ? 1 : 0;
   post.raysOn.value = camUnder ? 0 : 1 - 0.7 * moods.weights[3]; // the deep night keeps the star's glow small
@@ -4656,11 +4663,13 @@ renderer
         setInside,
         ready: bodyForms(),
         settle:
-          shot.id === "horses"
+          shot.id === "horses" || shot.id === "critters"
             ? async () => {
                 await glyphsLoaded();
                 await spiritHorses.loaded;
-                spiritHorses.summon(player.pos, { x: 2 * player.pos.x - MONUMENT.x, z: 2 * player.pos.z - MONUMENT.z });
+                const inland = { x: 2 * player.pos.x - MONUMENT.x, z: 2 * player.pos.z - MONUMENT.z };
+                if (shot.id === "horses") spiritHorses.summon(player.pos, inland);
+                else spiritCritters.summon(player.pos, { x: player.pos.x + 1, z: player.pos.z }, new URLSearchParams(location.search).has("hop"));
               }
             : glyphsLoaded,
         genesisAt: (tt) => {

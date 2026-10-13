@@ -4,7 +4,7 @@
 import { SITES } from "../scenes/sites";
 import { DUAT_ORIGIN } from "../world/pyramid";
 import { AREA_SITES, RUIN_SITES, type AreaId } from "../world/depths";
-import { ADEPT_HALL, DENSITY_HALL, GOBEKLI, GOBEKLI_PLAN, gobekliAt, nanMadolAt, RAPA_NUI, rapaNuiAt, LANDMARK_SITES, MONUMENT, PAST_HALL, PEAKS, PYRAMID, SPAWN, heightAt } from "../world/terrain";
+import { ADEPT_HALL, DENSITY_HALL, GLADES, GOBEKLI, GOBEKLI_PLAN, gobekliAt, nanMadolAt, RAPA_NUI, rapaNuiAt, LANDMARK_SITES, MONUMENT, PAST_HALL, PEAKS, PYRAMID, SPAWN, heightAt } from "../world/terrain";
 import { JOURNEY_ORIGIN } from "../scenes/journey";
 
 export interface Shot {
@@ -331,6 +331,20 @@ export function runShot(ctx: ShotCtx): void {
     base = [px, heightAt(px, pz), pz];
     view = { eye: [Math.sin(f) * 6 + Math.cos(f) * 5, 2.4, Math.cos(f) * 6 - Math.sin(f) * 5], look: [H.x - px, 12, H.z - pz] };
     ctx.player.pos.set(px, heightAt(px, pz), pz);
+  } else if (id === "critters") {
+    // the rabbit and the squirrel (main.ts summons them 3–4 m east of the wanderer): the levellest
+    // glade near the shore, seen from the side a little above
+    let g = GLADES[0], flat = Infinity;
+    for (const c of GLADES) {
+      const h = heightAt(c.x, c.z);
+      if (h < 0.8 || Math.hypot(c.x - SPAWN.x, c.z - SPAWN.z) > 900) continue;
+      const slope = Math.max(...[[4, 0], [-4, 0], [0, 4], [0, -4], [8, 0]].map(([dx, dz]) => Math.abs(heightAt(c.x + dx, c.z + dz) - h)));
+      if (slope < flat) (flat = slope), (g = c);
+    }
+    const gy = heightAt(g.x + 3.5, g.z) - heightAt(g.x, g.z);
+    base = [g.x, heightAt(g.x, g.z), g.z];
+    view = { eye: [3.1, gy + 0.85, 1.9], look: [3.5, gy + 0.14, 0] };
+    ctx.player.pos.set(g.x, heightAt(g.x, g.z), g.z);
   } else if (id === "meadow" || id === "horses") {
     // the open land near the start: from a little rise, across the meadow to the vision of
     // creation standing on it, the sky above (it framed bare ground before)
