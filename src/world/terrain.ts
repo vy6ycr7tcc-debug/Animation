@@ -531,6 +531,8 @@ export const floorHook: { fn: ((x: number, z: number) => number) | null } = { fn
     autofly's look ahead, the shadow's target), not the exact ground under a foot. Places apart
     answer exactly (their floors change). */
 const COARSE = 4;
+/** The eight taps of the sky-seen shading (pairs: across, along), with the border of four cells. */
+const SKY_TAPS = [-4, 0, 4, 0, 0, -4, 0, 4, -2, -2, 2, 2, -2, 2, 2, -2];
 const coarse = new Map<number, number>();
 function corner(ix: number, iz: number): number {
   const key = (ix + 50000) * 100003 + (iz + 50000);
@@ -695,30 +697,14 @@ export const groundUniforms = { uT: T.uniform(0) };
 
 const tmix = T.mix;
 const {
-  abs, attribute, cameraPosition, If, cameraViewMatrix, dFdx, dFdy, dot, exp, float, floor, Fn, fract, length, max, min, normalize, normalView,
+  abs, attribute, cameraPosition, If, cameraViewMatrix, dFdx, dFdy, dot, float, floor, Fn, fract, length, max, normalize, normalView,
   fwidth, normalWorld, positionWorld, pow, sin, smoothstep, step, texture, vec2, vec3, vec4,
 } = T;
 const gH = (p: N): N => fract(sin(dot(p, vec2(127.1, 311.7))).mul(43758.5453));
-const cH2 = (p: N): N => fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))).mul(43758.5453));
 const gN = Fn(([p]: N[]) => {
   const i = floor(p), f0 = fract(p), f = f0.mul(f0).mul(float(3).sub(f0.mul(2)));
   return tmix(tmix(gH(i), gH(i.add(vec2(1, 0))), f.x), tmix(gH(i.add(vec2(0, 1))), gH(i.add(vec2(1, 1))), f.x), f.y);
 });
-/** Caustics: light through the moving surface, gathered into a slowly shifting web of cell edges. */
-const cWeb = Fn(([p, t]: N[]) => {
-  const i = floor(p), f = fract(p);
-  const d1 = float(8).toVar(), d2 = float(8).toVar();
-  for (let y = -1; y <= 1; y++)
-    for (let x = -1; x <= 1; x++) {
-      const g = vec2(x, y);
-      const o = sin(t.add(cH2(i.add(g)).mul(6.2831))).mul(0.42).add(0.5);
-      const d = length(g.add(o).sub(f));
-      d2.assign(min(d2, max(d1, d)));
-      d1.assign(min(d1, d));
-    }
-  return d2.sub(d1);
-});
-
 function groundMaterial(): THREE.MeshStandardNodeMaterial {
   // matte earth: no sheen of sky or moon sliding over it as the camera moves (Samuel: "you
   // don't need to be ray tracing the floor")
@@ -726,7 +712,6 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 1, metalness: 0 });
   m.envMapIntensity = 0.35;
   const [sand, meadow, rock, cliff] = [surface("sand"), surface("meadow"), surface("rock"), surface("cliff")];
-  const uT = groundUniforms.uT;
   const moon = vec3(...starDirection().toArray());
   // x: sky seen (1 open … darker in hollows), y: how sandy, z: how rocky
   const gr = attribute("aGround", "vec3");
@@ -794,9 +779,16 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
   // Snow, decided for every point rather than at the land's corners (which painted soft blobs):
   // it lies where the ground (crags and all) is gentle enough, above a ragged line, with wind-cut
   // edges; drifts carry the fine grain of the sand scan
-  const snowLine = gN(q.mul(0.01).add(3)).sub(0.5).mul(60).add(95);
-  const lieN = gN(q.mul(0.09).add(11)).sub(0.5).mul(0.22).add(gN(q.mul(0.6)).sub(0.5).mul(0.08));
-  const snow = smoothstep(snowLine, snowLine.add(12), vGW.y).mul(smoothstep(0.6, 0.7, nP.y.add(lieN))).mul(mtn);
+  // (only on the mountains: its three noises aren't read on the land below)
+  const snow = Fn(() => {
+    const out = float(0).toVar();
+    If(mtn.greaterThan(L), () => {
+      const snowLine = gN(q.mul(0.01).add(3)).sub(0.5).mul(60).add(95);
+      const lieN = gN(q.mul(0.09).add(11)).sub(0.5).mul(0.22).add(gN(q.mul(0.6)).sub(0.5).mul(0.08));
+      out.assign(smoothstep(snowLine, snowLine.add(12), vGW.y).mul(smoothstep(0.6, 0.7, nP.y.add(lieN))).mul(mtn));
+    });
+    return out;
+  })();
 
   m.colorNode = Fn(() => {
     const { W, ST, CD, SEA, FD, samp, tri, side, bx, bz, bsum } = setup();
@@ -910,15 +902,6 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
     const dot_ = smoothstep(0.22, 0, length(fract(gq).sub(0.5))); // a point of light, not a fleck
     const glit = step(0.975, gH(cell)).mul(step(0.6, tw)).mul(dot_).mul(gr.y).mul(float(1).sub(smoothstep(4, 30, camD))).mul(step(0, vGW.y));
     const e = vec3(1.0, 0.93, 0.82).mul(glit).mul(2.2).toVar();
-    // caustics on the floor of the lakes; the web is warped by slow noise, so no cell is ever regular
-    const dep = vGW.y.negate();
-    const cq0 = vGW.xz.mul(0.32);
-    const cq = cq0.add(vec2(gN(cq0.mul(0.9).add(uT.mul(0.05))), gN(cq0.mul(0.9).sub(uT.mul(0.04)).add(5))).mul(1.4));
-    const web = min(cWeb(cq, uT.mul(0.5)), cWeb(cq.mul(1.37).add(7.3), uT.mul(-0.4)));
-    const cau = pow(float(1).sub(smoothstep(0, 0.32, web)), 2.2).mul(gN(cq.mul(0.35).add(uT.mul(0.03))).mul(0.45).add(0.55));
-    const k = exp(dep.mul(-0.08)).mul(smoothstep(0.3, 1.5, dep)).mul(float(1).sub(smoothstep(12, 40, camD)));
-    // (left out: Samuel found the moving web on the floor "annoying", like a reflection)
-    void cau, k;
     // a soft sheen where the ground faces away toward the moon (light through the haze)
     // Journey's sand: a liquid sheen toward the low sun or the moon, off the rippled surface (soft,
     // broad and faint: never a glare sliding over the ground), and a pale rim at grazing angles
@@ -1054,14 +1037,20 @@ export class Terrain {
 
   /** Whether the finer level stands (and stays) over this spot, so this level may sink here. */
   private coveredBelow(li: number, x: number, z: number): boolean {
-    const L = LEVELS[li - 1], tiles = this.tiles[li - 1];
-    for (const dx of [-0.01, 0.01])
-      for (const dz of [-0.01, 0.01]) {
-        const k = `${Math.floor((x + dx) / L.chunk)},${Math.floor((z + dz) / L.chunk)}`;
-        if (!tiles.has(k) || !this.wanted(li - 1, k)) return false;
-      }
+    // integer keys, remembered for the tile being filled (it asks four times for each vertex,
+    // mostly about the same few finer tiles): no strings built per vertex
+    const L = LEVELS[li - 1], [cx, cz] = this.centre[li - 1];
+    for (let c = 0; c < 4; c++) {
+      const i = Math.floor((x + (c & 1 ? 0.01 : -0.01)) / L.chunk), j = Math.floor((z + (c & 2 ? 0.01 : -0.01)) / L.chunk);
+      if (Math.abs(i - cx) > L.ring || Math.abs(j - cz) > L.ring) return false; // not wanted
+      const key = (i + 50000) * 100003 + (j + 50000);
+      let has = this.coverMemo.get(key);
+      if (has === undefined) this.coverMemo.set(key, (has = this.tiles[li - 1].has(`${i},${j}`)));
+      if (!has) return false;
+    }
     return true;
   }
+  private coverMemo = new Map<number, boolean>();
 
   private newMesh(L: Level, isNear: boolean): THREE.Mesh {
     const g = new THREE.PlaneGeometry(L.chunk, L.chunk, L.seg, L.seg);
@@ -1088,8 +1077,14 @@ export class Terrain {
     const W = n + 2 * B;
     const step = L.chunk / L.seg;
     const H = new Float32Array(W * W);
+    this.coverMemo.clear();
     for (let b = 0; b < W; b++)
-      for (let a = 0; a < W; a++) H[b * W + a] = heightAt(ox + ((a - B) - L.seg / 2) * step, oz + ((b - B) - L.seg / 2) * step);
+      for (let a = 0; a < W; a++) {
+        const hx = ox + ((a - B) - L.seg / 2) * step, hz = oz + ((b - B) - L.seg / 2) * step;
+        // the far levels' vertices fall on the coarse lattice (every 8 or 32 m): read them through its
+        // cache (exactly heightAt there), shared with the camera's ray, autofly and the next tile's border
+        H[b * W + a] = li > 0 && hx < 20000 && hx % COARSE === 0 && hz % COARSE === 0 ? corner(hx / COARSE, hz / COARSE) : heightAt(hx, hz);
+      }
     for (let v = 0; v < pos.count; v++) {
       const a = (v % n) + B, b = Math.floor(v / n) + B;
       const lx = (a - B - L.seg / 2) * step, lz = (b - B - L.seg / 2) * step;
@@ -1103,7 +1098,7 @@ export class Terrain {
       nor.setXYZ(v, dx * inv, 2 * step * inv, dz * inv);
       // how much sky this spot sees: hollows darker, crests a little brighter
       let avg = 0;
-      for (const [da, db] of [[-B, 0], [B, 0], [0, -B], [0, B], [-2, -2], [2, 2], [-2, 2], [2, -2]]) avg += H[(b + db) * W + a + da];
+      for (let o = 0; o < 16; o += 2) avg += H[(b + SKY_TAPS[o + 1]) * W + a + SKY_TAPS[o]];
       avg /= 8;
       const sky = Math.min(1.12, Math.max(0.5, 1 - ((avg - h) * 0.9) / Math.max(4, step * B)));
       const k = groundKind(x, z, h);

@@ -8,7 +8,7 @@ import { T, withFog, type N } from "../gpu/tsl";
 import { skyColor, skyUniforms } from "./sky";
 
 const {
-  abs, cameraPosition, clamp, cos, dot, exp, float, Fn, length, Loop, max, mix, normalize, positionWorld, pow, reflect,
+  abs, cameraPosition, clamp, cos, dot, exp, float, Fn, If, length, Loop, max, mix, normalize, positionWorld, pow, reflect,
   sin, smoothstep, uniform, uniformArray, vec2, vec3, vec4,
 } = T;
 
@@ -24,7 +24,9 @@ export class Water {
   readonly uniforms = {
     uCalm: uniform(1),
     uGlow: uniform(new THREE.Vector3()), // the wanderer's light, reflected
+    uRippleActive: uniform(0), // 1 while any ripple is younger than its 7 s life
   };
+  private lastRipple = -100;
 
   constructor() {
     for (let i = 0; i < MAX_RIPPLES; i++) this.ripples.push(new THREE.Vector4(0, 0, -100, 0));
@@ -59,6 +61,8 @@ export class Water {
           g.addAssign(d.mul(cos(ph)).mul(0.016));
         }
         g.mulAssign(exp(dist.mul(-0.015)));
+        // the rings: read only while one is alive (otherwise twenty exp() and ten sin() a pixel for nothing)
+        If(U.uRippleActive.greaterThan(0.5), () => {
         Loop(MAX_RIPPLES, ({ i }: N) => {
           const r = rip.element(i);
           const age = S.uT.sub(r.z);
@@ -69,6 +73,7 @@ export class Water {
           const k = rr.sub(front);
           const env = exp(k.mul(2.2).mul(k.mul(2.2)).negate()).mul(exp(age.mul(-0.7))).mul(r.w);
           g.addAssign(live.select(dp.div(rr).mul(env).mul(sin(k.mul(9))).mul(0.35), vec2(0)));
+        });
         });
         const n = normalize(vec3(g.x.negate(), 1, g.y.negate()));
         const cosT = max(dot(n, v), 0);
@@ -102,10 +107,13 @@ export class Water {
   ripple(x: number, z: number, strength: number, time: number): void {
     this.ripples[this.next].set(x, z, time, strength);
     this.next = (this.next + 1) % MAX_RIPPLES;
+    this.lastRipple = Math.max(this.lastRipple, time);
+    this.uniforms.uRippleActive.value = 1;
   }
 
   update(camX: number, camZ: number, glow: THREE.Vector3): void {
     this.mesh.position.set(Math.round(camX / 50) * 50, 0, Math.round(camZ / 50) * 50);
     this.uniforms.uGlow.value.copy(glow);
+    this.uniforms.uRippleActive.value = skyUniforms.uT.value - this.lastRipple <= 7.2 ? 1 : 0;
   }
 }

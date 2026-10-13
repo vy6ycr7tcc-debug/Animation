@@ -263,7 +263,9 @@ export class AdaptiveQuality {
           this.set(this.tier + 1);
         }
       }
-    } else if (stats.fps > C.goodFps || capped30) {
+    } else if (stats.fps > C.goodFps) {
+      // a steady 30 (Low Power Mode, or iOS holding a hot phone at 30) only ever holds: climbing
+      // back from it would push a phone that is already throttled for heat harder still
       this.bad = 0;
       if (++this.good >= C.goodWindows) {
         // climb back: sharpness first, then the tier above (a tier that ran slow is retried later)
