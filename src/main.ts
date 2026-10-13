@@ -1709,7 +1709,7 @@ function updateSitting(dt: number): void {
     const moved = Math.hypot(input.move.x, input.move.y) > 0.2;
     if (moved) sitting.phase = "none";
     else if (Math.hypot(player.pos.x - sitting.x, player.pos.z - sitting.z) < 0.45) sitDown();
-    else if (!player.target) player.target = new THREE.Vector2(sitting.x, sitting.z);
+    else if (!player.target) player.target = new THREE.Vector2(sitting.x, sitting.z); // once, not each frame
   }
   if (sitting.phase === "seated" && wanderer.gesture !== "sit") standUp(); // moving stands you up
   // the seat stone rises as you arrive, and sinks back when you leave
@@ -2086,6 +2086,10 @@ const INWARD_AFTER = 15000;
 /** Sitting at a lesson's seat or a monument room's (not with an archetype, whose panel is open). */
 const lessonSeated = (): boolean => sitting.phase === "seated" && (!!tourScenes.seatedId || !!inHall()?.journey.sitting);
 let tourWatchK = 0;
+const gazeV = new THREE.Vector3(); // the gaze contemplation gives the camera, reused each frame
+const gazePts = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+const gzEye = new THREE.Vector3(), gzGlow = new THREE.Vector3(), gzPeak = new THREE.Vector3(), gzUp = new THREE.Vector3();
+const Y_UP = new THREE.Vector3(0, 1, 0);
 function contemplationFrame(dt: number): void {
   const idle = performance.now() - lastTouch > INWARD_AFTER && Math.hypot(input.move.x, input.move.y) < 0.05 && !input.hold;
   const want = inwardOn && idle && S.mode === "play" && !startMap.isOpen && $("#menu").hidden && player.speed < 0.3 &&
@@ -2114,7 +2118,7 @@ function contemplationFrame(dt: number): void {
   const g = gravityPoint();
   if (g) {
     const d = g.distanceTo(player.pos) * 0.03;
-    follow.gaze = g.add(new THREE.Vector3(Math.sin(S.t * 0.07) * d, Math.sin(S.t * 0.05 + 1) * d * 0.5, Math.cos(S.t * 0.06) * d * 0.4));
+    follow.gaze = gazeV.copy(g).add(gpTmp.set(Math.sin(S.t * 0.07) * d, Math.sin(S.t * 0.05 + 1) * d * 0.5, Math.cos(S.t * 0.06) * d * 0.4));
     return;
   }
   // otherwise a slow drift between the loveliest views: the room's points of interest, the
@@ -2122,24 +2126,25 @@ function contemplationFrame(dt: number): void {
   // standing against it, the stars low over the land), never a wall
   let pts = inHall()?.journey.focus() ?? [];
   if (!pts.length && !apart()) {
-    if (player.pos.distanceTo(vision.group.position) < 70) pts = [vision.group.position.clone().setY(vision.group.position.y + 3)];
+    const [g0, g1, g2] = gazePts;
+    if (player.pos.distanceTo(vision.group.position) < 70) pts = [g0.copy(vision.group.position).setY(vision.group.position.y + 3)];
     else {
-      const eye = player.pos.clone().setY(player.pos.y + 1.6);
-      const glow = fogUniforms.glowDir.value.clone().setY(Math.max(0.18, fogUniforms.glowDir.value.y)).normalize();
-      const peak = PEAKS.reduce((a, b) => (Math.hypot(b.x - eye.x, b.z - eye.z) < Math.hypot(a.x - eye.x, a.z - eye.z) ? b : a));
-      const toPeak = new THREE.Vector3(peak.x - eye.x, 0, peak.z - eye.z).normalize();
-      const up = new THREE.Vector3(glow.x, 0, glow.z).normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), 2.1);
-      pts = [
-        eye.clone().addScaledVector(glow, 400),
-        eye.clone().addScaledVector(toPeak, 400).setY(eye.y + 400 * 0.12),
-        eye.clone().addScaledVector(up, 300).setY(eye.y + 300 * 0.2), // the sky low over the land, not overhead
-      ];
+      const eye = gzEye.copy(player.pos).setY(player.pos.y + 1.6);
+      const glow = gzGlow.copy(fogUniforms.glowDir.value).setY(Math.max(0.18, fogUniforms.glowDir.value.y)).normalize();
+      let peak = PEAKS[0];
+      for (const b of PEAKS) if (Math.hypot(b.x - eye.x, b.z - eye.z) < Math.hypot(peak.x - eye.x, peak.z - eye.z)) peak = b;
+      const toPeak = gzPeak.set(peak.x - eye.x, 0, peak.z - eye.z).normalize();
+      const up = gzUp.set(glow.x, 0, glow.z).normalize().applyAxisAngle(Y_UP, 2.1);
+      g0.copy(eye).addScaledVector(glow, 400);
+      g1.copy(eye).addScaledVector(toPeak, 400).setY(eye.y + 400 * 0.12);
+      g2.copy(eye).addScaledVector(up, 300).setY(eye.y + 300 * 0.2); // the sky low over the land, not overhead
+      pts = gazePts;
     }
   }
   if (gazeFor > 20) (gazeFor = 0), gazeI++;
   const base = pts.length ? pts[gazeI % pts.length] : null;
   // a gentle parallax drift about whatever it rests on
-  follow.gaze = base ? base.clone().add(new THREE.Vector3(Math.sin(S.t * 0.05), Math.sin(S.t * 0.04 + 2) * 0.4, Math.cos(S.t * 0.045)).multiplyScalar(base.distanceTo(player.pos) * 0.025)) : null;
+  follow.gaze = base ? gazeV.copy(base).add(gpTmp.set(Math.sin(S.t * 0.05), Math.sin(S.t * 0.04 + 2) * 0.4, Math.cos(S.t * 0.045)).multiplyScalar(base.distanceTo(player.pos) * 0.025)) : null;
 }
 
 /* The gravity point (the owner: "SUPER important"). While a narration with an animation plays,
@@ -2150,13 +2155,13 @@ function contemplationFrame(dt: number): void {
 function gravityPoint(): THREE.Vector3 | null {
   if (S.mode === "play" && duatTour?.phase === "watch") {
     const h = pyramid.duatHours()[duatTour.i];
-    if (h) return DUAT_ORIGIN.clone().add(h.at).add(new THREE.Vector3(0, 3, 0));
+    if (h) return gpOut.copy(DUAT_ORIGIN).add(h.at).setY(gpOut.y + 3);
   }
   // the climb to the dawn: the view turns to the dawn the stair rises into (the Duat's sky glows
   // low toward local (−0.3, −0.9)), not the stair's corner at your feet
   if (S.mode === "play" && duatTour && duatTour.i >= pyramid.duatHours().length) {
     const p7 = pyramid.PATH[pyramid.PATH.length - 1];
-    return DUAT_ORIGIN.clone().add(p7).add(new THREE.Vector3(-0.3 * 140, 14, -0.95 * 140));
+    return gpOut.copy(DUAT_ORIGIN).add(p7).add(gpTmp.set(-0.3 * 140, 14, -0.95 * 140));
   }
   // standing at a shrine's place in the temple (not seated, not with the cards): its carving
   if (S.mode === "play" && temple.inside && !temple.cardsOpen && sitting.phase === "none" && player.speed < 0.3) {
@@ -2165,12 +2170,18 @@ function gravityPoint(): THREE.Vector3 | null {
   }
   if (S.mode !== "play" || (!narration.progress() && narration.debugTime === null)) return null;
   const h = inHall();
-  if (h) return h.journey.inside && !h.journey.crossing ? h.journey.centre() : null;
+  if (h) {
+    const c = h.journey.inside && !h.journey.crossing ? h.journey.centre() : null;
+    return c ? gpOut.copy(c) : null;
+  }
   const id = tourScenes.seatedId;
   if (!id) return null;
   const m = tourScenes.registry.byId(id) as { focus?: THREE.Vector3 } | undefined;
-  return m?.focus?.clone() ?? null;
+  return m?.focus ? gpOut.copy(m.focus) : null;
 }
+/* gravityPoint's answer and its helper, reused each frame (it was a new vector or two every frame);
+   a caller that changes it copies it first */
+const gpOut = new THREE.Vector3(), gpTmp = new THREE.Vector3();
 const GRAVITY_AFTER = 2500;
 const shrineFrame = new THREE.Vector3();
 function gravityFrame(dt: number): void {
@@ -2647,7 +2658,7 @@ function duatTourFrame(dt: number): void {
     // the last: up the stair into the dawn (leaving the Duat ends the tour)
     const p7 = pyramid.PATH[pyramid.PATH.length - 1];
     duatTo.set(O.x + p7.x, O.z + p7.z);
-    player.target = duatTo.clone();
+    (player.target ??= new THREE.Vector2()).copy(duatTo);
     tourGoal(duatTo.x, duatTo.y);
     walkTitle("Dawn", `${hs.length} of ${hs.length}`);
     // the stair's top ends the tour by itself; if the way up is held up, the tour still ends
@@ -2659,7 +2670,7 @@ function duatTourFrame(dt: number): void {
   walkTitle(h.name, `${d.i + 1} of ${hs.length}`);
   if (d.phase === "walk") {
     duatTo.set(sx, sz);
-    player.target = duatTo.clone();
+    (player.target ??= new THREE.Vector2()).copy(duatTo);
     tourGoal(sx, sz);
     if (Math.hypot(player.pos.x - sx, player.pos.z - sz) < 0.9 || d.t > 45) {
       player.target = null;
@@ -2699,7 +2710,7 @@ function siteFrame(st: SiteStop): void {
     if (st.seat) {
       // a lesson's seat: onto it, and sitting begins its telling
       walkTo.set(st.seat.x, st.seat.z);
-      player.target = walkTo.clone();
+      (player.target ??= new THREE.Vector2()).copy(walkTo);
       tourGoal(st.seat.x, st.seat.z);
       if (sitting.phase === "seated" || playing) (walk.begun = true), (player.target = null), (walk.t = 0);
       else if (walk.t > 25) (walk.begun = true), (player.target = null), (walk.t = 0), void narration.play(st.track); // never sat: told where it stands
@@ -2876,7 +2887,7 @@ function walkFrame(dt: number): void {
     const seat = j.seatAt();
     if (seat && !walk.heard) {
       walkTo.set(seat.x, seat.z);
-      player.target = walkTo.clone();
+      (player.target ??= new THREE.Vector2()).copy(walkTo);
       tourGoal(seat.x, seat.z);
     }
     const pr = narration.progress();
@@ -2913,7 +2924,7 @@ function walkFrame(dt: number): void {
         const ax = walkTo.x - player.pos.x, az = walkTo.y - player.pos.z, side = stalled > 3.6 ? -1 : 1;
         walkTo.set(player.pos.x + (ax / dd) * 2 - (az / dd) * 4 * side, player.pos.z + (az / dd) * 2 + (ax / dd) * 4 * side);
       }
-      player.target = walkTo.clone();
+      (player.target ??= new THREE.Vector2()).copy(walkTo);
       tourGoal(walkTo.x, walkTo.y);
     }
     // the door took us on by itself, or the way to it is held up
