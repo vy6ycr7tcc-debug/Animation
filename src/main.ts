@@ -358,8 +358,9 @@ const creatures = new Creatures(MOBILE ? 12 : 18); // modest flocks
 scene.add(creatures.group);
 const spiritHorses = new SpiritHorses(MOBILE ? 6 : 8, MOBILE ? 1400 : 2200); // horses of light that come and go
 scene.add(spiritHorses.group);
-// rabbits in the meadows and squirrels about the trees, small spirits of light that come and go
-const spiritCritters = new SpiritCritters(3, 3, MOBILE ? 900 : 1300, () =>
+// rabbits in the meadows, small spirits of light that come and go (no squirrels: the owner found
+// the drawn one poor; it waits for a real model)
+const spiritCritters = new SpiritCritters(3, 0, MOBILE ? 900 : 1300, () =>
   creation.touchables().filter((t) => t.kind === "tree"),
 );
 scene.add(spiritCritters.group);
