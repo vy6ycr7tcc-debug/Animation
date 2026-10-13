@@ -1079,7 +1079,12 @@ export class Terrain {
     const H = new Float32Array(W * W);
     this.coverMemo.clear();
     for (let b = 0; b < W; b++)
-      for (let a = 0; a < W; a++) H[b * W + a] = heightAt(ox + ((a - B) - L.seg / 2) * step, oz + ((b - B) - L.seg / 2) * step);
+      for (let a = 0; a < W; a++) {
+        const hx = ox + ((a - B) - L.seg / 2) * step, hz = oz + ((b - B) - L.seg / 2) * step;
+        // the far levels' vertices fall on the coarse lattice (every 8 or 32 m): read them through its
+        // cache (exactly heightAt there), shared with the camera's ray, autofly and the next tile's border
+        H[b * W + a] = li > 0 && hx < 20000 && hx % COARSE === 0 && hz % COARSE === 0 ? corner(hx / COARSE, hz / COARSE) : heightAt(hx, hz);
+      }
     for (let v = 0; v < pos.count; v++) {
       const a = (v % n) + B, b = Math.floor(v / n) + B;
       const lx = (a - B - L.seg / 2) * step, lz = (b - B - L.seg / 2) * step;

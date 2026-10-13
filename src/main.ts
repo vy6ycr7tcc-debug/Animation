@@ -3821,9 +3821,10 @@ $("#map-open").addEventListener("click", () => {
 });
 
 /** Where a screen point meets the ground or the water. */
+const gpRay = new THREE.Raycaster(), gpNdc = new THREE.Vector2();
 function groundPoint(cx: number, cy: number): THREE.Vector3 | null {
-  const ray = new THREE.Raycaster();
-  ray.setFromCamera(new THREE.Vector2((cx / innerWidth) * 2 - 1, -(cy / innerHeight) * 2 + 1), camera);
+  const ray = gpRay;
+  ray.setFromCamera(gpNdc.set((cx / innerWidth) * 2 - 1, -(cy / innerHeight) * 2 + 1), camera);
   const o = ray.ray.origin, d = ray.ray.direction;
   if (d.y > -0.01) return null;
   let prev = 0;
