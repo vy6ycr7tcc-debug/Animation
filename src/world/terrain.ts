@@ -777,9 +777,16 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
   // Snow, decided for every point rather than at the land's corners (which painted soft blobs):
   // it lies where the ground (crags and all) is gentle enough, above a ragged line, with wind-cut
   // edges; drifts carry the fine grain of the sand scan
-  const snowLine = gN(q.mul(0.01).add(3)).sub(0.5).mul(60).add(95);
-  const lieN = gN(q.mul(0.09).add(11)).sub(0.5).mul(0.22).add(gN(q.mul(0.6)).sub(0.5).mul(0.08));
-  const snow = smoothstep(snowLine, snowLine.add(12), vGW.y).mul(smoothstep(0.6, 0.7, nP.y.add(lieN))).mul(mtn);
+  // (only on the mountains: its three noises aren't read on the land below)
+  const snow = Fn(() => {
+    const out = float(0).toVar();
+    If(mtn.greaterThan(L), () => {
+      const snowLine = gN(q.mul(0.01).add(3)).sub(0.5).mul(60).add(95);
+      const lieN = gN(q.mul(0.09).add(11)).sub(0.5).mul(0.22).add(gN(q.mul(0.6)).sub(0.5).mul(0.08));
+      out.assign(smoothstep(snowLine, snowLine.add(12), vGW.y).mul(smoothstep(0.6, 0.7, nP.y.add(lieN))).mul(mtn));
+    });
+    return out;
+  })();
 
   m.colorNode = Fn(() => {
     const { W, ST, CD, SEA, FD, samp, tri, side, bx, bz, bsum } = setup();
