@@ -34,8 +34,11 @@ export class Motes {
     this.setCount(count);
   }
 
+  private count = -1;
   setCount(n: number): void {
     n = Math.min(n, this.max);
+    if (n === this.count) return; // a new render scale alone changes nothing here: no rebuild
+    this.count = n;
     const p = this.cloud.attrs.base.array as Float32Array;
     const k = this.cloud.attrs.aK.array as Float32Array;
     let s = 11;

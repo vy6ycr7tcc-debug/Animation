@@ -49,6 +49,7 @@ export class Post {
   /** Where the star is on screen (uv, y down) and how much of it is in front of the camera. */
   readonly starUv = uniform(new THREE.Vector2(0.5, 0.2));
   readonly starVis = uniform(0);
+  private rayPasses: { autoUpdate: boolean }[] = [];
   readonly aspect = uniform(1);
   private scene: N = null;
   private sceneAA: PostOptions["aa"] | null = null;
@@ -97,6 +98,7 @@ export class Post {
     const p = this.opts;
     if (p && p.ao === o.ao && p.rays === o.rays && p.bloom === o.bloom && p.aa === o.aa) return;
     this.opts = { ...o };
+    this.rayPasses = [];
     const scene = this.scenePass(o.aa);
     const color = scene.getTextureNode("output");
     const depth = scene.getTextureNode("depth");
@@ -135,6 +137,7 @@ export class Post {
         return vec4(vec3(1.0, 0.8, 0.5).mul(sky).mul(disc), 1);
       })();
       const maskTex = rtt(mask, null, null, { resolutionScale: 0.5 });
+      this.rayPasses.push(maskTex);
       const rays = Fn(() => {
         const SAMPLES = 40;
         const q = uv().toVar();
@@ -149,6 +152,7 @@ export class Post {
         return vec4(min(sum.mul(0.45), vec3(1)), 1);
       })();
       const raysTex = rtt(rays, null, null, { resolutionScale: 0.5 });
+      this.rayPasses.push(raysTex);
       c = vec4(c.rgb.add(raysTex.rgb.mul(this.raysOn).mul(this.starVis)), c.a);
     }
 
@@ -239,6 +243,10 @@ export class Post {
   }
 
   render(): void {
+    // the god rays' two passes (40 taps a pixel) are drawn only while they can be seen: off, they
+    // were drawn and then multiplied by nothing
+    const on = this.raysOn.value * this.starVis.value > 0;
+    for (const r of this.rayPasses) r.autoUpdate = on;
     this.pipeline.render();
   }
 }
