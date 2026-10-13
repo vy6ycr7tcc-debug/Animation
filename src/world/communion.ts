@@ -18,6 +18,10 @@ const {
 } = T;
 
 const SEG = 36;
+/** The strokes of light that wound in from the things around and wove between them. Off (the
+    owner: "we don't need those lights brushed out everywhere"): they reached to trees and beings
+    up to 55 m away and looped across the whole sky. The heart's light and the roots stay. */
+const STROKES = false;
 interface Stroke {
   pts: THREE.Vector3[]; // control points of a winding path
   delay: number; // seconds after stillness begins
@@ -144,7 +148,8 @@ export class Communion {
     // the cloudy glass, just make the heart shine a bit"; the misty aura is no longer drawn)
     this.heart = new THREE.Sprite(new THREE.SpriteMaterial({ map: heartTexture(), blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, transparent: true, opacity: 0, fog: false }));
     this.heart.renderOrder = 12;
-    this.group.add(this.heart, this.strokes);
+    this.group.add(this.heart);
+    if (STROKES) this.group.add(this.strokes);
     this.group.visible = false;
   }
 
@@ -238,7 +243,7 @@ export class Communion {
     const breath = 0.85 + 0.15 * Math.sin(t * 1.1);
     this.heart.material.opacity = Math.min(1, k * 1.4) * 0.8 * breath;
     this.heart.scale.setScalar(0.55 + 0.12 * breath);
-    if (k > 0.05 && !this.built) {
+    if (STROKES && k > 0.05 && !this.built) {
       this.built = true;
       this.age = 0;
       this.build(heart.clone(), things());
