@@ -1,0 +1,26 @@
+{
+  "_format": [
+    "Readable artifacts: a shiny thing in the world that opens a text to read when tapped.",
+    "Each entry in `readings`:",
+    "  id: unique, never changed once shipped (it remembers what has been read).",
+    "  title: shown at the top of the page.",
+    "  pages: one string per page; a blank line inside a string starts a new paragraph.",
+    "  look: 'tablet' (an upright stone tablet), 'scroll' (a scroll resting on a stone) or 'stone' (a flat inscribed stone).",
+    "  place: where it lies. Either { near: '<a name from the map>', dist: metres, bearing: radians clockwise from north } or { x, z } in world metres. Water is avoided by itself.",
+    "  audio (optional): a recording to play while it is read, e.g. 'audio/readings/<id>.mp3'.",
+    "  sample (optional): true keeps it out of the game; it shows only in dev mode (?dev=1) and still frames."
+  ],
+  "readings": [
+    {
+      "id": "sample",
+      "sample": true,
+      "title": "A sample tablet",
+      "look": "tablet",
+      "place": { "near": "The shore", "dist": 9, "bearing": 0.6 },
+      "pages": [
+        "This tablet only shows how a reading looks. Its words are placeholders until the real texts arrive.\n\nA second paragraph, to show the spacing between them.",
+        "A second page. The arrows below turn the pages; the cross, or walking away, closes the reading."
+      ]
+    }
+  ]
+}

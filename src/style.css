@@ -908,3 +908,31 @@ body.film > :not(#gl):not(#film-ui) { visibility: hidden !important; pointer-eve
 #film-ui .film-rec[hidden] { display: none; }
 #film-ui .film-rec i { width: 8px; height: 8px; border-radius: 50%; background: #d65a5a; animation: film-rec 2s ease-in-out infinite; }
 @keyframes film-rec { 50% { opacity: 0.35; } }
+
+/* ---- reading an artifact (ui/reader.ts): its text, a page at a time ---- */
+#reader {
+  position: fixed; left: 0; right: 0; margin: 0 auto; z-index: 26;
+  top: calc(env(safe-area-inset-top, 0px) + 9vh); max-height: calc(var(--fh, 100vh) - 9vh - 150px - env(safe-area-inset-top, 0px));
+  width: min(92vw, 30em); box-sizing: border-box; padding: 18px 20px 10px; border-radius: 18px;
+  display: flex; flex-direction: column;
+  background: radial-gradient(ellipse at 50% 0%, rgba(48, 34, 14, 0.82), rgba(14, 11, 20, 0.86));
+  border: 1px solid rgba(226, 191, 126, 0.42); box-shadow: 0 0 0 1px rgba(226, 191, 126, 0.07) inset, 0 10px 40px rgba(0, 0, 0, 0.4);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); animation: rise 0.7s ease;
+}
+#reader[hidden] { display: none; }
+#reader .x { position: absolute; top: 4px; right: 4px; width: 44px; height: 44px; border: 0; background: none; color: var(--pearl); font-size: 17px; opacity: 0.7; }
+#reader .title { margin: 0 34px 10px; text-align: center; font: italic 19px/1.3 var(--serif, Georgia, serif); color: var(--gold); letter-spacing: 0.04em; }
+#reader .title::after { content: ""; display: block; width: 60px; height: 1px; margin: 10px auto 0; background: linear-gradient(90deg, transparent, rgba(226, 191, 126, 0.7), transparent); }
+#reader .body { overflow-y: auto; overscroll-behavior: contain; padding: 0 4px; font: 16.5px/1.62 var(--serif, Georgia, serif); color: #efe6d6; text-align: left; outline: none; }
+#reader .body p { margin: 0 0 0.9em; }
+#reader .body.turn { animation: reader-page 0.5s ease; }
+@keyframes reader-page { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+#reader .foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; margin-top: 4px; }
+#reader .listen { min-height: 40px; padding: 4px 14px; border-radius: 20px; border: 1px solid rgba(226, 191, 126, 0.4); background: none; color: var(--gold); font: italic 14px var(--serif, Georgia, serif); }
+#reader .pager { display: flex; align-items: center; gap: 4px; margin-left: auto; color: var(--pearl); font: 13px var(--font, system-ui); letter-spacing: 0.06em; }
+#reader .pager[hidden] { display: none; }
+#reader .pager button { width: 44px; height: 44px; border: 0; background: none; color: var(--gold); font-size: 24px; }
+#reader .pager button:disabled { opacity: 0.25; }
+@media (prefers-reduced-motion: reduce) { #reader, #reader .body.turn { animation: none; } }
+/* while reading, the controls rest so a thumb on the text never walks you away */
+body.reading :is(#joy, #act, #ctx, #auto, #seat-hint, #tour-start, #breath-cue) { visibility: hidden; }

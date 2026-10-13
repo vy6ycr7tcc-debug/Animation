@@ -50,6 +50,8 @@ import { Communion } from "./world/communion";
 import { Creatures } from "./world/creatures";
 import { SpiritHorses } from "./world/spiritHorses";
 import { SpiritCritters } from "./world/spiritCritters";
+import { Readables, type Reading } from "./world/readables";
+import { Reader } from "./ui/reader";
 import { Vessels } from "./world/vessels";
 import { TranscriptPlayer } from "./ui/transcriptPlayer";
 import { tourBar, type TourBarOwner } from "./ui/tourBar";
@@ -361,6 +363,45 @@ const spiritCritters = new SpiritCritters(3, 3, MOBILE ? 900 : 1300, () =>
   creation.touchables().filter((t) => t.kind === "tree"),
 );
 scene.add(spiritCritters.group);
+// readable artifacts (content/readings.json): a shiny thing that opens a text when tapped; the
+// sample entries show only in dev mode and still frames
+const readables = new Readables(
+  (label) => placeAt(label),
+  devMode() || new URLSearchParams(location.search).has("shot"),
+);
+scene.add(readables.group);
+const reader = new Reader();
+/** A reading tapped from afar: the wanderer goes to it, and it opens on arrival. */
+let readingOn: { reading: Reading; pos: THREE.Vector3 } | null = null;
+let readingFor: { reading: Reading; pos: THREE.Vector3 } | null = null;
+function openReading(r: { reading: Reading; pos: THREE.Vector3 }): void {
+  readingFor = null;
+  readingOn = r;
+  player.target = null;
+  reader.show(r.reading);
+  readables.markRead(r.reading.id);
+  audio.bowl(660, 0.035, undefined, 5);
+}
+reader.onClose = () => (readingOn = null);
+reader.onListen = (r, on) => {
+  if (!r.audio) return;
+  if (on) void narration.play(r.audio);
+  else if (narration.current === r.audio) narration.stop(1.2);
+};
+/** Each frame: open a reading on arriving at it; close one walked away from. */
+function readingFrame(): void {
+  if (readingFor) {
+    if (!player.target) readingFor = null; // the stick took over
+    else if (Math.hypot(readingFor.pos.x - player.pos.x, readingFor.pos.z - player.pos.z) < 2.2) openReading(readingFor);
+  }
+  if (readingOn && reader.open && (apart() || Math.hypot(readingOn.pos.x - player.pos.x, readingOn.pos.z - player.pos.z) > 8)) reader.close();
+}
+addEventListener("keydown", (e) => {
+  if ((e.key === "r" || e.key === "R") && !reader.open && S.mode === "play" && !apart() && !(e.target as HTMLElement)?.closest?.("input, textarea")) {
+    const near = readables.nearest(player.pos, 3);
+    if (near) openReading(near);
+  }
+});
 
 /** Glow materials add light but leave alpha alone, so they don't punch dark squares into
     the water's reflection texture (which uses alpha to know where the world is). */
@@ -620,6 +661,19 @@ input.onTap = (x, y, touch) => {
     const w = apart() ? null : whispers.pick(x, y, camera);
     if (w) {
       hearWhisper(w, true);
+      return;
+    }
+  }
+  // a readable artifact under the tap: near, it opens; farther, the wanderer goes to it first
+  {
+    const r = apart() || reader.open ? null : readables.pick(x, y, camera);
+    if (r) {
+      if (Math.hypot(r.pos.x - player.pos.x, r.pos.z - player.pos.z) < 9) openReading(r);
+      else {
+        stopAuto();
+        readingFor = r;
+        player.target = new THREE.Vector2(r.pos.x, r.pos.z);
+      }
       return;
     }
   }
@@ -4337,6 +4391,8 @@ function update(dt: number): void {
   }
   if (S.mode !== "intro" && world) creatures.update(wt, dt, player.pos, S.reduced);
   if (S.mode !== "intro") spiritHorses.update(wt, dt, player.pos, medK, player.speed > 3 || player.gliding, S.reduced, !world || player.swimming);
+  if (S.mode !== "intro") readables.update(wt, player.pos, apart());
+  readingFrame();
   if (S.mode !== "intro") spiritCritters.update(wt, dt, player.pos, medK, player.speed > 3 || player.gliding, S.reduced, !world || player.swimming);
   const camUnder = camera.position.y < WATER_Y - 0.05;
   post.under.value = camUnder ? 1 : 0;
@@ -4613,6 +4669,11 @@ renderer
       follow.snapTo(player.pos);
       pyramid.playerPos = player.pos;
     }
+    // a still of a readable artifact (`?shot=reading[&id=…][&open]`): where it lies, and it opens
+    (window as unknown as { __readingAt?: (id: string) => THREE.Vector3 | null }).__readingAt = (id) => {
+      readables.update(0, player.pos, false);
+      return readables.at(id);
+    };
     if (shot)
       runShot({
         whisper: (id: string, k: number) => {
@@ -4663,7 +4724,13 @@ renderer
         setInside,
         ready: bodyForms(),
         settle:
-          shot.id === "horses" || shot.id === "critters"
+          shot.id === "reading"
+            ? async () => {
+                await glyphsLoaded();
+                const q = new URLSearchParams(location.search), at = readables.at(q.get("id") ?? "sample");
+                if (at && q.has("open")) openReading({ reading: readables.readings.find((r) => r.id === (q.get("id") ?? "sample"))!, pos: at });
+              }
+            : shot.id === "horses" || shot.id === "critters"
             ? async () => {
                 await glyphsLoaded();
                 await spiritHorses.loaded;
