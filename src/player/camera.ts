@@ -48,6 +48,11 @@ export class FollowCamera {
       While it holds, contemplation keeps the view behind the wanderer (no first person). */
   wide = 0;
   private wideK = 0;
+  /** The eagle's view (the mind's maze, seated at its centre): the camera rises on a slow crane
+      high over this point and looks down on it, circling very slowly. */
+  eagle: THREE.Vector3 | null = null;
+  private eagleK = 0;
+  private eagleAt = new THREE.Vector3();
 
   constructor(public cam: THREE.PerspectiveCamera) {}
 
@@ -176,6 +181,16 @@ export class FollowCamera {
         const el = Math.atan2(look.y - cp.y, h), lim = THREE.MathUtils.clamp(el, -0.3, 0.22);
         if (lim !== el) look.y += (cp.y + Math.tan(lim) * h - look.y) * steer;
       }
+    }
+    // the eagle: up on a long slow crane over the point, looking down on it, turning very slowly
+    this.eagleK += ((this.eagle ? 1 : 0) - this.eagleK) * Math.min(1, dt * (this.eagle ? 0.3 : 0.9));
+    if (this.eagle) this.eagleAt.copy(this.eagle);
+    if (this.eagleK > 0.001) {
+      const s = THREE.MathUtils.smoothstep(this.eagleK, 0, 1);
+      const a = this.yaw + (reduced ? 0 : t * 0.012);
+      const high = new THREE.Vector3(this.eagleAt.x + Math.sin(a) * 20, this.eagleAt.y + 58, this.eagleAt.z + Math.cos(a) * 20);
+      this.cam.position.lerp(high, s);
+      look.lerp(this.eagleAt, s);
     }
     this.cam.lookAt(look);
   }

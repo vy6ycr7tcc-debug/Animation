@@ -1,7 +1,10 @@
-/* The reading panel: a tapped artifact's text, a page at a time (world/readables.ts). The title
-   in gold, the page in a readable serif, ‹ n / N › to turn (or a swipe, or the arrow keys), ✕ (or
-   Escape, or walking away) to close. With a recording it can be heard as it is read. While it
-   is open the stick and the button rest so a thumb on the text never walks you away. */
+/* The reading panel: a tapped artifact's text, a page at a time (world/readables.ts). Not a box
+   on a page (the owner: "looks too website-ish") but words set in the dark over the world: a
+   veil that melts away at its edges, the title in spaced gold capitals between two hairlines with
+   a small diamond, the page in a large quiet serif, a row of small lights for the pages. ‹ › (or
+   a swipe, or the arrow keys) turn it; ✕ (or Escape, or walking away) closes it. With a
+   recording it can be heard as it is read (one for all, or one per page). While it is open the
+   stick and the button rest so a thumb on the text never walks you away. */
 import type { Reading } from "../world/readables";
 
 export class Reader {
@@ -17,8 +20,8 @@ export class Reader {
   current: Reading | null = null;
   /** Called when a reading closes (by any way). */
   onClose: (r: Reading) => void = () => {};
-  /** Asked to play or stop its recording. */
-  onListen: (r: Reading, on: boolean) => void = () => {};
+  /** Asked to play or stop its recording (`page`: the page shown, for one recording a page). */
+  onListen: (r: Reading, on: boolean, page: number) => void = () => {};
   private listening = false;
 
   constructor() {
@@ -29,11 +32,12 @@ export class Reader {
     el.setAttribute("aria-modal", "false");
     el.innerHTML = `
       <button class="x" type="button" aria-label="Close">✕</button>
+      <div class="orn" aria-hidden="true"><i></i><b></b><i></i></div>
       <h2 class="title"></h2>
       <div class="body" tabindex="0"></div>
       <div class="foot">
-        <button class="listen" type="button" hidden>♪ Listen</button>
-        <span class="pager"><button class="prev" type="button" aria-label="Previous page">‹</button><span class="count"></span><button class="next" type="button" aria-label="Next page">›</button></span>
+        <span class="pager"><button class="prev" type="button" aria-label="Previous page">‹</button><span class="count" aria-live="polite"></span><button class="next" type="button" aria-label="Next page">›</button></span>
+        <button class="listen" type="button" hidden>Listen</button>
       </div>`;
     document.body.appendChild(el);
     this.el = el;
@@ -59,8 +63,9 @@ export class Reader {
     tap(this.listen, () => {
       if (!this.current) return;
       this.listening = !this.listening;
-      this.listen.textContent = this.listening ? "❚❚ Stop" : "♪ Listen";
-      this.onListen(this.current, this.listening);
+      this.listen.textContent = this.listening ? "Quiet" : "Listen";
+      this.listen.classList.toggle("on", this.listening);
+      this.onListen(this.current, this.listening, this.page);
     });
     // a swipe across the page turns it
     let sx = 0, sy = 0;
@@ -87,22 +92,24 @@ export class Reader {
   }
 
   show(r: Reading): void {
-    if (this.listening && this.current) this.onListen(this.current, false);
+    if (this.listening && this.current) this.onListen(this.current, false, this.page);
     this.current = r;
     this.page = 0;
-    this.listening = false;
-    this.listen.textContent = "♪ Listen";
-    this.listen.hidden = !r.audio;
+    this.listening = !!r.autoVoice && !!(r.audio || r.voices?.length);
+    this.listen.textContent = this.listening ? "Quiet" : "Listen";
+    this.listen.classList.toggle("on", this.listening);
+    this.listen.hidden = !(r.audio || r.voices?.length);
     this.title.textContent = r.title;
     this.el.hidden = false;
     document.body.classList.add("reading");
     this.render();
+    if (this.listening) this.onListen(r, true, 0);
   }
 
   close(): void {
     if (this.el.hidden || !this.current) return;
     const r = this.current;
-    if (this.listening) this.onListen(r, false);
+    if (this.listening) this.onListen(r, false, this.page);
     this.listening = false;
     this.el.hidden = true;
     document.body.classList.remove("reading");
@@ -117,6 +124,8 @@ export class Reader {
     if (p === this.page) return;
     this.page = p;
     this.render();
+    // read aloud page by page: the next page's voice takes over
+    if (this.listening && this.current.voices) this.onListen(this.current, true, p);
   }
 
   private render(): void {
@@ -131,7 +140,9 @@ export class Reader {
     );
     this.body.scrollTop = 0;
     this.pager.hidden = n < 2;
-    this.count.textContent = `${this.page + 1} / ${n}`;
+    // the pages as a row of small lights, the one you are on lit
+    this.count.replaceChildren(...Array.from({ length: n }, (_, i) => Object.assign(document.createElement("i"), { className: i === this.page ? "on" : "" })));
+    this.count.setAttribute("aria-label", `Page ${this.page + 1} of ${n}`);
     this.prev.disabled = this.page === 0;
     this.next.disabled = this.page === n - 1;
     // the panel fades in again with each page

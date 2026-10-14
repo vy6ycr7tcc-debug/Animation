@@ -44,8 +44,9 @@ const GRAIN_TINT: Record<string, [number, number, number]> = {
   sandstone_blocks_08: [0.788, 0.91, 1.011],
   red_sandstone_pavement: [0.488, 0.553, 0.651],
 };
-/** `finish`: "marble" (pale, veined, smoother), or "fresh" (stone newly cut: no lichen, no rain streaks). */
-export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number, number, number] = [1, 1, 1], masonry?: Masonry, finish?: "marble" | "fresh"): THREE.MeshStandardNodeMaterial {
+/** `finish`: "marble" (pale, veined, smoother), "fresh" (stone newly cut: no lichen, no rain
+    streaks), or "granite" (grey, honed, its crystals showing: pale feldspar and dark mica). */
+export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number, number, number] = [1, 1, 1], masonry?: Masonry, finish?: "marble" | "fresh" | "granite"): THREE.MeshStandardNodeMaterial {
   const m = new THREE.MeshStandardNodeMaterial({ metalness: 0, roughness: 0.9 });
   // cut masonry draws its own stones: the scan gives only the stone's grain (the block and
   // pavement scans carry bricks of their own, which fought the joints), in the same colour
@@ -135,11 +136,23 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
     c = mix(vec3(0.86, 0.84, 0.8), vec3(0.97, 0.94, 0.88), smoothstep(0.2, 0.6, lum)).mul(vec3(...tint));
     c = mix(c, vec3(0.5, 0.54, 0.6).mul(tint[1]), vein).mul(mix(float(0.78), float(1), arm.r));
   }
+  const granite = finish === "granite";
+  if (granite) {
+    // honed granite: a grey ground whose tone follows the scan's grain, and its crystals as round
+    // grains of noise (not cells): pale feldspar, dark mica, a little smoky quartz
+    const lum = T.dot(c, vec3(0.3, 0.5, 0.2)).div(tint[1]);
+    const g1 = nz(pw.mul(23)), g2 = nz(pw.mul(41).add(3.3)), g3 = nz(pw.mul(11).add(7.1));
+    let gc: N = mix(vec3(0.27, 0.27, 0.29), vec3(0.4, 0.39, 0.4), smoothstep(0.25, 0.75, lum));
+    gc = mix(gc, vec3(0.74, 0.72, 0.7), smoothstep(0.6, 0.7, g1).mul(0.85));
+    gc = mix(gc, vec3(0.05, 0.05, 0.06), smoothstep(0.63, 0.72, g2));
+    gc = mix(gc, vec3(0.2, 0.19, 0.22), smoothstep(0.55, 0.75, g3).mul(0.35));
+    c = gc.mul(vec3(...tint)).mul(mix(float(0.7), float(1), arm.r));
+  }
   // a broad variation over the whole face, so a long wall is never one even tone
   c = c.mul(mix(float(0.86), float(1.08), nz(pw.mul(0.09).add(2.2))));
   // lichen and moss on what faces the sky, in patches
   const up = smoothstep(0.45, 0.9, n.y);
-  const lichen = up.mul(smoothstep(0.55, 0.78, nz(pw.mul(1.3).add(3.1)))).mul(marble ? 0.12 : 0.7).mul(dry);
+  const lichen = up.mul(smoothstep(0.55, 0.78, nz(pw.mul(1.3).add(3.1)))).mul(marble || finish === "granite" ? 0.12 : 0.7).mul(dry);
   c = mix(c, vec3(0.34, 0.38, 0.24).mul(nz(pw.mul(7)).mul(0.5).add(0.7)), lichen);
   // soil and damp at the foot, streaks where rain runs down the faces
   const above = pw.y.sub(base);
@@ -153,7 +166,7 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
   // edge wear: convex edges (where the surface turns sharply) worn pale, catching the light
   const curv = T.clamp(T.length(T.fwidth(n)).mul(3), 0, 1);
   c = c.mul(float(1).add(curv.mul(0.22)));
-  let rough: N = marble ? T.clamp(arm.g.mul(0.5).add(0.12), 0.32, 0.62) : T.clamp(arm.g.add(lichen.mul(0.2)), 0.6, 1);
+  let rough: N = marble ? T.clamp(arm.g.mul(0.5).add(0.12), 0.32, 0.62) : granite ? T.clamp(arm.g.mul(0.45).add(0.3), 0.42, 0.75) : T.clamp(arm.g.add(lichen.mul(0.2)), 0.6, 1);
   // relief from the scan's normal map, turned to each side
   const nm = (t: THREE.Texture) => [T.texture(t, ps.zy.div(tile)), T.texture(t, ps.xz.div(tile)), T.texture(t, ps.xy.div(tile))].map((x: N) => x.xy.mul(2).sub(1));
   const [nx, ny, nzz] = nm(S.nor);
@@ -179,7 +192,7 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
     const tone = mix(float(0.84), float(1.12), id);
     c = c.mul(tone).mul(mix(float(1), float(0.42), joint)).mul(float(1).add(arris.mul(0.16)));
     c = c.mul(float(1).sub(seenSide.mul(0.3))).mul(float(1).sub(shade.mul(0.45)));
-    rough = T.clamp(rough.add(id.sub(0.5).mul(0.12)).add(joint.mul(0.1)), marble ? 0.3 : 0.55, 1);
+    rough = T.clamp(rough.add(id.sub(0.5).mul(0.12)).add(joint.mul(0.1)), marble ? 0.3 : granite ? 0.4 : 0.55, 1);
     // the mortar lies deeper: the stone's face turns away from it toward each joint
     const sU = T.sign(cell.fu.sub(0.5)), sV = T.sign(cell.fv.sub(0.5));
     const kU = smoothstep(0.08, 0.0, cell.du).mul(0.5), kV = smoothstep(0.08, 0.0, cell.dv).mul(0.5);
