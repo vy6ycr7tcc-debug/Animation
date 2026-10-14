@@ -12,7 +12,7 @@
 
 export interface Tier {
   name: string;
-  dpr: number; // cap, further limited by the device pixel ratio
+  dpr: number; // cap, further limited by the device pixel ratio (a phone's own `dprPhone` where given)
   shadow: number;
   bloom: boolean;
   particles: number;
@@ -23,6 +23,8 @@ export interface Tier {
 
 /** A tier as the config writes it: what differs on a phone is given separately. */
 interface TierDef extends Tier {
+  /** A phone's resolution cap (only Best renders at the full 3x: it runs hot). */
+  dprPhone: number;
   particlesPhone: number;
   aoPhone: boolean;
 }
@@ -73,12 +75,13 @@ export const QUALITY_DEFAULTS: QualityConfig = {
   start: { phone: "high", phoneLowEnd: "medium", desktop: "full", desktopLowEnd: "high" },
   tiers: [
     // on a phone the ambient occlusion rests even at the top: at native resolution it cost the most
-    // of any effect for the least seen (Samuel's iPhone ran at ~43 fps with it)
-    { name: "full", dpr: 3, shadow: 2048, bloom: true, particles: 1800, particlesPhone: 1200, ao: true, aoPhone: false, rays: true, reflection: true },
-    { name: "high", dpr: 3, shadow: 2048, bloom: true, particles: 1100, particlesPhone: 1100, ao: false, aoPhone: false, rays: true, reflection: true },
-    { name: "medium", dpr: 2.5, shadow: 1024, bloom: true, particles: 900, particlesPhone: 900, ao: false, aoPhone: false, rays: false, reflection: true },
-    { name: "light", dpr: 2, shadow: 1024, bloom: true, particles: 700, particlesPhone: 700, ao: false, aoPhone: false, rays: false, reflection: false },
-    { name: "minimum", dpr: 2, shadow: 512, bloom: false, particles: 400, particlesPhone: 400, ao: false, aoPhone: false, rays: false, reflection: false },
+    // of any effect for the least seen (Samuel's iPhone ran at ~43 fps with it); and only Best
+    // renders at the full 3x: the others at 2x (the owner's phone ran hot at 15–25 fps at 3x)
+    { name: "full", dprPhone: 3, dpr: 3, shadow: 2048, bloom: true, particles: 1800, particlesPhone: 1200, ao: true, aoPhone: false, rays: true, reflection: true },
+    { name: "high", dprPhone: 2, dpr: 3, shadow: 2048, bloom: true, particles: 1100, particlesPhone: 1100, ao: false, aoPhone: false, rays: true, reflection: true },
+    { name: "medium", dprPhone: 2, dpr: 2.5, shadow: 1024, bloom: true, particles: 900, particlesPhone: 900, ao: false, aoPhone: false, rays: false, reflection: true },
+    { name: "light", dprPhone: 2, dpr: 2, shadow: 1024, bloom: true, particles: 700, particlesPhone: 700, ao: false, aoPhone: false, rays: false, reflection: false },
+    { name: "minimum", dprPhone: 2, dpr: 2, shadow: 512, bloom: false, particles: 400, particlesPhone: 400, ao: false, aoPhone: false, rays: false, reflection: false },
   ],
 };
 
@@ -90,7 +93,7 @@ export const TIERS: Tier[] = [];
 function buildTiers(): void {
   TIERS.length = 0;
   for (const d of QCONFIG.tiers)
-    TIERS.push({ name: d.name, dpr: d.dpr, shadow: d.shadow, bloom: d.bloom, particles: MOBILE ? d.particlesPhone : d.particles, ao: MOBILE ? d.aoPhone : d.ao, rays: d.rays, reflection: d.reflection });
+    TIERS.push({ name: d.name, dpr: MOBILE ? d.dprPhone : d.dpr, shadow: d.shadow, bloom: d.bloom, particles: MOBILE ? d.particlesPhone : d.particles, ao: MOBILE ? d.aoPhone : d.ao, rays: d.rays, reflection: d.reflection });
 }
 buildTiers();
 

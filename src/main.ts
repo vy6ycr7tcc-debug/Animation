@@ -356,7 +356,9 @@ const vessels = new Vessels();
 scene.add(vessels.group);
 const creatures = new Creatures(MOBILE ? 12 : 18); // modest flocks
 scene.add(creatures.group);
-const spiritHorses = new SpiritHorses(MOBILE ? 6 : 8, MOBILE ? 1400 : 2200); // horses of light that come and go
+// horses of light: out of the world (the owner: they "don't add anything… better a nice animation
+// in spots than ugly random horses"); made only for their still
+const spiritHorses = new SpiritHorses(new URLSearchParams(location.search).get("shot") === "horses" ? 3 : 0, MOBILE ? 1400 : 2200);
 scene.add(spiritHorses.group);
 // rabbits in the meadows, small spirits of light that come and go (no squirrels: the owner found
 // the drawn one poor; it waits for a real model)
@@ -435,6 +437,12 @@ const quality: AdaptiveQuality = new AdaptiveQuality(applyTier);
   const sel = $<HTMLSelectElement>("#graphics");
   let saved = "auto";
   try {
+    // once: a level held before the phone's levels were made cooler goes back to Automatic (the
+    // owner's phone held Best at 3x, hot at 15–25 fps); choosing again is kept as ever
+    if (!localStorage.getItem("inward-journey:graphics-v2")) {
+      localStorage.removeItem(KEY);
+      localStorage.setItem("inward-journey:graphics-v2", "1");
+    }
     saved = localStorage.getItem(KEY) ?? "auto";
   } catch {
     /* private window */
@@ -443,6 +451,32 @@ const quality: AdaptiveQuality = new AdaptiveQuality(applyTier);
   sel.value = saved;
   const set = (v: string) => quality.override(v === "auto" ? null : v);
   if (saved !== "auto") window.setTimeout(() => set(saved), 0); // once the renderer exists
+  sel.addEventListener("change", () => {
+    set(sel.value);
+    try {
+      localStorage.setItem(KEY, sel.value);
+    } catch {
+      /* private window */
+    }
+  });
+}
+/* The frame rate (⋮ → Frame rate): 30 on a phone by default, 60 elsewhere. Half the frames is half
+   the GPU's work, so the phone stays cool and the frame time steady (a hot phone throttles, and
+   uneven frames and a starved audio thread were the stutter the owner heard). Remembered. */
+let frameCap = 0;
+{
+  const KEY = "inward-journey:fps";
+  const sel = $<HTMLSelectElement>("#fps");
+  let saved = MOBILE ? "30" : "60";
+  try {
+    saved = localStorage.getItem(KEY) ?? saved;
+  } catch {
+    /* private window */
+  }
+  if (![...sel.options].some((o) => o.value === saved)) saved = "60";
+  sel.value = saved;
+  const set = (v: string) => (frameCap = v === "30" ? 30 : 0);
+  set(saved);
   sel.addEventListener("change", () => {
     set(sel.value);
     try {
@@ -4200,7 +4234,7 @@ function readings(): string {
   return [
     `${rendererName} · build ${__BUILD__}`,
     `fps ${stats.fps.toFixed(1)} · avg ${stats.avgMs.toFixed(1)} ms · worst ${stats.worstMs.toFixed(0)} ms`,
-    `tier ${quality.current.name} · dpr ${dpr.toFixed(2)} of ${devicePixelRatio} · scale ${quality.scale.toFixed(1)} · ${px}`,
+    `tier ${quality.current.name} · dpr ${dpr.toFixed(2)} of ${devicePixelRatio} · scale ${quality.scale.toFixed(1)} · ${px} · ${frameCap ? `cap ${frameCap}` : "no cap"}`,
     `${quality.reason} · ${shadersReady ? "shaders ready" : "compiling shaders…"}`,
     `${frameDraws} draws · ${(ri.triangles / 1000).toFixed(0)}k tris · cpu ${cpuMs.toFixed(2)} ms · gpu mem ${renderer.info.memory.geometries} geo ${renderer.info.memory.textures} tex`, // this frame's (calls counts since the start)
     `audio ${audio.ctx?.state ?? "off"} · session ${audio.sessionType} · voice ${narration.current ?? "-"}`,
@@ -4531,6 +4565,10 @@ function frame(now: number): void {
   if (shot) return; // shot mode draws exactly one frame, outside this loop
   requestAnimationFrame(frame);
   if (S.hidden || devHeld) return;
+  // a frame is drawn only when its time has come: the cap (⋮ → Frame rate), and a crawl behind the
+  // map, whose near-opaque sheet hides the world (a film keeps every frame)
+  const gap = FILM ? 0 : startMap.isOpen ? 1000 / 10 : frameCap ? 1000 / frameCap : 0;
+  if (gap && now - last < gap - 4) return;
   const ms = now - last;
   last = now;
   const dt = Math.min(0.05, ms / 1000);
