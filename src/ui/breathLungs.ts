@@ -22,7 +22,7 @@ const AIRWAYS = [
 /** Where the lungs hang from: they swell away from here. */
 const HILUM = { x: 60, y: 28 };
 /** The drawing's frame (shape units), with room round the shape to swell into. */
-const FRAME = { x: -10, y: -14, w: 140, h: 132 };
+const FRAME = { x: -14, y: -12, w: 148, h: 140 };
 
 interface Dot {
   x: number;
@@ -129,30 +129,46 @@ export class LungParticles {
     ctx.globalCompositeOperation = "lighter";
     const px = (x: number) => (x - FRAME.x) * k, py = (y: number) => (y - FRAME.y) * k;
 
-    // the swell: outward and down from the hilum, a little more at the base, as real lungs fill
-    const sx = 0.8 + 0.26 * open, sy = 0.84 + 0.2 * open;
+    // the swell: outward and down from the hilum, a little more at the base, as real lungs fill;
+    // wide enough to read at a glance (the owner: "make it more dynamic")
     const hold = phase === "hold" ? 1 : 0;
-    const bright = 0.42 + 0.5 * open;
+    const pulse = hold * Math.sin(this.t * 2.4) * 0.025; // held full, the lungs still breathe a little
+    const sx = 0.68 + 0.44 * open + pulse, sy = 0.74 + 0.36 * open + pulse;
+    const bright = 0.3 + 0.7 * open;
     const t = still ? 0 : this.t;
+    // a front of light runs through the lungs: down from the airway as you breathe in, back up as you
+    // release, and round and round in a slow shimmer while you hold
+    const front = phase === "in" ? open : phase === "out" ? open : phase === "hold" ? 0.5 + 0.5 * Math.sin(this.t * 1.3) : -1;
+
+    // a soft glow behind the lungs, growing as they fill
+    const glow = ctx.createRadialGradient(px(HILUM.x), py(64), 0, px(HILUM.x), py(64), 62 * k * (0.7 + 0.45 * open));
+    glow.addColorStop(0, `rgba(110,170,255,${0.1 + 0.18 * open})`);
+    glow.addColorStop(1, "rgba(60,110,220,0)");
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+
     for (const d of this.dots) {
-      const base = d.kind === 2 ? 0.25 : 1; // the airway barely moves
+      const base = d.kind === 2 ? 0.3 : 1; // the airway moves least
       const fx = 1 + (sx - 1) * base, fy = 1 + (sy - 1) * base * (0.7 + 0.5 * ((d.y - 24) / 80));
-      // each light drifts on its own slow path; in the hold, a fine shimmer
-      const w = d.kind === 1 ? 0.5 : 0.9;
-      const jx = Math.sin(t * d.sp + d.ph) * w + Math.sin(t * 7 * d.sp + d.ph * 3) * 0.18 * hold;
+      // each light drifts on its own slow path, wider as the lungs fill; in the hold, a fine shimmer
+      const w = (d.kind === 1 ? 0.55 : 1.1) * (0.6 + 0.8 * open);
+      const jx = Math.sin(t * d.sp + d.ph) * w + Math.sin(t * 7 * d.sp + d.ph * 3) * 0.3 * hold;
       const jy = Math.cos(t * d.sp * 0.8 + d.ph) * w;
       const x = HILUM.x + (d.x - HILUM.x) * fx + jx;
       const y = HILUM.y + (d.y - HILUM.y) * fy + jy;
-      const flick = 0.75 + 0.25 * Math.sin(t * 2.3 * d.sp + d.ph);
-      const a = bright * flick * (d.kind === 1 ? 0.95 : d.kind === 2 ? 0.95 : 0.55);
-      const r = d.size * k * (d.kind === 0 ? 1.6 + 0.6 * open : d.kind === 2 ? 1.9 : 1.5);
+      const depth = (d.y - 20) / 88; // 0 at the airway, 1 at the base
+      const wave = front < 0 ? 0 : Math.exp(-((depth - front) ** 2) / 0.018);
+      const flick = 0.72 + 0.28 * Math.sin(t * 2.3 * d.sp + d.ph);
+      const a = (bright * flick + 0.55 * wave) * (d.kind === 0 ? 0.6 : 0.95);
+      const r = d.size * k * (d.kind === 0 ? 1.4 + 0.9 * open : d.kind === 2 ? 1.9 : 1.4 + 0.3 * open) * (1 + 0.45 * wave);
       ctx.globalAlpha = Math.min(1, a);
       ctx.drawImage(this.sprite, px(x) - r, py(y) - r, r * 2, r * 2);
     }
 
     // the breath itself: motes down the airway on the inhale, up and away on the release
     if (!still && (phase === "in" || phase === "out")) {
-      this.spawn += dt * 9;
+      this.spawn += dt * 16;
       while (this.spawn >= 1) {
         this.spawn--;
         this.motes.push({ t: 0, life: 1.6 + Math.random() * 0.8, dx: (Math.random() - 0.5) * 6, dir: phase === "in" ? 1 : -1 });
