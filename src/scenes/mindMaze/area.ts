@@ -498,6 +498,34 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     const m = landStone("sandstone_blocks_08", 0, 2.4, [0.62, 0.56, 0.56], { course: 0.62, block: 1.4, origin }, "granite");
     // the maze's walls never thin away: what is beyond stays unseen (the view comes in before a wall instead)
     m.maskNode = null;
+    // the stone is night itself (the owner: "pitch black with stars… just with more texture"): the
+    // granite kept only as its grain, its joints and relief, darkened almost to black, a little
+    // polish so the ember light slides over it; and inside it, stars at three depths, so they
+    // shift against each other as you move, as if each block were a window into deep space,
+    // with a faint haze of nebula far within
+    {
+      const stoneC = m.colorNode as N;
+      m.colorNode = vec4(stoneC.rgb.mul(0.032), 1);
+      m.roughnessNode = T.clamp((m.roughnessNode as N).add(0.15), 0.85, 1); // matte: no light slides over it
+      const pr = T.positionWorld.sub(vec3(origin.x, origin.y, origin.z));
+      const V = T.normalize(T.positionWorld.sub(T.cameraPosition)); // into the stone
+      let stars: N = vec3(0);
+      for (const [depth, scale, th, rad, k] of [[0.3, 9, 0.93, 0.07, 1], [1.2, 5, 0.9, 0.065, 0.8], [3.5, 2.6, 0.88, 0.06, 0.6], [9, 1.2, 0.86, 0.055, 0.45]] as const) {
+        const q = pr.add(V.mul(depth)).mul(scale);
+        const cell = T.floor(q);
+        const h = hash3(cell);
+        const off = vec3(hash3(cell.add(1.3)), hash3(cell.add(2.7)), hash3(cell.add(4.1))).sub(0.5).mul(0.6);
+        const dd = T.length(fract(q).sub(0.5).sub(off));
+        const tw = sin(t.mul(float(1.1).add(h.mul(2.5))).add(h.mul(90))).mul(0.3).add(0.7);
+        const hue = mix(vec3(0.7, 0.8, 1), vec3(1, 0.85, 0.65), hash3(cell.add(7.7)));
+        const core = smoothstep(rad, 0, dd), halo = smoothstep(rad * 3.5, 0, dd).mul(0.18);
+        stars = stars.add(hue.mul(core.add(halo)).mul(T.step(th, h)).mul(tw).mul(k));
+      }
+      const deep = pr.add(V.mul(8)).mul(0.12);
+      const neb = T.mx_noise_float(deep).mul(0.5).add(0.5);
+      const haze = mix(vec3(0.05, 0.03, 0.12), vec3(0.02, 0.07, 0.14), T.mx_noise_float(deep.mul(1.7).add(3)).mul(0.5).add(0.5)).mul(smoothstep(0.45, 0.9, neb)).mul(0.5);
+      m.emissiveNode = stars.mul(0.9).add(haze);
+    }
     // touched, a wall answers (the owner, after the series Invasion: not rings): the stone wakes
     // into a sheet of turbulent cyan energy spreading from the touch, nebulous clouds flowing
     // upward, fine bright filaments like lightning veining through them, a dust of sparks; its
