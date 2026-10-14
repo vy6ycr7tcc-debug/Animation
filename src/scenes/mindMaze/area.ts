@@ -35,7 +35,7 @@ import { RITES, riteAudio } from "../../world/rites";
 import { damp, keepAlpha, merge, pointCloud, roomClock, roomPos, scannedGround, seeded, skyDome, spireGeometry, touch, type Air } from "../densities/roomKit";
 import { ash, stormCeiling, volcano } from "../densities/volcanic";
 import { etchedStone } from "../../world/etching";
-import { vnoise, hash2 } from "../../gpu/tsl";
+import { vnoise, hash2, hash3 } from "../../gpu/tsl";
 import type { Narration } from "../../core/narration";
 import { JOURNEY_ORIGIN, type Room, type Solid } from "../journey";
 import type { Reading } from "../../world/readables";
@@ -498,20 +498,46 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     const m = landStone("sandstone_blocks_08", 0, 2.4, [0.62, 0.56, 0.56], { course: 0.62, block: 1.4, origin }, "granite");
     // the maze's walls never thin away: what is beyond stays unseen (the view comes in before a wall instead)
     m.maskNode = null;
-    // touched, a wall answers: slow rings of soft blue light go out through the stone from the
-    // touch, one after another, and fade; never a flash
+    // touched, a wall answers (the owner, after the series Invasion: not rings): the stone wakes
+    // into a sheet of turbulent cyan energy spreading from the touch, nebulous clouds flowing
+    // upward, fine bright filaments like lightning veining through them, a dust of sparks; its
+    // edge torn by the cloud itself; then it settles back into stone. Computed once per pixel for
+    // all four touches, and only where one is glowing.
     {
-      const pr = T.positionWorld.sub(vec3(origin.x, origin.y, origin.z));
-      let wave: N = float(0);
-      for (const u of rips) {
-        const d = T.length(pr.sub(u.xyz)), age = t.sub(u.w);
-        const front = age.mul(1.5);
-        const ring = T.exp(d.sub(front).mul(d.sub(front)).mul(-7)).add(T.exp(d.sub(front).add(0.9).mul(d.sub(front).add(0.9)).mul(-9)).mul(0.55)).add(T.exp(d.sub(front).add(1.8).mul(d.sub(front).add(1.8)).mul(-11)).mul(0.3));
-        const fade = smoothstep(4.2, 0.3, age).mul(T.step(0, age)).mul(smoothstep(6.5, 1.5, d));
-        const core = T.exp(d.mul(d).mul(-1.6)).mul(smoothstep(1.6, 0, age)).mul(T.step(0, age));
-        wave = wave.add(ring.mul(fade).add(core.mul(0.5)));
-      }
-      m.emissiveNode = (m.emissiveNode as N).add(vec3(0.3, 0.58, 1).mul(wave.mul(0.42)));
+      const energy = T.Fn(() => {
+        const pr = T.positionWorld.sub(vec3(origin.x, origin.y, origin.z));
+        const out = vec3(0).toVar();
+        let mask: N = float(0), core: N = float(0);
+        for (const u of rips) {
+          const d = T.length(pr.sub(u.xyz)), age = t.sub(u.w), live = T.step(0, age);
+          const r = float(5.5).mul(float(1).sub(T.exp(age.mul(-1.1))));
+          mask = T.max(mask, smoothstep(r.add(0.3), r.sub(1.8), d).mul(smoothstep(5.5, 1.8, age)).mul(live));
+          core = T.max(core, T.exp(d.mul(d).mul(-2)).mul(smoothstep(2.2, 0, age)).mul(live));
+        }
+        T.If(mask.add(core).greaterThan(0.003), () => {
+          const n = (p: N) => T.mx_noise_float(p).mul(0.5).add(0.5);
+          const q = pr.mul(0.55).add(vec3(0, t.mul(-0.4), 0));
+          const warp = vec3(n(q.add(1.7)), n(q.add(5.2)), n(q.mul(1.1).add(9.1))).mul(1.8);
+          const cloud = n(q.mul(1.4).add(warp)).mul(0.65).add(n(q.mul(3.1).add(warp.mul(0.5))).mul(0.35));
+          // a few hairline filaments, only in patches (lightning veining the cloud, not a net)
+          const patch = smoothstep(0.5, 0.74, n(q.mul(0.8).add(4.4)));
+          const vein = pow(float(1).sub(T.abs(T.mx_noise_float(q.mul(2.2).add(warp.mul(1.3))))), 60).mul(patch);
+          const vein2 = pow(float(1).sub(T.abs(T.mx_noise_float(q.mul(4.6).add(warp)))), 90).mul(patch).mul(0.7);
+          // a dust of small round sparks drifting in it
+          const sp = pr.mul(13).add(vec3(0, t.mul(-0.6), 0));
+          const cell = T.floor(sp);
+          const dot_ = smoothstep(0.22, 0.0, T.length(fract(sp).sub(0.5)));
+          const spark = T.step(0.955, hash3(cell)).mul(dot_).mul(sin(t.mul(6).add(hash3(cell.add(3)).mul(60))).mul(0.4).add(0.6));
+          // the nebula carries the light: deep blue in its hollows, bright cyan where it thickens
+          const grain = n(q.mul(7.5).add(warp.mul(0.3)));
+          const neb = smoothstep(0.18, 0.85, cloud.mul(0.85).add(grain.mul(0.15)));
+          const k = smoothstep(0.08, 0.6, mask.mul(cloud.add(0.65)));
+          const sheet = mix(vec3(0.03, 0.18, 0.4), vec3(0.3, 0.75, 1), neb).mul(neb.mul(1.05).add(0.3)).add(vec3(0.6, 0.92, 1).mul(vein.add(vein2)).mul(0.8)).add(vec3(0.85, 0.96, 1).mul(spark).mul(0.7));
+          out.assign(sheet.mul(k).mul(0.6).add(vec3(0.5, 0.85, 1).mul(core.mul(0.35))));
+        });
+        return out;
+      });
+      m.emissiveNode = (m.emissiveNode as N).add(energy());
     }
     for (const list of parts) {
       if (!list.length) continue;
