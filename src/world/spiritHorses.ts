@@ -69,7 +69,7 @@ export class SpiritHorses {
     private count = 8,
     private per = 1600,
   ) {
-    this.loaded = this.load();
+    this.loaded = count > 0 ? this.load() : Promise.resolve(); // none: nothing is fetched or built
   }
 
   private async load(): Promise<void> {
