@@ -291,6 +291,10 @@ export interface MazeDeps {
   reduced: () => boolean;
   /** A wall touched: a soft tone as its wave of light goes out. */
   chime?: () => void;
+  /** The worlds' own buildings out in the world, to stand round the maze behind their doors (the
+      owner: "there is beauty and value in seeing the actual buildings"): each its door's id, its
+      object, and which way its door opens in its own frame (+1 toward +z, −1 toward −z). */
+  buildings?: () => { id: string; obj: THREE.Object3D; door: 1 | -1; far?: number }[];
 }
 /** The doors round the forecourt to the worlds reached through buildings (the ids of main.ts's
     destinations), each in its world's own light. */
@@ -418,12 +422,16 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     volcano(g, t, VOLC, VOLC_H, uLava, R, ours, [-30, 90]);
     stormCeiling(g, t, VOLC, uStorm, ours);
     for (const c of [[-30, 2, 40], [30, 2, 40], [-30, 2, -20], [30, 2, -20]] as [number, number, number][]) ash(g, t, R, ours, c, 200);
+    // two more volcanoes far off on the horizon, in the gaps between the buildings
+    volcano(g, t, new THREE.Vector3(-300, -2, -150), 105, uLava, R, ours, [40, 60]);
+    volcano(g, t, new THREE.Vector3(330, -2, 120), 92, uLava, R, ours, [-60, -20]);
     // basalt towers and sea stacks standing round the maze beyond its forecourt, as in the first density
     const stone = etchedStone("#15121c", "#6e5238", 3.4);
     ours.push(stone);
     for (let i = 0; i < 14; i++) {
       const a = (i / 14) * TAU + (R() - 0.5) * 0.3, d = 96 + R() * 60;
       if (Math.abs(wrap(a)) < 0.35) continue; // the way you came in stays open
+      if (MAZE_PORTALS.some((_, n) => Math.abs(wrap(a - portalAngle(n))) < 0.3)) continue; // nor stand before a building
       const r = 2.6 + R() * 4, h = 16 + R() * 34;
       const geo = spireGeometry(r, h, 300 + i * 7, 7, (R() - 0.5) * 2);
       const mesh = new THREE.Mesh(geo, stone);
@@ -448,7 +456,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
   // the ground: the first density's black volcanic sand, streaked with ash, glittering near with
   // grains of obsidian; rising gently toward the centre, far out into the dark
   {
-    const geo = new THREE.RingGeometry(0.01, 160, 200, 110);
+    const geo = new THREE.RingGeometry(0.01, 400, 220, 150);
     geo.rotateX(-Math.PI / 2);
     const p = geo.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < p.count; i++) p.setY(i, mazeFloor(p.getX(i), p.getZ(i)));
@@ -533,6 +541,33 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     mesh.castShadow = mesh.receiveShadow = true;
     g.add(mesh);
     ours.push(mesh.geometry, m);
+  }
+
+  /* ---- the worlds' own buildings, standing beyond their doors and facing the maze: the very
+     exteriors out in the world (their geometry and materials shared, not copied), seen over the
+     walls and from the forecourt; the pyramid far off, a great landmark ---- */
+  {
+    const list = deps?.buildings?.() ?? [];
+    for (const b of list) {
+      const n = MAZE_PORTALS.findIndex((q) => q.id === b.id);
+      if (n < 0) continue;
+      const src = b.obj;
+      const box = new THREE.Box3().setFromObject(src);
+      const size = Math.max(box.max.x - box.min.x, box.max.z - box.min.z);
+      const r = b.far ?? PORTAL_R + 14 + Math.min(70, size) * 0.5;
+      const a = portalAngle(n);
+      const [x, z] = polar(a, r);
+      const c = src.clone(true);
+      c.visible = true; // (its parts keep their own: what the original hides stays hidden)
+      const lights: THREE.Object3D[] = [];
+      c.traverse((o) => (o as THREE.Light).isLight && lights.push(o));
+      for (const l of lights) l.removeFromParent(); // its lamps light the world, not the maze
+      c.position.set(x, BASE - 0.15, z);
+      // its door toward the maze's heart
+      c.rotation.set(0, b.door > 0 ? a + Math.PI : a, 0);
+      c.name = `maze-view-${b.id}`;
+      g.add(c);
+    }
   }
 
   /* ---- the doors to the other worlds, round the forecourt: two granite posts and a lintel, its
