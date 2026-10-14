@@ -195,13 +195,18 @@ function bfs(plan: MazePlan, from: number): { prev: Int32Array; dist: Int32Array
   return { prev, dist };
 }
 
-/** Every wall block (centre, turn, width along it, height, depth), the same every time: the
-    rings less their open doors (the outer one less the way in, the sanctuary's less its one
-    door), here and there a colonnade of pillars a hand's width apart (starlight through the
-    slits, no way through), and the side walls across each ring where the way does not go on. */
-export function wallLayout(plan: MazePlan): { x: number; z: number; a: number; w: number; h: number; d: number }[] {
+/** A straight block (pillar or side wall): centre, turn, width along it, height, depth. */
+export interface WallBox { x: number; z: number; a: number; w: number; h: number; d: number }
+/** A curved stretch of ring wall: radius, from angle a0 to a1 (a1 > a0), height, depth. */
+export interface WallArc { r: number; a0: number; a1: number; h: number; d: number }
+/** Every wall, the same every time: the rings less their open doors (the outer one less the way
+    in, the sanctuary's less its one door), each stretch one smooth curved wall (the owner: "make
+    edges smooth"), here and there a colonnade of pillars a hand's width apart instead (starlight
+    through the slits, no way through), and the side walls across each ring where the way does not
+    go on, each one straight slab. */
+export function wallLayout(plan: MazePlan): { boxes: WallBox[]; arcs: WallArc[] } {
   const R = seeded(4099);
-  const out: { x: number; z: number; a: number; w: number; h: number; d: number }[] = [];
+  const boxes: WallBox[] = [], arcs: WallArc[] = [];
   const doorsAt: number[][] = Array.from({ length: NC + 1 }, () => []);
   for (const e of plan.edges) if (e.open && e.kind === "door") doorsAt[e.k].push(e.a);
   doorsAt[0].push(Math.PI);
@@ -218,27 +223,74 @@ export function wallLayout(plan: MazePlan): { x: number; z: number; a: number; w
         for (let i = 0; i <= m; i++) {
           const a = a0 + (i / m) * (a1 - a0);
           const [x, z] = polar(a, r);
-          out.push({ x, z, a, w: 0.85, h: WALL_H * (0.96 + 0.08 * R()) + 0.3, d: 0.7 });
+          boxes.push({ x, z, a, w: 0.85, h: WALL_H + 0.3, d: 0.7 });
         }
-      } else {
-        const m = Math.max(1, Math.ceil(len / 2.6));
-        for (let i = 0; i < m; i++) {
-          const a = a0 + ((i + 0.5) / m) * (a1 - a0);
-          const [x, z] = polar(a, r);
-          out.push({ x, z, a, w: (len / m) * (1 + 0.6 / r) + 0.06, h: WALL_H * (0.97 + 0.06 * R()) + 0.3, d: 0.8 });
-        }
-      }
+      } else arcs.push({ r, a0, a1, h: WALL_H + 0.3, d: 0.8 });
     }
   }
   for (const e of plan.edges) {
     if (e.open || e.kind !== "side") continue;
-    for (let i = 0; i < 3; i++) {
-      const r = RAD(e.k) + ((i + 0.5) / 3) * CW;
-      const [x, z] = polar(e.a, r);
-      out.push({ x, z, a: e.a + Math.PI / 2, w: CW / 3 + 0.1, h: WALL_H * (0.97 + 0.06 * R()) + 0.3, d: 0.8 });
-    }
+    const [x, z] = polar(e.a, RAD(e.k) + CW / 2);
+    boxes.push({ x, z, a: e.a + Math.PI / 2, w: CW + 0.4, h: WALL_H + 0.3, d: 0.8 });
   }
-  return out;
+  return { boxes, arcs };
+}
+
+/** A curved wall as one slab: smooth outer and inner faces along its arc, a flat top and two end
+    faces, each face its own vertices (smooth along the curve, crisp at its edges), wound outward. */
+function arcWall(w: WallArc): THREE.BufferGeometry {
+  const segs = Math.max(2, Math.ceil(((w.a1 - w.a0) * w.r) / 0.5));
+  const ri = w.r - w.d / 2, ro = w.r + w.d / 2;
+  const y0 = mazeFloor(...polar(w.a0, w.r)) - 0.3, y1 = y0 + w.h;
+  const pos: number[] = [], idx: number[] = [];
+  const v = new THREE.Vector3(), e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
+  const P = (i: number) => new THREE.Vector3(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]);
+  // a face as a grid of rows × columns of points; each triangle wound so it faces `out(point)`
+  const face = (cols: number, rows: number, at: (c: number, r: number) => [number, number, number], out: (p: THREE.Vector3) => THREE.Vector3) => {
+    const base = pos.length / 3;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) pos.push(...at(c, r));
+    const tri = (a: number, b: number, c: number) => {
+      const A = P(a);
+      e1.copy(P(b)).sub(A);
+      e2.copy(P(c)).sub(A);
+      v.crossVectors(e1, e2);
+      if (v.dot(out(A)) >= 0) idx.push(a, b, c);
+      else idx.push(a, c, b);
+    };
+    for (let r = 0; r + 1 < rows; r++)
+      for (let c = 0; c + 1 < cols; c++) {
+        const a = base + r * cols + c, b = a + 1, d = a + cols, e = d + 1;
+        tri(a, b, e);
+        tri(a, e, d);
+      }
+  };
+  const ang = (c: number) => w.a0 + ((w.a1 - w.a0) * c) / segs;
+  const radial = (p: THREE.Vector3) => new THREE.Vector3(p.x, 0, p.z).normalize();
+  face(segs + 1, 2, (c, r) => [Math.sin(ang(c)) * ro, r ? y1 : y0, Math.cos(ang(c)) * ro], radial);
+  face(segs + 1, 2, (c, r) => [Math.sin(ang(c)) * ri, r ? y1 : y0, Math.cos(ang(c)) * ri], (p) => radial(p).negate());
+  face(segs + 1, 2, (c, r) => [Math.sin(ang(c)) * (r ? ro : ri), y1, Math.cos(ang(c)) * (r ? ro : ri)], () => new THREE.Vector3(0, 1, 0));
+  for (const [a, sgn] of [[w.a0, -1], [w.a1, 1]] as const) {
+    const t = new THREE.Vector3(Math.cos(a), 0, -Math.sin(a)).multiplyScalar(sgn); // along the wall, outward from it
+    face(2, 2, (c, r) => [Math.sin(a) * (c ? ro : ri), r ? y1 : y0, Math.cos(a) * (c ? ro : ri)], () => t);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
+/** How far a point (room frame) is from a curved wall's face, and the nearest point on it. */
+export function nearArc(w: WallArc, x: number, z: number): { d: number; x: number; z: number } {
+  const a = Math.atan2(x, z), rr = Math.hypot(x, z);
+  let da = a - w.a0;
+  da -= Math.floor(da / TAU) * TAU; // 0..2π from the start
+  const span = w.a1 - w.a0;
+  const along = Math.min(span, Math.max(0, da > span + (TAU - span) / 2 ? 0 : da));
+  const ac = w.a0 + along;
+  const rc = Math.max(w.r - w.d / 2, Math.min(w.r + w.d / 2, rr));
+  const [px, pz] = polar(ac, rc);
+  return { d: Math.hypot(x - px, z - pz), x: px, z: pz };
 }
 
 /* ---------------------------------------------------------------- the lore */
@@ -487,14 +539,20 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
   {
     const SECTORS = 8;
     const parts: THREE.BufferGeometry[][] = Array.from({ length: SECTORS }, () => []);
-    walls.forEach((w, n) => {
+    const sector = (x: number, z: number) => Math.floor(((Math.atan2(x, z) + TAU) % TAU) / (TAU / SECTORS)) % SECTORS;
+    walls.boxes.forEach((w, n) => {
       const b = stoneBlock(w.w, w.h, w.d, n + 1);
+      b.deleteAttribute("uv"); // laid triplanar: merged with the curved walls, which carry none
       b.rotateY(w.a);
       // set 0.3 m into the ground, which rises under it
       const f = Math.min(mazeFloor(w.x - Math.cos(w.a) * w.w * 0.5, w.z + Math.sin(w.a) * w.w * 0.5), mazeFloor(w.x + Math.cos(w.a) * w.w * 0.5, w.z - Math.sin(w.a) * w.w * 0.5));
       b.translate(w.x, f + w.h / 2 - 0.3, w.z);
-      parts[Math.floor(((Math.atan2(w.x, w.z) + TAU) % TAU) / (TAU / SECTORS)) % SECTORS].push(b);
+      parts[sector(w.x, w.z)].push(b);
     });
+    for (const w of walls.arcs) {
+      const [x, z] = polar((w.a0 + w.a1) / 2, w.r);
+      parts[sector(x, z)].push(arcWall(w));
+    }
     const m = landStone("sandstone_blocks_08", 0, 2.4, [0.62, 0.56, 0.56], { course: 0.62, block: 1.4, origin }, "granite");
     // the maze's walls never thin away: what is beyond stays unseen (the view comes in before a wall instead)
     m.maskNode = null;
@@ -1195,14 +1253,20 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
         const moved = Math.hypot(local.x - lastP.x, local.z - lastP.z);
         lastP.copy(local);
         let best = 0.62, bx = 0, bz = 0;
-        for (const w of walls) {
+        for (const w of walls.boxes) {
           const dx = local.x - w.x, dz = local.z - w.z;
-          if (dx * dx + dz * dz > 9) continue;
+          if (dx * dx + dz * dz > 25) continue;
           const ca = Math.cos(w.a), sa = Math.sin(w.a);
           const u = dx * ca - dz * sa, v = dx * sa + dz * ca;
           const cu = Math.max(-w.w / 2, Math.min(w.w / 2, u)), cv = Math.max(-w.d / 2, Math.min(w.d / 2, v));
           const d = Math.hypot(u - cu, v - cv);
           if (d < best) (best = d), (bx = w.x + ca * cu + sa * cv), (bz = w.z - sa * cu + ca * cv);
+        }
+        const rl = Math.hypot(local.x, local.z);
+        for (const w of walls.arcs) {
+          if (Math.abs(rl - w.r) > 2) continue;
+          const q = nearArc(w, local.x, local.z);
+          if (q.d < best) (best = q.d), (bx = q.x), (bz = q.z);
         }
         if (best < 0.62 && moved > 0.002 && now - lastRipT > 0.9 && (Math.hypot(bx - lastRip.x, bz - lastRip.z) > 1.4 || now - lastRipT > 2.6)) {
           rips[ripNext].value.set(bx, local.y + 1.15, bz, now);
