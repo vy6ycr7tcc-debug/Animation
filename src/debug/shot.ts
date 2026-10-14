@@ -238,7 +238,15 @@ export function runShot(ctx: ShotCtx): void {
       ctx.follow.startFollowing(true);
       ctx.follow.follow = 1;
       ctx.S.t = t;
-      for (let i = 0; i < 300; i++) ctx.update(1 / 30); // its life runs a while: the angel gathers into its form
+      // its life runs a while: the angel gathers into its form (the maze only a moment: a touched
+      // wall's wave is still going out)
+      for (let i = 0, n = vm[1] === "maze" ? 30 : 300; i < n; i++) ctx.update(1 / 30);
+      const live = Number(new URLSearchParams(location.search).get("live") ?? NaN);
+      if (live >= 0) {
+        ctx.idle?.();
+        for (let i = 0, n = Math.round(live * 60); i < n; i++) ctx.update(1 / 60);
+        return finish(rest, id, t, [0, 0, 0], null);
+      }
       finish(rest, id, t, [0, 0, 0], view);
     });
     return;

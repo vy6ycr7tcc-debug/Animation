@@ -407,7 +407,7 @@ reader.onListen = (r, on, page) => {
 /* The mind's maze's steles (scenes/mindMaze): read in the same panel. A tap on one opens it (near)
    or walks you to it; standing beside one a moment opens it once a visit. */
 const mazeOpened = new Set<string>();
-let mazeStill = 0, mazeWasIn = false, mazeLast = 0, mazeSat = false;
+let mazeStill = 0, mazeWasIn = false, mazeLast = 0, mazeSat = false, mazeGone = false;
 function mazeSteleNear(within: number): { reading: Reading; pos: THREE.Vector3 } | null {
   if (!maze) return null;
   let best: { reading: Reading; pos: THREE.Vector3 } | null = null, bd = within;
@@ -439,7 +439,18 @@ function mazeSteleFrame(): void {
   if (inMaze && player.flying) player.flying = false;
   document.body.classList.toggle("walkonly", inMaze);
   follow.eagle = inMaze ? (maze?.eagle() ?? null) : null;
+  // through one of the forecourt's doors: on to that world, the way "where next" goes there
+  const door = inMaze && !mazeGone && !crossing ? maze?.portalAt(player.pos) : null;
+  if (door) {
+    const d = DESTS.find((q) => q.id === door);
+    if (d) {
+      mazeGone = true;
+      whisper(d.label, 3000);
+      d.go();
+    }
+  }
   if (!inMaze) {
+    mazeGone = false;
     if (mazeWasIn) {
       mazeOpened.clear(); // a new visit: each opens by itself once again
       // walked out, having sat at its centre: where next
@@ -2168,7 +2179,7 @@ const halls: { hall: Hall; journey: Journey; lit: number }[] = [];
       {
         id: "mindMaze",
         title: "The mind's maze",
-        make: async (sc, nar, wh) => createMindMaze(sc, nar, wh, { model: () => beingModel, sparks, reduced: () => S.reduced }),
+        make: async (sc, nar, wh) => createMindMaze(sc, nar, wh, { model: () => beingModel, sparks, reduced: () => S.reduced, chime: () => audio.bowl(294 + Math.random() * 98, 0.012, undefined, 6) }),
         floor: mazeFloor,
         start: MAZE_START,
         exits: [{ x: MAZE_EXIT.x, z: MAZE_EXIT.z, r: 2.2, to: "out" }],
@@ -4952,12 +4963,10 @@ renderer
           };
           const arts = maze?.steles() ?? [];
           const near = (id: string, back: number, up: number) => {
-            // before it, a few steps off along the way it faces (toward where you come from)
+            // standing before it, the view over the shoulder
             const a = arts.find((q) => q.reading.id === id)!;
-            const x = a.pos.x - o.x, z = a.pos.z - o.z;
-            const r = Math.hypot(x, z), ux = x / r, uz = z / r;
-            const side = [-uz, ux];
-            const sx = x + ux * 0.4 + side[0] * 2.4, sz = z + uz * 0.4 + side[1] * 2.4;
+            const f = a.front ?? a.pos;
+            const x = a.pos.x - o.x, z = a.pos.z - o.z, sx = f.x - o.x, sz = f.z - o.z;
             stand(sx, sz, x, z);
             const ex = x + (sx - x) * back, ez = z + (sz - z) * back;
             return { eye: [o.x + ex, mazeFloor(ex, ez) + up, o.z + ez] as [number, number, number], look: [a.pos.x, a.pos.y + 0.2, a.pos.z] as [number, number, number] };
@@ -4973,6 +4982,19 @@ renderer
             return { eye: [o.x, 118, o.z + 44], look: [o.x, 0, o.z + 2] };
           }
           if (n === 3) return near("maze-arch-I", 2.2, 2.2);
+          if (n === 6) {
+            // the forecourt's doors to the other worlds, curving away round the outer wall
+            // one door face on (the temple's, the first), from just outside the maze's wall
+            const a = 0.62;
+            stand(Math.sin(a) * 62.6, Math.cos(a) * 62.6, Math.sin(a) * 70, Math.cos(a) * 70);
+            return { eye: [o.x + Math.sin(a - 0.03) * 60.2, mazeFloor(0, 60) + 2.3, o.z + Math.cos(a - 0.03) * 60.2], look: [o.x + Math.sin(a) * 66, mazeFloor(0, 66) + 3, o.z + Math.cos(a) * 66] };
+          }
+          if (n === 7) {
+            // a wall touched: the wave of blue light going out through the stone
+            const a = 0.3, r = 58.7;
+            stand(Math.sin(a) * r, Math.cos(a) * r, Math.sin(a) * 70, Math.cos(a) * 70);
+            return { eye: [o.x + Math.sin(a - 0.07) * 54.5, mazeFloor(0, 55) + 2.3, o.z + Math.cos(a - 0.07) * 54.5], look: [o.x + Math.sin(a) * 59.5, mazeFloor(0, 59) + 1.6, o.z + Math.cos(a) * 59.5] };
+          }
           if (n === 4) return near("maze-2", 1.6, 1.9);
           // 5: sat at the centre, everything met: the eagle's view, the paths lit, the motes flowing
           maze?.debugAll();
