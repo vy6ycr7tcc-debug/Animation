@@ -259,6 +259,8 @@ export let maze: MazeRoom | null = null;
 export interface MazeArtifact {
   reading: Reading;
   pos: THREE.Vector3;
+  /** Where to stand before it, facing it (world). */
+  front?: THREE.Vector3;
 }
 export interface MazeRoom extends Room {
   /** Each thing to read and where it stands (world). */
@@ -273,12 +275,56 @@ export interface MazeRoom extends Room {
   sat: boolean;
   /** Still frames: everything met, the paths lit, seated (the motes flowing). */
   debugAll(): void;
+  /** Walking through one of the forecourt's doors: its destination's id, else null. */
+  portalAt(p: THREE.Vector3): string | null;
 }
 export interface MazeDeps {
   /** The figure the beings wear (shared with the world's), once it has loaded. */
   model: () => BeingModel | null;
   sparks: Sparks;
   reduced: () => boolean;
+  /** A wall touched: a soft tone as its wave of light goes out. */
+  chime?: () => void;
+}
+/** The doors round the forecourt to the worlds reached through buildings (the ids of main.ts's
+    destinations), each in its world's own light. */
+export const MAZE_PORTALS: { id: string; label: string; col: [number, number, number] }[] = [
+  { id: "temple", label: "The temple", col: [1, 0.78, 0.45] },
+  { id: "duat", label: "The pyramid and the Duat", col: [1, 0.62, 0.38] },
+  { id: "densities", label: "The monument of the densities", col: [0.7, 0.62, 1] },
+  { id: "adept", label: "The school of the adept", col: [0.6, 0.9, 1] },
+  { id: "past", label: "Past choices", col: [0.5, 0.78, 1] },
+  { id: "veil", label: "The world after the veil", col: [1, 0.92, 0.75] },
+  { id: "descent", label: "The long descent", col: [0.95, 0.85, 0.65] },
+];
+/** Where the doors stand: round the forecourt, clear of the way in at the south. */
+const PORTAL_R = OUTER + 6.2;
+const portalAngle = (n: number) => 0.62 + (n / (MAZE_PORTALS.length - 1)) * (TAU - 1.24);
+/** A name in glowing letters, for over a door. */
+function nameplate(text: string, col: [number, number, number]): THREE.Mesh {
+  const c = document.createElement("canvas");
+  c.width = 1024;
+  c.height = 160;
+  const x = c.getContext("2d");
+  const tex = new THREE.CanvasTexture(c);
+  if (x) {
+    x.textAlign = "center";
+    x.textBaseline = "middle";
+    x.font = "500 64px Georgia, 'Times New Roman', serif";
+    const label = text.toUpperCase().split("").join(String.fromCharCode(8202));
+    x.shadowColor = `rgba(${Math.round(col[0] * 255)},${Math.round(col[1] * 255)},${Math.round(col[2] * 255)},0.95)`;
+    x.shadowBlur = 24;
+    x.fillStyle = "rgba(255,220,160,0.5)";
+    x.fillText(label, 512, 84);
+    x.shadowBlur = 6;
+    x.fillStyle = "rgba(255,240,214,1)";
+    x.fillText(label, 512, 84);
+  }
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
+  const tx = T.texture(tex);
+  m.colorNode = vec4(tx.rgb.mul(tx.a).mul(1.1), 1);
+  return new THREE.Mesh(new THREE.PlaneGeometry(7.2, 1.125), m);
 }
 
 /* ---------------------------------------------------------------- the thread of electric light */
@@ -389,10 +435,14 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
   // the walls: granite in courses, above the eye; here and there a colonnade (pillars a hand's
   // width apart: starlight through the slits, no way through). Merged by sector, so each part
   // is its own (smaller) body for the camera's ray and the walls' solidity.
+  const walls = wallLayout(plan);
+  // waves of light where a wall is touched: up to four at once, each (where, when) in the room's frame
+  const rips = [0, 1, 2, 3].map(() => uniform(new THREE.Vector4(0, -100, 0, -100)));
+  let ripNext = 0;
   {
     const SECTORS = 8;
     const parts: THREE.BufferGeometry[][] = Array.from({ length: SECTORS }, () => []);
-    wallLayout(plan).forEach((w, n) => {
+    walls.forEach((w, n) => {
       const b = stoneBlock(w.w, w.h, w.d, n + 1);
       b.rotateY(w.a);
       // set 0.3 m into the ground, which rises under it
@@ -401,6 +451,23 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       parts[Math.floor(((Math.atan2(w.x, w.z) + TAU) % TAU) / (TAU / SECTORS)) % SECTORS].push(b);
     });
     const m = landStone("sandstone_blocks_08", 0, 2.4, [1, 1, 1.02], { course: 0.62, block: 1.4, origin }, "granite");
+    // the maze's walls never thin away: what is beyond stays unseen (the view comes in before a wall instead)
+    m.maskNode = null;
+    // touched, a wall answers: slow rings of soft blue light go out through the stone from the
+    // touch, one after another, and fade; never a flash
+    {
+      const pr = T.positionWorld.sub(vec3(origin.x, origin.y, origin.z));
+      let wave: N = float(0);
+      for (const u of rips) {
+        const d = T.length(pr.sub(u.xyz)), age = t.sub(u.w);
+        const front = age.mul(1.5);
+        const ring = T.exp(d.sub(front).mul(d.sub(front)).mul(-7)).add(T.exp(d.sub(front).add(0.9).mul(d.sub(front).add(0.9)).mul(-9)).mul(0.55)).add(T.exp(d.sub(front).add(1.8).mul(d.sub(front).add(1.8)).mul(-11)).mul(0.3));
+        const fade = smoothstep(4.2, 0.3, age).mul(T.step(0, age)).mul(smoothstep(6.5, 1.5, d));
+        const core = T.exp(d.mul(d).mul(-1.6)).mul(smoothstep(1.6, 0, age)).mul(T.step(0, age));
+        wave = wave.add(ring.mul(fade).add(core.mul(0.5)));
+      }
+      m.emissiveNode = (m.emissiveNode as N).add(vec3(0.3, 0.58, 1).mul(wave.mul(0.42)));
+    }
     for (const list of parts) {
       if (!list.length) continue;
       const mesh = new THREE.Mesh(merge(list), m);
@@ -424,6 +491,51 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     const lin = stoneBlock(DOOR * 2 + 2.6, 0.8, 1.4, 44);
     lin.translate(0, y + WALL_H + 1.5, OUTER);
     parts.push(lin);
+    const m = landStone("sandstone_blocks_08", 0, 2.2, [1, 1, 1.02], { origin }, "granite");
+    const mesh = new THREE.Mesh(merge(parts), m);
+    mesh.castShadow = mesh.receiveShadow = true;
+    g.add(mesh);
+    ours.push(mesh.geometry, m);
+  }
+
+  /* ---- the doors to the other worlds, round the forecourt: two granite posts and a lintel, its
+     world's light hanging in the opening, its name glowing over it on both sides ---- */
+  {
+    const parts: THREE.BufferGeometry[] = [];
+    const curtain = new THREE.PlaneGeometry(2.6, 3.9);
+    curtain.translate(0, 1.95, 0);
+    ours.push(curtain);
+    MAZE_PORTALS.forEach((p, n) => {
+      const a = portalAngle(n);
+      const [x, z] = polar(a, PORTAL_R);
+      const y = mazeFloor(x, z);
+      const cx = Math.cos(a), cz = -Math.sin(a); // along the door
+      for (const sx of [-1, 1]) {
+        const b = stoneBlock(0.9, 4.6, 0.9, 900 + n * 2 + sx);
+        b.translate(x + cx * sx * 1.75, y + 2.0, z + cz * sx * 1.75);
+        parts.push(b);
+      }
+      const lin = stoneBlock(4.6, 0.7, 1.1, 950 + n);
+      lin.rotateY(a);
+      lin.translate(x, y + 4.5, z);
+      parts.push(lin);
+      const m = keepAlpha(new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }));
+      const q = uv();
+      const edge = smoothstep(0, 0.2, q.x).mul(smoothstep(1, 0.8, q.x)).mul(smoothstep(1, 0.75, q.y)).mul(smoothstep(0, 0.05, q.y));
+      const folds = sin(q.x.mul(30).add(sin(q.y.mul(4).add(t.mul(0.5).add(n))).mul(1.4))).mul(0.5).add(0.5);
+      const near = smoothstep(0.8, 3.5, T.length(T.cameraPosition.sub(T.positionWorld)));
+      m.colorNode = vec4(vec3(...p.col).mul(edge).mul(folds.mul(0.35).add(0.65)).mul(sin(t.mul(0.45).add(n)).mul(0.15).add(0.85)).mul(near).mul(0.7), 1);
+      const c = new THREE.Mesh(curtain, m);
+      c.position.set(x, y, z);
+      c.rotation.y = a;
+      g.add(c);
+      ours.push(m);
+      const plate = nameplate(p.label, p.col);
+      plate.position.set(x, y + 5.35, z);
+      plate.rotation.y = a + Math.PI; // read from within the forecourt (facing the maze)
+      g.add(plate);
+      ours.push(plate.geometry, plate.material as THREE.Material);
+    });
     const m = landStone("sandstone_blocks_08", 0, 2.2, [1, 1, 1.02], { origin }, "granite");
     const mesh = new THREE.Mesh(merge(parts), m);
     mesh.castShadow = mesh.receiveShadow = true;
@@ -479,11 +591,14 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     cell: number;
     lit: ReturnType<typeof uniform>;
     near: ReturnType<typeof uniform>;
+    /** Before it, along the way it faces (room frame). */
+    front: THREE.Vector3;
     being?: { beings: Beings; pivot: THREE.Group };
   }
   const arts: Art[] = [];
-  const newArt = (id: string, reading: Reading, local: THREE.Vector3, cell: number): Art => {
-    const a: Art = { id, reading, local, cell, lit: uniform(read.has(id) ? 1 : 0), near: uniform(0) };
+  const newArt = (id: string, reading: Reading, local: THREE.Vector3, cell: number, face: number, ahead: number): Art => {
+    const fx = local.x + Math.sin(face) * ahead, fz = local.z + Math.cos(face) * ahead;
+    const a: Art = { id, reading, local, cell, lit: uniform(read.has(id) ? 1 : 0), near: uniform(0), front: new V3(fx, mazeFloor(fx, fz), fz) };
     arts.push(a);
     return a;
   };
@@ -539,7 +654,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
         look: "stone",
         place: { x: s.x, z: s.z },
       };
-      const art = newArt(id, reading, new V3(s.x, pivot.position.y + 1.3, s.z), c);
+      const art = newArt(id, reading, new V3(s.x, pivot.position.y + 1.3, s.z), c, s.face, 2.8);
       art.being = { beings, pivot };
       solids.push({ x: s.x, z: s.z, r: 0.85, h: 3 });
       // its thread: a slow helix of electric light round it, and a ring at its feet
@@ -591,7 +706,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       b.translate(x, y + 1.05, z);
       parts.push(b);
       const id = `maze-${i + 1}`;
-      const art = newArt(id, { id, title: n.title, pages: [n.text], look: "tablet", place: { x, z } }, new V3(x, y + 1.25, z), sp.cell);
+      const art = newArt(id, { id, title: n.title, pages: [n.text], look: "tablet", place: { x, z } }, new V3(x, y + 1.25, z), sp.cell, turn, 2);
       // the writing: rows of short strokes, worn in places, gold warming as you come near
       const m = keepAlpha(new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }));
       const q = uv();
@@ -861,6 +976,8 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
   let welcomed = false;
   let revealed = false;
   let hadModel = false;
+  const lastP = new V3(), lastRip = new V3(1e5, 0, 0);
+  let lastRipT = -10;
   const room: MazeRoom = {
     id: "mindMaze",
     active: true,
@@ -881,7 +998,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     solids: () => solids,
     /** What the view turns to in contemplation: the centre's turning rings, once there. */
     centre: () => (Math.hypot(local.x, local.z) < RIN ? new V3(0, centreY + 5, 0) : null),
-    steles: () => arts.map((a) => ({ reading: a.reading, pos: tmp.copy(a.local).add(g.position).clone() })),
+    steles: () => arts.map((a) => ({ reading: a.reading, pos: a.local.clone().add(g.position), front: a.front.clone().add(g.position) })),
     markRead(id: string) {
       const a = arts.find((q) => q.id === id);
       if (!a) return;
@@ -897,6 +1014,16 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       for (const a of arts) if (a.being) a.being.beings.list[0].rite = a.id === id ? 1 : 0;
     },
     eagle: () => (seated ? new V3(0, centreY, 0).add(g.position) : null),
+    portalAt(p: THREE.Vector3) {
+      const x = p.x - g.position.x, z = p.z - g.position.z;
+      for (let n = 0; n < MAZE_PORTALS.length; n++) {
+        const a = portalAngle(n), [px, pz] = polar(a, PORTAL_R);
+        const along = (x - px) * Math.cos(a) - (z - pz) * Math.sin(a);
+        const through = (x - px) * Math.sin(a) + (z - pz) * Math.cos(a);
+        if (Math.abs(along) < 1.1 && Math.abs(through) < 0.5) return MAZE_PORTALS[n].id;
+      }
+      return null;
+    },
     debugAll() {
       for (const a of arts) a.lit.value = 1;
       revealed = true;
@@ -933,6 +1060,30 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       }
       if (model) hadModel = true;
       if ((uCalm.value as number) > 0.01) placeMotes();
+      // touching a wall: the nearest point of the nearest block within reach, and a wave from it
+      // (one a moment, and again as you go along the wall)
+      {
+        const now = clock.u.value as number;
+        const moved = Math.hypot(local.x - lastP.x, local.z - lastP.z);
+        lastP.copy(local);
+        let best = 0.62, bx = 0, bz = 0;
+        for (const w of walls) {
+          const dx = local.x - w.x, dz = local.z - w.z;
+          if (dx * dx + dz * dz > 9) continue;
+          const ca = Math.cos(w.a), sa = Math.sin(w.a);
+          const u = dx * ca - dz * sa, v = dx * sa + dz * ca;
+          const cu = Math.max(-w.w / 2, Math.min(w.w / 2, u)), cv = Math.max(-w.d / 2, Math.min(w.d / 2, v));
+          const d = Math.hypot(u - cu, v - cv);
+          if (d < best) (best = d), (bx = w.x + ca * cu + sa * cv), (bz = w.z - sa * cu + ca * cv);
+        }
+        if (best < 0.62 && moved > 0.002 && now - lastRipT > 0.9 && (Math.hypot(bx - lastRip.x, bz - lastRip.z) > 1.4 || now - lastRipT > 2.6)) {
+          rips[ripNext].value.set(bx, local.y + 1.15, bz, now);
+          ripNext = (ripNext + 1) % rips.length;
+          lastRipT = now;
+          lastRip.set(bx, 0, bz);
+          deps?.chime?.();
+        }
+      }
       if (!welcomed) {
         welcomed = true;
         whisper("The mind's maze. Its walls hide the way; what glints has something to tell you. The centre waits within.", 7000);
