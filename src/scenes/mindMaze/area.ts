@@ -563,7 +563,8 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     // with a faint haze of nebula far within
     {
       const stoneC = m.colorNode as N;
-      m.colorNode = vec4(stoneC.rgb.mul(0.032), 1);
+      // the night sky's own deep blue-black, the granite's grain a faint variation in it
+      m.colorNode = vec4(vec3(0.007, 0.009, 0.024).mul(T.dot(stoneC.rgb, vec3(0.33)).mul(2.2).add(0.35)), 1);
       m.roughnessNode = T.clamp((m.roughnessNode as N).add(0.15), 0.85, 1); // matte: no light slides over it
       const pr = T.positionWorld.sub(vec3(origin.x, origin.y, origin.z));
       const V = T.normalize(T.positionWorld.sub(T.cameraPosition)); // into the stone
@@ -582,7 +583,8 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       const deep = pr.add(V.mul(8)).mul(0.12);
       const neb = T.mx_noise_float(deep).mul(0.5).add(0.5);
       const haze = mix(vec3(0.05, 0.03, 0.12), vec3(0.02, 0.07, 0.14), T.mx_noise_float(deep.mul(1.7).add(3)).mul(0.5).add(0.5)).mul(smoothstep(0.45, 0.9, neb)).mul(0.5);
-      m.emissiveNode = stars.mul(0.9).add(haze);
+      // its own faint night-blue, whatever light falls on it
+      m.emissiveNode = stars.mul(0.9).add(haze).add(vec3(0.006, 0.009, 0.022));
     }
     // touched, a wall answers (the owner, after the series Invasion: not rings): the stone wakes
     // into a sheet of turbulent cyan energy spreading from the touch, nebulous clouds flowing
@@ -605,21 +607,16 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
           const q = pr.mul(0.55).add(vec3(0, t.mul(-0.4), 0));
           const warp = vec3(n(q.add(1.7)), n(q.add(5.2)), n(q.mul(1.1).add(9.1))).mul(1.8);
           const cloud = n(q.mul(1.4).add(warp)).mul(0.65).add(n(q.mul(3.1).add(warp.mul(0.5))).mul(0.35));
-          // a few hairline filaments, only in patches (lightning veining the cloud, not a net)
-          const patch = smoothstep(0.5, 0.74, n(q.mul(0.8).add(4.4)));
-          const vein = pow(float(1).sub(T.abs(T.mx_noise_float(q.mul(2.2).add(warp.mul(1.3))))), 60).mul(patch);
-          const vein2 = pow(float(1).sub(T.abs(T.mx_noise_float(q.mul(4.6).add(warp)))), 90).mul(patch).mul(0.7);
-          // a dust of small round sparks drifting in it
-          const sp = pr.mul(13).add(vec3(0, t.mul(-0.6), 0));
+          // a net of light threads through the stone (the owner chose this first look, toned down)
+          const vein = pow(float(1).sub(T.abs(T.mx_noise_float(q.mul(2.4).add(warp.mul(1.3))))), 16);
+          const vein2 = pow(float(1).sub(T.abs(T.mx_noise_float(q.mul(5.3).add(warp)))), 22).mul(0.6);
+          const sp = pr.mul(12).add(vec3(0, t.mul(-0.5), 0));
           const cell = T.floor(sp);
           const dot_ = smoothstep(0.22, 0.0, T.length(fract(sp).sub(0.5)));
-          const spark = T.step(0.955, hash3(cell)).mul(dot_).mul(sin(t.mul(6).add(hash3(cell.add(3)).mul(60))).mul(0.4).add(0.6));
-          // the nebula carries the light: deep blue in its hollows, bright cyan where it thickens
-          const grain = n(q.mul(7.5).add(warp.mul(0.3)));
-          const neb = smoothstep(0.18, 0.85, cloud.mul(0.85).add(grain.mul(0.15)));
-          const k = smoothstep(0.08, 0.6, mask.mul(cloud.add(0.65)));
-          const sheet = mix(vec3(0.03, 0.18, 0.4), vec3(0.3, 0.75, 1), neb).mul(neb.mul(1.05).add(0.3)).add(vec3(0.6, 0.92, 1).mul(vein.add(vein2)).mul(0.8)).add(vec3(0.85, 0.96, 1).mul(spark).mul(0.7));
-          out.assign(sheet.mul(k).mul(0.6).add(vec3(0.5, 0.85, 1).mul(core.mul(0.35))));
+          const spark = T.step(0.988, hash3(cell)).mul(dot_).mul(sin(t.mul(9).add(hash3(cell.add(3)).mul(60))).mul(0.5).add(0.5));
+          const k = smoothstep(0.15, 0.6, mask.mul(cloud.add(0.45)));
+          const sheet = vec3(0.08, 0.38, 0.7).mul(cloud.mul(cloud).mul(1.1)).add(vec3(0.5, 0.82, 1).mul(vein.add(vein2)).mul(0.7)).add(vec3(0.85, 0.95, 1).mul(spark));
+          out.assign(sheet.mul(k).mul(0.32).add(vec3(0.5, 0.85, 1).mul(core.mul(0.2))));
         });
         return out;
       });
