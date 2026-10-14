@@ -104,6 +104,9 @@ export interface ShotCtx {
   /** The long descent: its shaft of light in the world (`descent-door`), or beat n's place within
       (`descent-<n>`, n 1–7). */
   descent?(n: number): Promise<{ eye: XYZ; look: XYZ }>;
+  /** The mind's maze: its door in the world (`maze-door`), or a view within (`maze-<n>`, n 1–4:
+      the way in, from above, a stele, the still centre). */
+  maze?(n: number): Promise<{ eye: XYZ; look: XYZ }>;
   /** The breathing ring round the wanderer, held this open (`breath&t=<0..1>`). */
   breath?(open: number): void;
   /** Stand at temple shrine `i`'s place, facing it (`temple-shrine-<i>`). */
@@ -223,12 +226,13 @@ export function runShot(ctx: ShotCtx): void {
     return;
   }
 
-  const vm = /^(veil|descent)-(door|\d)$/.exec(id);
-  const place = vm ? (vm[1] === "veil" ? ctx.veil : ctx.descent) : undefined;
+  const vm = /^(veil|descent|maze)-(door|\d)$/.exec(id);
+  const place = vm ? (vm[1] === "veil" ? ctx.veil : vm[1] === "maze" ? ctx.maze : ctx.descent) : undefined;
   if (vm && place) {
-    const { veil: _v, descent: _d, ...rest } = ctx;
+    const { veil: _v, descent: _d, maze: _m, ...rest } = ctx;
     void _v;
     void _d;
+    void _m;
     void place(vm[2] === "door" ? (vm[1] === "veil" ? 1 : 0) : Number(vm[2])).then((view) => {
       ctx.S.mode = "play";
       ctx.follow.startFollowing(true);
