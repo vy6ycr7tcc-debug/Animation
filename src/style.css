@@ -405,11 +405,25 @@ body.mapping :is(#joy, #act, #ctx, #auto, #menu-btn, #tp, #tp-mini, #whisper, #k
 /* the names scroll in their own space, so the map and the tabs stay in view and the screen never scrolls */
 #map-places > .map-group { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; align-content: start; -webkit-overflow-scrolling: touch; }
 #map-places > .map-realms { display: flex; flex-direction: column; }
-/* a phone on its side has no room to share: there the whole page scrolls */
-@media (max-height: 520px) {
-  #map { overflow-y: auto; }
-  #map-places { flex: none; }
-  #map-places > .map-group { overflow: visible; }
+/* a phone on its side: the map on the left, the title, tabs and names on the right (the names
+   scroll in their own space), the buttons at the foot of the right side; nothing stacks or
+   overlaps. (It used to scroll as a page, and the names' list, sized to nothing, spilled over the
+   line and the buttons below it.) */
+@media (max-height: 540px) and (orientation: landscape) {
+  #map {
+    display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto;
+    column-gap: 18px; row-gap: 6px; align-items: start; justify-items: stretch;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) calc(14px + env(safe-area-inset-right, 0px)) calc(8px + env(safe-area-inset-bottom, 0px)) calc(14px + env(safe-area-inset-left, 0px));
+  }
+  #map-frame { grid-column: 1; grid-row: 1 / -1; align-self: center; }
+  #map-title { grid-column: 2; grid-row: 1; text-align: center; font-size: 18px; }
+  #map-pick { grid-column: 2; grid-row: 2; min-height: 0; gap: 8px; }
+  #map-pick p { font-size: 14px; }
+  #map-places { grid-column: 2; grid-row: 3; height: 100%; max-width: none; }
+  #map .note { display: none; }
+  #map .map-foot { grid-column: 2; grid-row: 4; }
+  #map .map-foot button { min-height: 40px; padding: 4px 12px; }
+  .map-group { grid-template-columns: repeat(auto-fill, minmax(10em, 1fr)); }
 }
 .map-head { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .map-tabs { display: flex; justify-content: center; gap: 2px; flex-wrap: nowrap; max-width: 100%; overflow-x: auto; scrollbar-width: none; padding: 3px; }
@@ -936,3 +950,22 @@ body.film > :not(#gl):not(#film-ui) { visibility: hidden !important; pointer-eve
 @media (prefers-reduced-motion: reduce) { #reader, #reader .body.turn { animation: none; } }
 /* while reading, the controls rest so a thumb on the text never walks you away */
 body.reading :is(#joy, #act, #ctx, #auto, #seat-hint, #tour-start, #breath-cue) { visibility: hidden; }
+
+/* ---- every panel fits a phone on its side (the owner: "fix all menus views in vertical and
+   landscape"): nothing reaches past the screen, long ones scroll in their own space ---- */
+#about, #howto, #welcome-again { max-height: calc(var(--fh, 100vh) * 0.82 - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
+#next-up { max-height: calc(var(--fh, 100vh) - 190px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); overflow-y: auto; overscroll-behavior: contain; }
+#guide { max-height: calc(var(--fh, 100vh) * 0.82 - env(safe-area-inset-top, 0px)); }
+/* the readings (⋮ tapped five times) give way to any panel laid over the world */
+body.mapping #stats, body.reading #stats, body:has(#menu:not([hidden])) #stats, body:has(#howto:not([hidden])) #stats, body:has(#guide:not([hidden])) #stats { display: none; }
+@media (max-height: 540px) and (orientation: landscape) {
+  #about, #howto, #welcome-again { width: min(70vw, 34em); padding: 12px 18px 10px; }
+  #guide { top: calc(8px + env(safe-area-inset-top, 0px)); max-height: calc(var(--fh, 100vh) - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); width: min(70vw, 34em); }
+  #reader { top: calc(8px + env(safe-area-inset-top, 0px)); max-height: calc(var(--fh, 100vh) - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); width: min(70vw, 34em); padding: 12px 18px 6px; }
+  #reader .title { margin-bottom: 6px; font-size: 17px; }
+  /* where next: low in the middle, between the stick and the button, scrolling if it must */
+  #next-up { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); width: min(44vw, 22em); max-height: calc(var(--fh, 100vh) - 80px - env(safe-area-inset-top, 0px)); }
+  #shrine { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); width: min(48vw, 24em); }
+  /* beside the ⋮ rather than under it (it stays tappable to close), using the whole height */
+  #menu { top: calc(8px + env(safe-area-inset-top, 0px)); right: calc(64px + env(safe-area-inset-right, 0px)); max-height: calc(var(--fh, 100vh) - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
+}
