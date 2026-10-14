@@ -189,6 +189,8 @@ class Being {
   glyph: Glyph | null = null;
   /** Turns toward you as you come near (a carving set in a shrine's wall stays as it is set). */
   turns = true;
+  /** Drawn (and its figure moved) within this many metres (a maze of walls wants it nearer). */
+  drawWithin = 160;
   /** In the open world: the card's character in thousands of points of light (figures.ts). */
   figure: Figure | null = null;
   private figureTick = 0;
@@ -287,10 +289,10 @@ class Being {
     const d0 = this.distanceTo(player);
     for (const m of this.meshes) m.visible = !this.figure && d0 < 90;
     if (this.figure) {
-      this.figure.cloud.sprite.visible = d0 < 160;
+      this.figure.cloud.sprite.visible = d0 < this.drawWithin;
       // held still while out of the nearest two: its motes still gather and turn, a few times a
       // second within 100 m, about once a second beyond (small there; its light still shimmers)
-      if (!show && d0 < 160 && (this.figureTick += dt) > (d0 < 100 ? 0.3 : 0.8)) {
+      if (!show && d0 < this.drawWithin && (this.figureTick += dt) > (d0 < 100 ? 0.3 : 0.8)) {
         this.root.updateMatrixWorld(true);
         this.figure.update(this.figureTick, t, d0 < 45, 0.85 + this.wake * 0.3, reduced);
         this.figureTick = 0;
@@ -1100,12 +1102,13 @@ export class Beings {
   private tmp = new THREE.Vector3();
 
   /** `flat`: its archetypes as their cards' glowing carvings (the temple), else as characters. */
-  constructor(stations: Station[], private sparks: Sparks, private opts: { flat?: boolean } = {}) {
+  constructor(stations: Station[], private sparks: Sparks, private opts: { flat?: boolean; within?: number } = {}) {
     const stone = etchedStone();
     ARCHETYPES.forEach((spec, i) => {
       const st = stations[i];
       if (!st) return;
       const b = new Being({ ...spec, under: LANDMARK_KINDS[i] === "deep" }, st, !!opts.flat);
+      if (opts.within) b.drawWithin = opts.within;
       // its card's objects in a group of their own, drawn only when near (22 beings' objects were
       // hundreds of draws, wherever you were)
       const props = new THREE.Group();
@@ -1169,7 +1172,7 @@ export class Beings {
     const order = this.list.map((b, i) => [i, b.distanceTo(player)] as const).sort((a, b) => a[1] - b[1]);
     const shown = new Set(order.filter(([, d], k) => k < 2 && d < 90).map(([i]) => i));
     this.list.forEach((b, i) => {
-      if (!this.opts.flat) this.propGroups[i].visible = b.distanceTo(player) < 160;
+      if (!this.opts.flat) this.propGroups[i].visible = b.distanceTo(player) < (this.opts.within ?? 160);
       b.update(dt, t, player, reduced, shown.has(i));
       if (!b.met && b.distanceTo(player) < (b.spec.under ? 9 : 7)) {
         b.met = true;

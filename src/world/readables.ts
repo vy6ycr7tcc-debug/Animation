@@ -16,6 +16,10 @@ export interface Reading {
   look?: "tablet" | "scroll" | "stone";
   place: { near?: string; dist?: number; bearing?: number; x?: number; z?: number };
   audio?: string;
+  /** A recording for each page (read aloud page by page), in place of one `audio`. */
+  voices?: string[];
+  /** Begin speaking as it opens, and go on page by page as the pages turn. */
+  autoVoice?: boolean;
   sample?: boolean;
 }
 

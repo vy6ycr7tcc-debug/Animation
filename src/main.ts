@@ -34,7 +34,7 @@ import { Landmarks } from "./world/landmarks";
 import { Flowers, Lanterns, LightGrass, Sparks, type LifeFrame } from "./world/life";
 import { Motes } from "./world/motes";
 import { Creation, creationUniforms, Spirits } from "./world/creation";
-import { Beings } from "./world/beings";
+import { Beings, type BeingModel } from "./world/beings";
 import { SeaFauna, SeaLife, UnderwaterEffect } from "./world/underwater";
 import { Post } from "./gpu/post";
 import { T, fogUniforms, gpuUniforms, gradeUniforms, ijFogNode } from "./gpu/tsl";
@@ -327,7 +327,12 @@ const temple = new Temple(sparks, {
 scene.add(temple.group, temple.gate);
 let hallsReady = false; // the halls are made further down; until then their floor is level
 floorHook.fn = (x, z) => (inJourney(x) ? (hallsReady ? (inHall()?.journey.floorAt(x, z) ?? 0) : 0) : x > 45000 ? pyramid.floorAt(x, z) : x > 35000 ? depths.floorAt() : temple.floorAt(x, z));
-void beings.load("models/wanderer.glb").then((m) => m && temple.attach(m));
+/** The figure the beings wear, once loaded (the mind's maze dresses its archetypes in it too). */
+let beingModel: BeingModel | null = null;
+void beings.load("models/wanderer.glb").then((m) => {
+  beingModel = m;
+  if (m) temple.attach(m);
+});
 // the voices of the archive, present while they speak
 const presences = new Presences();
 scene.add(presences.group);
@@ -384,15 +389,20 @@ function openReading(r: { reading: Reading; pos: THREE.Vector3 }): void {
   readingOn = r;
   player.target = null;
   reader.show(r.reading);
-  if (r.reading.id.startsWith("maze-")) maze?.markRead(r.reading.id);
-  else readables.markRead(r.reading.id);
+  if (r.reading.id.startsWith("maze-")) {
+    maze?.markRead(r.reading.id);
+    maze?.reading(r.reading.id); // an archetype makes its gesture while its rite is read
+  } else readables.markRead(r.reading.id);
   audio.bowl(660, 0.035, undefined, 5);
 }
-reader.onClose = () => (readingOn = null);
-reader.onListen = (r, on) => {
-  if (!r.audio) return;
-  if (on) void narration.play(r.audio);
-  else if (narration.current === r.audio) narration.stop(1.2);
+reader.onClose = () => {
+  readingOn = null;
+  maze?.reading(null);
+};
+reader.onListen = (r, on, page) => {
+  const src = r.voices?.[page] ?? r.audio;
+  if (on && src) void narration.play(src);
+  else if (!on && narration.current && (narration.current === r.audio || r.voices?.includes(narration.current))) narration.stop(1.2);
 };
 /* The mind's maze's steles (scenes/mindMaze): read in the same panel. A tap on one opens it (near)
    or walks you to it; standing beside one a moment opens it once a visit. */
@@ -423,6 +433,12 @@ function mazeStelePick(x: number, y: number): { reading: Reading; pos: THREE.Vec
 }
 function mazeSteleFrame(): void {
   const inMaze = !!maze && inHall()?.hall === mazeHall;
+  // on foot only in the maze: no jumping, no flight (the round button rests); and seated at its
+  // centre, the view rises to an eagle's height over it
+  player.walkOnly = inMaze;
+  if (inMaze && player.flying) player.flying = false;
+  document.body.classList.toggle("walkonly", inMaze);
+  follow.eagle = inMaze ? (maze?.eagle() ?? null) : null;
   if (!inMaze) {
     if (mazeWasIn) {
       mazeOpened.clear(); // a new visit: each opens by itself once again
@@ -437,7 +453,9 @@ function mazeSteleFrame(): void {
   if (maze?.sat) mazeSat = true;
   const now = performance.now() / 1000, dt = Math.min(0.2, mazeLast ? now - mazeLast : 0);
   mazeLast = now;
-  const s = reader.open || readingFor ? null : mazeSteleNear(1.9);
+  // standing a moment beside a stele, or before an archetype, opens it (once a visit)
+  let s = reader.open || readingFor ? null : mazeSteleNear(2.9);
+  if (s && !s.reading.id.startsWith("maze-arch-") && Math.hypot(s.pos.x - player.pos.x, s.pos.z - player.pos.z) > 1.9) s = null;
   mazeStill = s && player.vel.lengthSq() < 0.05 ? mazeStill + dt : 0;
   if (s && mazeStill > 1.2 && !mazeOpened.has(s.reading.id)) {
     mazeOpened.add(s.reading.id);
@@ -2081,6 +2099,8 @@ function journeyHost(hall: Hall, withSky = false): JourneyHost {
         standUp();
       }
       audio.setTemple(on, false);
+      // the mind's maze: an om sounding now and then among the stone's own sounds
+      audio.setOm(on && hall === mazeHall);
     },
     outside: () => (hall === pastHall && halls[2]?.journey.via ? egyptGate.outside() : hall.outside()),
     presence: (k) => (hallPresence = k),
@@ -2148,7 +2168,7 @@ const halls: { hall: Hall; journey: Journey; lit: number }[] = [];
       {
         id: "mindMaze",
         title: "The mind's maze",
-        make: async (sc, nar, wh) => createMindMaze(sc, nar, wh),
+        make: async (sc, nar, wh) => createMindMaze(sc, nar, wh, { model: () => beingModel, sparks, reduced: () => S.reduced }),
         floor: mazeFloor,
         start: MAZE_START,
         exits: [{ x: MAZE_EXIT.x, z: MAZE_EXIT.z, r: 2.2, to: "out" }],
@@ -4926,17 +4946,38 @@ renderer
           await j.jump(0);
           const o = JOURNEY_ORIGIN;
           const cy = mazeFloor(0, 0);
-          // [where you stand, where the eye is, what it looks at] in the maze's frame
-          const views: [number, number, number, number, number, number, number, number][] = [
-            [0, 51, 0, 54, 3.4, 0, 2, 20],
-            [0, 51, 0, 66, 34, 0, 2, -4],
-            [17, 33.6, 14.5, 36.2, 2.6, 17, 2.4, 32],
-            [0, 0.9, 6, 9, cy + 2.6, 0, cy + 5, 0],
-          ];
-          const [px, pz, ex, ez, ey, lx, ly, lz] = views[Math.min(views.length, Math.max(1, n)) - 1];
-          player.pos.set(o.x + px, mazeFloor(px, pz), o.z + pz);
-          player.heading = Math.atan2(px - lx, pz - lz);
-          return { eye: [o.x + ex, ey, o.z + ez], look: [o.x + lx, ly, o.z + lz] };
+          const stand = (x: number, z: number, lx: number, lz: number) => {
+            player.pos.set(o.x + x, mazeFloor(x, z), o.z + z);
+            player.heading = Math.atan2(x - lx, z - lz);
+          };
+          const arts = maze?.steles() ?? [];
+          const near = (id: string, back: number, up: number) => {
+            // before it, a few steps off along the way it faces (toward where you come from)
+            const a = arts.find((q) => q.reading.id === id)!;
+            const x = a.pos.x - o.x, z = a.pos.z - o.z;
+            const r = Math.hypot(x, z), ux = x / r, uz = z / r;
+            const side = [-uz, ux];
+            const sx = x + ux * 0.4 + side[0] * 2.4, sz = z + uz * 0.4 + side[1] * 2.4;
+            stand(sx, sz, x, z);
+            const ex = x + (sx - x) * back, ez = z + (sz - z) * back;
+            return { eye: [o.x + ex, mazeFloor(ex, ez) + up, o.z + ez] as [number, number, number], look: [a.pos.x, a.pos.y + 0.2, a.pos.z] as [number, number, number] };
+          };
+          if (n === 1) {
+            // the way in: the gate in the high granite wall, nothing beyond it to be seen
+            stand(0, 64, 0, 0);
+            return { eye: [o.x + 1.5, mazeFloor(0, 70) + 2.8, o.z + 71], look: [o.x, mazeFloor(0, 58) + 2.4, o.z + 56] };
+          }
+          if (n === 2) {
+            // the whole plan, from high above
+            stand(0, 64, 0, 0);
+            return { eye: [o.x, 118, o.z + 44], look: [o.x, 0, o.z + 2] };
+          }
+          if (n === 3) return near("maze-arch-I", 2.2, 2.2);
+          if (n === 4) return near("maze-2", 1.6, 1.9);
+          // 5: sat at the centre, everything met: the eagle's view, the paths lit, the motes flowing
+          maze?.debugAll();
+          stand(0, 0.5, 0, -3);
+          return { eye: [o.x + Math.sin(follow.yaw) * 20, cy + 58, o.z + Math.cos(follow.yaw) * 20], look: [o.x, cy, o.z] };
         },
         breath: (open) => {
           breath.debugOpen = open;

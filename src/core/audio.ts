@@ -781,6 +781,80 @@ export class AudioEngine {
     o.stop(t + 0.1);
   }
 
+  /* ---------- the om (the mind's maze): a few low voices sounding A-U-M together in the stone's
+     long reverb, then resting while the room's own sounds (air, a drop, a bowl) carry on, then
+     again; never all the time. The vowel moves ah → oh → oo and closes into the hum of the M. */
+  private om: GainNode | null = null;
+  private omOn = false;
+  setOm(on: boolean): void {
+    if (!this.ctx || on === this.omOn) return;
+    this.omOn = on;
+    if (on && !this.om) this.startOm();
+    if (this.om) this.ramp(this.om.gain, on ? 1 : 0, on ? 3 : 1.5);
+  }
+  private startOm(): void {
+    const c = this.ctx!;
+    this.om = c.createGain();
+    this.om.gain.value = 0;
+    this.om.connect(this.hall);
+    const dry = c.createGain();
+    dry.gain.value = 0.18;
+    this.om.connect(dry).connect(this.templeBus);
+    const voices = [[146.83, -6, 1], [146.83, 7, 0.9], [220.0, 2, 0.55], [293.66, -3, 0.35]].map(([f, det, lvl]) => {
+      const o = c.createOscillator();
+      o.type = "sawtooth";
+      o.frequency.value = f;
+      o.detune.value = det;
+      const vib = c.createOscillator(), vg = c.createGain();
+      vib.frequency.value = 4.2 + Math.random() * 0.8;
+      vg.gain.value = 2.5;
+      vib.connect(vg).connect(o.detune);
+      const f1 = c.createBiquadFilter(), f2 = c.createBiquadFilter(), lp = c.createBiquadFilter(), a = c.createGain();
+      f1.type = f2.type = "bandpass";
+      f1.Q.value = 6;
+      f2.Q.value = 8;
+      lp.type = "lowpass";
+      lp.frequency.value = 2400;
+      a.gain.value = 0;
+      o.connect(f1).connect(lp);
+      o.connect(f2).connect(lp);
+      lp.connect(a).connect(this.om!);
+      o.start();
+      vib.start();
+      return { f1, f2, lp, a, lvl };
+    });
+    const sound = () => {
+      if (!this.ctx) return;
+      if (!this.omOn) {
+        window.setTimeout(sound, 4000);
+        return;
+      }
+      const t = this.ctx.currentTime + 0.05;
+      for (const v of voices) {
+        const lag = Math.random() * 0.6, peak = 0.024 * v.lvl;
+        // ah (700, 1150) → oh (480, 850) → oo (330, 720) → the M: the mouth closes, a soft hum
+        for (const [f, hz] of [[v.f1, [700, 480, 330, 260]], [v.f2, [1150, 850, 720, 500]]] as const) {
+          f.frequency.setValueAtTime(hz[0], t);
+          f.frequency.linearRampToValueAtTime(hz[1], t + lag + 3.2);
+          f.frequency.linearRampToValueAtTime(hz[2], t + lag + 6.2);
+          f.frequency.linearRampToValueAtTime(hz[3], t + lag + 8.4);
+        }
+        v.lp.frequency.setValueAtTime(2400, t);
+        v.lp.frequency.linearRampToValueAtTime(2000, t + lag + 6.2);
+        v.lp.frequency.linearRampToValueAtTime(520, t + lag + 8.6);
+        v.a.gain.cancelScheduledValues(t);
+        v.a.gain.setValueAtTime(0, t);
+        v.a.gain.linearRampToValueAtTime(peak, t + lag + 2.4);
+        v.a.gain.setValueAtTime(peak, t + lag + 7.6);
+        v.a.gain.linearRampToValueAtTime(peak * 0.75, t + lag + 9);
+        v.a.gain.linearRampToValueAtTime(0, t + lag + 13.5);
+      }
+      // then a rest, while the room's air, drops and bowls carry the silence
+      window.setTimeout(sound, (14 + 16 + Math.random() * 22) * 1000);
+    };
+    window.setTimeout(sound, 2500);
+  }
+
   /** A far chant: a few low voices on one mode, each breathing its own long phrases, the
       vowels slowly changing (oo, oh, ah), almost all of it the hall's echo. */
   private startChant(): void {

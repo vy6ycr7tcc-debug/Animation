@@ -80,6 +80,8 @@ export class Controller {
   private jumpQueued = 0;
   /** Auto jump (⋮, on by default): walking into a ledge too tall to step over hops up it. */
   autoJump = true;
+  /** On foot only (the mind's maze): no jump, no flight, no hop up a ledge. */
+  walkOnly = false;
   private hopWait = 0;
   /** How far below the surface the swimmer has dived (0 at the surface). */
   depth = 0;
@@ -151,7 +153,7 @@ export class Controller {
   /** The round button's tap, as in Sky: on the ground a jump; in the air it opens into flight;
       flying, a wingbeat lifts you a little. */
   jump(): void {
-    if (this.swimming) return;
+    if (this.swimming || this.walkOnly) return;
     // forgiving, as good platform games are: a tap just after stepping off an edge still jumps,
     // and one just before landing jumps as the feet touch
     if (this.grounded || (this.airTime < 0.15 && this.vy <= 0 && !this.flying)) {
@@ -175,7 +177,7 @@ export class Controller {
       reach and lies just ahead: jump it. The jump is a small hop, not a leap (apex ~1 m). */
   private autoHop(dx: number, dz: number, mag: number, moved: number, intended: number, dt: number): void {
     this.hopWait = Math.max(0, this.hopWait - dt);
-    if (!this.autoJump || !this.grounded || this.flying || this.swimming || this.hopWait > 0 || mag < 0.4 || intended < 1e-4) return;
+    if (!this.autoJump || this.walkOnly || !this.grounded || this.flying || this.swimming || this.hopWait > 0 || mag < 0.4 || intended < 1e-4) return;
     if (moved > intended * 0.45) return; // not held up
     const len = Math.hypot(dx, dz) || 1;
     const ax = this.pos.x + (dx / len) * (BODY_R + 0.3), az = this.pos.z + (dz / len) * (BODY_R + 0.3);
@@ -338,7 +340,7 @@ export class Controller {
         // Holding the button in the air takes off into flight (as the jump crests);
         // running off an edge opens into a slow glide.
         this.heldAir = input.hold ? this.heldAir + dt : 0;
-        if (input.hold && this.heldAir > 0.18 && this.vy < 2.2 && !this.swimming) {
+        if (input.hold && this.heldAir > 0.18 && this.vy < 2.2 && !this.swimming && !this.walkOnly) {
           this.flying = true;
           this.landing = false;
           this.vy = Math.max(this.vy, 1.5);
