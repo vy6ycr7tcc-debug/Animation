@@ -1,4 +1,36 @@
-import { precacheAndRoute } from 'workbox-precaching';
+import { precacheAndRoute, matchPrecache } from 'workbox-precaching';
+
+/* The page itself, and the small unhashed files beside it (quality.json, breathing.json, the
+   manifest), come from the network first, so every boot runs the build the server has now; the
+   kept copy answers only when there is no network (offline) or it is too slow (4 s). Without
+   this the precache answered the page for good, and a new version reached the phone only after
+   its web data was deleted. The hashed scripts and styles stay cache-first: their names change
+   with every build, so a kept one is never stale. Registered before the precache's own route,
+   so it answers first. */
+const SHELL_TIMEOUT = 4000;
+self.addEventListener('fetch', (event) => {
+  const request = event.request;
+  if (request.method !== 'GET' || !request.url.startsWith(self.location.origin)) return;
+  const url = new URL(request.url);
+  if (url.searchParams.has('fresh')) return;
+  const page = request.mode === 'navigate';
+  if (!page && !/\.(json|webmanifest)$/.test(url.pathname)) return;
+  if (/\/(audio|models|textures)\//.test(url.pathname)) return;
+  event.respondWith((async () => {
+    const net = fetch(request.url, { cache: 'no-cache', credentials: 'same-origin' }).then((r) => (r.ok ? r : Promise.reject(r)));
+    const slow = new Promise((res) => setTimeout(res, SHELL_TIMEOUT, null));
+    const kept = async () =>
+      (page ? await matchPrecache('index.html') : null) || (await caches.match(request, { ignoreSearch: true }));
+    try {
+      const r = await Promise.race([net, slow]);
+      if (r) return r;
+      // slow: the kept copy now, if there is one; else go on waiting for the network
+      return (await kept()) || (await net);
+    } catch {
+      return (await kept()) || new Response(null, { status: 503, statusText: 'Service Unavailable' });
+    }
+  })());
+});
 
 // The app shell (JS, CSS, HTML, webmanifest), precached from the Vite build
 // (self.__WB_MANIFEST is injected by vite-plugin-pwa).
