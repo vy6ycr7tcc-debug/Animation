@@ -13,7 +13,10 @@ const current = (() => {
 export async function newerBuild(): Promise<string | null> {
   if (import.meta.env.DEV || !current.startsWith("index-")) return null;
   try {
+    // `?fresh=` passes the service worker by (it would answer with its kept page), `no-store` the
+    // browser's own cache: this is the server's word
     const page = new URL(".", location.href);
+    page.searchParams.set("fresh", String(Date.now()));
     const html = await (await fetch(page, { cache: "no-store" })).text();
     const live = html.match(/assets\/(index-[\w-]+\.js)/)?.[1];
     return live && live !== current ? live : null;

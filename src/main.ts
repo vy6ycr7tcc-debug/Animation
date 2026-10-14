@@ -102,17 +102,33 @@ import { Duat } from "./world/duat";
 
 import { downloadAssets, requestPersistentStorage, downloadedBefore, fetchAssetList, megabytes, plan } from "./core/offline";
 
-// Register Service Worker
+// Register the service worker, and ask it to look for a newer version at every start and every
+// return to the game (iOS checks rarely on its own, and a Home Screen game is only ever resumed).
+// A newer one installs and takes over at once (sw.js skips waiting); if that happens before the
+// journey has begun, the page loads again on it, once, so all of it is the new build.
+const hadWorker = "serviceWorker" in navigator && !!navigator.serviceWorker.controller;
 registerSW({
-  onNeedRefresh() {
-    if (confirm("New content is available, click OK to refresh.")) {
-      window.location.reload();
-    }
+  immediate: true,
+  onRegisteredSW(_url, r) {
+    if (!r) return;
+    void r.update().catch(() => undefined);
+    addEventListener("visibilitychange", () => document.visibilityState === "visible" && void r.update().catch(() => undefined));
   },
   onOfflineReady() {
     console.log("App ready to work offline");
-  }
+  },
 });
+if (hadWorker)
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (S.mode !== "intro") return;
+    try {
+      if (sessionStorage.getItem("inward-journey:sw-reload")) return;
+      sessionStorage.setItem("inward-journey:sw-reload", "1");
+    } catch {
+      return;
+    }
+    location.reload();
+  });
 
 declare const __BUILD__: string;
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
