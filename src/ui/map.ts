@@ -438,12 +438,20 @@ export class StartMap {
 
   /* ---------------------------------------------------------------- drawing */
   private layout(): void {
+    // a phone on its side: the map stands on the left, the whole height, the list beside it
+    const side = innerWidth > innerHeight && innerHeight <= 540;
+    if (side) {
+      const cs = getComputedStyle(this.el);
+      const hh = Math.floor((this.el.clientHeight || innerHeight) - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0));
+      const ww = Math.floor(Math.min(innerWidth * 0.46, hh * 1.25));
+      this.size(ww, hh);
+      return;
+    }
     const w = Math.floor(Math.min(innerWidth * 0.94, 680));
     // the map takes what the screen has left after the title, the line under it, the tabs and a few
     // rows of names (the names scroll within their own space), so the whole screen fits without scrolling
-    const short = innerHeight < 520;
     let h = Math.floor(Math.min(w, innerHeight * 0.5));
-    if (!short && this.el.clientHeight) {
+    if (this.el.clientHeight) {
       const cs = getComputedStyle(this.el);
       const gap = parseFloat(cs.rowGap) || 0;
       const kids = [...this.el.children].filter((c) => !(c as HTMLElement).hidden && c !== this.canvas.parentElement && c.id !== "map-places") as HTMLElement[];
@@ -451,6 +459,10 @@ export class StartMap {
       const rest = this.el.clientHeight - used - 250; // the shore row, the tabs and about three rows of names
       h = Math.floor(Math.max(170, Math.min(w, rest)));
     }
+    this.size(w, h);
+  }
+
+  private size(w: number, h: number): void {
     const dpr = Math.min(2, devicePixelRatio || 1);
     this.canvas.style.width = `${w}px`;
     this.canvas.style.height = `${h}px`;
