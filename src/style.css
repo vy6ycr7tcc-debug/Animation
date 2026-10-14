@@ -802,7 +802,7 @@ body:has(#hear-again:not([hidden])):has(#tour-start:not([hidden])) #breath-cue {
 #breath-cue.on { opacity: 1; }
 #breath-cue p { margin: 0; }
 /* the lungs: a body of small blue lights (ui/breathLungs.ts) that swells, holds and settles with the breath */
-#breath-cue canvas.lungs { position: static; display: block; width: clamp(58px, 17vw, 76px); height: auto; aspect-ratio: 140 / 132; margin: 0; }
+#breath-cue canvas.lungs { position: static; display: block; width: clamp(88px, 25vw, 112px); height: auto; aspect-ratio: 148 / 140; margin: 0; }
 #breath-cue .word {
   font: italic clamp(17px, 4.6vw, 21px)/1.2 var(--serif, Georgia, serif); letter-spacing: 0.08em; color: #d8ecff;
   text-shadow: 0 0 14px rgba(120, 190, 255, 0.35), 0 1px 3px rgba(0, 0, 0, 0.5);
@@ -815,7 +815,7 @@ body:has(#hear-again:not([hidden])):has(#tour-start:not([hidden])) #breath-cue {
 }
 #breath-cue .explain.on { opacity: 0.86; }
 @media (orientation: landscape) and (max-height: 540px) {
-  #breath-cue canvas.lungs { width: 52px; }
+  #breath-cue canvas.lungs { width: 76px; }
   #breath-cue .word { font-size: 17px; }
   #breath-cue .explain { max-width: 22em; font-size: 12px; }
 }
