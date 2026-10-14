@@ -2179,7 +2179,17 @@ const halls: { hall: Hall; journey: Journey; lit: number }[] = [];
       {
         id: "mindMaze",
         title: "The mind's maze",
-        make: async (sc, nar, wh) => createMindMaze(sc, nar, wh, { model: () => beingModel, sparks, reduced: () => S.reduced, chime: () => audio.bowl(294 + Math.random() * 98, 0.012, undefined, 6) }),
+        make: async (sc, nar, wh) => createMindMaze(sc, nar, wh, { model: () => beingModel, sparks, reduced: () => S.reduced, chime: () => audio.bowl(294 + Math.random() * 98, 0.012, undefined, 6),
+          // the worlds' own buildings round it, behind their doors (the pyramid far off, a landmark)
+          buildings: () => [
+            { id: "temple", obj: temple.gate, door: 1 },
+            { id: "duat", obj: pyramid.world, door: -1, far: 270 },
+            { id: "densities", obj: halls[0].hall.world, door: 1 },
+            { id: "adept", obj: halls[1].hall.world, door: 1 },
+            { id: "past", obj: halls[2].hall.world, door: 1 },
+            { id: "veil", obj: halls[3].hall.world, door: 1 },
+            { id: "descent", obj: halls[4].hall.world, door: 1 },
+          ] }),
         floor: mazeFloor,
         start: MAZE_START,
         exits: [{ x: MAZE_EXIT.x, z: MAZE_EXIT.z, r: 2.2, to: "out" }],
@@ -4988,6 +4998,11 @@ renderer
             const a = 0.62;
             stand(Math.sin(a) * 62.6, Math.cos(a) * 62.6, Math.sin(a) * 70, Math.cos(a) * 70);
             return { eye: [o.x + Math.sin(a - 0.03) * 60.2, mazeFloor(0, 60) + 2.3, o.z + Math.cos(a - 0.03) * 60.2], look: [o.x + Math.sin(a) * 66, mazeFloor(0, 66) + 3, o.z + Math.cos(a) * 66] };
+          }
+          if (n === 8) {
+            // the whole: the maze, the worlds' buildings round it, the volcanoes and the pyramid beyond
+            stand(0, 64, 0, 0);
+            return { eye: [o.x + 40, 95, o.z + 190], look: [o.x - 10, 0, o.z - 40] };
           }
           if (n === 7) {
             // a wall touched: the wave of blue light going out through the stone
