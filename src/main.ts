@@ -83,6 +83,8 @@ import { PastMonument, pastStages } from "./scenes/past/monument";
 import { VeilDoor } from "./scenes/afterVeil/door";
 import { createAfterVeil, veilConfine, veilFloor, VEIL_EXIT } from "./scenes/afterVeil/area";
 import { WandererPortal } from "./scenes/wanderer/portal";
+import { MindMazePortal } from "./scenes/mindMaze/portal";
+import { createMindMaze, maze, mazeConfine, mazeFloor, MAZE_AIR, MAZE_EXIT, MAZE_START } from "./scenes/mindMaze/area";
 import { createLongDescent, wandererConfine, wandererFloor, WANDERER_EXIT } from "./scenes/wanderer/area";
 import { moodForce } from "./world/moods";
 import { cloudUniforms } from "./world/atmosphere";
@@ -382,7 +384,8 @@ function openReading(r: { reading: Reading; pos: THREE.Vector3 }): void {
   readingOn = r;
   player.target = null;
   reader.show(r.reading);
-  readables.markRead(r.reading.id);
+  if (r.reading.id.startsWith("maze-")) maze?.markRead(r.reading.id);
+  else readables.markRead(r.reading.id);
   audio.bowl(660, 0.035, undefined, 5);
 }
 reader.onClose = () => (readingOn = null);
@@ -391,17 +394,68 @@ reader.onListen = (r, on) => {
   if (on) void narration.play(r.audio);
   else if (narration.current === r.audio) narration.stop(1.2);
 };
+/* The mind's maze's steles (scenes/mindMaze): read in the same panel. A tap on one opens it (near)
+   or walks you to it; standing beside one a moment opens it once a visit. */
+const mazeOpened = new Set<string>();
+let mazeStill = 0, mazeWasIn = false, mazeLast = 0, mazeSat = false;
+function mazeSteleNear(within: number): { reading: Reading; pos: THREE.Vector3 } | null {
+  if (!maze) return null;
+  let best: { reading: Reading; pos: THREE.Vector3 } | null = null, bd = within;
+  for (const s of maze.steles()) {
+    const d = Math.hypot(s.pos.x - player.pos.x, s.pos.z - player.pos.z);
+    if (d < bd) (bd = d), (best = s);
+  }
+  return best;
+}
+function mazeStelePick(x: number, y: number): { reading: Reading; pos: THREE.Vector3 } | null {
+  if (!maze) return null;
+  const v = new THREE.Vector3(), f = innerHeight / (2 * Math.tan((camera.fov * Math.PI) / 360));
+  let best: { reading: Reading; pos: THREE.Vector3 } | null = null, bd = Infinity;
+  for (const s of maze.steles()) {
+    const d = s.pos.distanceTo(camera.position);
+    if (d > 60) continue;
+    v.copy(s.pos).project(camera);
+    if (v.z > 1) continue;
+    const sx = (v.x * 0.5 + 0.5) * innerWidth, sy = (-v.y * 0.5 + 0.5) * innerHeight;
+    if (Math.hypot(sx - x, sy - y) < Math.max(36, (0.7 / d) * f * 1.4) && d < bd) (bd = d), (best = s);
+  }
+  return best;
+}
+function mazeSteleFrame(): void {
+  const inMaze = !!maze && inHall()?.hall === mazeHall;
+  if (!inMaze) {
+    if (mazeWasIn) {
+      mazeOpened.clear(); // a new visit: each opens by itself once again
+      // walked out, having sat at its centre: where next
+      if (mazeSat) window.setTimeout(() => offerNext("maze", "The mind's maze"), 2500);
+      mazeSat = false;
+    }
+    mazeWasIn = false;
+    return;
+  }
+  mazeWasIn = true;
+  if (maze?.sat) mazeSat = true;
+  const now = performance.now() / 1000, dt = Math.min(0.2, mazeLast ? now - mazeLast : 0);
+  mazeLast = now;
+  const s = reader.open || readingFor ? null : mazeSteleNear(1.9);
+  mazeStill = s && player.vel.lengthSq() < 0.05 ? mazeStill + dt : 0;
+  if (s && mazeStill > 1.2 && !mazeOpened.has(s.reading.id)) {
+    mazeOpened.add(s.reading.id);
+    openReading(s);
+  }
+}
 /** Each frame: open a reading on arriving at it; close one walked away from. */
 function readingFrame(): void {
   if (readingFor) {
     if (!player.target) readingFor = null; // the stick took over
     else if (Math.hypot(readingFor.pos.x - player.pos.x, readingFor.pos.z - player.pos.z) < 2.2) openReading(readingFor);
   }
-  if (readingOn && reader.open && (apart() || Math.hypot(readingOn.pos.x - player.pos.x, readingOn.pos.z - player.pos.z) > 8)) reader.close();
+  mazeSteleFrame();
+  if (readingOn && reader.open && ((apart() && !readingOn.reading.id.startsWith("maze-")) || Math.hypot(readingOn.pos.x - player.pos.x, readingOn.pos.z - player.pos.z) > 8)) reader.close();
 }
 addEventListener("keydown", (e) => {
   if ((e.key === "r" || e.key === "R") && !reader.open && S.mode === "play" && !apart() && !(e.target as HTMLElement)?.closest?.("input, textarea")) {
-    const near = readables.nearest(player.pos, 3);
+    const near = readables.nearest(player.pos, 3) ?? mazeSteleNear(3);
     if (near) openReading(near);
   }
 });
@@ -701,7 +755,7 @@ input.onTap = (x, y, touch) => {
   }
   // a readable artifact under the tap: near, it opens; farther, the wanderer goes to it first
   {
-    const r = apart() || reader.open ? null : readables.pick(x, y, camera);
+    const r = reader.open ? null : apart() ? mazeStelePick(x, y) : readables.pick(x, y, camera);
     if (r) {
       if (Math.hypot(r.pos.x - player.pos.x, r.pos.z - player.pos.z) < 9) openReading(r);
       else {
@@ -1988,7 +2042,9 @@ const pastHall = new PastMonument();
 const veilHall = new VeilDoor(narration);
 // the way into the long descent (scenes/wanderer): a shaft of light in a meadow
 const descentHall = new WandererPortal();
-scene.add(densityHall.world, adeptHall.world, pastHall.world, veilHall.world, descentHall.world);
+// the way into the mind's maze (scenes/mindMaze): two leaning monoliths holding a curtain of light
+const mazeHall = new MindMazePortal();
+scene.add(densityHall.world, adeptHall.world, pastHall.world, veilHall.world, descentHall.world, mazeHall.world);
 /** `sky`: the place keeps the world's real sky and clouds (the long descent tells its story
     through them). */
 function journeyHost(hall: Hall, withSky = false): JourneyHost {
@@ -2084,7 +2140,29 @@ const halls: { hall: Hall; journey: Journey; lit: number }[] = [];
     journeyHost(descentHall, true),
   );
   wj.white = true;
-  halls.push({ hall: densityHall, journey: dj, lit: -1 }, { hall: adeptHall, journey: aj, lit: -1 }, { hall: pastHall, journey: pj, lit: -1 }, { hall: veilHall, journey: vj, lit: -1 }, { hall: descentHall, journey: wj, lit: -1 });
+  // the mind's maze: one open labyrinth under the night, its crossings white; its seat at the
+  // still centre sits you down (a seated stage with no recording)
+  const mj: Journey = new Journey(
+    "maze",
+    [
+      {
+        id: "mindMaze",
+        title: "The mind's maze",
+        make: async (sc, nar, wh) => createMindMaze(sc, nar, wh),
+        floor: mazeFloor,
+        start: MAZE_START,
+        exits: [{ x: MAZE_EXIT.x, z: MAZE_EXIT.z, r: 2.2, to: "out" }],
+        confine: mazeConfine,
+        air: MAZE_AIR,
+        seated: true,
+        focus: [[0, mazeFloor(0, 0) + 6, 0], [0, 4, -44], [44, 4, 0], [-44, 4, 0]],
+        centre: [0, mazeFloor(0, 0) + 6, 0],
+      },
+    ],
+    journeyHost(mazeHall),
+  );
+  mj.white = true;
+  halls.push({ hall: densityHall, journey: dj, lit: -1 }, { hall: adeptHall, journey: aj, lit: -1 }, { hall: pastHall, journey: pj, lit: -1 }, { hall: veilHall, journey: vj, lit: -1 }, { hall: descentHall, journey: wj, lit: -1 }, { hall: mazeHall, journey: mj, lit: -1 });
 }
 /** The journey you are in (null out in the world). */
 hallsReady = true;
@@ -3086,7 +3164,7 @@ function arrivalFrame(): void {
     if (!walk && !duatTour && !j.via) {
       if (k >= 0 && k < HALL_WALKS.length) {
         if (j.at === 0) walkStart(HALL_WALKS[k]);
-      } else if (at) areaTourStart(j, at.hall.label);
+      } else if (at && at.hall !== mazeHall) areaTourStart(j, at.hall.label);
     }
   }
   if (areaTour && !tourHeld && !narration.paused) {
@@ -3214,6 +3292,7 @@ const DESTS: Dest[] = [
   { id: "past", label: halls[2].hall.label, at: () => halls[2].hall.door, go: () => walkStart("past") },
   areaDest("veil", 3),
   areaDest("descent", 4),
+  placeDest("maze", "The mind's maze"),
   placeDest("gobekli", "Göbekli Tepe"),
   placeDest("nanmadol", "Nan Madol"),
   placeDest("mu", "Mu, the drowned land"),
@@ -4829,6 +4908,33 @@ renderer
           const eye = at.clone().addScaledVector(dir, -5.5).add(new THREE.Vector3(dir.z * 1.6, 2.6, -dir.x * 1.6));
           return { eye: [o.x + eye.x, o.y + eye.y, o.z + eye.z], look: [o.x + look.x, o.y + look.y, o.z + look.z] };
         },
+        maze: async (n) => {
+          if (n === 0) {
+            // the door: its leaning monoliths and curtain, from a little way off on the home side
+            const d = mazeHall.door, f = mazeHall.face;
+            const px = d.x + Math.sin(f) * 9, pz = d.z + Math.cos(f) * 9;
+            player.pos.set(px, heightAt(px, pz), pz);
+            player.heading = f + Math.PI;
+            terrain.update(px, pz, true);
+            const eye = [d.x + Math.sin(f) * 16 + Math.cos(f) * 5, d.y + 3.2, d.z + Math.cos(f) * 16 - Math.sin(f) * 5] as [number, number, number];
+            return { eye, look: [d.x, d.y + 3.4, d.z] as [number, number, number] };
+          }
+          const j = halls[5].journey;
+          await j.jump(0);
+          const o = JOURNEY_ORIGIN;
+          const cy = mazeFloor(0, 0);
+          // [where you stand, where the eye is, what it looks at] in the maze's frame
+          const views: [number, number, number, number, number, number, number, number][] = [
+            [0, 51, 0, 54, 3.4, 0, 2, 20],
+            [0, 51, 0, 66, 34, 0, 2, -4],
+            [17, 33.6, 14.5, 36.2, 2.6, 17, 2.4, 32],
+            [0, 0.9, 6, 9, cy + 2.6, 0, cy + 5, 0],
+          ];
+          const [px, pz, ex, ez, ey, lx, ly, lz] = views[Math.min(views.length, Math.max(1, n)) - 1];
+          player.pos.set(o.x + px, mazeFloor(px, pz), o.z + pz);
+          player.heading = Math.atan2(px - lx, pz - lz);
+          return { eye: [o.x + ex, ey, o.z + ez], look: [o.x + lx, ly, o.z + lz] };
+        },
         breath: (open) => {
           breath.debugOpen = open;
           breath.set(true);
@@ -5034,5 +5140,5 @@ if (FILM) {
     }),
   );
 }
-Object.assign(window, { __ij: { solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall } });
+Object.assign(window, { __ij: { solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, maze: () => maze } });
 Object.assign((window as unknown as { __ij: object }).__ij, { whispers, hearWhisper, rapaNui });

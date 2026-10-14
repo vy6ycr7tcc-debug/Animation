@@ -517,6 +517,10 @@ export function rapaNuiAt(lx: number, lz: number): [number, number] {
   PADS.push({ x: N.islet.x, z: N.islet.z, h: 5, inner: 6, outer: 19 });
   KEEP_CLEAR.push({ x: hx, z: hz, r: 52 }, { x: N.volcano.x, z: N.volcano.z, r: 60 }, { x: N.islet.x, z: N.islet.z, r: 18 });
 }
+/** The mind's maze (scenes/mindMaze): its door, two leaning monoliths of stone holding a curtain
+    of light, on level ground south-west of the shore. Declared after every other site, so adding
+    it moved none of them. */
+export const MAZE_HALL = monumentSite(-2.55, 250, 620, 10);
 /** Its platform's rise at distance `d` from its centre (walked up; scenes/past/monument.ts). */
 const pastRise = (d: number): number => (d < 12.4 ? 1.3 : d < 22 ? 0.9 : d < 23 ? 0.6 : d < 24 ? 0.3 : 0);
 /** The stepped platform's rise at distance `d` from a monument's centre (three steps of 0.45 m). */
