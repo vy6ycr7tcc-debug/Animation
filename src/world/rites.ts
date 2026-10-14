@@ -6,8 +6,7 @@
    question to carry away (written for the game). Each rite lights the shrine's lamp. When the
    same place is lit in all three realms (Ra's grouping: I, VIII, XV; II, IX, XVI; …), the altar
    answers with that place's synthesis. When all twenty-one are lit, the Choice opens.
-   Voiced with Piper (narration/piper.sh rites): public/audio/rites/<numeral>-<1|2|3>.mp3 and
-   synth-<1..8>.mp3. */
+   The words are shown, not spoken: the Piper (British) recordings were removed by the owner. */
 
 export interface Rite {
   invite: string;
@@ -51,6 +50,3 @@ export const SYNTHESES: string[] = [
   "The Great Way. The path, the body as the vessel of gold, and the circle that is left open.",
   "Twenty-one lamps are lit. The Choice is waiting, at the back of the sanctuary.",
 ];
-
-export const riteAudio = (numeral: string, k: 1 | 2 | 3) => `audio/rites/${numeral}-${k}.mp3`;
-export const synthAudio = (k: number) => `audio/rites/synth-${k + 1}.mp3`;

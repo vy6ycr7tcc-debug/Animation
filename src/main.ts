@@ -18,7 +18,7 @@ import { AudioEngine } from "./core/audio";
 import { Input } from "./core/input";
 import { Narration } from "./core/narration";
 import { Playlist } from "./core/playlist";
-import { RITES, riteAudio, SYNTHESES, synthAudio } from "./world/rites";
+import { RITES, SYNTHESES } from "./world/rites";
 import { SIGNATURES } from "./player/gestures";
 import { heartId, passageId, promptsFor, registerAnswers, registerTunnel, SPECTRUM, trackId, walkId } from "./core/dialogues";
 import { Awake } from "./core/awake";
@@ -1002,8 +1002,6 @@ function beginTempleRite(i: number): void {
   riteDist = follow.dist;
   temple.quietStage = i >= 14;
   trite = { i, phase: "walk", t: 0, step: 0, next: 0, clips: [null, null, null], voice: null };
-  const r = trite;
-  ([1, 2, 3] as const).forEach((k) => void audio.clip(riteAudio(info.numeral, k)).then((b) => (r.clips[k - 1] = b)));
   shrineEl.hidden = true;
   riteEndBtn.hidden = false;
 }
@@ -1042,11 +1040,11 @@ function endTempleRite(done: boolean): void {
 function synthesis(p: number, three: number[]): void {
   temple.synthesis(three.map((k) => temple.shrineInfo(k).tint));
   [294, 440, 587].forEach((f, k) => window.setTimeout(() => audio.bell(f, 0.06, 9), k * 700));
-  void audio.clip(synthAudio(p)).then((b) => templeWords(SYNTHESES[p], b));
+  templeWords(SYNTHESES[p], null);
   if (litCount() >= 21 && !synthDone.has(7)) {
     synthDone.add(7);
     persist();
-    window.setTimeout(() => void audio.clip(synthAudio(7)).then((b) => templeWords(SYNTHESES[7], b, true)), 16000);
+    window.setTimeout(() => templeWords(SYNTHESES[7], null, true), 16000);
   }
 }
 function riteFrame(dt: number): void {
@@ -2198,13 +2196,9 @@ const halls: { hall: Hall; journey: Journey; lit: number }[] = [];
         make: async (sc, nar, wh) => createMindMaze(sc, nar, wh, { model: () => beingModel, sparks, reduced: () => S.reduced, chime: () => audio.bowl(294 + Math.random() * 98, 0.012, undefined, 6),
           // the worlds' own buildings round it, behind their doors (the pyramid far off, a landmark)
           buildings: () => [
-            { id: "temple", obj: temple.gate, door: 1 },
-            { id: "duat", obj: pyramid.world, door: -1, far: 270 },
-            { id: "densities", obj: halls[0].hall.world, door: 1 },
-            { id: "adept", obj: halls[1].hall.world, door: 1 },
-            { id: "past", obj: halls[2].hall.world, door: 1 },
-            { id: "veil", obj: halls[3].hall.world, door: 1 },
-            { id: "descent", obj: halls[4].hall.world, door: 1 },
+            { id: "temple", obj: temple.gate, door: temple.gateAt, face: temple.gateHeading },
+            { id: "duat", obj: pyramid.world, door: pyramid.door, face: Math.PI, far: 270 },
+            ...halls.slice(0, 5).map((h, k) => ({ id: ["densities", "adept", "past", "veil", "descent"][k], obj: h.hall.world, door: h.hall.door, face: h.hall.face })),
           ] }),
         floor: mazeFloor,
         start: MAZE_START,
@@ -5009,11 +5003,22 @@ renderer
           }
           if (n === 3) return near("maze-arch-I", 2.2, 2.2);
           if (n === 6) {
-            // the forecourt's doors to the other worlds, curving away round the outer wall
-            // one door face on (the temple's, the first), from just outside the maze's wall
-            const a = 0.62;
-            stand(Math.sin(a) * 62.6, Math.cos(a) * 62.6, Math.sin(a) * 70, Math.cos(a) * 70);
-            return { eye: [o.x + Math.sin(a - 0.03) * 60.2, mazeFloor(0, 60) + 2.3, o.z + Math.cos(a - 0.03) * 60.2], look: [o.x + Math.sin(a) * 66, mazeFloor(0, 66) + 3, o.z + Math.cos(a) * 66] };
+            // a monument round the forecourt, its door toward the maze (&slot=0…6: the temple, the
+            // pyramid far off, the densities, the adept, past choices, the veil, the descent)
+            const k = Number(new URLSearchParams(location.search).get("slot") ?? 0);
+            const a = 0.62 + (k / 6) * (Math.PI * 2 - 1.24);
+            stand(Math.sin(a) * 68, Math.cos(a) * 68, Math.sin(a) * 90, Math.cos(a) * 90);
+            return { eye: [o.x + Math.sin(a - 0.06) * 62, mazeFloor(0, 62) + 3.2, o.z + Math.cos(a - 0.06) * 62], look: [o.x + Math.sin(a) * 84, mazeFloor(0, 84) + 4, o.z + Math.cos(a) * 84] };
+          }
+          if (n === 9) {
+            // walking up to a monument round the forecourt and in through its door (&slot as for 6)
+            const k = Number(new URLSearchParams(location.search).get("slot") ?? 0);
+            const id = ["temple", "duat", "densities", "adept", "past", "veil", "descent"][k];
+            const d = maze?.doors().find((q) => q.id === id);
+            const a = 0.62 + (k / 6) * (Math.PI * 2 - 1.24);
+            stand(Math.sin(a) * 66, Math.cos(a) * 66, Math.sin(a) * 90, Math.cos(a) * 90);
+            if (d) player.target = new THREE.Vector2(d.pos.x, d.pos.z);
+            return { eye: [o.x + Math.sin(a) * 60, mazeFloor(0, 60) + 3, o.z + Math.cos(a) * 60], look: [o.x + Math.sin(a) * 84, mazeFloor(0, 84) + 3, o.z + Math.cos(a) * 84] };
           }
           if (n === 8) {
             // the whole: the maze, the worlds' buildings round it, the volcanoes and the pyramid beyond

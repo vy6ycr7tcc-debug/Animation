@@ -31,7 +31,7 @@ import { passable } from "../../world/solidity";
 import { Beings, type BeingModel } from "../../world/beings";
 import type { Sparks } from "../../world/life";
 import type { Station } from "../../world/stations";
-import { RITES, riteAudio } from "../../world/rites";
+import { RITES } from "../../world/rites";
 import { damp, keepAlpha, merge, pointCloud, roomClock, roomPos, scannedGround, seeded, skyDome, spireGeometry, touch, type Air } from "../densities/roomKit";
 import { ash, stormCeiling, volcano } from "../densities/volcanic";
 import { etchedStone } from "../../world/etching";
@@ -68,8 +68,12 @@ const DOOR = 1.35;
 /** Where you come in, and the arch that leads out (room frame). */
 export const MAZE_START = { x: 0, z: OUTER + 4.6, heading: 0 };
 export const MAZE_EXIT = { x: 0, z: OUTER + 9.6 };
-/** The outer edge of where you may walk (the forecourt round the outer wall). */
-const EDGE = OUTER + 10.5;
+/** The outer edge of where you may walk (the forecourt round the outer wall)… */
+const EDGE = OUTER + 12.5;
+/** …where the worlds' own monuments stand with their fronts, so their doors can be walked to. */
+const FRONT_R = OUTER + 13;
+/** Before each monument, the ground you may walk out onto, up to its door (room frame). */
+const lanes: { a: number; hw: number; reach: number }[] = [];
 /** The ground sits this far over the water line at the edge (the place apart's y is 0)… */
 const BASE = 1.2;
 /** …and rises this much, gently, toward the sanctuary. */
@@ -84,7 +88,14 @@ export function mazeFloor(x: number, z: number): number {
 /** Keep within the forecourt's edge (the walls themselves hold you by their own shape). */
 export function mazeConfine(p: { x: number; z: number }): void {
   const r = Math.hypot(p.x, p.z);
-  if (r > EDGE) (p.x *= EDGE / r), (p.z *= EDGE / r);
+  if (r <= EDGE) return;
+  let lim = EDGE;
+  for (const l of lanes) {
+    const ux = Math.sin(l.a), uz = Math.cos(l.a);
+    const along = p.x * ux + p.z * uz, lat = Math.abs(p.x * uz - p.z * ux);
+    if (along > 0 && lat < l.hw) lim = Math.max(lim, l.reach);
+  }
+  if (r > lim) (p.x *= lim / r), (p.z *= lim / r);
 }
 const polar = (a: number, r: number): [number, number] => [Math.sin(a) * r, Math.cos(a) * r];
 const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -335,6 +346,8 @@ export interface MazeRoom extends Room {
   debugAll(): void;
   /** Walking through one of the forecourt's doors: its destination's id, else null. */
   portalAt(p: THREE.Vector3): string | null;
+  /** The monuments' doors round the forecourt (world), for the stills. */
+  doors(): { id: string; pos: THREE.Vector3 }[];
 }
 export interface MazeDeps {
   /** The figure the beings wear (shared with the world's), once it has loaded. */
@@ -344,9 +357,9 @@ export interface MazeDeps {
   /** A wall touched: a soft tone as its wave of light goes out. */
   chime?: () => void;
   /** The worlds' own buildings out in the world, to stand round the maze behind their doors (the
-      owner: "there is beauty and value in seeing the actual buildings"): each its door's id, its
-      object, and which way its door opens in its own frame (+1 toward +z, −1 toward −z). */
-  buildings?: () => { id: string; obj: THREE.Object3D; door: 1 | -1; far?: number }[];
+      owner: "there is beauty and value in seeing the actual buildings"): each its destination's
+      id, its object, its door (world) and the heading that walks in through it. */
+  buildings?: () => { id: string; obj: THREE.Object3D; door: THREE.Vector3; face: number; far?: number }[];
 }
 /** The doors round the forecourt to the worlds reached through buildings (the ids of main.ts's
     destinations), each in its world's own light. */
@@ -655,30 +668,63 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     ours.push(mesh.geometry, m);
   }
 
-  /* ---- the worlds' own buildings, standing beyond their doors and facing the maze: the very
-     exteriors out in the world (their geometry and materials shared, not copied), seen over the
-     walls and from the forecourt; the pyramid far off, a great landmark ---- */
+  /* ---- the worlds' own monuments round the forecourt (the owner: "replace the doors for the
+     actual monuments"): the very exteriors out in the world (their geometry and materials shared,
+     not copied), each turned so its own door faces the maze, its front on the forecourt's edge.
+     Walk up to it and in through its door, and you are there. The pyramid is too great to stand
+     here: it rises far off as a landmark, with a door of its own in the forecourt. ---- */
+  const doorsAt: { id: string; x: number; z: number; told?: boolean }[] = [];
+  const farIds = new Set<string>();
+  lanes.length = 0;
   {
     const list = deps?.buildings?.() ?? [];
+    const Y = new V3(0, 1, 0);
     for (const b of list) {
       const n = MAZE_PORTALS.findIndex((q) => q.id === b.id);
       if (n < 0) continue;
       const src = b.obj;
-      const box = new THREE.Box3().setFromObject(src);
-      const size = Math.max(box.max.x - box.min.x, box.max.z - box.min.z);
-      const r = b.far ?? PORTAL_R + 14 + Math.min(70, size) * 0.5;
+      src.updateMatrixWorld(true);
       const a = portalAngle(n);
-      const [x, z] = polar(a, r);
       const c = src.clone(true);
       c.visible = true; // (its parts keep their own: what the original hides stays hidden)
       const lights: THREE.Object3D[] = [];
       c.traverse((o) => (o as THREE.Light).isLight && lights.push(o));
       for (const l of lights) l.removeFromParent(); // its lamps light the world, not the maze
-      c.position.set(x, BASE - 0.15, z);
-      // its door toward the maze's heart
-      c.rotation.set(0, b.door > 0 ? a + Math.PI : a, 0);
       c.name = `maze-view-${b.id}`;
+      // its door in its own frame, and the heading that walks in, in its own frame
+      const doorLocal = src.worldToLocal(b.door.clone());
+      const ry = a + Math.PI - (b.face - src.rotation.y);
+      if (b.far) {
+        // a far landmark, its door toward the maze
+        farIds.add(b.id);
+        const [x, z] = polar(a, b.far);
+        c.position.set(x, BASE - 0.15, z);
+        c.rotation.set(0, ry, 0);
+        g.add(c);
+        continue;
+      }
+      // measure it turned, standing at the origin
+      c.position.set(0, 0, 0);
+      c.rotation.set(0, ry, 0);
+      c.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(c);
+      const dR = doorLocal.clone().applyAxisAngle(Y, ry);
+      const ux = Math.sin(a), uz = Math.cos(a); // outward from the maze
+      let front = 0, hw = 2;
+      for (const cx of [box.min.x, box.max.x])
+        for (const cz of [box.min.z, box.max.z]) {
+          const dx = cx - dR.x, dz = cz - dR.z;
+          front = Math.max(front, -(dx * ux + dz * uz));
+          hw = Math.max(hw, Math.abs(dx * uz - dz * ux));
+        }
+      // a box is generous on round things; never more than the platform could hold
+      front = Math.min(front, 30);
+      const rd = FRONT_R + front;
+      const [tx, tz] = polar(a, rd);
+      c.position.set(tx - dR.x, BASE - 0.05, tz - dR.z);
       g.add(c);
+      doorsAt.push({ id: b.id, x: tx, z: tz });
+      lanes.push({ a, hw: Math.min(hw, 26), reach: rd + 1.2 });
     }
   }
 
@@ -690,6 +736,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     curtain.translate(0, 1.95, 0);
     ours.push(curtain);
     MAZE_PORTALS.forEach((p, n) => {
+      if (doorsAt.some((d) => d.id === p.id)) return; // the monument itself stands there, with its own door
       const a = portalAngle(n);
       const [x, z] = polar(a, PORTAL_R);
       const y = mazeFloor(x, z);
@@ -789,21 +836,46 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
   const threads: [number, number, number][][] = [];
   const threadArt: Art[] = [];
 
-  // the archetypes: the Mind in the outer rings, the Body in the middle, the Spirit nearer the
-  // centre, the Choice by the sanctuary's door; each in order as you go in
+  // the archetypes stand along the one true way from the entrance to the centre, in their order
+  // (the owner: "really think through the location… they are overlapping and making no sense"):
+  // I to VII on the outer stretch, the Body, then the Spirit, the Choice by the sanctuary's door.
+  // Following them is finding the way in; a turn without one is a turn away from the centre.
+  // Each stands to the side of its corridor, clear of every opening, turned to greet you as you
+  // come, about twenty metres from the last, so no two are ever seen crowding one another.
   const solids: Solid[] = [];
   {
-    const realms: [number[], number[]][] = [
-      [[5, 6], [0, 1, 2, 3, 4, 5, 6]],
-      [[3, 4], [7, 8, 9, 10, 11, 12, 13]],
-      [[1, 2], [14, 15, 16, 17, 18, 19, 20]],
-    ];
-    const place: [number, number][] = [];
-    for (const [ks, list] of realms) pick(ks, list.length).forEach((c, j) => place.push([list[j], c]));
-    // the Choice: in the sanctuary door's own cell, to one side of the door
-    place.push([21, plan.heart]);
-    for (const [i, c] of place) {
-      let s = spotIn(c);
+    const way: number[] = [];
+    for (let c = plan.entry; c >= 0; c = toHeart.prev[c]) way.push(c);
+    const inner = way.slice(1, -1); // not the entrance's cell nor the sanctuary door's
+    const place: [number, number, number][] = []; // archetype, cell, the cell it is come to from
+    for (let j = 0; j < 21; j++) {
+      const c = inner[Math.min(inner.length - 1, Math.round(((j + 0.5) / 21) * inner.length))];
+      used.add(c);
+      place.push([j, c, way[way.indexOf(c) - 1]]);
+    }
+    place.push([21, plan.heart, way[way.length - 2]]);
+    /** In a cell, the point farthest from all its openings (so it never stands in a doorway or
+        across the way through), a little in from the walls; it faces the opening it is come to by. */
+    const standIn = (c: number, from: number) => {
+      const cell = plan.cells[c];
+      const rm = MID(cell.k), half = CW / 2 - 1.5;
+      const ops = cell.open.map((o) => (o.r ? polar(o.a, o.r) : polar(o.a, rm)));
+      let best = { x: 0, z: 0, d: -1 };
+      const inset = 1.6 / rm;
+      for (let u = 0; u <= 16; u++) {
+        const a = cell.a0 + inset + ((cell.a1 - cell.a0 - inset * 2) * u) / 16;
+        for (const rr of [-half, -half / 2, 0, half / 2, half]) {
+          const [x, z] = polar(a, rm + rr);
+          const d = Math.min(...ops.map(([ox, oz]) => Math.hypot(x - ox, z - oz)));
+          if (d > best.d) best = { x, z, d };
+        }
+      }
+      const o = cell.open.find((q) => q.to === from) ?? cell.open[0];
+      const [ox, oz] = o.r ? polar(o.a, o.r) : polar(o.a, rm);
+      return { x: best.x, z: best.z, face: Math.atan2(ox - best.x, oz - best.z) };
+    };
+    for (const [i, c, from] of place) {
+      let s = standIn(c, from);
       if (i === 21) {
         // to the side of the sanctuary's door away from the way in from the next ring, facing that way
         const d = plan.cells[plan.heart].open.find((o) => o.r) ?? plan.cells[plan.heart].open[0];
@@ -833,8 +905,6 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
         id,
         title: `${n} · ${b.spec.name}`,
         pages: rite ? [rite.invite, rite.line, rite.ask] : [b.spec.name],
-        voices: rite ? [riteAudio(n, 1), riteAudio(n, 2), riteAudio(n, 3)] : undefined,
-        autoVoice: true,
         look: "stone",
         place: { x: s.x, z: s.z },
       };
@@ -1200,9 +1270,12 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       for (const a of arts) if (a.being) a.being.beings.list[0].rite = a.id === id ? 1 : 0;
     },
     eagle: () => (seated ? new V3(0, centreY, 0).add(g.position) : null),
+    doors: () => doorsAt.map((d) => ({ id: d.id, pos: new V3(d.x, mazeFloor(d.x, d.z), d.z).add(g.position) })),
     portalAt(p: THREE.Vector3) {
       const x = p.x - g.position.x, z = p.z - g.position.z;
+      for (const d of doorsAt) if (Math.hypot(x - d.x, z - d.z) < 2.4) return d.id;
       for (let n = 0; n < MAZE_PORTALS.length; n++) {
+        if (doorsAt.some((d) => d.id === MAZE_PORTALS[n].id)) continue;
         const a = portalAngle(n), [px, pz] = polar(a, PORTAL_R);
         const along = (x - px) * Math.cos(a) - (z - pz) * Math.sin(a);
         const through = (x - px) * Math.sin(a) + (z - pz) * Math.cos(a);
@@ -1228,6 +1301,14 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       // arrived at the centre: the paths light, spreading out from the seat, and stay lit
       if (rc < RIN - 0.5) revealed = true;
       if (revealed) uReveal.value = Math.min(900, (uReveal.value as number) + dt * (seated ? 40 : 22));
+      // a monument's name is whispered as you come before it (no sign hung in front of it)
+      for (const d of doorsAt) {
+        const near = Math.hypot(local.x - d.x, local.z - d.z);
+        if (near < 16 && !d.told) {
+          d.told = true;
+          whisper(`${MAZE_PORTALS.find((q) => q.id === d.id)?.label ?? ""}. Its door leads in.`, 4200);
+        } else if (near > 30) d.told = false;
+      }
       astro.rotation.y += dt * (0.05 + 0.04 * (uCalm.value as number));
       astro.children[0].rotation.x = Math.sin(clock.u.value * 0.07) * 0.08;
       for (const a of arts) {
