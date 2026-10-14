@@ -32,8 +32,10 @@ import { Beings, type BeingModel } from "../../world/beings";
 import type { Sparks } from "../../world/life";
 import type { Station } from "../../world/stations";
 import { RITES, riteAudio } from "../../world/rites";
-import { damp, keepAlpha, merge, pointCloud, roomClock, seeded, skyDome, touch, type Air } from "../densities/roomKit";
-import { starField } from "../past/kit";
+import { damp, keepAlpha, merge, pointCloud, roomClock, roomPos, scannedGround, seeded, skyDome, spireGeometry, touch, type Air } from "../densities/roomKit";
+import { ash, stormCeiling, volcano } from "../densities/volcanic";
+import { etchedStone } from "../../world/etching";
+import { vnoise, hash2 } from "../../gpu/tsl";
 import type { Narration } from "../../core/narration";
 import { JOURNEY_ORIGIN, type Room, type Solid } from "../journey";
 import type { Reading } from "../../world/readables";
@@ -54,6 +56,10 @@ const RAD = (k: number) => RIN + CW * k;
 /** The middle of ring k's corridor. */
 const MID = (k: number) => RIN + CW * (k + 0.5);
 const OUTER = RAD(NC);
+/** The first density's volcano (the owner: "colours and sceneries more like the first density
+    room"), far beyond the walls toward the sanctuary's side, high enough to stand over them. */
+const VOLC = new THREE.Vector3(70, -2, -215);
+const VOLC_H = 84;
 /** The walls stand this far above the floor: over the eye, over the following camera. */
 const WALL_H = 4.6;
 /** A doorway's half width (m). */
@@ -397,44 +403,75 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
   const uReveal = uniform(0); // how far out from the centre the paths have lit (m along them)
   const origin = JOURNEY_ORIGIN;
 
-  // the sky: a deep indigo night, a low warm glow, stars
+  // the sky: the first density's, a storm-dark dome ember-lit low toward the volcano; over it the
+  // storm ceiling that lights from within but never breaks, the volcano pouring slow fire beyond
+  // the walls, towers of basalt on the horizon, and ash drifting down the corridors
   {
-    const dome = skyDome(420, new THREE.Color(0.05, 0.05, 0.12), new THREE.Color(0.006, 0.008, 0.026), {
-      glowDir: new V3(0.5, 0.05, -0.8),
-      glow: new THREE.Color(0.32, 0.2, 0.12),
+    const dome = skyDome(420, new THREE.Color(0.075, 0.06, 0.1), new THREE.Color(0.012, 0.014, 0.034), {
+      glowDir: VOLC.clone().setY(8),
+      glow: new THREE.Color(0.55, 0.16, 0.05),
       glowPow: 5,
-      extra: (d, c) => c.add(vec3(0.85, 0.9, 1).mul(starField(d, t, 0.006, 360)).mul(0.9)),
     });
     g.add(dome.mesh);
     ours.push(dome);
+    const uLava = uniform(1.15), uStorm = uniform(1);
+    volcano(g, t, VOLC, VOLC_H, uLava, R, ours, [-30, 90]);
+    stormCeiling(g, t, VOLC, uStorm, ours);
+    for (const c of [[-30, 2, 40], [30, 2, 40], [-30, 2, -20], [30, 2, -20]] as [number, number, number][]) ash(g, t, R, ours, c, 200);
+    // basalt towers and sea stacks standing round the maze beyond its forecourt, as in the first density
+    const stone = etchedStone("#15121c", "#6e5238", 3.4);
+    ours.push(stone);
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * TAU + (R() - 0.5) * 0.3, d = 96 + R() * 60;
+      if (Math.abs(wrap(a)) < 0.35) continue; // the way you came in stays open
+      const r = 2.6 + R() * 4, h = 16 + R() * 34;
+      const geo = spireGeometry(r, h, 300 + i * 7, 7, (R() - 0.5) * 2);
+      const mesh = new THREE.Mesh(geo, stone);
+      const [x, z] = polar(a, d);
+      mesh.position.set(x, BASE - 0.8, z);
+      mesh.rotation.y = R() * TAU;
+      mesh.castShadow = mesh.receiveShadow = true;
+      g.add(mesh);
+      ours.push(geo);
+    }
   }
-  // the light: a soft cool sky and a low warm key from the glow, casting the walls' shadows
+  // the light: dark, ember from the volcano casting the walls' long shadows, a dim cold sky above
   {
-    const hemi = new THREE.HemisphereLight(0x6f84d0, 0x1a1824, 0.95);
-    const key = new THREE.DirectionalLight(0xffdcb0, 1.3);
-    key.position.set(36, 40, -58);
+    const hemi = new THREE.HemisphereLight(0x5a4a6c, 0x1c100c, 1.1);
+    const key = new THREE.DirectionalLight(0xff9a5c, 1.25);
+    key.position.copy(VOLC).normalize().multiplyScalar(80).setY(34);
     key.target.position.set(0, 0, 0);
     keyShadow(key, OUTER + 12);
     g.add(hemi, key, key.target);
   }
 
-  // the ground: honed granite flagstones, rising gently toward the centre; far out into the night
+  // the ground: the first density's black volcanic sand, streaked with ash, glittering near with
+  // grains of obsidian; rising gently toward the centre, far out into the dark
   {
     const geo = new THREE.RingGeometry(0.01, 160, 200, 110);
     geo.rotateX(-Math.PI / 2);
     const p = geo.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < p.count; i++) p.setY(i, mazeFloor(p.getX(i), p.getZ(i)));
     geo.computeVertexNormals();
-    const m = landStone("red_sandstone_pavement", 0, 3, [0.95, 0.95, 1], { flag: 1.1, interior: true, origin }, "granite");
+    const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.93, metalness: 0 });
+    const P = roomPos;
+    const streak = vnoise(P.xz.mul(vec2(0.06, 0.2))).mul(0.04).add(0.05);
+    const grain = vnoise(P.xz.mul(2.2)).mul(0.5).add(vnoise(P.xz.mul(vec2(0.35, 1.4))).mul(0.6)).add(0.45);
+    const scan = scannedGround("sand", 2.6, { hue: 0.15, relief: 1.8, bright: 2.0 });
+    m.colorNode = vec3(0.95, 0.93, 1.12).mul(streak).mul(grain.mul(0.5).add(0.5)).mul(scan.color);
+    m.normalNode = scan.normal;
+    const cell = T.floor(P.xz.mul(16));
+    const view = T.normalize(T.cameraPosition.sub(T.positionWorld));
+    const tw = hash2(cell.add(T.floor(view.xz.mul(20))));
+    const near = float(1).sub(smoothstep(6, 26, T.length(T.cameraPosition.sub(T.positionWorld))));
+    const dot_ = smoothstep(0.24, 0.0, T.length(fract(P.xz.mul(16)).sub(0.5)));
+    m.emissiveNode = vec3(1.0, 0.8, 0.6).mul(T.step(0.986, hash2(cell)).mul(T.step(0.55, tw)).mul(dot_).mul(near).mul(0.9));
     const mesh = passable(new THREE.Mesh(geo, m)); // the floor is the ground (mazeFloor), not a wall
     mesh.receiveShadow = true;
     g.add(mesh);
     ours.push(geo, m);
   }
 
-  // the walls: granite in courses, above the eye; here and there a colonnade (pillars a hand's
-  // width apart: starlight through the slits, no way through). Merged by sector, so each part
-  // is its own (smaller) body for the camera's ray and the walls' solidity.
   const walls = wallLayout(plan);
   // waves of light where a wall is touched: up to four at once, each (where, when) in the room's frame
   const rips = [0, 1, 2, 3].map(() => uniform(new THREE.Vector4(0, -100, 0, -100)));
@@ -450,7 +487,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       b.translate(w.x, f + w.h / 2 - 0.3, w.z);
       parts[Math.floor(((Math.atan2(w.x, w.z) + TAU) % TAU) / (TAU / SECTORS)) % SECTORS].push(b);
     });
-    const m = landStone("sandstone_blocks_08", 0, 2.4, [1, 1, 1.02], { course: 0.62, block: 1.4, origin }, "granite");
+    const m = landStone("sandstone_blocks_08", 0, 2.4, [0.62, 0.56, 0.56], { course: 0.62, block: 1.4, origin }, "granite");
     // the maze's walls never thin away: what is beyond stays unseen (the view comes in before a wall instead)
     m.maskNode = null;
     // touched, a wall answers: slow rings of soft blue light go out through the stone from the
@@ -945,7 +982,9 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     const cm = keepAlpha(new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }));
     const q = uv();
     const edge = smoothstep(0, 0.2, q.x).mul(smoothstep(1, 0.8, q.x)).mul(smoothstep(1, 0.6, q.y));
-    cm.colorNode = vec4(mix(vec3(0.4, 0.45, 1), vec3(1, 0.85, 0.55), q.y).mul(edge).mul(sin(t.mul(0.5)).mul(0.15).add(0.85)).mul(0.22), 1);
+    // it thins as the camera comes near (the view starts just behind it), never a veil over the screen
+    const nearCam = smoothstep(1.5, 9, T.length(T.cameraPosition.sub(T.positionWorld)));
+    cm.colorNode = vec4(mix(vec3(0.4, 0.45, 1), vec3(1, 0.85, 0.55), q.y).mul(edge).mul(sin(t.mul(0.5)).mul(0.15).add(0.85)).mul(nearCam).mul(0.22), 1);
     g.add(new THREE.Mesh(cg, cm));
     ours.push(cg, cm);
   }
@@ -1101,13 +1140,14 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
   return room;
 }
 
-/** The maze's air: a deep indigo night, a low warm glow, a little haze so far corridors fade. */
+/** The maze's air: the first density's, dark and clear enough to see the far fire, glowing ember
+    toward the volcano, a little more haze so the far corridors fade. */
 export const MAZE_AIR: Air = {
-  color: new THREE.Color(0.03, 0.032, 0.07),
-  glow: new THREE.Color(0.34, 0.26, 0.18),
-  glowDir: new THREE.Vector3(0.5, 0.05, -0.8),
-  density: 0.011,
-  shadow: new THREE.Color(0.004, 0.008, 0.03),
-  sat: 1.04,
-  contrast: 1.06,
+  color: new THREE.Color(0.045, 0.04, 0.062),
+  glow: new THREE.Color(0.42, 0.16, 0.07),
+  glowDir: VOLC.clone().setY(10),
+  density: 0.004,
+  shadow: new THREE.Color(0.004, 0.004, 0.018),
+  sat: 1.05,
+  contrast: 1.08,
 };
