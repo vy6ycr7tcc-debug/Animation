@@ -2475,6 +2475,9 @@ function lessonUxFrame(dt: number): void {
       seatHint.style.transform = `translate(${((hintAt.x + 1) / 2) * w}px, ${((1 - hintAt.y) / 2) * h}px) translate(-50%, -100%)`;
     }
   }
+  // the maze's seat plays nothing: it is only for sitting
+  const hintWord = hint && inHall()?.hall === mazeHall ? "Sit at the still centre" : "Sit to listen";
+  if (seatHint.textContent !== hintWord) seatHint.textContent = hintWord;
   seatHint.classList.toggle("on", hint);
   // sitting: the view turns to the stage, gently
   const id = tourScenes.seatedId;

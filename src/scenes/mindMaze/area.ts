@@ -5,8 +5,8 @@
      high, so the centre and its turning rings of gold can be seen from almost anywhere.
    - Porous stretches are colonnades: pillars a hand's width apart, the starlight coming through.
    - Short walls run across the corridors, so some turns end in quiet pockets.
-   - Four beacons of soft light stand at the cardinal points of the outer corridor (you always know
-     which way you face).
+   - Four beacons of soft light stand between the cardinal points in the outer corridor (you always
+     know which way you face).
    - Ten steles of dark stone carry its lore, carved in gold; touch one (or stand by it a moment)
      and it is read in the reading panel (ui/reader.ts). Each read stele's gold thread to the
      centre lights, and stays lit (remembered on the device).
@@ -165,7 +165,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     const p = geo.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < p.count; i++) p.setY(i, mazeFloor(p.getX(i), p.getZ(i)));
     geo.computeVertexNormals();
-    const m = landStone("red_sandstone_pavement", 0, 3, [0.62, 0.6, 0.7], { flag: 1.15 });
+    const m = landStone("red_sandstone_pavement", 0, 3, [0.6, 0.58, 0.68], { flag: 0.85, interior: true });
     const mesh = passable(new THREE.Mesh(geo, m)); // the floor is the ground (mazeFloor), not a wall
     mesh.receiveShadow = true;
     g.add(mesh);
@@ -252,7 +252,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     ours.push(mesh.geometry, m);
   }
 
-  // the four beacons: soft columns of light at the cardinal points of the outer corridor, each
+  // the four beacons: soft columns of light between the cardinal points of the outer corridor, each
   // rising from a low stone ring (warm at the south where you began, cool at the north)
   {
     const geo = new THREE.CylinderGeometry(0.28, 0.42, 14, 16, 1, true);
@@ -261,10 +261,10 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     const y = positionGeometry.y.div(14);
     const core = pow(abs(T.dot(T.normalView, vec3(0, 0, 1))), 2);
     const rise = sin(y.mul(9).sub(t.mul(0.7))).mul(0.15).add(0.85);
-    m.colorNode = vec4(mix(vec3(0.5, 0.62, 1), vec3(1, 0.84, 0.56), y.oneMinus()).mul(core).mul(smoothstep(0, 0.08, y)).mul(smoothstep(1, 0.3, y)).mul(rise).mul(0.38), 1);
+    m.colorNode = vec4(mix(vec3(0.5, 0.62, 1), vec3(1, 0.84, 0.56), y.oneMinus()).mul(core).mul(smoothstep(0, 0.08, y)).mul(smoothstep(1, 0.3, y)).mul(rise).mul(0.24), 1);
     const ring: THREE.BufferGeometry[] = [];
-    for (const a of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
-      const [x, z] = polar(a + 0.06, 44);
+    for (const a of [Math.PI / 4, (Math.PI * 3) / 4, (Math.PI * 5) / 4, (Math.PI * 7) / 4]) {
+      const [x, z] = polar(a, 44);
       const beam = new THREE.Mesh(geo, m);
       beam.position.set(x, mazeFloor(x, z), z);
       g.add(beam);
@@ -383,12 +383,12 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     ours.push(fg, fm);
   }
   const astro = new THREE.Group();
-  astro.position.set(0, centreY + 9, 0);
+  astro.position.set(0, centreY + 12, 0);
   g.add(astro);
   {
     const pairs: number[] = [];
     const segs = 96;
-    const rings: [number, number][] = [[4.6, 0.35], [6.2, -0.42], [7.8, 0.18]];
+    const rings: [number, number][] = [[3.6, 0.35], [4.9, -0.42], [6.2, 0.18]];
     for (const [rad, tilt] of rings) {
       const ct = Math.cos(tilt), st = Math.sin(tilt);
       for (let k = 0; k < segs; k++) {
@@ -474,7 +474,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     },
     holdsMovement: () => false,
     /** What the view turns to in contemplation: the centre's turning rings, then the beacons. */
-    centre: () => new V3(0, centreY + 6, 0),
+    centre: () => new V3(0, centreY + 7, 0),
     steles: () =>
       stele.map((s) => ({ reading: s.reading, pos: world.copy(s.local).add(g.position).clone() })),
     markRead(id: string) {
