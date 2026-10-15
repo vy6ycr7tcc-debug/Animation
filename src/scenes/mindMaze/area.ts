@@ -372,6 +372,56 @@ export function nearArc(w: WallArc, x: number, z: number): { d: number; x: numbe
   return { d: Math.hypot(x - px, z - pz), x: px, z: pz };
 }
 
+/** How far along the segment (x0, z0) → (x1, z1) the first wall stands, 0..1 (1: clear), each
+    wall grown by `pad`. A flat test against the plan itself (the camera stays under the walls'
+    tops), cheap enough for every frame: the walls are merged into great meshes no ray should walk. */
+export function mazeRayHit(walls: { boxes: WallBox[]; arcs: WallArc[] }, x0: number, z0: number, x1: number, z1: number, pad: number): number {
+  const dx = x1 - x0, dz = z1 - z0;
+  let best = 1;
+  const a2 = dx * dx + dz * dz;
+  if (a2 < 1e-8) return 1;
+  for (const w of walls.arcs) {
+    const span = w.a1 - w.a0;
+    for (let side = 0; side < 2; side++) {
+      const rr = side ? w.r + w.d / 2 + pad : w.r - w.d / 2 - pad;
+      // |p0 + t d|² = rr²
+      const b = 2 * (x0 * dx + z0 * dz), c = x0 * x0 + z0 * z0 - rr * rr;
+      const disc = b * b - 4 * a2 * c;
+      if (disc < 0) continue;
+      const sq = Math.sqrt(disc);
+      for (let root = 0; root < 2; root++) {
+        const t = (-b + (root ? sq : -sq)) / (2 * a2);
+        if (t <= 0 || t >= best) continue;
+        let da = Math.atan2(x0 + dx * t, z0 + dz * t) - w.a0;
+        da -= Math.floor(da / TAU) * TAU;
+        const ap = pad / Math.max(1, rr);
+        if (da <= span + ap || da >= TAU - ap) best = t;
+      }
+    }
+  }
+  for (const w of walls.boxes) {
+    // into the slab's own frame (it was turned by a about y)
+    const c = Math.cos(w.a), sn = Math.sin(w.a);
+    const ox = x0 - w.x, oz = z0 - w.z;
+    const lx = ox * c - oz * sn, lz = ox * sn + oz * c;
+    const ldx = dx * c - dz * sn, ldz = dx * sn + dz * c;
+    const hx = w.w / 2 + pad, hz = w.d / 2 + pad;
+    let t0 = 0, t1 = best;
+    for (let ax = 0; ax < 2; ax++) {
+      const o = ax ? lz : lx, d = ax ? ldz : ldx, h = ax ? hz : hx;
+      if (Math.abs(d) < 1e-9) {
+        if (Math.abs(o) > h) (t0 = 1), (t1 = 0);
+        continue;
+      }
+      const ta = (-h - o) / d, tb = (h - o) / d;
+      t0 = Math.max(t0, Math.min(ta, tb));
+      t1 = Math.min(t1, Math.max(ta, tb));
+    }
+    if (t0 <= t1 && t0 > 0 && t0 < best) best = t0;
+  }
+  return best;
+}
+
 /* ---------------------------------------------------------------- the lore */
 /** The ten steles' words (the owner's package). The first stands before the way in, the last two
     in the sanctuary; the rest wait in the maze's dead ends, met in this order going in. */
@@ -426,10 +476,17 @@ export interface MazeRoom extends Room {
   /** Stills: walk the true way in, `steps` cells, leaving `touches` palms; where it ends. */
   debugExplore(steps: number, touches: number): { x: number; z: number; dx: number; dz: number };
   debugSeated(sec: number): void;
+  /** Tests: the corridors' way from reading `i` in to the seat (world points, every half metre). */
+  debugRoute(i: number): THREE.Vector3[];
   /** What the visit holds (tests): marks left, cells walked, forks chosen, road walked. */
   state(): { marks: number; visited: number; forks: number; trail: number; cell: number; contactT: number };
   /** The sun over the maze (world): where contemplation looks. */
   sunWorld(): THREE.Vector3;
+  /** The way the corridor runs where you stand (world), the one of its two directions nearer
+      `heading`, as a camera yaw; null in a plaza, the sanctuary or the forecourt (free there). */
+  railYaw(p: THREE.Vector3, heading: number): number | null;
+  /** How far along from `a` to `b` (world) the view is clear of the maze's walls, 0..1. */
+  clearance(a: THREE.Vector3, b: THREE.Vector3): number;
   /** Contemplating (0..1): the sun flares and pours its light down to the head (world). */
   setNourish(k: number, head: THREE.Vector3): void;
 }
@@ -1406,8 +1463,10 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
      forks; and what the visit remembers (the cells walked, the first way taken at each fork) ---- */
   const palms = new Palms(96, t, ours);
   g.add(palms.mesh);
+  // the road walked is remembered (the map draws it) but not drawn on the floor: on a phone the
+  // band of light behind you read as a beam running down the screen (the owner: "the beam
+  // tracking is super obnoxious and crowds the screen")
   const trail = new Trail(1400, 0.5, t, ours);
-  g.add(trail.mesh);
   const isFork = (c: number) => plan.cells[c].open.length >= 3 && plan.cells[c].plaza < 0;
   {
     const at: { x: number; y: number; z: number }[] = [];
@@ -1597,6 +1656,39 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     },
     state: () => ({ marks: palms.count, visited: visited.reduce((a, v) => a + v, 0), forks: forks.filter((f) => f >= 0).length, trail: trail.length, cell: curCell, contactT }),
     sunWorld: () => SUN_AT.clone().add(g.position),
+    debugRoute: (i) => {
+      const p = paths[Math.min(paths.length - 1, i)].pts, out: THREE.Vector3[] = [];
+      for (let k = 0; k < p.length; k += 3) out.push(new V3(p[k], p[k + 1], p[k + 2]).add(g.position));
+      return out;
+    },
+    railYaw: (p, heading) => {
+      const x = p.x - g.position.x, z = p.z - g.position.z;
+      const c = cellAt(x, z);
+      if (c < 0 || plan.cells[c].plaza >= 0) return null;
+      const r = Math.hypot(x, z) || 1;
+      const hx = -Math.sin(heading), hz = -Math.cos(heading);
+      // along the ring (its tangent), and, near an open door in either ring wall, across it
+      const tx = z / r, tz = -x / r, ux = x / r, uz = z / r;
+      let bx = tx, bz = tz, bd = tx * hx + tz * hz;
+      if (bd < 0) (bx = -tx), (bz = -tz), (bd = -bd);
+      const k = Math.floor((r - RIN) / CW), a = Math.atan2(x, z);
+      for (let side = 0; side < 2; side++) {
+        const rb = RAD(k + side);
+        if (Math.abs(r - rb) > 3.4) continue;
+        let shut = false;
+        for (const w of walls.arcs) {
+          if (Math.abs(w.r - rb) > 0.2) continue;
+          let da = a - w.a0;
+          da -= Math.floor(da / TAU) * TAU;
+          if (da <= w.a1 - w.a0 + 1.6 / rb) shut = true;
+        }
+        if (shut) continue;
+        const sgn = rb > r ? 1 : -1, d = (ux * hx + uz * hz) * sgn;
+        if (d > bd) (bx = ux * sgn), (bz = uz * sgn), (bd = d);
+      }
+      return Math.atan2(-bx, -bz);
+    },
+    clearance: (a, b) => mazeRayHit(walls, a.x - g.position.x, a.z - g.position.z, b.x - g.position.x, b.z - g.position.z, 0.35),
     setNourish(k: number, head: THREE.Vector3) {
       sun.nourish.value = k;
       (sun.head.value as THREE.Vector3).copy(head).sub(g.position);

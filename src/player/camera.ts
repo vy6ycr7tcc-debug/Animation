@@ -62,6 +62,18 @@ export class FollowCamera {
   /** Contemplation's eye raised this far above the usual 1.6 m (the mind's maze: just over its walls,
       so its sun is never hidden behind the corridor). */
   eyeLift = 0;
+  /** The corridor's way (the mind's maze): while you walk, the view settles behind you along the
+      corridor (this yaw) rather than chasing every turn of the stick, quickly and smoothly, so
+      the way ahead is always in view and the walls never swing across it. Null: the usual follow. */
+  rail: number | null = null;
+  /** The furthest the view stands behind (m), or null (the maze: close, inside its corridors). */
+  nearDist: number | null = null;
+  /** A flat line-of-sight test (the maze's own walls, from its plan): how far from a to b is
+      clear, 0..1. The view stands in front of the first wall, easing, never snapping. */
+  clearance: ((a: THREE.Vector3, b: THREE.Vector3) => number) | null = null;
+  private clrT = 0;
+  private clrAt = Infinity;
+  private clrB = new THREE.Vector3();
   private eagleK = 0;
   private eagleAt = new THREE.Vector3();
 
@@ -91,7 +103,13 @@ export class FollowCamera {
     if (!this.underwater && !this.freeLook && this.pitch < -0.15) this.pitch += (-0.15 - this.pitch) * Math.min(1, dt * 2);
     // Ease behind the wanderer while they move, unless the viewer is looking around; in flight
     // sooner and more firmly, so steering with the stick turns the view with you (as in Sky).
-    if (moving) {
+    if (this.rail !== null && moving && !flying) {
+      // the maze: settle behind along the corridor, soon after a look and firmly (critically damped)
+      let d = this.rail - this.yaw;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      const k = THREE.MathUtils.smoothstep(this.sinceLook, 0.5, 1.2);
+      this.yaw += d * Math.min(1, dt * 2.6 * k);
+    } else if (moving) {
       let d = heading - this.yaw;
       d = Math.atan2(Math.sin(d), Math.cos(d));
       const delay = flying ? 0.4 : 1.0;
@@ -106,7 +124,7 @@ export class FollowCamera {
     // the wide reveal eases in slowly (a camera drawing back on a crane), out a little quicker
     this.wideK += (this.wide - this.wideK) * Math.min(1, dt * (this.wide > this.wideK ? 0.35 : 0.8));
     const w = THREE.MathUtils.smoothstep(this.wideK, 0, 1);
-    const pitch = this.pitch + (0.98 - this.pitch) * this.lift + 0.1 * w, dist = this.dist * (1 + 4.5 * this.lift) * (1 + 1.3 * w);
+    const pitch = this.pitch + (0.98 - this.pitch) * this.lift + 0.1 * w, dist = Math.min(this.dist, this.nearDist ?? Infinity) * (1 + 4.5 * this.lift) * (1 + 1.3 * w);
     const cp = Math.cos(pitch), sp = Math.sin(pitch);
     // Pull in when the ground would come between the camera and the wanderer.
     let clear = dist;
@@ -133,7 +151,17 @@ export class FollowCamera {
       }
       clear = Math.min(clear, this.blockAt);
     } else this.blockAt = Infinity;
-    this.effDist += (clear - this.effDist) * Math.min(1, dt * (clear < this.effDist ? 10 : 2));
+    if (this.clearance) {
+      this.clrT -= dt;
+      if (this.clrT <= 0) {
+        this.clrT = 1 / 30;
+        this.clrB.set(this.target.x - fx * cp * dist, this.target.y, this.target.z - fz * cp * dist);
+        const f = this.clearance(this.target, this.clrB);
+        this.clrAt = f >= 1 ? Infinity : Math.max(1.2, f * dist - 0.25);
+      }
+      clear = Math.min(clear, this.clrAt);
+    }
+    this.effDist += (clear - this.effDist) * Math.min(1, dt * (clear < this.effDist ? (this.clearance ? 7 : 10) : this.clearance ? 1.4 : 2));
     const ed = this.effDist;
     const followPos = new THREE.Vector3(this.target.x - fx * cp * ed, this.target.y + sp * ed, this.target.z - fz * cp * ed);
     const floor = Math.max(heightAt(followPos.x, followPos.z), this.underwater ? -1e9 : WATER_Y) + 0.35;
