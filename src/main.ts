@@ -458,11 +458,8 @@ function mazeSteleFrame(): void {
   // through one of the forecourt's doors: on to that world, the way "where next" goes there
   const door = inMaze && !mazeGone && !crossing ? maze?.portalAt(player.pos) : null;
   if (door) {
-    const d = DESTS.find((q) => q.id === door);
-    if (d) {
-      mazeGone = true;
-      d.go();
-    }
+    mazeGone = true;
+    enterFromMaze(door);
   }
   if (!inMaze) {
     mazeGone = false;
@@ -873,6 +870,38 @@ function setInside(inside: boolean): void {
     ready compiles on its first draw instead). */
 function compileInDark(): Promise<unknown> {
   return Promise.race([renderer.compileAsync(scene, camera).catch(() => undefined), new Promise((r) => window.setTimeout(r, 4000))]);
+}
+/* Through one of the maze's monuments: straight in, through the dark, to that place itself (the
+   owner: "my idea was that you go into those places, no fly there"). The maze is let go in the dark,
+   you are set down before the place's own door out in the world (so leaving it later brings you out
+   there), and its door takes you in. */
+const MAZE_HALL_OF: Record<string, number> = { densities: 0, adept: 1, past: 2, veil: 3, descent: 4 };
+function enterFromMaze(id: string): void {
+  stopAuto();
+  fadeEl.classList.remove("white");
+  fadeEl.classList.add("on");
+  busy(1.5);
+  window.setTimeout(() => {
+    halls.find((h) => h.hall === mazeHall)?.journey.leaveNow();
+    const k = MAZE_HALL_OF[id];
+    if (k !== undefined) {
+      const o = halls[k].hall.outside();
+      player.pos.set(o.x, o.y, o.z);
+      player.heading = o.heading;
+      void halls[k].journey.enter();
+    } else if (id === "temple") {
+      const o = temple.outside();
+      player.pos.set(o.x, heightAt(o.x, o.z), o.z);
+      crossTemple(true);
+    } else if (id === "duat") {
+      const o = pyramid.outside();
+      player.pos.set(o.x, heightAt(o.x, o.z), o.z);
+      crossPyr(true);
+    } else {
+      DESTS.find((q) => q.id === id)?.go();
+      fadeEl.classList.remove("on");
+    }
+  }, 650);
 }
 function crossTemple(inside: boolean, then?: () => void): void {
   if (crossing) return;
