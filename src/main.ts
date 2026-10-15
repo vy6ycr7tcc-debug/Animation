@@ -4191,6 +4191,10 @@ $("#guide-open").addEventListener("click", openGuide);
   ra.addEventListener("change", () => setReadAloud(ra.checked));
   if (!("speechSynthesis" in window)) ra.closest("label")!.hidden = true;
 }
+$("#oracle-open").addEventListener("click", () => {
+  setMenu(false);
+  oracle.show("");
+});
 $("#heart-open").addEventListener("click", () => {
   setMenu(false);
   myHeart.openList();

@@ -243,7 +243,7 @@ body.touring #nprog { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
 #menu { z-index: 40; }
 #menu-btn { z-index: 41; }
 #menu .menu-scroll { gap: 0; padding: 12px 16px 14px; }
-#menu .menu-go { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding-bottom: 12px; }
+#menu .menu-go { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding-bottom: 12px; }
 #menu .menu-go button {
   display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 64px; padding: 8px 4px;
   border: 1px solid var(--line); border-radius: 12px; color: var(--gold); font-size: 14px;
