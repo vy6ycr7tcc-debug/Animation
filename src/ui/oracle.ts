@@ -79,6 +79,12 @@ export class Oracle {
     this.offer = offer;
   }
 
+  /** A quiet line under the question (the phone's voice would not start). */
+  note(msg: string): void {
+    this.status.textContent = msg;
+    this.stopSpeech();
+  }
+
   get isOpen(): boolean {
     return !this.el.hidden;
   }
@@ -158,10 +164,11 @@ export class Oracle {
     if (!text.trim()) return;
     this.speaking = true;
     this.speak.textContent = "Stop";
-    speak(text, () => {
+    const back = () => {
       this.speaking = false;
       this.speak.textContent = "Speak";
-    });
+    };
+    speak(text, back, back);
   }
 
   private stopSpeech(): void {

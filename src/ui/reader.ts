@@ -161,7 +161,7 @@ export class Reader {
       if (!this.native || this.current !== r) return;
       if (this.page < r.pages.length - 1) this.turn(1);
       else this.setNative(false);
-    });
+    }, () => this.setNative(false));
   }
 
   private render(): void {

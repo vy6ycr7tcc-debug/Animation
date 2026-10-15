@@ -55,7 +55,7 @@ import { Readables, type Reading } from "./world/readables";
 import { Reader } from "./ui/reader";
 import { Heart } from "./ui/heart";
 import { Oracle } from "./ui/oracle";
-import { readAloud, sayAloud, setReadAloud, wakeSpeech } from "./ui/speak";
+import { onSpeechFail, readAloud, sayAloud, setReadAloud, wakeSpeech } from "./ui/speak";
 import { Vessels } from "./world/vessels";
 import { TranscriptPlayer } from "./ui/transcriptPlayer";
 import { tourBar, type TourBarOwner } from "./ui/tourBar";
@@ -1548,6 +1548,8 @@ function openHeart(): void {
   myHeart.openCompose();
 }
 input.onHeart = openHeart;
+// the phone's voice would not start: say so where the words are
+onSpeechFail((m) => (oracle.isOpen ? oracle.note(m) : whisper(m, 8000)));
 let lastHeartTap = 0;
 /** A double tap (within 350 ms) on the wanderer's heart opens a note. In the water the orb's own
     double tap (down to the floor) comes first. */
