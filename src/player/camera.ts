@@ -91,6 +91,8 @@ export class FollowCamera {
   /** The mind's maze: first person, the eye at the sphere's centre (`fpEye` over the ground),
       looking the way you roll, with only a slight sway as it rolls and leans into a turn (never a
       bob). The eagle's view at the centre and contemplation's sun still take over. */
+  /** How high over the feet the view looks (null: the usual 1.3 m; the maze's ball looks lower). */
+  targetLift: number | null = null;
   firstPerson = false;
   fpEye = 0.7;
   private fpK = 0;
@@ -148,7 +150,7 @@ export class FollowCamera {
         this.yaw += d * Math.min(1, dt * (flying ? 1.6 : 1.0) * recenterK);
       }
     }
-    this.target.lerp(new THREE.Vector3(player.x, player.y + 1.3, player.z), Math.min(1, dt * 5));
+    this.target.lerp(new THREE.Vector3(player.x, player.y + (this.targetLift ?? 1.3), player.z), Math.min(1, dt * 5));
 
     const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
     // the wide reveal eases in slowly (a camera drawing back on a crane), out a little quicker

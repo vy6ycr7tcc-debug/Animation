@@ -5,8 +5,8 @@
    a sky made for it: the maze's storm-dark indigo, an ember band low toward the volcano, fine stars,
    and a hot highlight toward the maze's sun; a strong fresnel rim; a seed-of-life of fine engraved
    rings cut into the gold, which turns with the roll (the reflection, rightly, does not), so it
-   reads as rolling. Seen in the maze only when the view is not the sphere's own eyes: arriving,
-   leaving, and from the eagle's height at the centre. One mesh; nothing allocated per frame. */
+   reads as rolling. Always in sight in the maze, the view close and low behind it, a soft contact
+   shadow under it so it sits on the floor. Nothing allocated per frame. */
 import * as THREE from "three/webgpu";
 import { T, hash3 } from "../gpu/tsl";
 
@@ -16,6 +16,8 @@ export const GOLD_R = 0.7;
 
 export class GoldSphere {
   readonly mesh: THREE.Mesh;
+  /** A soft darkness on the floor under it (add beside the mesh). */
+  readonly shadow: THREE.Mesh;
   /** Where the maze's sun hangs (world), for the highlight. */
   readonly sun = uniform(new THREE.Vector3(0, 200, 0));
   private readonly axis = new THREE.Vector3();
@@ -57,11 +59,20 @@ export class GoldSphere {
     this.mesh = new THREE.Mesh(geo, m);
     this.mesh.visible = false;
     this.mesh.renderOrder = 2;
+    // the contact shadow: a gaussian disc of darkness, multiplied over the floor
+    const sm = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, fog: false });
+    const d = T.uv().sub(0.5).mul(2);
+    const r2 = dot(d, d);
+    sm.colorNode = vec4(vec3(0), T.exp(r2.mul(-3.2)).mul(float(1).sub(smoothstep(0.8, 1.0, r2))).mul(0.62));
+    this.shadow = new THREE.Mesh(new THREE.PlaneGeometry(GOLD_R * 3.2, GOLD_R * 3.2).rotateX(-Math.PI / 2), sm);
+    this.shadow.visible = false;
+    this.shadow.renderOrder = 1;
   }
 
   /** Each frame: stand on the ground at `feet`, rolling as it moves (world). */
-  update(feet: THREE.Vector3, visible: boolean): void {
+  update(feet: THREE.Vector3, visible: boolean, ground?: (x: number, z: number) => number): void {
     this.mesh.visible = visible;
+    this.shadow.visible = visible;
     const p = this.mesh.position;
     if (!this.placed) this.last.copy(feet), (this.placed = true);
     const dx = feet.x - this.last.x, dz = feet.z - this.last.z, d = Math.hypot(dx, dz);
@@ -73,6 +84,7 @@ export class GoldSphere {
     }
     this.last.copy(feet);
     p.set(feet.x, feet.y + GOLD_R, feet.z);
+    this.shadow.position.set(feet.x, (ground ? ground(feet.x, feet.z) : feet.y) + 0.02, feet.z);
   }
 }
 
