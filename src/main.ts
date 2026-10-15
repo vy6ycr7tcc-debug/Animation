@@ -488,7 +488,8 @@ function mazeSteleFrame(): void {
   follow.eagle = inMaze ? (maze?.eagle() ?? null) : null;
   if (inMaze && maze) follow.eagleH = maze.eagleHeight();
   // the veil: in the maze the following view stays below the walls' tops
-  follow.ceiling = inMaze ? player.pos.y + 3.2 : null;
+  // (4.2 m: still under the walls' tops, 4.6 m, so nothing beyond them shows; the chase view's crane rises to it)
+  follow.ceiling = inMaze ? player.pos.y + 4.2 : null;
   // and the view keeps to the corridors (the owner: the camera "fucking annoying"): close behind,
   // settling along the corridor's way as you walk, standing in front of any wall, never behind one
   // the maze in first person (the owner's v2: "the player IS a rolling sphere, first-person; the
