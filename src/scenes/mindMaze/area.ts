@@ -484,12 +484,19 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
   }
   // the light: dark, ember from the volcano casting the walls' long shadows, a dim cold sky above
   {
-    const hemi = new THREE.HemisphereLight(0x5a4a6c, 0x1c100c, 1.1);
-    const key = new THREE.DirectionalLight(0xff9a5c, 1.25);
+    // the warm ember light of the outer ring carried through the whole maze (the owner: "bring
+    // that over all light… it helps with seeing the texture of the walls"): a warm sky above, a
+    // warm bounce from the sand, and a second, shadowless ember from the far side, so no corridor
+    // is left only in cold dark
+    const hemi = new THREE.HemisphereLight(0x8a5a40, 0x3a1c10, 1.5);
+    const key = new THREE.DirectionalLight(0xff9a5c, 1.35);
     key.position.copy(VOLC).normalize().multiplyScalar(80).setY(34);
     key.target.position.set(0, 0, 0);
     keyShadow(key, OUTER + 12);
-    g.add(hemi, key, key.target);
+    const fill = new THREE.DirectionalLight(0xffa066, 0.7);
+    fill.position.copy(VOLC).normalize().multiplyScalar(-80).setY(40);
+    fill.target.position.set(0, 0, 0);
+    g.add(hemi, key, key.target, fill, fill.target);
   }
 
   // the ground: the first density's black volcanic sand, streaked with ash, glittering near with
@@ -543,38 +550,24 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     const m = landStone("sandstone_blocks_08", 0, 2.4, [0.62, 0.56, 0.56], { course: 0.62, block: 1.4, origin }, "granite");
     // the maze's walls never thin away: what is beyond stays unseen (the view comes in before a wall instead)
     m.maskNode = null;
-    // the stone is night itself (the owner: "pitch black with stars… just with more texture"): the
-    // granite kept only as its grain, its joints and relief, darkened almost to black, a little
-    // polish so the ember light slides over it; and inside it, stars at three depths, so they
-    // shift against each other as you move, as if each block were a window into deep space,
-    // with a faint haze of nebula far within
+    // the stone is dark granite, still (the owner: the stars inside "too much movement… just
+    // static reflections like the soil"): its grain, joints and relief kept and shown by the warm
+    // light (no metal: a near-black metal hid the texture), and in it, as in the sand underfoot,
+    // small grains of mica that catch the light only from where you stand (they shift as you move
+    // and are still when you are; nothing twinkles on its own), near only
     {
       const stoneC = m.colorNode as N;
-      // the night sky's own deep blue-black, the granite's grain a faint variation in it
-      m.colorNode = vec4(vec3(0.004, 0.005, 0.013).mul(T.dot(stoneC.rgb, vec3(0.33)).mul(2.2).add(0.35)), 1);
-      m.roughnessNode = T.clamp((m.roughnessNode as N).add(0.15), 0.85, 1); // matte: no light slides over it
-      // and no sheen: stone's own faint reflection at grazing angles caught the ember light (a
-      // metal of this darkness reflects only its own near-black colour)
-      m.metalnessNode = float(0.9);
+      m.colorNode = vec4(vec3(0.034, 0.03, 0.03).mul(T.dot(stoneC.rgb, vec3(0.33)).mul(2.4).add(0.3)), 1);
+      m.roughnessNode = T.clamp((m.roughnessNode as N).add(0.1), 0.78, 1);
+      m.metalnessNode = float(0);
       const pr = T.positionWorld.sub(vec3(origin.x, origin.y, origin.z));
-      const V = T.normalize(T.positionWorld.sub(T.cameraPosition)); // into the stone
-      let stars: N = vec3(0);
-      for (const [depth, scale, th, rad, k] of [[0.3, 9, 0.93, 0.07, 1], [1.2, 5, 0.9, 0.065, 0.8], [3.5, 2.6, 0.88, 0.06, 0.6], [9, 1.2, 0.86, 0.055, 0.45]] as const) {
-        const q = pr.add(V.mul(depth)).mul(scale);
-        const cell = T.floor(q);
-        const h = hash3(cell);
-        const off = vec3(hash3(cell.add(1.3)), hash3(cell.add(2.7)), hash3(cell.add(4.1))).sub(0.5).mul(0.6);
-        const dd = T.length(fract(q).sub(0.5).sub(off));
-        const tw = sin(t.mul(float(1.1).add(h.mul(2.5))).add(h.mul(90))).mul(0.3).add(0.7);
-        const hue = mix(vec3(0.7, 0.8, 1), vec3(1, 0.85, 0.65), hash3(cell.add(7.7)));
-        const core = smoothstep(rad, 0, dd), halo = smoothstep(rad * 3.5, 0, dd).mul(0.18);
-        stars = stars.add(hue.mul(core.add(halo)).mul(T.step(th, h)).mul(tw).mul(k));
-      }
-      const deep = pr.add(V.mul(8)).mul(0.12);
-      const neb = T.mx_noise_float(deep).mul(0.5).add(0.5);
-      const haze = mix(vec3(0.05, 0.03, 0.12), vec3(0.02, 0.07, 0.14), T.mx_noise_float(deep.mul(1.7).add(3)).mul(0.5).add(0.5)).mul(smoothstep(0.45, 0.9, neb)).mul(0.5);
-      // its own faint night-blue, whatever light falls on it
-      m.emissiveNode = stars.mul(0.9).add(haze.mul(0.5));
+      const gv = T.normalize(T.cameraPosition.sub(T.positionWorld));
+      const camD = T.length(T.cameraPosition.sub(T.positionWorld));
+      const gq = pr.mul(20), cell = T.floor(gq);
+      const tw = hash3(cell.mul(1.7).add(T.floor(gv.mul(18))));
+      const dot_ = smoothstep(0.24, 0, T.length(fract(gq).sub(0.5)));
+      const glit = T.step(0.985, hash3(cell)).mul(T.step(0.6, tw)).mul(dot_).mul(float(1).sub(smoothstep(4, 22, camD)));
+      m.emissiveNode = vec3(1.0, 0.86, 0.68).mul(glit).mul(1.1);
     }
     // touched, a wall answers (the owner, after the series Invasion: not rings): the stone wakes
     // into a sheet of turbulent cyan energy spreading from the touch, nebulous clouds flowing
@@ -588,9 +581,9 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
         let mask: N = float(0), core: N = float(0);
         for (const u of rips) {
           const d = T.length(pr.sub(u.xyz)), age = t.sub(u.w), live = T.step(0, age);
-          const r = float(5.5).mul(float(1).sub(T.exp(age.mul(-1.1))));
-          mask = T.max(mask, smoothstep(r.add(0.3), r.sub(1.8), d).mul(smoothstep(5.5, 1.8, age)).mul(live));
-          core = T.max(core, T.exp(d.mul(d).mul(-2)).mul(smoothstep(2.2, 0, age)).mul(live));
+          const r = float(1.9).mul(float(1).sub(T.exp(age.mul(-1.4))));
+          mask = T.max(mask, smoothstep(r.add(0.2), r.sub(1.1), d).mul(smoothstep(3.2, 1.0, age)).mul(live));
+          core = T.max(core, T.exp(d.mul(d).mul(-4)).mul(smoothstep(1.4, 0, age)).mul(live));
         }
         T.If(mask.add(core).greaterThan(0.003), () => {
           const n = (p: N) => T.mx_noise_float(p).mul(0.5).add(0.5);
@@ -606,7 +599,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
           const spark = T.step(0.988, hash3(cell)).mul(dot_).mul(sin(t.mul(9).add(hash3(cell.add(3)).mul(60))).mul(0.5).add(0.5));
           const k = smoothstep(0.15, 0.6, mask.mul(cloud.add(0.45)));
           const sheet = vec3(0.02, 0.16, 0.42).mul(cloud.mul(cloud).mul(1.1)).add(vec3(0.15, 0.7, 1).mul(vein.add(vein2)).mul(1.3)).add(vec3(0.7, 0.92, 1).mul(spark));
-          out.assign(sheet.mul(k).mul(0.32).add(vec3(0.5, 0.85, 1).mul(core.mul(0.2))));
+          out.assign(sheet.mul(k).mul(0.16).add(vec3(0.5, 0.85, 1).mul(core.mul(0.08))));
         });
         return out;
       });
@@ -1310,7 +1303,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
           const q = nearArc(w, local.x, local.z);
           if (q.d < best) (best = q.d), (bx = q.x), (bz = q.z);
         }
-        if (best < 0.62 && moved > 0.002 && now - lastRipT > 0.9 && (Math.hypot(bx - lastRip.x, bz - lastRip.z) > 1.4 || now - lastRipT > 2.6)) {
+        if (best < 0.62 && moved > 0.002 && now - lastRipT > 1.8 && (Math.hypot(bx - lastRip.x, bz - lastRip.z) > 3 || now - lastRipT > 5)) {
           rips[ripNext].value.set(bx, local.y + 1.15, bz, now);
           ripNext = (ripNext + 1) % rips.length;
           lastRipT = now;
