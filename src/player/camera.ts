@@ -106,15 +106,17 @@ export class FollowCamera {
       camera rides the ball's own trail a little way back at a fixed height, always looking ahead
       down the corridor past the ball, which sits in the lower third. Nothing cranes, swings, zooms
       or answers a look-drag; it only orbits round the ball (never through it) when the way turns. */
-  railBack = 3.8;
-  railHeight = 2.3;
+  railBack = 4.2;
+  railHeight = 6.2;
   /** Where the rail view looks: this high over the feet, 6 m ahead of the one it follows. */
-  railLookY = 1.3;
+  railLookY = 0.8;
+  /** …and this far ahead of it. */
+  railLookAhead = 2.5;
   private trailPt = new THREE.Vector2();
   private trailLen = 0;
   private railYaw = 0;
   private railYawVel = 0;
-  private railR = 3.8;
+  private railR = 4.2;
   private railK = 0;
   private railInit = false;
   private railPos = new THREE.Vector3();
@@ -391,7 +393,7 @@ export class FollowCamera {
         let px = this.trailPt.x, pz = this.trailPt.y;
         if (this.clearance) {
           this.seeA.set(bx, player.y + 1.3, bz);
-          for (const back of [this.railBack, 3.2, 2.6, 2.1, 1.7]) {
+          for (const back of [this.railBack, 3.6, 3.0, 2.4, 2.0]) {
             if (!this.trailAt(player, back, this.trailTmp)) continue;
             px = this.trailTmp.x;
             pz = this.trailTmp.y;
@@ -421,11 +423,11 @@ export class FollowCamera {
       }
       this.yaw = this.railYaw; // the stick goes where the view looks
       this.railPos.set(bx + Math.sin(this.railYaw) * this.railR, player.y + this.railHeight, bz + Math.cos(this.railYaw) * this.railR);
-      // ahead down the corridor, nearly level: the ball sits low in the middle of the frame, where
-      // the walker back in the maze (the owner: the ball "an absolute nightmare"): a plain view over
-      // its shoulder, 2.3 m up and 3.8 m back on its own path, looking a little down to a point 6 m
-      // ahead at chest height, so the body stands in the lower half of the screen, head to feet
-      this.railLook.set(bx - Math.sin(this.railYaw) * 6, player.y + this.railLookY, bz - Math.cos(this.railYaw) * 6);
+      // above the walls (the owner: "most of the time all you see is walls so you keep hitting
+      // them"): the view rides high behind the walker, 6.2 m up (the walls stand 4.6 m) and 4.2 m back,
+      // looking down ~40° to a point just ahead of it, so the corridor round you and where it turns
+      // are in sight; the Veil keeps the far maze dark, so its mystery holds
+      this.railLook.set(bx - Math.sin(this.railYaw) * this.railLookAhead, player.y + this.railLookY, bz - Math.cos(this.railYaw) * this.railLookAhead);
       const s = THREE.MathUtils.smoothstep(this.railK, 0, 1);
       this.cam.position.lerp(this.railPos, s);
       look.lerp(this.railLook, s);
