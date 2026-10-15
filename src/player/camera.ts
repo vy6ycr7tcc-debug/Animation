@@ -99,11 +99,24 @@ export class FollowCamera {
       view comes back behind ~1 s after. */
   chase = false;
   chasePitch = 0.36;
-  private chaseVel = 0;
-  private swingT = 0;
-  private swingBest = 0;
   /** The nearest the chase view comes in before a wall (m): never so close the ball fills the view. */
   chaseMin = 2.6;
+  /** The rail view (the mind's maze; the owner circled where the ball should sit, low in the
+      middle of the screen, the view steady "as if we are looking from that point of view"): the
+      camera rides the ball's own trail a little way back at a fixed height, always looking ahead
+      down the corridor past the ball, which sits in the lower third. Nothing cranes, swings, zooms
+      or answers a look-drag; it only orbits round the ball (never through it) when the way turns. */
+  railBack = 4.0;
+  railHeight = 2.2;
+  private trailPt = new THREE.Vector2();
+  private trailLen = 0;
+  private railYaw = 0;
+  private railYawVel = 0;
+  private railR = 4.0;
+  private railK = 0;
+  private railInit = false;
+  private railPos = new THREE.Vector3();
+  private railLook = new THREE.Vector3();
   private crane = 0;
   private craneWant = 0;
   private prevT = new THREE.Vector3();
@@ -142,9 +155,38 @@ export class FollowCamera {
       px = sx;
       pz = sz;
     }
+    this.trailPt.set(px, pz);
+    this.trailLen = acc;
     if (acc < 1) return heading; // too little path yet: behind the way it faces
     return Math.atan2(px - p.x, pz - p.z);
   }
+  /** The point `back` metres back along the recorded trail from the ball (xz into `out`), or
+      false when the trail is shorter than that. */
+  private trailAt(p: THREE.Vector3, back: number, out: THREE.Vector2): boolean {
+    const t = this.trail;
+    if (this.trailN === 0) return false;
+    let acc = Math.hypot(p.x - t[0], p.z - t[1]), px = t[0], pz = t[1];
+    if (acc >= back) {
+      const k = back / Math.max(1e-4, acc);
+      out.set(p.x + (px - p.x) * k, p.z + (pz - p.z) * k);
+      return true;
+    }
+    for (let i = 1; i < this.trailN; i++) {
+      const sx = t[i * 2], sz = t[i * 2 + 1], d = Math.hypot(sx - px, sz - pz);
+      if (acc + d >= back) {
+        const k = (back - acc) / Math.max(1e-4, d);
+        out.set(px + (sx - px) * k, pz + (sz - pz) * k);
+        return true;
+      }
+      acc += d;
+      px = sx;
+      pz = sz;
+    }
+    return false;
+  }
+  private trailTmp = new THREE.Vector2();
+  private seeA = new THREE.Vector3();
+  private seeB = new THREE.Vector3();
   /** How high over the feet the view looks (null: the usual 1.3 m; the maze's ball looks lower). */
   targetLift: number | null = null;
   firstPerson = false;
@@ -185,33 +227,8 @@ export class FollowCamera {
     // Ease behind the wanderer while they move, unless the viewer is looking around; in flight
     // sooner and more firmly, so steering with the stick turns the view with you (as in Sky).
     if (this.chase) {
-      let want = moving ? this.chaseWant(player, heading, 3) : null;
-      // a wall between the ball and where the view would stand: swing round to the nearest clear
-      // side rather than zooming in (zoomed in, the ball and the stone fill the screen)
-      if (want !== null && this.clearance) {
-        this.swingT -= dt;
-        if (this.swingT <= 0) {
-          this.swingT = 1 / 15;
-          this.swingBest = 0;
-          const h = Math.cos(this.pitch) * Math.min(this.dist, this.nearDist ?? Infinity);
-          for (const off of [0, 0.25, -0.25, 0.5, -0.5, 0.8, -0.8, 1.1, -1.1]) {
-            const a = want + off;
-            this.clrB.set(this.target.x + Math.sin(a) * h, this.target.y, this.target.z + Math.cos(a) * h);
-            if (this.clearance(this.target, this.clrB) >= 1) {
-              this.swingBest = off;
-              break;
-            }
-          }
-        }
-        want += this.swingBest;
-      }
-      if (want !== null && this.sinceLook > 0.9) {
-        const d = Math.atan2(Math.sin(want - this.yaw), Math.cos(want - this.yaw));
-        const w = 3.2, h = Math.min(dt, 0.05);
-        this.chaseVel += (w * w * d - 2 * w * this.chaseVel) * h;
-        this.yaw += this.chaseVel * h;
-      } else this.chaseVel *= Math.exp(-dt * 6);
-      if (this.sinceLook > 1.5) this.pitch += (this.chasePitch - this.pitch) * Math.min(1, dt * 1.5);
+      // the rail view (below) places itself; here only the ball's path is recorded
+      if (moving) this.chaseWant(player, heading, this.railBack);
     } else if (this.firstPerson && moving) {
       // first person: the view turns with the way you roll, softly (a little behind the turn)
       let d = heading - this.yaw;
@@ -360,6 +377,55 @@ export class FollowCamera {
       this.fpRoll += (turn + sway - this.fpRoll) * Math.min(1, dt * 2);
     }
     this.fpYawLast = this.yaw;
+    this.railK += ((this.chase ? 1 : 0) - this.railK) * Math.min(1, dt * 3);
+    if (this.chase) {
+      const bx = player.x, bz = player.z;
+      // where the trail says the view belongs, as an angle and a radius about the ball
+      let wantYaw = this.railYaw, wantR = this.railBack;
+      if (this.trailLen >= 1) {
+        // the farthest point back along the ball's own path that the ball can still see: on a
+        // straight it is the full distance; round a corner the view stays on the path, a little nearer,
+        // rather than standing behind the corner's stone
+        let px = this.trailPt.x, pz = this.trailPt.y;
+        if (this.clearance) {
+          this.seeA.set(bx, player.y + 1.3, bz);
+          for (const back of [this.railBack, 3.4, 2.9, 2.4, 2.0, 1.7]) {
+            if (!this.trailAt(player, back, this.trailTmp)) continue;
+            px = this.trailTmp.x;
+            pz = this.trailTmp.y;
+            this.seeB.set(px, player.y + 1.3, pz);
+            if (this.clearance(this.seeA, this.seeB) >= 1) break;
+          }
+        }
+        wantYaw = Math.atan2(px - bx, pz - bz);
+        wantR = THREE.MathUtils.clamp(Math.hypot(px - bx, pz - bz), 1.7, this.railBack);
+      } else if (moving) wantYaw = heading;
+      if (!this.railInit) (this.railYaw = this.yaw), (this.railInit = true), (this.railYawVel = 0);
+      // a critically damped turn about the ball: soft start, no overshoot, never through the ball
+      const d = Math.atan2(Math.sin(wantYaw - this.railYaw), Math.cos(wantYaw - this.railYaw));
+      const w = 4, hdt = Math.min(dt, 0.05);
+      this.railYawVel += (w * w * d - 2 * w * this.railYawVel) * hdt;
+      this.railYaw += this.railYawVel * hdt;
+      this.railR += (wantR - this.railR) * Math.min(1, dt * (wantR < this.railR ? 3 : 1.2));
+      // where the view actually stands is behind stone (it lags a turn at a doorway): step onto the
+      // visible point on the ball's path at once (a small step beats a screen of wall)
+      if (this.clearance && this.trailLen >= 1) {
+        this.seeB.set(bx + Math.sin(this.railYaw) * this.railR, player.y + 1.3, bz + Math.cos(this.railYaw) * this.railR);
+        if (this.clearance(this.seeA, this.seeB) < 1) {
+          this.railYaw = wantYaw;
+          this.railYawVel = 0;
+          this.railR = wantR;
+        }
+      }
+      this.yaw = this.railYaw; // the stick goes where the view looks
+      this.railPos.set(bx + Math.sin(this.railYaw) * this.railR, player.y + this.railHeight, bz + Math.cos(this.railYaw) * this.railR);
+      // ahead down the corridor, nearly level: the ball sits low in the middle of the frame, where
+      // the owner circled it (~20° below the centre with the 58° view)
+      this.railLook.set(bx - Math.sin(this.railYaw) * 6, player.y + 1.48, bz - Math.cos(this.railYaw) * 6);
+      const s = THREE.MathUtils.smoothstep(this.railK, 0, 1);
+      this.cam.position.lerp(this.railPos, s);
+      look.lerp(this.railLook, s);
+    } else this.railInit = false;
     if (this.inward > 0.001) {
       const eye = new THREE.Vector3(player.x, player.y + 1.6 + this.eyeLift, player.z);
       const ahead = eye.clone().add(new THREE.Vector3(-Math.sin(this.yaw) * 20, 0.8, -Math.cos(this.yaw) * 20));
