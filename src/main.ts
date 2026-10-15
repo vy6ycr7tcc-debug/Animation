@@ -84,7 +84,8 @@ import { VeilDoor } from "./scenes/afterVeil/door";
 import { createAfterVeil, veilConfine, veilFloor, VEIL_EXIT } from "./scenes/afterVeil/area";
 import { WandererPortal } from "./scenes/wanderer/portal";
 import { MindMazePortal } from "./scenes/mindMaze/portal";
-import { createMindMaze, maze, mazeConfine, mazeFloor, MAZE_AIR, MAZE_EXIT, MAZE_START } from "./scenes/mindMaze/area";
+import { createMindMaze, maze, mazeConfine, mazeFloor, MAZE_AIR, MAZE_EXIT, MAZE_OUTER, MAZE_START } from "./scenes/mindMaze/area";
+import { MazeMap } from "./ui/mazeMap";
 import { createLongDescent, wandererConfine, wandererFloor, WANDERER_EXIT } from "./scenes/wanderer/area";
 import { moodForce } from "./world/moods";
 import { cloudUniforms } from "./world/atmosphere";
@@ -447,8 +448,25 @@ function mazeStelePick(x: number, y: number): { reading: Reading; pos: THREE.Vec
   }
   return best;
 }
+/* The maze's own map (ui/mazeMap.ts): its button shows in the maze; a tap on the map sets you there. */
+const mazeMap = new MazeMap({
+  layout: () => (maze && inHall()?.hall === mazeHall ? maze.layout() : null),
+  you: () => {
+    const o = maze?.layout().origin;
+    return { x: player.pos.x - (o?.x ?? 0), z: player.pos.z - (o?.z ?? 0), heading: player.heading };
+  },
+  go: (x, z) => {
+    const o = maze?.layout().origin;
+    if (!o) return;
+    player.pos.set(o.x + x, mazeFloor(x, z), o.z + z);
+    player.vel.set(0, 0, 0);
+    player.target = null;
+    follow.snapTo(player.pos);
+  },
+});
 function mazeSteleFrame(): void {
   const inMaze = !!maze && inHall()?.hall === mazeHall;
+  mazeMap.frame(inMaze && !crossing);
   // on foot only in the maze: no jumping, no flight (the round button rests); and seated at its
   // centre, the view rises to an eagle's height over it
   player.walkOnly = inMaze;
@@ -5043,6 +5061,7 @@ renderer
           await j.jump(0);
           const o = JOURNEY_ORIGIN;
           const cy = mazeFloor(0, 0);
+          const OUT = MAZE_OUTER;
           const stand = (x: number, z: number, lx: number, lz: number) => {
             player.pos.set(o.x + x, mazeFloor(x, z), o.z + z);
             player.heading = Math.atan2(x - lx, z - lz);
@@ -5059,15 +5078,21 @@ renderer
           };
           if (n === 1) {
             // the way in: the gate in the high granite wall, nothing beyond it to be seen
-            stand(0, 64, 0, 0);
-            return { eye: [o.x + 1.5, mazeFloor(0, 70) + 2.8, o.z + 71], look: [o.x, mazeFloor(0, 58) + 2.4, o.z + 56] };
+            stand(0, OUT + 4.5, 0, 0);
+            return { eye: [o.x + 1.5, mazeFloor(0, OUT + 10.5) + 2.8, o.z + OUT + 11.5], look: [o.x, mazeFloor(0, OUT - 1.5) + 2.4, o.z + OUT - 3.5] };
           }
           if (n === 2) {
             // the whole plan, from high above
-            stand(0, 64, 0, 0);
-            return { eye: [o.x, 118, o.z + 44], look: [o.x, 0, o.z + 2] };
+            stand(0, OUT + 4.5, 0, 0);
+            return { eye: [o.x, OUT * 2.05, o.z + OUT * 0.72], look: [o.x, 0, o.z + 2] };
           }
           if (n === 3) return near("maze-arch-I", 2.2, 2.2);
+          if (n === 11) {
+            // the maze's own map, open, standing just inside the way in
+            stand(0, OUT - 3.25, 0, 0);
+            requestAnimationFrame(() => mazeMap.open());
+            return { eye: [o.x, mazeFloor(0, OUT) + 3, o.z + OUT + 4], look: [o.x, mazeFloor(0, 0), o.z] };
+          }
           if (n === 10) {
             // contemplating in a corridor: the view up to the sun, flaring, its light pouring down
             stand(0.6, 43.2, 0, 0);
@@ -5082,8 +5107,8 @@ renderer
             // pyramid far off, the densities, the adept, past choices, the veil, the descent)
             const k = Number(new URLSearchParams(location.search).get("slot") ?? 0);
             const a = 0.62 + (k / 6) * (Math.PI * 2 - 1.24);
-            stand(Math.sin(a) * 68, Math.cos(a) * 68, Math.sin(a) * 90, Math.cos(a) * 90);
-            return { eye: [o.x + Math.sin(a - 0.06) * 62, mazeFloor(0, 62) + 3.2, o.z + Math.cos(a - 0.06) * 62], look: [o.x + Math.sin(a) * 84, mazeFloor(0, 84) + 4, o.z + Math.cos(a) * 84] };
+            stand(Math.sin(a) * (OUT + 8.5), Math.cos(a) * (OUT + 8.5), Math.sin(a) * (OUT + 30), Math.cos(a) * (OUT + 30));
+            return { eye: [o.x + Math.sin(a - 0.04) * (OUT + 2.5), mazeFloor(0, OUT + 2.5) + 3.2, o.z + Math.cos(a - 0.04) * (OUT + 2.5)], look: [o.x + Math.sin(a) * (OUT + 24.5), mazeFloor(0, OUT + 24.5) + 4, o.z + Math.cos(a) * (OUT + 24.5)] };
           }
           if (n === 9) {
             // walking up to a monument round the forecourt and in through its door (&slot as for 6)
@@ -5091,20 +5116,20 @@ renderer
             const id = ["temple", "duat", "densities", "adept", "past", "veil", "descent"][k];
             const d = maze?.doors().find((q) => q.id === id);
             const a = 0.62 + (k / 6) * (Math.PI * 2 - 1.24);
-            stand(Math.sin(a) * 66, Math.cos(a) * 66, Math.sin(a) * 90, Math.cos(a) * 90);
+            stand(Math.sin(a) * (OUT + 6.5), Math.cos(a) * (OUT + 6.5), Math.sin(a) * (OUT + 30), Math.cos(a) * (OUT + 30));
             if (d) player.target = new THREE.Vector2(d.pos.x, d.pos.z);
-            return { eye: [o.x + Math.sin(a) * 60, mazeFloor(0, 60) + 3, o.z + Math.cos(a) * 60], look: [o.x + Math.sin(a) * 84, mazeFloor(0, 84) + 3, o.z + Math.cos(a) * 84] };
+            return { eye: [o.x + Math.sin(a) * (OUT + 0.5), mazeFloor(0, OUT + 0.5) + 3, o.z + Math.cos(a) * (OUT + 0.5)], look: [o.x + Math.sin(a) * (OUT + 24.5), mazeFloor(0, OUT + 24.5) + 3, o.z + Math.cos(a) * (OUT + 24.5)] };
           }
           if (n === 8) {
             // the whole: the maze, the worlds' buildings round it, the volcanoes and the pyramid beyond
-            stand(0, 64, 0, 0);
-            return { eye: [o.x + 40, 95, o.z + 190], look: [o.x - 10, 0, o.z - 40] };
+            stand(0, OUT + 4.5, 0, 0);
+            return { eye: [o.x + 70, 170, o.z + 340], look: [o.x - 10, 0, o.z - 50] };
           }
           if (n === 7) {
             // a wall touched: the wave of blue light going out through the stone
-            const a = 0.3, r = 58.7;
-            stand(Math.sin(a) * r, Math.cos(a) * r, Math.sin(a) * 70, Math.cos(a) * 70);
-            return { eye: [o.x + Math.sin(a - 0.07) * 54.5, mazeFloor(0, 55) + 2.3, o.z + Math.cos(a - 0.07) * 54.5], look: [o.x + Math.sin(a) * 59.5, mazeFloor(0, 59) + 1.6, o.z + Math.cos(a) * 59.5] };
+            const a = 0.3, r = OUT - 0.8;
+            stand(Math.sin(a) * r, Math.cos(a) * r, Math.sin(a) * (OUT + 11), Math.cos(a) * (OUT + 11));
+            return { eye: [o.x + Math.sin(a - 0.04) * (OUT - 5), mazeFloor(0, OUT - 5) + 2.3, o.z + Math.cos(a - 0.04) * (OUT - 5)], look: [o.x + Math.sin(a) * OUT, mazeFloor(0, OUT) + 1.6, o.z + Math.cos(a) * OUT] };
           }
           if (n === 4) return near("maze-2", 1.6, 1.9);
           // 5: sat at the centre, everything met: the eagle's view, the paths lit, the motes flowing

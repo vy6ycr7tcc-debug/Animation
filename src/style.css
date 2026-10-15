@@ -983,3 +983,28 @@ body.mapping #stats, body.reading #stats, body:has(#menu:not([hidden])) #stats, 
   /* beside the ⋮ rather than under it (it stays tappable to close), using the whole height */
   #menu { top: calc(8px + env(safe-area-inset-top, 0px)); right: calc(64px + env(safe-area-inset-right, 0px)); max-height: calc(var(--fh, 100vh) - 16px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
 }
+
+/* the mind's maze's map (ui/mazeMap.ts): its button rests where the round button would be */
+#maze-map-btn {
+  position: fixed; right: calc(32px + env(safe-area-inset-right, 0px)); bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  width: 52px; height: 52px; border-radius: 50%; padding: 0; color: var(--pearl);
+  border: 1px solid rgba(244, 239, 230, 0.3); background: rgba(14, 12, 34, 0.35);
+  display: grid; place-items: center; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+#maze-map-btn[hidden] { display: none; }
+#maze-map-btn:active { color: var(--gold); border-color: var(--gold); }
+body.touring #maze-map-btn, body.recording #maze-map-btn, body.film #maze-map-btn { display: none; }
+body.calm #maze-map-btn { opacity: 0.25; transition: opacity 1s; }
+#maze-map {
+  position: fixed; left: 0; top: 0; width: 100vw; height: var(--fh, 100vh); z-index: 60;
+  background: rgba(6, 5, 16, 0.94); display: flex; flex-direction: column; align-items: center;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 8px calc(10px + env(safe-area-inset-bottom, 0px)); box-sizing: border-box;
+  color: var(--pearl); touch-action: none;
+}
+#maze-map[hidden] { display: none; }
+#maze-map .mm-head { display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 900px; padding: 4px 6px 8px; box-sizing: border-box; }
+#maze-map .mm-title { font-style: italic; letter-spacing: 0.08em; color: var(--gold); font-size: 15px; }
+#maze-map .mm-close { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(244, 239, 230, 0.3); background: transparent; color: var(--pearl); font-size: 16px; }
+#maze-map canvas { touch-action: none; cursor: crosshair; }
+#maze-map .mm-info { font-size: 12px; opacity: 0.75; padding-top: 8px; text-align: center; max-width: 520px; }
+body.mazemapping :is(#joy, #act, #ctx, #auto, #menu-btn, #tp, #tp-mini, #whisper, #keys, #tour-start, #breath-cue, #hear-again, #nprog, #seat-hint, #labels, #maze-map-btn) { visibility: hidden; }

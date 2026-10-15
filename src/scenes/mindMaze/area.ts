@@ -46,21 +46,38 @@ const V3 = THREE.Vector3;
 const TAU = Math.PI * 2;
 
 /* ---------------------------------------------------------------- the plan */
-/** The sanctuary's wall; each ring of corridor is `CW` wide; seven rings. */
+/** The sanctuary's wall; each ring of corridor is `CW` wide; sixteen rings (the owner: "4x
+    larger", by its ground: twice the reach of the first seven). */
 const RIN = 14;
 const CW = 6.5;
-const NC = 7;
-/** Cells round each ring (about 10 m of corridor each). */
-const COUNTS = [12, 16, 20, 24, 28, 32, 36];
+const NC = 16;
+/** Cells round each ring (about 9–10 m of corridor each; a multiple of four, so the sanctuary's
+    door cell sits at θ π). */
+const COUNTS = Array.from({ length: NC }, (_, k) => Math.max(12, Math.round((TAU * (RIN + CW * (k + 0.5))) / 9.6 / 4) * 4));
 /** Ring boundary k (k = 0 the sanctuary's wall … NC the outer wall). */
 const RAD = (k: number) => RIN + CW * k;
 /** The middle of ring k's corridor. */
 const MID = (k: number) => RIN + CW * (k + 0.5);
 const OUTER = RAD(NC);
+/** The outer wall's radius (main.ts's stills and the maze's map). */
+export const MAZE_OUTER = OUTER;
+export const MAZE_RIN = RIN;
+/** The plazas: open ground in the maze, here and there, for what is to come (the owner: "plazas
+    here and there bc I'm gonna start adding stuff"). Each spans rings k0…k1 and the cells whose
+    middles lie within `span` (radians) about angle `a`; its walls within are gone. */
+export const MAZE_PLAZAS: { name: string; k0: number; k1: number; a: number; span: number }[] = [
+  { name: "Plaza of the threshold", k0: 13, k1: 14, a: 0.95, span: 0.34 },
+  { name: "Plaza of the west wind", k0: 11, k1: 13, a: 4.55, span: 0.36 },
+  { name: "Plaza of the deep court", k0: 9, k1: 10, a: 2.35, span: 0.42 },
+  { name: "Plaza of the far gate", k0: 13, k1: 14, a: 3.55, span: 0.3 },
+  { name: "Plaza of the middle way", k0: 6, k1: 8, a: 5.55, span: 0.55 },
+  { name: "Plaza of the quiet ring", k0: 4, k1: 5, a: 1.35, span: 0.8 },
+  { name: "Plaza of the inner court", k0: 2, k1: 3, a: 3.9, span: 0.95 },
+];
 /** The first density's volcano (the owner: "colours and sceneries more like the first density
     room"), far beyond the walls toward the sanctuary's side, high enough to stand over them. */
-const VOLC = new THREE.Vector3(70, -2, -215);
-const VOLC_H = 84;
+const VOLC = new THREE.Vector3(100, -2, -310);
+const VOLC_H = 110;
 /** The walls stand this far above the floor: over the eye, over the following camera. */
 const WALL_H = 4.6;
 /** A doorway's half width (m). */
@@ -106,6 +123,8 @@ interface Cell {
   i: number;
   a0: number;
   a1: number;
+  /** The plaza it is part of (an index into MAZE_PLAZAS), or −1. */
+  plaza: number;
   /** Open passages: the cell beyond and the point of the opening (angle, and the boundary radius for a ring door). */
   open: { to: number; a: number; r?: number }[];
 }
@@ -126,6 +145,8 @@ export interface MazePlan {
   entry: number;
   heart: number;
   index(k: number, i: number): number;
+  /** Each plaza's cells (as MAZE_PLAZAS). */
+  plazas: number[][];
 }
 
 /** The maze, the same every time (exported for the tests and stills). */
@@ -135,7 +156,16 @@ export function mazePlan(): MazePlan {
   const cells: Cell[] = [];
   COUNTS.forEach((n, k) => {
     first.push(cells.length);
-    for (let i = 0; i < n; i++) cells.push({ k, i, a0: ((i - 0.5) / n) * TAU, a1: ((i + 0.5) / n) * TAU, open: [] });
+    for (let i = 0; i < n; i++) cells.push({ k, i, a0: ((i - 0.5) / n) * TAU, a1: ((i + 0.5) / n) * TAU, plaza: -1, open: [] });
+  });
+  const plazas: number[][] = MAZE_PLAZAS.map(() => []);
+  MAZE_PLAZAS.forEach((p, n) => {
+    cells.forEach((c, j) => {
+      if (c.k < p.k0 || c.k > p.k1) return;
+      if (Math.abs(wrap((c.a0 + c.a1) / 2 - p.a)) > p.span / 2) return;
+      c.plaza = n;
+      plazas[n].push(j);
+    });
   });
   const index = (k: number, i: number) => first[k] + (((i % COUNTS[k]) + COUNTS[k]) % COUNTS[k]);
   const edges: Edge[] = [];
@@ -163,8 +193,16 @@ export function mazePlan(): MazePlan {
   const adj: number[][] = cells.map(() => []);
   edges.forEach((e, n) => (adj[e.u].push(n), adj[e.v].push(n)));
   const heart = index(0, COUNTS[0] / 2), entry = index(NC - 1, 0);
+  // a plaza is open within: all its own walls gone, and it is entered as one place
+  for (const e of edges) if (cells[e.u].plaza >= 0 && cells[e.u].plaza === cells[e.v].plaza) e.open = true;
   const seen = new Set([heart]);
   const stack = [heart];
+  const enter = (v: number) => {
+    const pz = cells[v].plaza;
+    const all = pz >= 0 ? plazas[pz] : [v];
+    for (const c of all) if (!seen.has(c)) (seen.add(c), stack.push(c));
+    if (pz >= 0 && stack[stack.length - 1] !== v) (stack.splice(stack.lastIndexOf(v), 1), stack.push(v));
+  };
   while (stack.length) {
     const u = stack[stack.length - 1];
     const next = adj[u].filter((n) => !seen.has(edges[n].u === u ? edges[n].v : edges[n].u));
@@ -175,19 +213,18 @@ export function mazePlan(): MazePlan {
     const n = next[Math.floor(R() * next.length)];
     const e = edges[n], v = e.u === u ? e.v : e.u;
     e.open = true;
-    seen.add(v);
-    stack.push(v);
+    enter(v);
   }
   // a few loops, so it is wandered rather than solved (never in the innermost ring: the last
   // way to the centre stays one)
   const shut = edges.filter((e) => !e.open && cells[e.u].k > 0 && cells[e.v].k > 0);
-  for (let m = 0; m < 9 && shut.length; m++) shut.splice(Math.floor(R() * shut.length), 1)[0].open = true;
+  for (let m = 0; m < 30 && shut.length; m++) shut.splice(Math.floor(R() * shut.length), 1)[0].open = true;
   for (const e of edges) {
     if (!e.open) continue;
     cells[e.u].open.push({ to: e.v, a: e.a, r: e.kind === "door" ? e.r : undefined });
     cells[e.v].open.push({ to: e.u, a: e.a, r: e.kind === "door" ? e.r : undefined });
   }
-  return { cells, edges, entry, heart, index };
+  return { cells, edges, entry, heart, index, plazas };
 }
 
 /** Breadth first from a cell: each cell's step toward it (`prev`) and how many steps away. */
@@ -219,15 +256,44 @@ export interface WallArc { r: number; a0: number; a1: number; h: number; d: numb
 export function wallLayout(plan: MazePlan): { boxes: WallBox[]; arcs: WallArc[] } {
   const R = seeded(4099);
   const boxes: WallBox[] = [], arcs: WallArc[] = [];
-  const doorsAt: number[][] = Array.from({ length: NC + 1 }, () => []);
-  for (const e of plan.edges) if (e.open && e.kind === "door") doorsAt[e.k].push(e.a);
-  doorsAt[0].push(Math.PI);
-  doorsAt[NC].push(0);
+  // the gaps in each ring wall, as [from, to] angles: its doors, and where a plaza spans it
+  const gapsAt: [number, number][][] = Array.from({ length: NC + 1 }, () => []);
+  const door = (k: number, a: number) => gapsAt[k].push([a - DOOR / RAD(k), a + DOOR / RAD(k)]);
+  for (const e of plan.edges) if (e.open && e.kind === "door") door(e.k, e.a);
+  door(0, Math.PI);
+  door(NC, 0);
+  MAZE_PLAZAS.forEach((p, n) => {
+    const ext = (k: number): [number, number] | null => {
+      const cs = plan.plazas[n].map((c) => plan.cells[c]).filter((c) => c.k === k);
+      if (!cs.length) return null;
+      return [Math.min(...cs.map((c) => wrap(c.a0 - p.a))), Math.max(...cs.map((c) => wrap(c.a1 - p.a)))];
+    };
+    for (let k = p.k0 + 1; k <= p.k1; k++) {
+      const lo = ext(k - 1), hi = ext(k);
+      if (!lo || !hi) continue;
+      const a0 = Math.max(lo[0], hi[0]) + DOOR / RAD(k) / 2, a1 = Math.min(lo[1], hi[1]) - DOOR / RAD(k) / 2;
+      if (a1 > a0) gapsAt[k].push([p.a + a0, p.a + a1]);
+    }
+  });
   for (let k = 0; k <= NC; k++) {
-    const r = RAD(k), hw = DOOR / r;
-    const gaps = doorsAt[k].map((a) => (a + TAU) % TAU).sort((a, b) => a - b);
-    for (let n = 0; n < gaps.length; n++) {
-      const a0 = gaps[n] + hw, a1 = (n + 1 < gaps.length ? gaps[n + 1] : gaps[0] + TAU) - hw;
+    const r = RAD(k);
+    // merged, in order round the ring
+    const iv = gapsAt[k].map(([a, b]): [number, number] => {
+      const s = ((a % TAU) + TAU) % TAU;
+      return [s, s + (b - a)];
+    }).sort((x, y) => x[0] - y[0]);
+    const merged: [number, number][] = [];
+    for (const g of iv) {
+      const last = merged[merged.length - 1];
+      if (last && g[0] <= last[1]) last[1] = Math.max(last[1], g[1]);
+      else merged.push([g[0], g[1]]);
+    }
+    while (merged.length > 1 && merged[merged.length - 1][1] >= merged[0][0] + TAU) {
+      const last = merged.pop()!;
+      merged[0] = [last[0] - TAU, Math.max(merged[0][1], last[1] - TAU)];
+    }
+    for (let n = 0; n < merged.length; n++) {
+      const a0 = merged[n][1], a1 = n + 1 < merged.length ? merged[n + 1][0] : merged[0][0] + TAU;
       if (a1 - a0 < 0.05) continue;
       const len = (a1 - a0) * r;
       if (k > 0 && k < NC && R() < 0.22 && len > 6) {
@@ -349,10 +415,27 @@ export interface MazeRoom extends Room {
   portalAt(p: THREE.Vector3): string | null;
   /** The monuments' doors round the forecourt (world), for the stills. */
   doors(): { id: string; pos: THREE.Vector3 }[];
+  /** The plan, for the maze's map (room frame). */
+  layout(): MazeLayout;
   /** The sun over the maze (world): where contemplation looks. */
   sunWorld(): THREE.Vector3;
   /** Contemplating (0..1): the sun flares and pours its light down to the head (world). */
   setNourish(k: number, head: THREE.Vector3): void;
+}
+/** What the maze's map draws (room frame: x across, z toward the way in). */
+export interface MazeLayout {
+  outer: number;
+  rin: number;
+  cw: number;
+  arcs: WallArc[];
+  boxes: WallBox[];
+  /** Each plaza: its name, its heart, and its cells as ring k from angle a0 to a1. */
+  plazas: { name: string; x: number; z: number; cells: { k: number; a0: number; a1: number }[] }[];
+  /** The archetypes (`arch`) and steles, where they stand, read or not. */
+  arts: { id: string; title: string; x: number; z: number; lit: boolean; arch: boolean }[];
+  doors: { id: string; x: number; z: number }[];
+  /** The place's origin (world): room frame + origin = world. */
+  origin: THREE.Vector3;
 }
 export interface MazeDeps {
   /** The figure the beings wear (shared with the world's), once it has loaded. */
@@ -457,7 +540,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
   // storm ceiling that lights from within but never breaks, the volcano pouring slow fire beyond
   // the walls, towers of basalt on the horizon, and ash drifting down the corridors
   {
-    const dome = skyDome(420, new THREE.Color(0.075, 0.06, 0.1), new THREE.Color(0.012, 0.014, 0.034), {
+    const dome = skyDome(640, new THREE.Color(0.075, 0.06, 0.1), new THREE.Color(0.012, 0.014, 0.034), {
       glowDir: VOLC.clone().setY(8),
       glow: new THREE.Color(0.55, 0.16, 0.05),
       glowPow: 5,
@@ -469,16 +552,16 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     stormCeiling(g, t, VOLC, uStorm, ours);
     for (const c of [[-30, 2, 40], [30, 2, 40], [-30, 2, -20], [30, 2, -20]] as [number, number, number][]) ash(g, t, R, ours, c, 200);
     // two more volcanoes far off on the horizon, in the gaps between the buildings
-    volcano(g, t, new THREE.Vector3(-300, -2, -150), 105, uLava, R, ours, [40, 60]);
-    volcano(g, t, new THREE.Vector3(330, -2, 120), 92, uLava, R, ours, [-60, -20]);
+    volcano(g, t, new THREE.Vector3(-380, -2, -200), 125, uLava, R, ours, [40, 60]);
+    volcano(g, t, new THREE.Vector3(410, -2, 150), 112, uLava, R, ours, [-60, -20]);
     // basalt towers and sea stacks standing round the maze beyond its forecourt, as in the first density
     const stone = etchedStone("#15121c", "#6e5238", 3.4);
     ours.push(stone);
     for (let i = 0; i < 14; i++) {
-      const a = (i / 14) * TAU + (R() - 0.5) * 0.3, d = 96 + R() * 60;
+      const a = (i / 14) * TAU + (R() - 0.5) * 0.3, d = OUTER + 46 + R() * 80;
       if (Math.abs(wrap(a)) < 0.35) continue; // the way you came in stays open
       if (MAZE_PORTALS.some((_, n) => Math.abs(wrap(a - portalAngle(n))) < 0.3)) continue; // nor stand before a building
-      const r = 2.6 + R() * 4, h = 16 + R() * 34;
+      const r = 3.4 + R() * 5, h = 24 + R() * 46;
       const geo = spireGeometry(r, h, 300 + i * 7, 7, (R() - 0.5) * 2);
       const mesh = new THREE.Mesh(geo, stone);
       const [x, z] = polar(a, d);
@@ -515,7 +598,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
   // the ground: the first density's black volcanic sand, streaked with ash, glittering near with
   // grains of obsidian; rising gently toward the centre, far out into the dark
   {
-    const geo = new THREE.RingGeometry(0.01, 400, 220, 150);
+    const geo = new THREE.RingGeometry(0.01, 600, 260, 220);
     geo.rotateX(-Math.PI / 2);
     const p = geo.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < p.count; i++) p.setY(i, mazeFloor(p.getX(i), p.getZ(i)));
@@ -627,6 +710,66 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       ours.push(mesh.geometry);
     }
     ours.push(m);
+  }
+
+  // the plazas: open ground, paved in pale flagstones from wall to wall, a hairline of gold round
+  // the heart of each (where something will stand)
+  const plazaHearts: THREE.Vector3[] = [];
+  {
+    const parts: THREE.BufferGeometry[] = [];
+    const rings: number[] = [];
+    MAZE_PLAZAS.forEach((p, n) => {
+      const cs = plan.plazas[n].map((c) => plan.cells[c]);
+      let rs = 0, ws = 0;
+      for (let k = p.k0; k <= p.k1; k++) {
+        const ring = cs.filter((c) => c.k === k);
+        if (!ring.length) continue;
+        const a0 = p.a + Math.min(...ring.map((c) => wrap(c.a0 - p.a))), a1 = p.a + Math.max(...ring.map((c) => wrap(c.a1 - p.a)));
+        const r0 = RAD(k) + 0.42, r1 = RAD(k + 1) - 0.42;
+        const segs = Math.max(4, Math.ceil(((a1 - a0) * r1) / 1.5)), rows = 4;
+        const pos: number[] = [], idx: number[] = [];
+        for (let j = 0; j <= rows; j++)
+          for (let i = 0; i <= segs; i++) {
+            const a = a0 + ((a1 - a0) * i) / segs, r = r0 + ((r1 - r0) * j) / rows;
+            const [x, z] = polar(a, r);
+            pos.push(x, mazeFloor(x, z) + 0.035, z);
+          }
+        for (let j = 0; j < rows; j++)
+          for (let i = 0; i < segs; i++) {
+            const a = j * (segs + 1) + i, b = a + 1, c = a + segs + 1, d = c + 1;
+            idx.push(a, c, b, b, c, d);
+          }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+        geo.setIndex(idx);
+        geo.computeVertexNormals();
+        if ((geo.attributes.normal as THREE.BufferAttribute).getY(0) < 0) geo.index!.array.reverse(), geo.computeVertexNormals();
+        parts.push(geo);
+        rs += MID(k) * ring.length;
+        ws += ring.length;
+      }
+      const [hx, hz] = polar(p.a, rs / Math.max(1, ws));
+      plazaHearts.push(new V3(hx, mazeFloor(hx, hz), hz));
+      for (let s2 = 0; s2 < 96; s2++) {
+        const u0 = (s2 / 96) * TAU, u1 = ((s2 + 1) / 96) * TAU, rr = 2.4;
+        rings.push(hx + Math.sin(u0) * rr, mazeFloor(hx, hz) + 0.06, hz + Math.cos(u0) * rr, hx + Math.sin(u1) * rr, mazeFloor(hx, hz) + 0.06, hz + Math.cos(u1) * rr);
+      }
+    });
+    if (parts.length) {
+      const m = landStone("sandstone_blocks_08", 0, 2.2, [0.92, 0.88, 0.84], { course: 1.1, block: 1.6, origin }, "granite");
+      m.maskNode = null;
+      const mesh = passable(new THREE.Mesh(merge(parts), m)); // paving is ground, not a wall
+      mesh.receiveShadow = true;
+      g.add(mesh);
+      ours.push(mesh.geometry, m);
+      for (const p of parts) p.dispose();
+      const rg = ribbonGeometry(rings);
+      const rm = ribbonMaterial(vec3(1, 0.82, 0.5).mul(0.55), 0.9);
+      const rmesh = new THREE.Mesh(rg, rm);
+      rmesh.frustumCulled = false;
+      g.add(rmesh);
+      ours.push(rg, rm);
+    }
   }
 
   // the way in: two tall granite posts and a lintel at the outer wall's opening
@@ -770,7 +913,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
   };
   /** Cells of rings ks, dead ends first, spread over the walk in; `n` of them. */
   const pick = (ks: number[], n: number): number[] => {
-    const all = plan.cells.map((_, c) => c).filter((c) => ks.includes(plan.cells[c].k) && !used.has(c));
+    const all = plan.cells.map((_, c) => c).filter((c) => ks.includes(plan.cells[c].k) && !used.has(c) && plan.cells[c].plaza < 0);
     const dead = all.filter((c) => plan.cells[c].open.length === 1);
     const pool = (dead.length >= n + 2 ? dead : all).sort((a, b) => fromEntry[a] - fromEntry[b]);
     const out: number[] = [];
@@ -821,7 +964,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
   {
     const way: number[] = [];
     for (let c = plan.entry; c >= 0; c = toHeart.prev[c]) way.push(c);
-    const inner = way.slice(1, -1); // not the entrance's cell nor the sanctuary door's
+    const inner = way.slice(1, -1).filter((c) => plan.cells[c].plaza < 0); // not the entrance's cell nor the sanctuary door's, nor a plaza (kept open)
     const place: [number, number, number][] = []; // archetype, cell, the cell it is come to from
     for (let j = 0; j < 21; j++) {
       const c = inner[Math.min(inner.length - 1, Math.round(((j + 0.5) / 21) * inner.length))];
@@ -910,7 +1053,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     const spots: { x: number; z: number; face: number; cell: number }[] = [];
     // the first before the way in, in the forecourt
     spots.push({ x: 3.6, z: OUTER + 2.6, face: Math.PI + 0.35, cell: plan.entry });
-    for (const c of pick([1, 2, 3, 4, 5, 6], 7)) spots.push({ ...spotIn(c), cell: c });
+    for (const c of pick(Array.from({ length: NC - 1 }, (_, k) => k + 1), 7)) spots.push({ ...spotIn(c), cell: c });
     // the last two in the sanctuary: by its door, and by the seat
     spots.push({ x: 3.2, z: -(RIN - 2.4), face: -0.3, cell: plan.heart });
     spots.push({ x: 3.4, z: -2.6, face: Math.atan2(-3.4, 2.6), cell: plan.heart });
@@ -1183,7 +1326,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
 
   // motes drifting low in the corridors, warming toward the centre
   {
-    const n = 380;
+    const n = 1200;
     const c = pointCloud(n, 0.06);
     for (let i = 0; i < n; i++) {
       const a = R() * TAU, r = Math.sqrt(R()) * (OUTER + 6);
@@ -1246,6 +1389,17 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     },
     eagle: () => (seated ? new V3(0, centreY, 0).add(g.position) : null),
     doors: () => doorsAt.map((d) => ({ id: d.id, pos: new V3(d.x, mazeFloor(d.x, d.z), d.z).add(g.position) })),
+    layout: () => ({
+      outer: OUTER,
+      rin: RIN,
+      cw: CW,
+      arcs: walls.arcs,
+      boxes: walls.boxes,
+      plazas: MAZE_PLAZAS.map((p, n) => ({ name: p.name, x: plazaHearts[n].x, z: plazaHearts[n].z, cells: plan.plazas[n].map((c) => ({ k: plan.cells[c].k, a0: plan.cells[c].a0, a1: plan.cells[c].a1 })) })),
+      arts: arts.map((a) => ({ id: a.id, title: a.reading.title, x: a.local.x, z: a.local.z, lit: a.lit.value === 1, arch: !!a.being })),
+      doors: doorsAt.map((d) => ({ id: d.id, x: d.x, z: d.z })),
+      origin: g.position.clone(),
+    }),
     sunWorld: () => SUN_AT.clone().add(g.position),
     setNourish(k: number, head: THREE.Vector3) {
       sun.nourish.value = k;
