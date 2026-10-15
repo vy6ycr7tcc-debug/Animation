@@ -5228,18 +5228,6 @@ renderer
             };
             return { eye: [o.x, mazeFloor(0, OUT) + 40, o.z + OUT + 20], look: [o.x, 0, o.z + OUT - 20] };
           }
-          if (n === 18 && maze) {
-            // first person down a corridor toward a galaxy window that ends it (&w=<i> picks one)
-            const ws = maze.debugWindows().filter((w) => w.end && Math.hypot(w.x, w.z) > 40 && Math.hypot(w.x, w.z) < 100);
-            const w = ws[Number(new URLSearchParams(location.search).get("w") ?? 0) % Math.max(1, ws.length)];
-            const back = Number(new URLSearchParams(location.search).get("back") ?? 9);
-            const sx = w.x + w.nx * back, sz = w.z + w.nz * back;
-            stand(sx, sz, w.x, w.z);
-            player.heading = Math.atan2(w.nx, w.nz);
-            follow.yaw = player.heading;
-            const fy = mazeFloor(sx, sz);
-            return { eye: [o.x + sx, fy + 0.7, o.z + sz], look: [o.x + w.x, fy + 1.4, o.z + w.z] };
-          }
           if (n === 17 && maze) {
             // the camera test (&route=i, with &live=S): walk the corridors' way from reading i in
             // toward the centre, turns and doors and all, setting course a few metres ahead along it
