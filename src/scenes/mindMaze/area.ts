@@ -490,6 +490,9 @@ export interface MazeRoom extends Room {
   railYaw(p: THREE.Vector3, heading: number): number | null;
   /** How far from the lens the veil begins to close, beyond its own distances (m). */
   veilShift(m: number): void;
+  /** A way along the corridors from one point to another (world), as points to walk through in turn,
+      ending at `to`; null when either lies off the maze's ground. */
+  route(from: THREE.Vector3, to: THREE.Vector3): THREE.Vector2[] | null;
   /** The maze's centre (world), and whether the last way railYaw gave runs along a ring (so the
       view may follow the ring's curve behind you). */
   railArc(): THREE.Vector3 | null;
@@ -1727,6 +1730,58 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       return Math.atan2(-bx, -bz);
     },
     veilShift: (m: number) => { uVeilShift.value = m; },
+    route: (from, to) => {
+      const ox = g.position.x, oz = g.position.z;
+      const fx = from.x - ox, fz = from.z - oz, tx = to.x - ox, tz = to.z - oz;
+      // a point's cell; within the sanctuary it counts as the heart's, beyond the outer wall as the entry's
+      const place = (x: number, z: number): { c: number; out: -1 | 0 | 1 } => {
+        const r = Math.hypot(x, z);
+        if (r < RIN) return { c: plan.heart, out: -1 };
+        if (r >= OUTER) return { c: plan.entry, out: 1 };
+        return { c: cellAt(x, z), out: 0 };
+      };
+      const a = place(fx, fz), b = place(tx, tz);
+      if (a.c < 0 || b.c < 0) return null;
+      // the fewest openings between (breadth first over the open ways)
+      const prev = new Int32Array(plan.cells.length).fill(-2);
+      const via: ({ a: number; r?: number } | null)[] = new Array(plan.cells.length).fill(null);
+      prev[a.c] = -1;
+      const q = [a.c];
+      for (let h = 0; h < q.length && prev[b.c] === -2; h++) {
+        for (const o of plan.cells[q[h]].open) if (prev[o.to] === -2) (prev[o.to] = q[h]), (via[o.to] = o), q.push(o.to);
+      }
+      if (prev[b.c] === -2) return null;
+      const chain: number[] = [];
+      for (let c = b.c; c >= 0; c = prev[c]) chain.unshift(c);
+      const pts: THREE.Vector2[] = [];
+      const at = (ang: number, r: number) => pts.push(new THREE.Vector2(ox + Math.sin(ang) * r, oz + Math.cos(ang) * r));
+      const mid = (c: number) => {
+        const cell = plan.cells[c];
+        return { ang: (cell.a0 + cell.a1) / 2, r: RAD(cell.k) + CW / 2 };
+      };
+      // leaving the sanctuary or the forecourt: through its door into the maze
+      if (a.out === -1) at(Math.PI, RIN - 1.5), at(Math.PI, RIN + 0.5);
+      if (a.out === 1) at(0, OUTER + 0.5), at(0, OUTER - 0.5);
+      for (let i = 1; i < chain.length; i++) {
+        const o = via[chain[i]]!;
+        // the opening: a door in a ring wall (at its radius), or a gap across the ring (at the ring's middle)
+        const from = mid(chain[i - 1]);
+        if (o.r !== undefined) {
+          const inward = o.r <= from.r;
+          at(o.a, o.r + (inward ? 1.4 : -1.4));
+          at(o.a, o.r + (inward ? -1.4 : 1.4));
+        } else at(o.a, from.r);
+        // and through the middle of the cell beyond, so the way keeps off the curve's inner wall
+        if (i < chain.length - 1 || b.out !== 0) {
+          const m = mid(chain[i]);
+          at(m.ang, m.r);
+        }
+      }
+      if (b.out === -1) at(Math.PI, RIN + 0.5), at(Math.PI, RIN - 1.5);
+      if (b.out === 1) at(0, OUTER - 0.5), at(0, OUTER + 0.5);
+      pts.push(new THREE.Vector2(to.x, to.z));
+      return pts;
+    },
     clearance: (a, b) => mazeRayHit(walls, a.x - g.position.x, a.z - g.position.z, b.x - g.position.x, b.z - g.position.z, 0.35),
     setNourish(k: number, head: THREE.Vector3) {
       sun.nourish.value = k;
