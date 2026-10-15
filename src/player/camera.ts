@@ -100,6 +100,12 @@ export class FollowCamera {
   chase = false;
   chasePitch = 0.36;
   private chaseVel = 0;
+  private swingT = 0;
+  private swingBest = 0;
+  /** The nearest the chase view comes in before a wall (m): never so close the ball fills the view. */
+  chaseMin = 2.6;
+  private crane = 0;
+  private craneWant = 0;
   private trail = new Float32Array(2 * 48);
   private trailN = 0;
   private chaseWant(p: THREE.Vector3, heading: number, back: number): number {
@@ -175,7 +181,26 @@ export class FollowCamera {
     // Ease behind the wanderer while they move, unless the viewer is looking around; in flight
     // sooner and more firmly, so steering with the stick turns the view with you (as in Sky).
     if (this.chase) {
-      const want = moving ? this.chaseWant(player, heading, 3) : null;
+      let want = moving ? this.chaseWant(player, heading, 3) : null;
+      // a wall between the ball and where the view would stand: swing round to the nearest clear
+      // side rather than zooming in (zoomed in, the ball and the stone fill the screen)
+      if (want !== null && this.clearance) {
+        this.swingT -= dt;
+        if (this.swingT <= 0) {
+          this.swingT = 1 / 15;
+          this.swingBest = 0;
+          const h = Math.cos(this.pitch) * Math.min(this.dist, this.nearDist ?? Infinity);
+          for (const off of [0, 0.25, -0.25, 0.5, -0.5, 0.8, -0.8, 1.1, -1.1]) {
+            const a = want + off;
+            this.clrB.set(this.target.x + Math.sin(a) * h, this.target.y, this.target.z + Math.cos(a) * h);
+            if (this.clearance(this.target, this.clrB) >= 1) {
+              this.swingBest = off;
+              break;
+            }
+          }
+        }
+        want += this.swingBest;
+      }
       if (want !== null && this.sinceLook > 0.9) {
         const d = Math.atan2(Math.sin(want - this.yaw), Math.cos(want - this.yaw));
         const w = 3.2, h = Math.min(dt, 0.05);
@@ -209,7 +234,10 @@ export class FollowCamera {
     // the wide reveal eases in slowly (a camera drawing back on a crane), out a little quicker
     this.wideK += (this.wide - this.wideK) * Math.min(1, dt * (this.wide > this.wideK ? 0.35 : 0.8));
     const w = THREE.MathUtils.smoothstep(this.wideK, 0, 1);
-    const pitch = this.pitch + (0.98 - this.pitch) * this.lift + 0.1 * w, dist = Math.min(this.dist, this.nearDist ?? Infinity) * (1 + 4.5 * this.lift) * (1 + 1.3 * w);
+    // the chase view's crane: where a wall would come between, it rises and looks down over the
+    // ball instead of coming closer (eased up quickly, down slowly)
+    this.crane += ((this.chase ? this.craneWant : 0) - this.crane) * Math.min(1, dt * (this.craneWant > this.crane ? 8 : 1.1));
+    const pitch = this.pitch + this.crane + (0.98 - this.pitch) * this.lift + 0.1 * w, dist = Math.min(this.dist, this.nearDist ?? Infinity) * (1 + 4.5 * this.lift) * (1 + 1.3 * w);
     const cp = Math.cos(pitch), sp = Math.sin(pitch);
     // Pull in when the ground would come between the camera and the wanderer.
     let clear = dist;
@@ -232,7 +260,7 @@ export class FollowCamera {
         this.ray.far = dist + 0.5;
         this.hits.length = 0;
         this.ray.intersectObjects(this.blockers, false, this.hits);
-        this.blockAt = this.hits.length ? Math.max(1.1, this.hits[0].distance - 0.45) : Infinity;
+        this.blockAt = this.hits.length ? Math.max(this.chase ? this.chaseMin : 1.1, this.hits[0].distance - 0.45) : Infinity;
       }
       clear = Math.min(clear, this.blockAt);
     } else this.blockAt = Infinity;
@@ -245,7 +273,15 @@ export class FollowCamera {
           this.clrB.set(a.x, this.target.y, a.y);
         } else this.clrB.set(this.target.x - fx * cp * dist, this.target.y, this.target.z - fz * cp * dist);
         const f = this.clearance(this.target, this.clrB);
-        this.clrAt = f >= 1 ? Infinity : Math.max(1.2, f * dist - 0.25);
+        if (this.chase) {
+          // the horizontal reach that stays clear, and the pitch whose foot fits inside it
+          const base = pitch - this.crane;
+          const hClear = Math.max(0.5, f * cp * dist - 0.3);
+          const need = f >= 1 ? 0 : Math.acos(Math.min(1, hClear / dist)) - base;
+          this.craneWant = THREE.MathUtils.clamp(need, 0, Math.max(0, 1.35 - base));
+          // only if even the steepest crane can't clear does the view come in (never close)
+          this.clrAt = f >= 1 || need <= 1.35 - base ? Infinity : this.chaseMin;
+        } else this.clrAt = f >= 1 ? Infinity : Math.max(1.2, f * dist - 0.25);
       }
       clear = Math.min(clear, this.clrAt);
     }
