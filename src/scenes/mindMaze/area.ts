@@ -1471,16 +1471,6 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
   // band of light behind you read as a beam running down the screen (the owner: "the beam
   // tracking is super obnoxious and crowds the screen")
   const trail = new Trail(1400, 0.5, t, ours);
-  // windows onto the galaxy in the corridors' walls, warmer along the one true way in
-  {
-    const onWayCells = new Set<number>();
-    for (let c = plan.entry; c >= 0; c = toHeart.prev[c]) onWayCells.add(c);
-    const win = galaxyWindows({ arcs: walls.arcs, rin: RIN, outer: OUTER, floor: mazeFloor, onWay: (x, z) => onWayCells.has(cellAt(x, z)), rand: seeded(7177), t });
-    if (win) {
-      g.add(win);
-      ours.push(win.geometry, win.material as THREE.Material);
-    }
-  }
   const isFork = (c: number) => plan.cells[c].open.length >= 3 && plan.cells[c].plaza < 0;
   {
     const at: { x: number; y: number; z: number }[] = [];
@@ -1503,6 +1493,16 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     const n = COUNTS[k], a = ((Math.atan2(x, z) % TAU) + TAU) % TAU;
     return plan.index(k, Math.round((a / TAU) * n));
   };
+  // windows onto the galaxy in the corridors' walls, warmer along the one true way in
+  {
+    const onWayCells = new Set<number>();
+    for (let c = plan.entry; c >= 0; c = toHeart.prev[c]) onWayCells.add(c);
+    const win = galaxyWindows({ arcs: walls.arcs, rin: RIN, outer: OUTER, floor: mazeFloor, onWay: (x, z) => onWayCells.has(cellAt(x, z)), rand: seeded(7177), t });
+    if (win) {
+      g.add(win);
+      ours.push(win.geometry, win.material as THREE.Material);
+    }
+  }
   /** The paths light from the seat in the order of the ways you chose: a path whose forks you
       took first lights first, the others a breath after. */
   const orderPaths = () => {
