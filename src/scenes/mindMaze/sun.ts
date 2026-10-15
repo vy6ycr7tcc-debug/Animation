@@ -17,8 +17,11 @@ import { pointCloud, touch, seeded } from "../densities/roomKit";
 const { float, vec3, vec4, sin, cos, mix, smoothstep, pow, fract, floor, normalize, uniform, uv } = T;
 
 /** Where the sun hangs (the maze's frame) and its radius (m). */
-export const SUN_AT = new THREE.Vector3(0, 80, -16);
-export const SUN_R = 12;
+// low over the horizon beyond the sanctuary, left of the great volcano, so the view from above
+// (which always faces this way) keeps it at the top of the screen (the owner: "see the sun… and
+// the other horizon items")
+export const SUN_AT = new THREE.Vector3(-120, 40, -400);
+export const SUN_R = 24;
 
 export interface MazeSun {
   /** 0..1: contemplating, it flares and pours its light down. */

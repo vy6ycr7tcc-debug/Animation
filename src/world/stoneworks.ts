@@ -231,7 +231,7 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
     to them; floors and ceilings stay (only upright faces), and so does all stone beyond the
     wanderer or right at its feet. Every building's stone is this material, so it holds for all of
     them: the monuments outside, their lobbies and rooms, the pyramid's chambers. */
-function seeThrough(n: N): N {
+export function seeThrough(n: N): N {
   const a = T.cameraPosition, b = gpuUniforms.player.add(vec3(0, 1.2, 0)), ab = b.sub(a);
   const p = T.positionWorld;
   const t = T.dot(p.sub(a), ab).div(T.max(T.dot(ab, ab), 1e-3));
