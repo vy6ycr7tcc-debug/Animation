@@ -2345,6 +2345,8 @@ const gazeV = new THREE.Vector3(); // the gaze contemplation gives the camera, r
 const gazePts = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
 const gzEye = new THREE.Vector3(), gzGlow = new THREE.Vector3(), gzPeak = new THREE.Vector3(), gzUp = new THREE.Vector3();
 const Y_UP = new THREE.Vector3(0, 1, 0);
+/** A still of the maze's sun holds it nourishing. */
+let sunStill = false;
 function contemplationFrame(dt: number): void {
   const idle = performance.now() - lastTouch > INWARD_AFTER && Math.hypot(input.move.x, input.move.y) < 0.05 && !input.hold;
   const want = inwardOn && idle && S.mode === "play" && !startMap.isOpen && $("#menu").hidden && player.speed < 0.3 &&
@@ -2367,8 +2369,18 @@ function contemplationFrame(dt: number): void {
       /* fine */
     }
   }
+  // the mind's maze: contemplating, the view goes up to its sun, which flares and pours its
+  // light down into the wanderer's head (the owner: "nourishing the mind")
+  const mz = maze && inHall()?.hall === mazeHall && !maze.eagle() ? maze : null;
+  follow.skyward = !!mz && want;
+  if (mz && !sunStill) mz.setNourish(inwardK, gzEye.copy(player.pos).setY(player.pos.y + 1.6));
   if (!want) return void (follow.gaze = null);
   gazeFor += dt;
+  if (mz) {
+    const s = mz.sunWorld();
+    follow.gaze = gazeV.copy(s).add(gpTmp.set(Math.sin(S.t * 0.05), Math.sin(S.t * 0.04 + 2) * 0.4, Math.cos(S.t * 0.045)).multiplyScalar(s.distanceTo(player.pos) * 0.015));
+    return;
+  }
   // a narrated animation: hold it, with the slightest drift so the view breathes
   const g = gravityPoint();
   if (g) {
@@ -5056,6 +5068,15 @@ renderer
             return { eye: [o.x, 118, o.z + 44], look: [o.x, 0, o.z + 2] };
           }
           if (n === 3) return near("maze-arch-I", 2.2, 2.2);
+          if (n === 10) {
+            // contemplating in a corridor: the view up to the sun, flaring, its light pouring down
+            stand(0.6, 43.2, 0, 0);
+            const head = new THREE.Vector3(o.x + 0.6, mazeFloor(0, 43.2) + 1.6, o.z + 43.2);
+            sunStill = true;
+            maze?.setNourish(1, head);
+            const s = maze!.sunWorld();
+            return { eye: [o.x + 1.2, head.y + 0.3, o.z + 44.6], look: [s.x, s.y, s.z] };
+          }
           if (n === 6) {
             // a monument round the forecourt, its door toward the maze (&slot=0…6: the temple, the
             // pyramid far off, the densities, the adept, past choices, the veil, the descent)
