@@ -55,6 +55,7 @@ import { Readables, type Reading } from "./world/readables";
 import { Reader } from "./ui/reader";
 import { Heart } from "./ui/heart";
 import { Oracle } from "./ui/oracle";
+import { readAloud, sayAloud, setReadAloud, wakeSpeech } from "./ui/speak";
 import { Vessels } from "./world/vessels";
 import { TranscriptPlayer } from "./ui/transcriptPlayer";
 import { tourBar, type TourBarOwner } from "./ui/tourBar";
@@ -1127,7 +1128,9 @@ function templeWords(text: string, clip: AudioBuffer | null, ask = false): numbe
   riteWords.classList.add("on");
   spoken?.stop(0.6);
   spoken = clip ? audio.playClip(clip, 0.95) : null;
-  const dur = clip ? clip.duration : text.length / 14;
+  // no recording: in the phone's own voice when reading aloud is on (a little slower than reading)
+  const aloud = !clip && sayAloud(text);
+  const dur = clip ? clip.duration : text.length / (aloud ? 12 : 14);
   wordsOff = S.t + Math.max(5, dur + 2.2);
   return dur;
 }
@@ -1646,6 +1649,7 @@ function begin(e?: Event): void {
   }
   // Sound starts inside this touch (iOS requirement).
   audio.start();
+  wakeSpeech();
   audio.bell(587.33, 0.05, 6);
   const pt = e instanceof MouseEvent ? groundPoint(e.clientX, e.clientY) : null;
   const rp = pt ?? new THREE.Vector3(0, 0, 10);
@@ -4181,6 +4185,12 @@ function closeGuide(): void {
   input.enabled = S.mode === "play";
 }
 $("#guide-open").addEventListener("click", openGuide);
+{
+  const ra = $<HTMLInputElement>("#readaloud");
+  ra.checked = readAloud();
+  ra.addEventListener("change", () => setReadAloud(ra.checked));
+  if (!("speechSynthesis" in window)) ra.closest("label")!.hidden = true;
+}
 $("#heart-open").addEventListener("click", () => {
   setMenu(false);
   myHeart.openList();
@@ -4478,6 +4488,7 @@ $("#restart").addEventListener("click", () => {
 $("#return").addEventListener("click", () => {
   awake.want();
   audio.start();
+  wakeSpeech();
   audio.fade(true);
   S.mode = "play";
   input.enabled = true;
