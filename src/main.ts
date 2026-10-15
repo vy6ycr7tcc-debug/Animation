@@ -2495,12 +2495,13 @@ function contemplationFrame(dt: number): void {
       /* fine */
     }
   }
-  // the mind's maze: contemplating, the view goes up to its sun, which flares and pours its
-  // light down into the wanderer's head (the owner: "nourishing the mind")
+  // the mind's maze: contemplating, the view from above draws back and tilts toward the horizon
+  // (the whole maze, the volcanoes, the monuments, and its sun low ahead, which flares: "nourishing
+  // the mind"); playing, it stays steep over the walker
   const mz = maze && inHall()?.hall === mazeHall && !maze.eagle() ? maze : null;
-  follow.skyward = !!mz && want;
-  // lifted just over the walls (4.6 m), so the corridor never hides the sun
-  follow.eyeLift = mz ? 3.8 : 0;
+  follow.skyward = false;
+  follow.eyeLift = 0;
+  follow.overheadTilt = mz ? inwardK : 0;
   if (mz && !sunStill) mz.setNourish(inwardK, gzEye.copy(player.pos).setY(player.pos.y + 1.6));
   if (!want) return void (follow.gaze = null);
   gazeFor += dt;

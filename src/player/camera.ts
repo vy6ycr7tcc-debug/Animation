@@ -108,11 +108,16 @@ export class FollowCamera {
   /** A fixed overhead view (its yaw), or null: the mind's maze (the owner: every following view was
       "a nightmare"). It never turns; the stick moves the way it is pushed on the screen. */
   overhead: number | null = null;
-  overheadH = 10;
-  overheadBack = 15.4;
-  /** How far the view looks down (rad): ~25°, so the horizon (the sun, the volcanoes, the
-      monuments) shows along the top while the walker, ~33° below the lens, sits just under the
-      middle of the screen (the owner: tilted is "interesting but the character is at the bottom"). */
+  /** Playing: high and steep over the walker (the corridors round you read as a plan). */
+  overheadH = 15;
+  overheadBack = 3.5;
+  /** Contemplating (0..1, eased): the view draws back and tilts toward the horizon, 10 m up and
+      15.4 m back, looking ~25° down, the walker in the middle and the sun, the volcanoes and the
+      monuments along the top (the owner: the horizon view "in contemplation mode… that's how you
+      see the beautiful maze", while playing "it's just a bit much"). */
+  overheadTilt = 0;
+  tiltH = 10;
+  tiltBack = 15.4;
   overheadPitch = 0.44;
   railHeight = 6.2;
   /** Where the rail view looks: this high over the feet, 6 m ahead of the one it follows. */
@@ -439,15 +444,23 @@ export class FollowCamera {
         // high and steep, always from the same side: up on the screen is always the same way
         const oy = this.overhead;
         this.yaw = oy;
-        this.railPos.set(bx + Math.sin(oy) * this.overheadBack, player.y + this.overheadH, bz + Math.cos(oy) * this.overheadBack);
+        const k = THREE.MathUtils.smoothstep(this.overheadTilt, 0, 1);
+        const back = THREE.MathUtils.lerp(this.overheadBack, this.tiltBack, k), h = THREE.MathUtils.lerp(this.overheadH, this.tiltH, k);
+        this.railPos.set(bx + Math.sin(oy) * back, player.y + h, bz + Math.cos(oy) * back);
+        // steep: at a point just ahead of the walker; tilted: along a fixed pitch, toward the horizon
         const cp = Math.cos(this.overheadPitch), sp = Math.sin(this.overheadPitch);
-        this.railLook.set(this.railPos.x - Math.sin(oy) * cp * 10, this.railPos.y - sp * 10, this.railPos.z - Math.cos(oy) * cp * 10);
+        const tx = this.railPos.x - Math.sin(oy) * cp * 10, ty = this.railPos.y - sp * 10, tz = this.railPos.z - Math.cos(oy) * cp * 10;
+        this.railLook.set(
+          THREE.MathUtils.lerp(bx - Math.sin(oy) * 1.5, tx, k),
+          THREE.MathUtils.lerp(player.y + 0.6, ty, k),
+          THREE.MathUtils.lerp(bz - Math.cos(oy) * 1.5, tz, k),
+        );
       }
       const s = THREE.MathUtils.smoothstep(this.railK, 0, 1);
       this.cam.position.lerp(this.railPos, s);
       look.lerp(this.railLook, s);
     } else this.railInit = false;
-    if (this.inward > 0.001) {
+    if (this.inward > 0.001 && this.overhead === null) {
       const eye = new THREE.Vector3(player.x, player.y + 1.6 + this.eyeLift, player.z);
       const ahead = eye.clone().add(new THREE.Vector3(-Math.sin(this.yaw) * 20, 0.8, -Math.cos(this.yaw) * 20));
       if (!this.gazeHeld) (this.gazeAt.copy(look), (this.gazeHeld = true));
@@ -461,7 +474,7 @@ export class FollowCamera {
     // a view steered for you (the gravity point, contemplation's gaze) keeps to a natural pitch:
     // never craning up a pole or into the sky, never staring at the ground (the owner: "awkward
     // angle focus"); the hand's own look is never limited
-    const steer = Math.max(this.seatK < 0.5 ? THREE.MathUtils.smoothstep(this.frameK, 0, 1) : 0, this.inward > 0.001 ? THREE.MathUtils.smoothstep(this.inward, 0, 1) : 0);
+    const steer = Math.max(this.seatK < 0.5 ? THREE.MathUtils.smoothstep(this.frameK, 0, 1) : 0, this.inward > 0.001 && this.overhead === null ? THREE.MathUtils.smoothstep(this.inward, 0, 1) : 0);
     if (steer > 0.001) {
       const cp = this.cam.position, vx = look.x - cp.x, vz = look.z - cp.z, h = Math.hypot(vx, vz);
       if (h > 0.05) {
