@@ -110,8 +110,11 @@ export class FollowCamera {
   /** A fixed overhead view (its yaw), or null: the mind's maze (the owner: every following view was
       "a nightmare"). It never turns; the stick moves the way it is pushed on the screen. */
   overhead: number | null = null;
-  overheadH = 15;
-  overheadBack = 3.5;
+  overheadH = 12.5;
+  overheadBack = 8.4;
+  /** How far the overhead view looks down (rad): the horizon, the sun and the far volcanoes show
+      along the top of the screen. */
+  overheadPitch = 0.48;
   railHeight = 6.2;
   /** Where the rail view looks: this high over the feet, 6 m ahead of the one it follows. */
   railLookY = 0.8;
@@ -438,7 +441,8 @@ export class FollowCamera {
         const oy = this.overhead;
         this.yaw = oy;
         this.railPos.set(bx + Math.sin(oy) * this.overheadBack, player.y + this.overheadH, bz + Math.cos(oy) * this.overheadBack);
-        this.railLook.set(bx - Math.sin(oy) * 1.5, player.y + 0.6, bz - Math.cos(oy) * 1.5);
+        const cp = Math.cos(this.overheadPitch), sp = Math.sin(this.overheadPitch);
+        this.railLook.set(this.railPos.x - Math.sin(oy) * cp * 10, this.railPos.y - sp * 10, this.railPos.z - Math.cos(oy) * cp * 10);
       }
       const s = THREE.MathUtils.smoothstep(this.railK, 0, 1);
       this.cam.position.lerp(this.railPos, s);

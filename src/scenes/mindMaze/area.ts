@@ -26,7 +26,7 @@ import * as THREE from "three/webgpu";
 import { T, gpuUniforms, spectrum, type N } from "../../gpu/tsl";
 import { keyShadow } from "../../gpu/lightRig";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
-import { landStone, stoneBlock } from "../../world/stoneworks";
+import { landStone, seeThrough, stoneBlock } from "../../world/stoneworks";
 import { passable } from "../../world/solidity";
 import { Beings, type BeingModel } from "../../world/beings";
 import type { Sparks } from "../../world/life";
@@ -750,8 +750,9 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       parts[sector(x, z)].push(arcWall(w));
     }
     const m = landStone("sandstone_blocks_08", 0, 2.4, [0.62, 0.56, 0.56], { course: 0.62, block: 1.4, origin }, "granite");
-    // the maze's walls never thin away: what is beyond stays unseen (the view comes in before a wall instead)
-    m.maskNode = null;
+    // seen from above at a slant, a wall between the view and the walker opens a small window onto
+    // it (only near the line to its chest, never beyond it): the walker is never lost behind stone
+    m.maskNode = seeThrough(T.normalWorld);
     // the stone is dark granite, still (the owner: the stars inside "too much movement… just
     // static reflections like the soil"): its grain, joints and relief kept and shown by the warm
     // light (no metal: a near-black metal hid the texture), and in it, as in the sand underfoot,
