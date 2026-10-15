@@ -39,6 +39,7 @@ import { vnoise, hash2, hash3 } from "../../gpu/tsl";
 import type { Narration } from "../../core/narration";
 import { JOURNEY_ORIGIN, type Room, type Solid } from "../journey";
 import type { Reading } from "../../world/readables";
+import { buildSun, SUN_AT } from "./sun";
 
 const { attribute, cameraProjectionMatrix, cos, float, fract, mix, modelViewMatrix, normalize, positionGeometry, pow, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
 const V3 = THREE.Vector3;
@@ -348,6 +349,10 @@ export interface MazeRoom extends Room {
   portalAt(p: THREE.Vector3): string | null;
   /** The monuments' doors round the forecourt (world), for the stills. */
   doors(): { id: string; pos: THREE.Vector3 }[];
+  /** The sun over the maze (world): where contemplation looks. */
+  sunWorld(): THREE.Vector3;
+  /** Contemplating (0..1): the sun flares and pours its light down to the head (world). */
+  setNourish(k: number, head: THREE.Vector3): void;
 }
 export interface MazeDeps {
   /** The figure the beings wear (shared with the world's), once it has loaded. */
@@ -445,6 +450,8 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
   const uSanct = uniform(0); // within the sanctuary (its rings of gold show only there)
   const uReveal = uniform(0); // how far out from the centre the paths have lit (m along them)
   const origin = JOURNEY_ORIGIN;
+  const phone = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
+  const sunLight = new THREE.DirectionalLight(0xffc27a, 0.35);
 
   // the sky: the first density's, a storm-dark dome ember-lit low toward the volcano; over it the
   // storm ceiling that lights from within but never breaks, the volcano pouring slow fire beyond
@@ -497,7 +504,13 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     fill.position.copy(VOLC).normalize().multiplyScalar(-80).setY(40);
     fill.target.position.set(0, 0, 0);
     g.add(hemi, key, key.target, fill, fill.target);
+    // the sun's own light from above, warm and shadowless, stronger while it nourishes
+    sunLight.position.copy(SUN_AT);
+    sunLight.target.position.set(0, 0, 0);
+    g.add(sunLight, sunLight.target);
   }
+  // the sun over the maze: plasma and magma, nourishing the mind in contemplation
+  const sun = buildSun(g, t, ours, phone);
 
   // the ground: the first density's black volcanic sand, streaked with ash, glittering near with
   // grains of obsidian; rising gently toward the centre, far out into the dark
@@ -1233,6 +1246,12 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     },
     eagle: () => (seated ? new V3(0, centreY, 0).add(g.position) : null),
     doors: () => doorsAt.map((d) => ({ id: d.id, pos: new V3(d.x, mazeFloor(d.x, d.z), d.z).add(g.position) })),
+    sunWorld: () => SUN_AT.clone().add(g.position),
+    setNourish(k: number, head: THREE.Vector3) {
+      sun.nourish.value = k;
+      (sun.head.value as THREE.Vector3).copy(head).sub(g.position);
+      sunLight.intensity = 0.35 + 0.65 * k;
+    },
     portalAt(p: THREE.Vector3) {
       const x = p.x - g.position.x, z = p.z - g.position.z;
       for (const d of doorsAt) if (Math.hypot(x - d.x, z - d.z) < 2.4) return d.id;

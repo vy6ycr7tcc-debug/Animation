@@ -226,7 +226,7 @@ export function runShot(ctx: ShotCtx): void {
     return;
   }
 
-  const vm = /^(veil|descent|maze)-(door|\d)$/.exec(id);
+  const vm = /^(veil|descent|maze)-(door|\d+)$/.exec(id);
   const place = vm ? (vm[1] === "veil" ? ctx.veil : vm[1] === "maze" ? ctx.maze : ctx.descent) : undefined;
   if (vm && place) {
     const { veil: _v, descent: _d, maze: _m, ...rest } = ctx;

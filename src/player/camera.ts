@@ -51,6 +51,8 @@ export class FollowCamera {
   /** The eagle's view (the mind's maze, seated at its centre): the camera rises on a slow crane
       high over this point and looks down on it, circling very slowly. */
   eagle: THREE.Vector3 | null = null;
+  /** A steered view may look high into the sky (the maze's sun in contemplation). */
+  skyward = false;
   private eagleK = 0;
   private eagleAt = new THREE.Vector3();
 
@@ -178,7 +180,7 @@ export class FollowCamera {
     if (steer > 0.001) {
       const cp = this.cam.position, vx = look.x - cp.x, vz = look.z - cp.z, h = Math.hypot(vx, vz);
       if (h > 0.05) {
-        const el = Math.atan2(look.y - cp.y, h), lim = THREE.MathUtils.clamp(el, -0.3, 0.22);
+        const el = Math.atan2(look.y - cp.y, h), lim = THREE.MathUtils.clamp(el, -0.3, this.skyward ? 1.2 : 0.22);
         if (lim !== el) look.y += (cp.y + Math.tan(lim) * h - look.y) * steer;
       }
     }
