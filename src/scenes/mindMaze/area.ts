@@ -40,6 +40,7 @@ import type { Narration } from "../../core/narration";
 import { JOURNEY_ORIGIN, type Room, type Solid } from "../journey";
 import type { Reading } from "../../world/readables";
 import { buildSun, SUN_AT } from "./sun";
+import { galaxyWindows } from "./windows";
 import { forkRings, Palms, TouchMap, Trail } from "./mechanics";
 
 const { attribute, cameraProjectionMatrix, cos, float, fract, mix, modelViewMatrix, normalize, positionGeometry, pow, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
@@ -485,6 +486,9 @@ export interface MazeRoom extends Room {
   /** The way the corridor runs where you stand (world), the one of its two directions nearer
       `heading`, as a camera yaw; null in a plaza, the sanctuary or the forecourt (free there). */
   railYaw(p: THREE.Vector3, heading: number): number | null;
+  /** The maze's centre (world), and whether the last way railYaw gave runs along a ring (so the
+      view may follow the ring's curve behind you). */
+  railArc(): THREE.Vector3 | null;
   /** How far along from `a` to `b` (world) the view is clear of the maze's walls, 0..1. */
   clearance(a: THREE.Vector3, b: THREE.Vector3): number;
   /** Contemplating (0..1): the sun flares and pours its light down to the head (world). */
@@ -1467,6 +1471,16 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
   // band of light behind you read as a beam running down the screen (the owner: "the beam
   // tracking is super obnoxious and crowds the screen")
   const trail = new Trail(1400, 0.5, t, ours);
+  // windows onto the galaxy in the corridors' walls, warmer along the one true way in
+  {
+    const onWayCells = new Set<number>();
+    for (let c = plan.entry; c >= 0; c = toHeart.prev[c]) onWayCells.add(c);
+    const win = galaxyWindows({ arcs: walls.arcs, rin: RIN, outer: OUTER, floor: mazeFloor, onWay: (x, z) => onWayCells.has(cellAt(x, z)), rand: seeded(7177), t });
+    if (win) {
+      g.add(win);
+      ours.push(win.geometry, win.material as THREE.Material);
+    }
+  }
   const isFork = (c: number) => plan.cells[c].open.length >= 3 && plan.cells[c].plaza < 0;
   {
     const at: { x: number; y: number; z: number }[] = [];
@@ -1508,6 +1522,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
   };
   const cellGeo = plan.cells.map((c) => ({ k: c.k, a0: c.a0, a1: c.a1 }));
   let seatedT = 0;
+  let railRing = false;
   let contactT = 0;
 
   const local = new V3();
@@ -1656,6 +1671,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     },
     state: () => ({ marks: palms.count, visited: visited.reduce((a, v) => a + v, 0), forks: forks.filter((f) => f >= 0).length, trail: trail.length, cell: curCell, contactT }),
     sunWorld: () => SUN_AT.clone().add(g.position),
+    railArc: () => (railRing ? g.position : null),
     debugRoute: (i) => {
       const p = paths[Math.min(paths.length - 1, i)].pts, out: THREE.Vector3[] = [];
       for (let k = 0; k < p.length; k += 3) out.push(new V3(p[k], p[k + 1], p[k + 2]).add(g.position));
@@ -1664,6 +1680,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     railYaw: (p, heading) => {
       const x = p.x - g.position.x, z = p.z - g.position.z;
       const c = cellAt(x, z);
+      railRing = false;
       if (c < 0 || plan.cells[c].plaza >= 0) return null;
       const r = Math.hypot(x, z) || 1;
       const hx = -Math.sin(heading), hz = -Math.cos(heading);
@@ -1671,6 +1688,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       const tx = z / r, tz = -x / r, ux = x / r, uz = z / r;
       let bx = tx, bz = tz, bd = tx * hx + tz * hz;
       if (bd < 0) (bx = -tx), (bz = -tz), (bd = -bd);
+      railRing = true;
       const k = Math.floor((r - RIN) / CW), a = Math.atan2(x, z);
       for (let side = 0; side < 2; side++) {
         const rb = RAD(k + side);
@@ -1684,7 +1702,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
         }
         if (shut) continue;
         const sgn = rb > r ? 1 : -1, d = (ux * hx + uz * hz) * sgn;
-        if (d > bd) (bx = ux * sgn), (bz = uz * sgn), (bd = d);
+        if (d > bd) (bx = ux * sgn), (bz = uz * sgn), (bd = d), (railRing = false);
       }
       return Math.atan2(-bx, -bz);
     },

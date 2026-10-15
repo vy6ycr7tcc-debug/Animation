@@ -71,6 +71,20 @@ export class FollowCamera {
   /** A flat line-of-sight test (the maze's own walls, from its plan): how far from a to b is
       clear, 0..1. The view stands in front of the first wall, easing, never snapping. */
   clearance: ((a: THREE.Vector3, b: THREE.Vector3) => number) | null = null;
+  /** The maze's centre (world) while the way runs along a ring: the view then stands on the
+      ring's own curve behind you, so the line from it to you stays inside the corridor and no
+      wall swings in between (no pulling in and out). Null: a straight line behind. */
+  arcCentre: THREE.Vector3 | null = null;
+  private arcK = 0;
+  private arcAt = new THREE.Vector2();
+  /** Where the view stands behind the target along the ring at horizontal distance h (xz). */
+  private arcPoint(h: number, fx: number, fz: number): THREE.Vector2 {
+    const o = this.arcCentre!;
+    const rx = this.target.x - o.x, rz = this.target.z - o.z, r = Math.max(4, Math.hypot(rx, rz));
+    const th = Math.atan2(rx, rz), s = fx * Math.cos(th) - fz * Math.sin(th) >= 0 ? 1 : -1;
+    const tc = th - (s * h) / r;
+    return this.arcAt.set(o.x + Math.sin(tc) * r, o.z + Math.cos(tc) * r);
+  }
   private clrT = 0;
   private clrAt = Infinity;
   private clrB = new THREE.Vector3();
@@ -155,7 +169,10 @@ export class FollowCamera {
       this.clrT -= dt;
       if (this.clrT <= 0) {
         this.clrT = 1 / 30;
-        this.clrB.set(this.target.x - fx * cp * dist, this.target.y, this.target.z - fz * cp * dist);
+        if (this.arcK > 0.5) {
+          const a = this.arcPoint(cp * dist, fx, fz);
+          this.clrB.set(a.x, this.target.y, a.y);
+        } else this.clrB.set(this.target.x - fx * cp * dist, this.target.y, this.target.z - fz * cp * dist);
         const f = this.clearance(this.target, this.clrB);
         this.clrAt = f >= 1 ? Infinity : Math.max(1.2, f * dist - 0.25);
       }
@@ -164,6 +181,12 @@ export class FollowCamera {
     this.effDist += (clear - this.effDist) * Math.min(1, dt * (clear < this.effDist ? (this.clearance ? 7 : 10) : this.clearance ? 1.4 : 2));
     const ed = this.effDist;
     const followPos = new THREE.Vector3(this.target.x - fx * cp * ed, this.target.y + sp * ed, this.target.z - fz * cp * ed);
+    this.arcK += ((this.arcCentre && this.rail !== null && this.sinceLook > 1.2 ? 1 : 0) - this.arcK) * Math.min(1, dt * 1.6);
+    if (this.arcK > 0.001 && this.arcCentre) {
+      const a = this.arcPoint(cp * ed, fx, fz), k = THREE.MathUtils.smoothstep(this.arcK, 0, 1);
+      followPos.x += (a.x - followPos.x) * k;
+      followPos.z += (a.y - followPos.z) * k;
+    }
     const floor = Math.max(heightAt(followPos.x, followPos.z), this.underwater ? -1e9 : WATER_Y) + 0.35;
     // under the water, stay under it (no bobbing through the surface)
     if (this.underwater) followPos.y = Math.min(followPos.y, WATER_Y - 0.3);

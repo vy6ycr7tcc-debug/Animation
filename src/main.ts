@@ -483,7 +483,10 @@ function mazeSteleFrame(): void {
   // and the view keeps to the corridors (the owner: the camera "fucking annoying"): close behind,
   // settling along the corridor's way as you walk, standing in front of any wall, never behind one
   follow.rail = inMaze && maze ? maze.railYaw(player.pos, player.heading) : null;
-  follow.nearDist = inMaze ? 4.8 : null;
+  follow.arcCentre = inMaze && maze ? maze.railArc() : null;
+  follow.nearDist = inMaze ? 4.6 : null;
+  // and in the maze you are the orb (the owner: "become the ball thingy for the maze")
+  wanderer.orbMode = inMaze;
   follow.clearance = inMaze && maze ? mazeClear : null;
   // through one of the forecourt's doors: on to that world, the way "where next" goes there
   const door = inMaze && !mazeGone && !crossing ? maze?.portalAt(player.pos) : null;
