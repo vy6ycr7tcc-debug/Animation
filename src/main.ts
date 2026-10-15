@@ -2463,7 +2463,7 @@ try {
 } catch {
   /* no storage: on */
 }
-const INWARD_AFTER = 15000;
+const INWARD_AFTER = 8000;
 /** Sitting at a lesson's seat or a monument room's (not with an archetype, whose panel is open). */
 const lessonSeated = (): boolean => sitting.phase === "seated" && (!!tourScenes.seatedId || !!inHall()?.journey.sitting);
 let tourWatchK = 0;
