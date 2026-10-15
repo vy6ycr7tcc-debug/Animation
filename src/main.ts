@@ -702,7 +702,7 @@ function checkFresh(returning: boolean): void {
       reloadTo(live);
     } else if (!toldNewer) {
       toldNewer = true;
-      whisper("A newer version of the game is ready. Close it and open it again to have it.", 8000);
+      whisper("A newer version of the game is ready: ⋮ → Load the newest version.", 8000);
     }
   });
 }
@@ -3887,6 +3887,32 @@ $("#about-open").addEventListener("click", () => {
   $<HTMLButtonElement>("#about-close").focus();
 });
 $("#about-close").addEventListener("click", () => ($("#about").hidden = true));
+/* Load the newest version, whatever the phone has kept (the owner: "it really sticks to whatever is
+   the prior version"). Your place is saved; the service worker and its kept copy of the game are let
+   go (the downloaded recordings, models and textures stay), and the page is asked for again by a
+   new address, so no cache can answer with the old one. */
+$("#update-now").title = `This version: ${__BUILD__}`;
+$("#update-now").addEventListener("click", () => {
+  setMenu(false);
+  try {
+    persist();
+  } catch {
+    /* fine */
+  }
+  whisper("Loading the newest version…", 4000);
+  void (async () => {
+    try {
+      const regs = (await navigator.serviceWorker?.getRegistrations()) ?? [];
+      await Promise.all(regs.map((r) => r.unregister()));
+      for (const k of await caches.keys()) if (k !== "inward-journey-assets") await caches.delete(k);
+    } catch {
+      /* go on regardless */
+    }
+    const u = new URL(location.href);
+    u.searchParams.set("v", String(Date.now()));
+    location.replace(u.toString());
+  })();
+});
 $("#howto-open").addEventListener("click", () => {
   setMenu(false);
   // on a computer, the keys come first
