@@ -499,10 +499,10 @@ function mazeSteleFrame(): void {
   const fp = false;
   follow.firstPerson = fp;
   input.rollMode = false;
-  follow.targetLift = inMaze && !follow.eagle ? 0.85 : null;
+  follow.targetLift = inMaze && !follow.eagle ? 0.7 : null;
   follow.rail = inMaze && maze && !fp ? maze.railYaw(player.pos, player.heading) : null;
   follow.arcCentre = inMaze && maze && !fp ? maze.railArc() : null;
-  follow.nearDist = inMaze ? 3.8 : null;
+  follow.nearDist = inMaze ? 3.4 : null;
   wanderer.orbMode = inMaze;
   // the golden sphere: always in sight in the maze, rolling as it goes, a soft shadow under it
   if (inMaze && maze) goldSphere.sun.value.copy(maze.sunWorld());

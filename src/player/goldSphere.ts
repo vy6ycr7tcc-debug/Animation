@@ -12,7 +12,7 @@ import { T, hash3 } from "../gpu/tsl";
 
 const { float, vec3, vec4, mix, smoothstep, pow, max, normalize, dot, reflect, uniform, length, abs, sin, fract } = T;
 
-export const GOLD_R = 0.7;
+export const GOLD_R = 0.45;
 
 export class GoldSphere {
   readonly mesh: THREE.Mesh;
@@ -43,7 +43,7 @@ export class GoldSphere {
     const hot = pow(rs, float(260)).mul(5).add(pow(rs, float(18)).mul(0.6));
     const mirror = sky.add(vec3(1.0, 0.6, 0.3).mul(band)).add(vec3(0.9, 0.92, 1.0).mul(star)).add(vec3(1.0, 0.86, 0.6).mul(hot));
     // gold takes its colour from what it mirrors; a fresnel edge brightens toward white-gold
-    const gold = vec3(1.0, 0.74, 0.32);
+    const gold = vec3(1.0, 0.66, 0.2);
     const fres = pow(float(1).sub(max(dot(N, V), 0)), float(4));
     const P = T.positionGeometry.div(GOLD_R); // in the sphere's own (rolling) frame
     // engraved rings: the seed of life, seven circles over the sphere, cut as fine dark grooves
@@ -54,7 +54,7 @@ export class GoldSphere {
       groove = max(groove, smoothstep(0.022, 0.0, d));
     }
     const shimmer = sin(T.positionGeometry.y.mul(90)).mul(0.015).add(1);
-    const col = gold.mul(mirror.mul(1.9).add(0.03)).mul(shimmer).mul(float(1).sub(groove.mul(0.55))).add(vec3(1.0, 0.9, 0.7).mul(fres.mul(0.55)));
+    const col = gold.mul(mirror.mul(2.3).add(0.05)).mul(shimmer).mul(float(1).sub(groove.mul(0.6))).add(vec3(1.0, 0.78, 0.38).mul(fres.mul(0.4)));
     m.colorNode = vec4(col, 1);
     this.mesh = new THREE.Mesh(geo, m);
     this.mesh.visible = false;
