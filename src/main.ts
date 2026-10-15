@@ -461,7 +461,6 @@ function mazeSteleFrame(): void {
     const d = DESTS.find((q) => q.id === door);
     if (d) {
       mazeGone = true;
-      whisper(d.label, 3000);
       d.go();
     }
   }

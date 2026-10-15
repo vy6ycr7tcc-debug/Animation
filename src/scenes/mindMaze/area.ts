@@ -375,32 +375,6 @@ export const MAZE_PORTALS: { id: string; label: string; col: [number, number, nu
 /** Where the doors stand: round the forecourt, clear of the way in at the south. */
 const PORTAL_R = OUTER + 6.2;
 const portalAngle = (n: number) => 0.62 + (n / (MAZE_PORTALS.length - 1)) * (TAU - 1.24);
-/** A name in glowing letters, for over a door. */
-function nameplate(text: string, col: [number, number, number]): THREE.Mesh {
-  const c = document.createElement("canvas");
-  c.width = 1024;
-  c.height = 160;
-  const x = c.getContext("2d");
-  const tex = new THREE.CanvasTexture(c);
-  if (x) {
-    x.textAlign = "center";
-    x.textBaseline = "middle";
-    x.font = "500 64px Georgia, 'Times New Roman', serif";
-    const label = text.toUpperCase().split("").join(String.fromCharCode(8202));
-    x.shadowColor = `rgba(${Math.round(col[0] * 255)},${Math.round(col[1] * 255)},${Math.round(col[2] * 255)},0.95)`;
-    x.shadowBlur = 24;
-    x.fillStyle = "rgba(255,220,160,0.5)";
-    x.fillText(label, 512, 84);
-    x.shadowBlur = 6;
-    x.fillStyle = "rgba(255,240,214,1)";
-    x.fillText(label, 512, 84);
-  }
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
-  const tx = T.texture(tex);
-  m.colorNode = vec4(tx.rgb.mul(tx.a).mul(1.1), 1);
-  return new THREE.Mesh(new THREE.PlaneGeometry(7.2, 1.125), m);
-}
 
 /* ---------------------------------------------------------------- the thread of electric light */
 /** Polylines (each a list of [x, y, z]) as hairline ribbons carrying, at each end of each
@@ -673,7 +647,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
      not copied), each turned so its own door faces the maze, its front on the forecourt's edge.
      Walk up to it and in through its door, and you are there. The pyramid is too great to stand
      here: it rises far off as a landmark, with a door of its own in the forecourt. ---- */
-  const doorsAt: { id: string; x: number; z: number; told?: boolean }[] = [];
+  const doorsAt: { id: string; x: number; z: number }[] = [];
   const farIds = new Set<string>();
   lanes.length = 0;
   {
@@ -761,11 +735,6 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       c.rotation.y = a;
       g.add(c);
       ours.push(m);
-      const plate = nameplate(p.label, p.col);
-      plate.position.set(x, y + 5.35, z);
-      plate.rotation.y = a + Math.PI; // read from within the forecourt (facing the maze)
-      g.add(plate);
-      ours.push(plate.geometry, plate.material as THREE.Material);
     });
     const m = landStone("sandstone_blocks_08", 0, 2.2, [1, 1, 1.02], { origin }, "granite");
     const mesh = new THREE.Mesh(merge(parts), m);
@@ -1301,14 +1270,6 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       // arrived at the centre: the paths light, spreading out from the seat, and stay lit
       if (rc < RIN - 0.5) revealed = true;
       if (revealed) uReveal.value = Math.min(900, (uReveal.value as number) + dt * (seated ? 40 : 22));
-      // a monument's name is whispered as you come before it (no sign hung in front of it)
-      for (const d of doorsAt) {
-        const near = Math.hypot(local.x - d.x, local.z - d.z);
-        if (near < 16 && !d.told) {
-          d.told = true;
-          whisper(`${MAZE_PORTALS.find((q) => q.id === d.id)?.label ?? ""}. Its door leads in.`, 4200);
-        } else if (near > 30) d.told = false;
-      }
       astro.rotation.y += dt * (0.05 + 0.04 * (uCalm.value as number));
       astro.children[0].rotation.x = Math.sin(clock.u.value * 0.07) * 0.08;
       for (const a of arts) {
