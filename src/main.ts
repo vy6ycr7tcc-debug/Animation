@@ -479,6 +479,35 @@ const mazeClear = (a: THREE.Vector3, b: THREE.Vector3): number => maze?.clearanc
     (push a little right and it circled on, the view chasing it). Held, the frame follows the view
     at most 0.7 rad/s; let go, it is the view's again. */
 let mazeWalk = false;
+let toldMazeTap = false;
+/** In the maze a tap walks you there along the corridors: the points still to walk through. */
+let mazeRoute: THREE.Vector2[] = [];
+/** Set course for a point; in the maze, by the corridors (never straight into a wall). */
+function courseTo(x: number, z: number): void {
+  const inMaze = !!maze && inHall()?.hall === mazeHall;
+  const way = inMaze ? maze!.route(player.pos, new THREE.Vector3(x, 0, z)) : null;
+  if (way && way.length) {
+    mazeRoute = way;
+    player.target = mazeRoute.shift()!;
+  } else {
+    mazeRoute = [];
+    player.target = new THREE.Vector2(x, z);
+  }
+}
+if (location.search.includes("shot=")) (window as unknown as { __maze: unknown }).__maze = { courseTo, pos: () => [player.pos.x, player.pos.z], origin: () => [JOURNEY_ORIGIN.x, JOURNEY_ORIGIN.z], left: () => mazeRoute.length, target: () => player.target && [player.target.x, player.target.y] };
+/** Walk the maze's way: on to the next point a little before reaching each one; the stick takes over. */
+function mazeRouteFrame(): void {
+  // run while much of the way is left, walking the last stretch
+  player.runCourse = mazeRoute.length > 3;
+  if (!mazeRoute.length) return;
+  const t = player.target;
+  if (!t || Math.hypot(input.move.x, input.move.y) > 0.2) {
+    mazeRoute = [];
+    player.runCourse = false;
+    return;
+  }
+  if (Math.hypot(t.x - player.pos.x, t.y - player.pos.z) < (player.runCourse ? 2 : 1.2)) player.target = mazeRoute.shift()!;
+}
 let moveYaw = 0;
 function stickYaw(dt: number): number {
   const held = Math.hypot(input.move.x, input.move.y) > 0.12;
@@ -498,6 +527,10 @@ function mazeSteleFrame(): void {
   player.walkOnly = inMaze;
   if (inMaze && player.flying) player.flying = false;
   document.body.classList.toggle("walkonly", inMaze);
+  if (inMaze && !toldMazeTap && !crossing) {
+    toldMazeTap = true;
+    whisper("Tap the floor where you want to go: the way through the corridors is walked for you", 6000);
+  }
   follow.eagle = inMaze ? (maze?.eagle() ?? null) : null;
   if (inMaze && maze) follow.eagleH = maze.eagleHeight();
   // the veil: in the maze the following view stays below the walls' tops
@@ -527,6 +560,7 @@ function mazeSteleFrame(): void {
   // turns under the thumb
   follow.overhead = inMaze && follow.chase ? 0 : null;
   mazeWalk = false;
+  mazeRouteFrame();
   if (maze) maze.veilShift(inMaze && follow.chase ? Math.max(0, camera.position.distanceTo(player.pos) - 5) : 0);
   // the golden sphere rests (kept for a later use)
   goldSphere.update(player.pos, false, heightAt);
@@ -885,7 +919,7 @@ input.onTap = (x, y, touch) => {
       else {
         stopAuto();
         readingFor = r;
-        player.target = new THREE.Vector2(r.pos.x, r.pos.z);
+        courseTo(r.pos.x, r.pos.z);
       }
       return;
     }
@@ -902,7 +936,7 @@ input.onTap = (x, y, touch) => {
   const p = groundPoint(x, y);
   if (!p) return;
   stopAuto();
-  player.target = new THREE.Vector2(p.x, p.z);
+  courseTo(p.x, p.z);
   if (p.y <= WATER_Y + 0.05) water.ripple(p.x, p.z, 0.6, S.t);
   else footprints.place(p.x, p.y, p.z, player.heading, S.t);
 };
@@ -5167,6 +5201,32 @@ renderer
             player.target = new THREE.Vector2(o.x + Math.sin(a) * (R + 3), o.z + Math.cos(a) * (R + 3));
             const fy = mazeFloor(Math.sin(a) * M, Math.cos(a) * M);
             return { eye: [o.x + Math.sin(a + 0.05) * (M - 3), fy + 2.2, o.z + Math.cos(a + 0.05) * (M - 3)], look: [o.x + Math.sin(a) * R, fy + 1.3, o.z + Math.cos(a) * R] };
+          }
+          if (n === 19 && maze) {
+            // a tap's way through the maze (&ang, &rad: where to, room frame): set course from the way in
+            // and walk it; window.__routeStats keeps how far it got (with &live=S the game runs S seconds)
+            const q = new URLSearchParams(location.search);
+            const ang = Number(q.get("ang") ?? 1.2), rad = Number(q.get("rad") ?? 90);
+            stand(0, OUT + 4.5, 0, 0);
+            const tx = o.x + Math.sin(ang) * rad, tz = o.z + Math.cos(ang) * rad;
+            courseTo(tx, tz);
+            const st = { points: mazeRoute.length + 1, walked: 0, left: 0, dist: 0, stuck: 0 };
+            (window as unknown as { __routeStats: typeof st }).__routeStats = st;
+            const last = player.pos.clone();
+            let acc = 0, still = 0;
+            camStep = (dt: number) => {
+              acc += dt;
+              if (acc < 0.25) return;
+              const step = player.pos.distanceTo(last);
+              st.walked += step;
+              still = step < 0.05 && player.target ? still + acc : 0;
+              st.stuck = Math.max(st.stuck, still);
+              acc = 0;
+              last.copy(player.pos);
+              st.left = mazeRoute.length + (player.target ? 1 : 0);
+              st.dist = Math.hypot(tx - player.pos.x, tz - player.pos.z);
+            };
+            return { eye: [o.x, mazeFloor(0, OUT) + 40, o.z + OUT + 20], look: [o.x, 0, o.z + OUT - 20] };
           }
           if (n === 18 && maze) {
             // first person down a corridor toward a galaxy window that ends it (&w=<i> picks one)
