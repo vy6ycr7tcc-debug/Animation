@@ -65,6 +65,10 @@ Gate: `?shot=` frames of (1) the composer overlay, (2) the menu with the heart e
 The oracle backend is live. Exact contract — implement precisely this:
 
 - `POST https://oracle-station.vy6ycr7tcc.workers.dev/oracle`
+- Headers: `content-type: application/json` AND `x-oracle-key` with this exact value:
+  `a16af48d2554193869f51e95784801297ea36eb2bf6d9193c3004f2758ad0d97`
+  (shared secret — abuse protection; the worker rejects requests without it.
+  It ships in client JS by design; the real spend ceiling is the worker's per-IP quota.)
 - Request: `{ mode: "overall", question: string, heart?: string[] }`
   - `mode: "overall"` — the main oracle: it opens by naming the 1–3 of the 22 archetypes at play, then reflects. This is the mode for both trigger points below.
   - `heart`: array of the player's note texts, max 8 entries × 400 chars. Include ONLY when the player explicitly enables "Attach my heart" for that question. Never otherwise. Never persisted server-side (it isn't).
