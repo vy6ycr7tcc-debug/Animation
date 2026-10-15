@@ -40,7 +40,7 @@ import type { Narration } from "../../core/narration";
 import { JOURNEY_ORIGIN, type Room, type Solid } from "../journey";
 import type { Reading } from "../../world/readables";
 import { buildSun, SUN_AT } from "./sun";
-import { galaxyWindows } from "./windows";
+import { galaxyWindows, windowSpots } from "./windows";
 import { forkRings, Palms, TouchMap, Trail } from "./mechanics";
 
 const { attribute, cameraProjectionMatrix, cos, float, fract, mix, modelViewMatrix, normalize, positionGeometry, pow, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
@@ -477,6 +477,8 @@ export interface MazeRoom extends Room {
   /** Stills: walk the true way in, `steps` cells, leaving `touches` palms; where it ends. */
   debugExplore(steps: number, touches: number): { x: number; z: number; dx: number; dz: number };
   debugSeated(sec: number): void;
+  /** Stills: the galaxy windows (room frame), each with the way it looks and whether it ends a corridor. */
+  debugWindows(): { x: number; z: number; nx: number; nz: number; end: boolean }[];
   /** Tests: the corridors' way from reading `i` in to the seat (world points, every half metre). */
   debugRoute(i: number): THREE.Vector3[];
   /** What the visit holds (tests): marks left, cells walked, forks chosen, road walked. */
@@ -778,11 +780,11 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       const base = top.sub(WALL_H);
       const hb = pr.y.sub(base);
       const upright = float(1).sub(T.abs(nW.y));
-      const strip = smoothstep(0.1, 0.2, hb).mul(smoothstep(0.34, 0.24, hb)).mul(upright).mul(float(1).sub(smoothstep(10, 34, camD)));
+      const strip = smoothstep(0.06, 0.11, hb).mul(smoothstep(0.2, 0.15, hb)).mul(upright).mul(float(1).sub(smoothstep(10, 34, camD)));
       const vq = vnoise(pr.xz.mul(0.55).add(pr.y.mul(0.32))).mul(2).sub(1);
       const vein = pow(float(1).sub(T.abs(vq)), float(46)).mul(upright).mul(float(1).sub(smoothstep(4, 16, camD)));
       m.emissiveNode = vec3(1.0, 0.86, 0.68).mul(glit).mul(1.1).mul(float(1).sub(wallVeil)).add(gilt)
-        .add(vec3(1.0, 0.66, 0.34).mul(strip.mul(0.22))).add(vec3(1.0, 0.78, 0.42).mul(vein.mul(0.16)));
+        .add(vec3(1.0, 0.66, 0.34).mul(strip.mul(0.07))).add(vec3(1.0, 0.78, 0.42).mul(vein.mul(0.16)));
     }
     // touched, a wall answers (the owner, after the series Invasion: not rings): the stone wakes
     // into a sheet of turbulent cyan energy spreading from the touch, nebulous clouds flowing
@@ -1684,6 +1686,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     state: () => ({ marks: palms.count, visited: visited.reduce((a, v) => a + v, 0), forks: forks.filter((f) => f >= 0).length, trail: trail.length, cell: curCell, contactT }),
     sunWorld: () => SUN_AT.clone().add(g.position),
     railArc: () => (railRing ? g.position : null),
+    debugWindows: () => windowSpots,
     debugRoute: (i) => {
       const p = paths[Math.min(paths.length - 1, i)].pts, out: THREE.Vector3[] = [];
       for (let k = 0; k < p.length; k += 3) out.push(new V3(p[k], p[k + 1], p[k + 2]).add(g.position));

@@ -12,7 +12,7 @@ import { T, hash3 } from "../gpu/tsl";
 
 const { float, vec3, vec4, mix, smoothstep, pow, max, normalize, dot, reflect, uniform, length, abs, sin, fract } = T;
 
-export const GOLD_R = 0.42;
+export const GOLD_R = 0.7;
 
 export class GoldSphere {
   readonly mesh: THREE.Mesh;
@@ -110,7 +110,7 @@ export class ReachLine {
     const ends = smoothstep(0.0, 0.12, s).mul(smoothstep(1.0, 0.55, s));
     const pulse = pow(sin(s.mul(9).sub(t.mul(2.2))).mul(0.5).add(0.5), float(6)).mul(0.6).add(0.4);
     const soft = float(1).sub(sd.mul(sd));
-    m.colorNode = vec4(vec3(1.0, 0.8, 0.45).mul(ends.mul(pulse).mul(soft).mul(this.k).mul(0.5)), 1);
+    m.colorNode = vec4(vec3(1.0, 0.8, 0.45).mul(ends.mul(pulse).mul(soft).mul(this.k).mul(0.22)), 1);
     this.mesh = new THREE.Mesh(geo, m);
     this.mesh.frustumCulled = false;
     this.mesh.visible = false;
@@ -122,10 +122,10 @@ export class ReachLine {
     this.k.value = this.kv;
     this.mesh.visible = this.kv > 0.01;
     if (!this.mesh.visible) return;
-    const N = ReachLine.N, W = 0.035;
-    const x0 = feet.x + hx * 0.5, z0 = feet.z + hz * 0.5;
-    const x1 = feet.x + hx * 1.7, z1 = feet.z + hz * 1.7;
-    const x2 = feet.x + ax * 3.4, z2 = feet.z + az * 3.4;
+    const N = ReachLine.N, W = 0.012;
+    const x0 = feet.x + hx * 1.1, z0 = feet.z + hz * 1.1;
+    const x1 = feet.x + hx * 2.2, z1 = feet.z + hz * 2.2;
+    const x2 = feet.x + ax * 4.2, z2 = feet.z + az * 4.2;
     for (let i = 0; i < N; i++) {
       const u = i / (N - 1), a = (1 - u) * (1 - u), b = 2 * u * (1 - u), c = u * u;
       const x = a * x0 + b * x1 + c * x2, z = a * z0 + b * z1 + c * z2;

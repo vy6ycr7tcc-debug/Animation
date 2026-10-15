@@ -92,7 +92,7 @@ export class FollowCamera {
       looking the way you roll, with only a slight sway as it rolls and leans into a turn (never a
       bob). The eagle's view at the centre and contemplation's sun still take over. */
   firstPerson = false;
-  fpEye = 0.42;
+  fpEye = 0.7;
   private fpK = 0;
   private fpRoll = 0;
   private fpYawLast = 0;

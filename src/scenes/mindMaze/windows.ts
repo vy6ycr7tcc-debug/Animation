@@ -11,7 +11,7 @@
    One merged mesh, one draw; built once; nothing per frame but the clock. */
 import * as THREE from "three/webgpu";
 import { T, hash3, vnoise, type N } from "../../gpu/tsl";
-import { merge } from "../densities/roomKit";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { passable } from "../../world/solidity";
 import type { WallArc, WallBox } from "./area";
 
@@ -35,7 +35,12 @@ export interface WindowOpts {
 
 const W = 2.3, H = 3.3, SPACING = 15;
 
+/** Where each window stands and which way it looks (room frame), for still frames. */
+export const windowSpots: { x: number; z: number; nx: number; nz: number; end: boolean }[] = [];
+
 export function galaxyWindows(o: WindowOpts): THREE.Mesh | null {
+  windowSpots.length = 0;
+  let endWall = false;
   const parts: THREE.BufferGeometry[] = [];
   // an arch: a rectangle with a round head, in its own plane (x across, y up), corner at (0, 0)
   const shape = new THREE.Shape();
@@ -69,6 +74,7 @@ export function galaxyWindows(o: WindowOpts): THREE.Mesh | null {
     g.deleteAttribute("uv");
     g.deleteAttribute("normal");
     parts.push(g);
+    windowSpots.push({ x: cx, z: cz, nx, nz, end: endWall });
   };
   for (const w of o.arcs) {
     if (w.r < o.rin + 0.5) continue; // the sanctuary's wall keeps its own stone
@@ -92,6 +98,7 @@ export function galaxyWindows(o: WindowOpts): THREE.Mesh | null {
       }
     }
   }
+  endWall = true;
   for (const b of o.boxes) {
     if (b.w < W + 0.9) continue; // a pillar of a colonnade, not a wall
     for (let side = -1; side <= 1; side += 2) {
@@ -103,7 +110,8 @@ export function galaxyWindows(o: WindowOpts): THREE.Mesh | null {
   }
   proto.dispose();
   if (!parts.length) return null;
-  const geo = merge(parts);
+  // three's own merge: the room kit's keeps only position and normal, and these windows live on their attributes
+  const geo = mergeGeometries(parts.map((p) => (p.index ? p.toNonIndexed() : p)))!;
   for (const p of parts) p.dispose();
 
   const m = new THREE.MeshBasicNodeMaterial({ fog: false, side: THREE.DoubleSide });
@@ -122,24 +130,27 @@ export function galaxyWindows(o: WindowOpts): THREE.Mesh | null {
   const u = dot(hit.sub(Q), Tw), v = hit.sub(Q).y;
   // the galaxy: a slowly turning spiral, tilted (squashed), its own colour by seed
   const tilt = mix(float(0.42), float(0.7), seed);
-  const gx = u.add(seed.sub(0.5).mul(10)), gy = v.div(tilt).add(seed.sub(0.5).mul(4));
+  const gx = u.add(seed.sub(0.5).mul(3)), gy = v.div(tilt).add(seed.sub(0.5).mul(1.5));
   const r = length(vec2(gx, gy)).add(0.001);
   const ang = T.atan(gy, gx).add(o.t.mul(0.012));
-  const R0 = mix(float(7), float(9.5), way);
-  const arms = pow(sin(ang.mul(2).sub(T.log(r).mul(3.2))).mul(0.5).add(0.5), float(3));
+  const R0 = mix(float(4.5), float(6), way);
+  const arms = pow(sin(ang.mul(2).sub(T.log(r).mul(3.2))).mul(0.5).add(0.5), float(4));
   const disk = exp(r.negate().div(R0));
   const dust = vnoise(vec2(gx, gy).mul(0.35).add(seed.mul(40)));
-  const core = exp(r.mul(r).negate().div(1.6));
+  const core = exp(r.mul(r).negate().div(0.9));
   const cool = mix(vec3(0.42, 0.56, 1.0), vec3(0.78, 0.6, 1.0), seed);
   const warm = vec3(1.0, 0.78, 0.48);
   const tint = mix(cool, warm, way.mul(0.75));
-  const galaxy = tint.mul(disk.mul(arms.mul(0.75).add(0.25)).mul(dust.mul(0.6).add(0.55)).mul(0.55)).add(vec3(1.0, 0.92, 0.78).mul(core.mul(0.7)));
+  // the arms carry fine stars of their own, so the galaxy reads as made of light, not a smudge
+  const gcell = T.floor(vec2(gx, gy).mul(7));
+  const gstar = T.step(0.9, hash3(vec3(gcell, seed.mul(91)))).mul(smoothstep(0.35, 0.0, length(T.fract(vec2(gx, gy).mul(7)).sub(0.5))));
+  const galaxy = tint.mul(disk.mul(arms.mul(0.85).add(0.15)).mul(dust.mul(0.6).add(0.55)).mul(1.15).add(disk.mul(arms).mul(gstar).mul(1.4))).add(vec3(1.0, 0.92, 0.78).mul(core.mul(0.95)));
   // stars at infinity (still): a hash on the eye's direction
   const sq = V.mul(330);
   const cell = T.floor(sq);
   const sh = hash3(cell);
   const sd = length(T.fract(sq).sub(0.5));
-  const star = T.step(0.985, sh).mul(smoothstep(0.32, 0.0, sd)).mul(hash3(cell.add(7)).mul(0.6).add(0.25));
+  const star = T.step(0.975, sh).mul(smoothstep(0.32, 0.0, sd)).mul(hash3(cell.add(7)).mul(0.6).add(0.25));
   // a faint nebula veil between, at its own depth
   const neb = vnoise(vec2(u, v).mul(0.05).add(seed.mul(17))).mul(vnoise(vec2(u, v).mul(0.12).add(3)));
   const nebC = mix(vec3(0.16, 0.08, 0.28), vec3(0.05, 0.14, 0.24), seed).mul(neb.mul(1.4));
@@ -149,8 +160,8 @@ export function galaxyWindows(o: WindowOpts): THREE.Mesh | null {
   const ax = win.x, ay = win.y;
   const head = float(H - W / 2);
   const dEdge = min(min(float(W / 2).sub(abs(ax)), ay), T.select(ay.greaterThan(head), float(W / 2).sub(length(vec2(ax, ay.sub(head)))), float(9)));
-  const line = smoothstep(0.075, 0.035, dEdge).mul(smoothstep(0.0, 0.025, dEdge));
-  const frameC = mix(vec3(0.62, 0.72, 0.95), vec3(1.0, 0.78, 0.45), way).mul(mix(float(0.28), float(0.5), way));
+  const line = smoothstep(0.045, 0.02, dEdge).mul(smoothstep(0.0, 0.012, dEdge));
+  const frameC = mix(vec3(0.9, 0.72, 0.5), vec3(1.0, 0.78, 0.45), way).mul(mix(float(0.22), float(0.42), way));
   const vign = smoothstep(0.0, 0.5, dEdge).mul(0.35).add(0.65);
   // seen from far down a corridor the window is a soft find, from near a view
   const camD = length(cam.sub(C));

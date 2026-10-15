@@ -5142,6 +5142,18 @@ renderer
             const fy = mazeFloor(Math.sin(a) * M, Math.cos(a) * M);
             return { eye: [o.x + Math.sin(a + 0.05) * (M - 3), fy + 2.2, o.z + Math.cos(a + 0.05) * (M - 3)], look: [o.x + Math.sin(a) * R, fy + 1.3, o.z + Math.cos(a) * R] };
           }
+          if (n === 18 && maze) {
+            // first person down a corridor toward a galaxy window that ends it (&w=<i> picks one)
+            const ws = maze.debugWindows().filter((w) => w.end && Math.hypot(w.x, w.z) > 40 && Math.hypot(w.x, w.z) < 100);
+            const w = ws[Number(new URLSearchParams(location.search).get("w") ?? 0) % Math.max(1, ws.length)];
+            const back = Number(new URLSearchParams(location.search).get("back") ?? 9);
+            const sx = w.x + w.nx * back, sz = w.z + w.nz * back;
+            stand(sx, sz, w.x, w.z);
+            player.heading = Math.atan2(w.nx, w.nz);
+            follow.yaw = player.heading;
+            const fy = mazeFloor(sx, sz);
+            return { eye: [o.x + sx, fy + 0.7, o.z + sz], look: [o.x + w.x, fy + 1.4, o.z + w.z] };
+          }
           if (n === 17 && maze) {
             // the camera test (&route=i, with &live=S): walk the corridors' way from reading i in
             // toward the centre, turns and doors and all, setting course a few metres ahead along it
@@ -5149,13 +5161,15 @@ renderer
             // the wanderer, how far the view stands, and how much it turned (window.__camStats)
             const route = maze.debugRoute(Number(new URLSearchParams(location.search).get("route") ?? 0));
             const rollIt = new URLSearchParams(location.search).has("roll");
-            const p0 = route[0], p1 = route[Math.min(route.length - 1, 6)];
+            if (rollIt) input.enabled = true; // stills keep input off; a roll drag needs it
+            // a few metres along, clear of the reading at the route's start
+            const r0 = Math.min(route.length - 8, 24), p0 = route[r0], p1 = route[Math.min(route.length - 1, r0 + 6)];
             stand(p0.x - o.x, p0.z - o.z, p1.x - o.x, p1.z - o.z);
             const st = { n: 0, blocked: 0, dist: 0, walked: 0, turn: 0 };
             (window as unknown as { __camStats: typeof st }).__camStats = st;
             const chest = new THREE.Vector3();
             const last = player.pos.clone();
-            let acc = 0, at = 0, lastYaw = follow.yaw;
+            let acc = 0, at = r0, lastYaw = follow.yaw;
             camStep = (dt: number) => {
               acc += dt;
               if (acc < 0.1) return;
