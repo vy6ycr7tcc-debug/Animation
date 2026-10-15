@@ -248,7 +248,7 @@ export class FollowCamera {
       // the sway: leaning a few degrees into a turn, and the faintest roll while moving
       let dy = this.yaw - this.fpYawLast;
       dy = Math.atan2(Math.sin(dy), Math.cos(dy));
-      const turn = THREE.MathUtils.clamp(-(dy / Math.max(dt, 1e-3)) * 0.045, -0.06, 0.06);
+      const turn = THREE.MathUtils.clamp(-(dy / Math.max(dt, 1e-3)) * 0.025, -0.032, 0.032);
       const sway = reduced ? 0 : Math.sin(t * 1.25) * (moving ? 0.008 : 0.002);
       this.fpRoll += (turn + sway - this.fpRoll) * Math.min(1, dt * 2);
     }

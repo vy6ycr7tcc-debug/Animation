@@ -116,7 +116,7 @@ export function galaxyWindows(o: WindowOpts): THREE.Mesh | null {
 
   const m = new THREE.MeshBasicNodeMaterial({ fog: false, side: THREE.DoubleSide });
   const P = T.positionWorld, cam = T.cameraPosition;
-  const C = attribute("aCentre", "vec3"), Nw = attribute("aN", "vec3"), info = attribute("aInfo", "vec2"), win = attribute("aWin", "vec2");
+  const C = T.modelWorldMatrix.mul(vec4(attribute("aCentre", "vec3"), 1)).xyz, Nw = attribute("aN", "vec3"), info = attribute("aInfo", "vec2"), win = attribute("aWin", "vec2");
   const way = info.x, seed = info.y;
   const Tw = normalize(vec3(Nw.z.negate(), 0, Nw.x));
   const V = normalize(P.sub(cam));
@@ -130,21 +130,21 @@ export function galaxyWindows(o: WindowOpts): THREE.Mesh | null {
   const u = dot(hit.sub(Q), Tw), v = hit.sub(Q).y;
   // the galaxy: a slowly turning spiral, tilted (squashed), its own colour by seed
   const tilt = mix(float(0.42), float(0.7), seed);
-  const gx = u.add(seed.sub(0.5).mul(3)), gy = v.div(tilt).add(seed.sub(0.5).mul(1.5));
+  const gx = u.add(seed.sub(0.5).mul(1.6)), gy = v.sub(mix(float(4.2), float(2.6), way)).div(tilt).add(seed.sub(0.5).mul(0.8)); // raised: the eye is low, at the sphere's height
   const r = length(vec2(gx, gy)).add(0.001);
   const ang = T.atan(gy, gx).add(o.t.mul(0.012));
-  const R0 = mix(float(4.5), float(6), way);
-  const arms = pow(sin(ang.mul(2).sub(T.log(r).mul(3.2))).mul(0.5).add(0.5), float(4));
+  const R0 = mix(float(2.2), float(2.8), way);
+  const arms = pow(sin(ang.mul(2).sub(T.log(r).mul(3.4))).mul(0.5).add(0.5), float(7));
   const disk = exp(r.negate().div(R0));
   const dust = vnoise(vec2(gx, gy).mul(0.35).add(seed.mul(40)));
-  const core = exp(r.mul(r).negate().div(0.9));
+  const core = exp(r.mul(r).negate().div(0.35)).add(exp(r.negate().div(0.9)).mul(0.25));
   const cool = mix(vec3(0.42, 0.56, 1.0), vec3(0.78, 0.6, 1.0), seed);
   const warm = vec3(1.0, 0.78, 0.48);
   const tint = mix(cool, warm, way.mul(0.75));
   // the arms carry fine stars of their own, so the galaxy reads as made of light, not a smudge
   const gcell = T.floor(vec2(gx, gy).mul(7));
   const gstar = T.step(0.9, hash3(vec3(gcell, seed.mul(91)))).mul(smoothstep(0.35, 0.0, length(T.fract(vec2(gx, gy).mul(7)).sub(0.5))));
-  const galaxy = tint.mul(disk.mul(arms.mul(0.85).add(0.15)).mul(dust.mul(0.6).add(0.55)).mul(1.15).add(disk.mul(arms).mul(gstar).mul(1.4))).add(vec3(1.0, 0.92, 0.78).mul(core.mul(0.95)));
+  const galaxy = tint.mul(disk.mul(arms.mul(1.2).add(0.06)).mul(dust.mul(0.35).add(0.8)).mul(1.1).add(disk.mul(arms).mul(gstar).mul(1.6))).add(vec3(1.0, 0.92, 0.78).mul(core.mul(0.95)));
   // stars at infinity (still): a hash on the eye's direction
   const sq = V.mul(330);
   const cell = T.floor(sq);
@@ -153,7 +153,7 @@ export function galaxyWindows(o: WindowOpts): THREE.Mesh | null {
   const star = T.step(0.975, sh).mul(smoothstep(0.32, 0.0, sd)).mul(hash3(cell.add(7)).mul(0.6).add(0.25));
   // a faint nebula veil between, at its own depth
   const neb = vnoise(vec2(u, v).mul(0.05).add(seed.mul(17))).mul(vnoise(vec2(u, v).mul(0.12).add(3)));
-  const nebC = mix(vec3(0.16, 0.08, 0.28), vec3(0.05, 0.14, 0.24), seed).mul(neb.mul(1.4));
+  const nebC = mix(vec3(0.16, 0.08, 0.28), vec3(0.05, 0.14, 0.24), seed).mul(neb.mul(0.5));
   const space = vec3(0.004, 0.005, 0.014).add(nebC).add(galaxy).add(vec3(0.85, 0.88, 1.0).mul(star));
   // the frame: a fine line of light just inside the arch's edge, warmer along the way, and the
   // glass darkening a little toward the edge so it reads as depth
@@ -161,7 +161,7 @@ export function galaxyWindows(o: WindowOpts): THREE.Mesh | null {
   const head = float(H - W / 2);
   const dEdge = min(min(float(W / 2).sub(abs(ax)), ay), T.select(ay.greaterThan(head), float(W / 2).sub(length(vec2(ax, ay.sub(head)))), float(9)));
   const line = smoothstep(0.045, 0.02, dEdge).mul(smoothstep(0.0, 0.012, dEdge));
-  const frameC = mix(vec3(0.9, 0.72, 0.5), vec3(1.0, 0.78, 0.45), way).mul(mix(float(0.22), float(0.42), way));
+  const frameC = mix(vec3(0.95, 0.7, 0.42), vec3(1.0, 0.76, 0.4), way).mul(mix(float(0.22), float(0.42), way));
   const vign = smoothstep(0.0, 0.5, dEdge).mul(0.35).add(0.65);
   // seen from far down a corridor the window is a soft find, from near a view
   const camD = length(cam.sub(C));

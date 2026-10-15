@@ -4610,7 +4610,7 @@ function update(dt: number): void {
     const hx = standAt(px + 0.4, pz) - standAt(px - 0.4, pz), hz = standAt(px, pz + 0.4) - standAt(px, pz - 0.4);
     wanderer.groundNormal.set(-hx / 0.8, 1, -hz / 0.8).normalize();
   }
-  wanderer.root.visible = S.mode !== "intro";
+  wanderer.root.visible = S.mode !== "intro" && !follow.firstPerson; // in the maze the view is the sphere's own eyes
   wanderer.animate(dt, player.pose, player.speed, t, S.reduced, dpr);
   wanderer.fx.visible = wanderer.root.visible;
 
@@ -5207,6 +5207,13 @@ renderer
               maze.debugSeated(30);
               stand(0, 0.05, 0, -3);
               const cy0 = mazeFloor(0, 0);
+              if (new URLSearchParams(location.search).has("eagle")) {
+                // the mirror: from the eagle's height, the golden sphere at the heart of its own golden road
+                maze.debugExplore(200, 0);
+                stand(0, 0.05, 0, -3);
+                maze.debugSeated(30);
+                return { eye: [o.x + 0.01, cy0 + 87, o.z + 0.02], look: [o.x, cy0, o.z] };
+              }
               return { eye: [o.x + 3.4, cy0 + 2.4, o.z + 4.6], look: [o.x, cy0 + 1.0, o.z] };
             }
             // walked some way in along the true way, touching the walls as it went
@@ -5221,9 +5228,10 @@ renderer
             }
             if (n === 13) {
               // palms left along a wall as the hand went, the touched stone edged in gold
-              for (const b of [1.5, 4.5, 7.5]) maze.debugTouch(e.x - fx * b - fz * 2.4, e.z - fz * b + fx * 2.4);
+              for (const b of [7.5, 4.5, 1.5]) maze.debugTouch(e.x - fx * b - fz * 2.4, e.z - fz * b + fx * 2.4);
               stand(e.x + fz * 1.2, e.z - fx * 1.2, e.x - fz * 3, e.z + fx * 3);
-              return { eye: [o.x + e.x + fx * 2.5 + fz * 2.2, fy + 1.7, o.z + e.z + fz * 2.5 - fx * 2.2], look: [o.x + e.x - fx * 4.5 - fz * 3, fy + 1.4, o.z + e.z - fz * 4.5 + fx * 3] };
+              // from the sphere's own eye (0.7 m), along the wall it touched
+              return { eye: [o.x + e.x + fx * 2.5 + fz * 1.6, fy + 0.7, o.z + e.z + fz * 2.5 - fx * 1.6], look: [o.x + e.x - fx * 4.5 - fz * 3, fy + 1.2, o.z + e.z - fz * 4.5 + fx * 3] };
             }
             // 14: the road walked, glowing behind the wanderer
             stand(e.x, e.z, e.x + fx * 5, e.z + fz * 5);

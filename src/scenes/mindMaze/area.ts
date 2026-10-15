@@ -782,9 +782,9 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       const upright = float(1).sub(T.abs(nW.y));
       const strip = smoothstep(0.06, 0.11, hb).mul(smoothstep(0.2, 0.15, hb)).mul(upright).mul(float(1).sub(smoothstep(10, 34, camD)));
       const vq = vnoise(pr.xz.mul(0.55).add(pr.y.mul(0.32))).mul(2).sub(1);
-      const vein = pow(float(1).sub(T.abs(vq)), float(46)).mul(upright).mul(float(1).sub(smoothstep(4, 16, camD)));
+      const vein = pow(float(1).sub(T.abs(vq)), float(90)).mul(upright).mul(float(1).sub(smoothstep(4, 16, camD)));
       m.emissiveNode = vec3(1.0, 0.86, 0.68).mul(glit).mul(1.1).mul(float(1).sub(wallVeil)).add(gilt)
-        .add(vec3(1.0, 0.66, 0.34).mul(strip.mul(0.07))).add(vec3(1.0, 0.78, 0.42).mul(vein.mul(0.16)));
+        .add(vec3(1.0, 0.66, 0.34).mul(strip.mul(0.07))).add(vec3(1.0, 0.78, 0.42).mul(vein.mul(0.09)));
     }
     // touched, a wall answers (the owner, after the series Invasion: not rings): the stone wakes
     // into a sheet of turbulent cyan energy spreading from the touch, nebulous clouds flowing
