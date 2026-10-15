@@ -106,13 +106,13 @@ export class FollowCamera {
       camera rides the ball's own trail a little way back at a fixed height, always looking ahead
       down the corridor past the ball, which sits in the lower third. Nothing cranes, swings, zooms
       or answers a look-drag; it only orbits round the ball (never through it) when the way turns. */
-  railBack = 4.0;
-  railHeight = 2.2;
+  railBack = 3.5;
+  railHeight = 1.0;
   private trailPt = new THREE.Vector2();
   private trailLen = 0;
   private railYaw = 0;
   private railYawVel = 0;
-  private railR = 4.0;
+  private railR = 3.5;
   private railK = 0;
   private railInit = false;
   private railPos = new THREE.Vector3();
@@ -389,7 +389,7 @@ export class FollowCamera {
         let px = this.trailPt.x, pz = this.trailPt.y;
         if (this.clearance) {
           this.seeA.set(bx, player.y + 1.3, bz);
-          for (const back of [this.railBack, 3.4, 2.9, 2.4, 2.0, 1.7]) {
+          for (const back of [this.railBack, 3.0, 2.5, 2.0, 1.6]) {
             if (!this.trailAt(player, back, this.trailTmp)) continue;
             px = this.trailTmp.x;
             pz = this.trailTmp.y;
@@ -398,7 +398,7 @@ export class FollowCamera {
           }
         }
         wantYaw = Math.atan2(px - bx, pz - bz);
-        wantR = THREE.MathUtils.clamp(Math.hypot(px - bx, pz - bz), 1.7, this.railBack);
+        wantR = THREE.MathUtils.clamp(Math.hypot(px - bx, pz - bz), 1.6, this.railBack);
       } else if (moving) wantYaw = heading;
       if (!this.railInit) (this.railYaw = this.yaw), (this.railInit = true), (this.railYawVel = 0);
       // a critically damped turn about the ball: soft start, no overshoot, never through the ball
@@ -420,9 +420,11 @@ export class FollowCamera {
       this.yaw = this.railYaw; // the stick goes where the view looks
       this.railPos.set(bx + Math.sin(this.railYaw) * this.railR, player.y + this.railHeight, bz + Math.cos(this.railYaw) * this.railR);
       // ahead down the corridor, nearly level: the ball sits low in the middle of the frame, where
-      // the owner circled it: looking a little above level, the ball's centre ~30° below the centre with the
-      // 58° view: it rests at the foot of the screen, its lower edge just cut by it (the owner's X)
-      this.railLook.set(bx - Math.sin(this.railYaw) * 6, player.y + this.railHeight + 1.05, bz - Math.cos(this.railYaw) * 6);
+      // the owner's drawing: the view opens from the ball like a cone, the ball at the foot of the
+      // screen (~85% down), the floor running out ahead to the wall's foot (~75% down), the wall
+      // standing up to ~40% down, sky above. So the view sits low behind the ball (1 m up, 3.5 m
+      // back) and looks up a little (~15°, with the 66° portrait view)
+      this.railLook.set(bx - Math.sin(this.railYaw) * 6, player.y + this.railHeight + 2.6, bz - Math.cos(this.railYaw) * 6);
       const s = THREE.MathUtils.smoothstep(this.railK, 0, 1);
       this.cam.position.lerp(this.railPos, s);
       look.lerp(this.railLook, s);
