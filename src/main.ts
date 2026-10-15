@@ -1606,7 +1606,7 @@ function places(): Place[] {
     { numeral: "", label: "The pyramid", group: "Shore" as const, section: "Ancient" as const, note: "Egypt, and the Duat beneath", order: 3, x: pyramid.door.x, z: pyramid.door.z, narration: "J01", start: { x: pyramid.door.x, z: pyramid.door.z - 14, heading: Math.PI } },
     ...halls.map(({ hall }) => {
       const o = hall.outside(), f = hall.face;
-      return { numeral: "", label: hall.label, group: "Shore" as const, order: 2, x: hall.door.x, z: hall.door.z, narration: "J01", start: { x: o.x + Math.sin(f) * 22, z: o.z + Math.cos(f) * 22, heading: f } };
+      return { numeral: "", label: hall.label, group: "Shore" as const, order: 2, icon: hall === mazeHall ? ("maze" as const) : undefined, x: hall.door.x, z: hall.door.z, narration: "J01", start: { x: o.x + Math.sin(f) * 22, z: o.z + Math.cos(f) * 22, heading: f } };
     }),
     // beneath the water: the sunken ruins, and the cave that leads to the deep archive (you wake
     // on the water above; dive, and swim down to them)
