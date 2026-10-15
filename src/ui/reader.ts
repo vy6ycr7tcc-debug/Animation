@@ -6,6 +6,7 @@
    recording it can be heard as it is read (one for all, or one per page). While it is open the
    stick and the button rest so a thumb on the text never walks you away. */
 import type { Reading } from "../world/readables";
+import { canSpeak, speak, stopSpeaking } from "./speak";
 
 export class Reader {
   readonly el: HTMLElement;
@@ -23,6 +24,8 @@ export class Reader {
   /** Asked to play or stop its recording (`page`: the page shown, for one recording a page). */
   onListen: (r: Reading, on: boolean, page: number) => void = () => {};
   private listening = false;
+  /** Read aloud in the device's own voice (a reading with no recording of its own). */
+  private native = false;
 
   constructor() {
     const el = document.createElement("div");
@@ -62,6 +65,7 @@ export class Reader {
     tap(this.next, () => this.turn(1));
     tap(this.listen, () => {
       if (!this.current) return;
+      if (!this.recorded(this.current)) return this.setNative(!this.native);
       this.listening = !this.listening;
       this.listen.textContent = this.listening ? "Quiet" : "Listen";
       this.listen.classList.toggle("on", this.listening);
@@ -98,7 +102,9 @@ export class Reader {
     this.listening = !!r.autoVoice && !!(r.audio || r.voices?.length);
     this.listen.textContent = this.listening ? "Quiet" : "Listen";
     this.listen.classList.toggle("on", this.listening);
-    this.listen.hidden = !(r.audio || r.voices?.length);
+    this.setNative(false);
+    this.listen.hidden = !this.recorded(r) && !canSpeak;
+    if (!this.recorded(r)) this.listen.textContent = "Speak";
     this.title.textContent = r.title;
     this.el.hidden = false;
     document.body.classList.add("reading");
@@ -111,6 +117,7 @@ export class Reader {
     const r = this.current;
     if (this.listening) this.onListen(r, false, this.page);
     this.listening = false;
+    this.setNative(false);
     this.el.hidden = true;
     document.body.classList.remove("reading");
     this.current = null;
@@ -126,6 +133,32 @@ export class Reader {
     this.render();
     // read aloud page by page: the next page's voice takes over
     if (this.listening && this.current.voices) this.onListen(this.current, true, p);
+    if (this.native) this.speakPage();
+  }
+
+  private recorded(r: Reading): boolean {
+    return !!(r.audio || r.voices?.length);
+  }
+
+  /** The device's own voice: the page shown, then on to the next page by itself. */
+  private setNative(on: boolean): void {
+    this.native = on && canSpeak;
+    if (this.current && !this.recorded(this.current)) {
+      this.listen.textContent = this.native ? "Stop" : "Speak";
+      this.listen.classList.toggle("on", this.native);
+    }
+    if (this.native) this.speakPage();
+    else stopSpeaking();
+  }
+
+  private speakPage(): void {
+    const r = this.current;
+    if (!r) return;
+    speak(`${this.page === 0 ? r.title + ". " : ""}${r.pages[this.page] ?? ""}`, () => {
+      if (!this.native || this.current !== r) return;
+      if (this.page < r.pages.length - 1) this.turn(1);
+      else this.setNative(false);
+    });
   }
 
   private render(): void {

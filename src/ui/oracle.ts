@@ -5,6 +5,7 @@
    Privacy: the player's heart notes go with a question only when "Attach my heart" is ticked for
    that question (off each time the panel opens); nothing else leaves the device. */
 import { heartNotes, keepToItself, tapButton } from "./heart";
+import { canSpeak, speak, stopSpeaking } from "./speak";
 
 const ENDPOINT = "https://oracle-station.vy6ycr7tcc.workers.dev/oracle";
 const SILENT = "The oracle is silent — check your connection.";
@@ -133,7 +134,7 @@ export class Oracle {
       this.answer.hidden = false;
       this.answer.scrollTop = 0;
       this.status.textContent = "";
-      this.speak.hidden = !("speechSynthesis" in window);
+      this.speak.hidden = !canSpeak;
     } catch {
       // one quiet line; the question stays where it was
       this.status.textContent = SILENT;
@@ -145,25 +146,20 @@ export class Oracle {
 
   private toggleSpeech(): void {
     if (this.speaking) return this.stopSpeech();
-    if (!("speechSynthesis" in window)) return;
     const text = this.answer.textContent ?? "";
     if (!text.trim()) return;
-    speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.rate = 0.95;
-    u.onend = u.onerror = () => {
-      this.speaking = false;
-      this.speak.textContent = "Speak";
-    };
     this.speaking = true;
     this.speak.textContent = "Stop";
-    speechSynthesis.speak(u);
+    speak(text, () => {
+      this.speaking = false;
+      this.speak.textContent = "Speak";
+    });
   }
 
   private stopSpeech(): void {
     if (!this.speaking) return;
     this.speaking = false;
     this.speak.textContent = "Speak";
-    if ("speechSynthesis" in window) speechSynthesis.cancel();
+    stopSpeaking();
   }
 }
