@@ -1004,6 +1004,9 @@ body.calm #maze-map-btn { opacity: 0.25; transition: opacity 1s; }
 #maze-map[hidden] { display: none; }
 #maze-map .mm-head { display: flex; flex: none; align-items: center; justify-content: space-between; width: 100%; max-width: 900px; padding: 4px 6px 8px; box-sizing: border-box; }
 #maze-map .mm-title { font-style: italic; letter-spacing: 0.08em; color: var(--gold); font-size: 15px; }
+#maze-map .mm-zoom { display: flex; gap: 8px; }
+#maze-map .mm-z { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(244, 239, 230, 0.3); background: transparent; color: var(--pearl); font-size: 20px; line-height: 1; }
+#maze-map .mm-z:active { color: var(--gold); border-color: var(--gold); }
 #maze-map .mm-close { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(244, 239, 230, 0.3); background: transparent; color: var(--pearl); font-size: 16px; }
 /* not the game's canvas: the global `canvas` rule pins every canvas full-screen at the top left */
 #maze-map canvas { position: static; flex: none; margin-top: auto; touch-action: none; cursor: crosshair; }

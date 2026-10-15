@@ -6,7 +6,7 @@
    recording it can be heard as it is read (one for all, or one per page). While it is open the
    stick and the button rest so a thumb on the text never walks you away. */
 import type { Reading } from "../world/readables";
-import { canSpeak, readAloud, speak, stopSpeaking } from "./speak";
+import { canSpeak, readAloud, speak, speechButton, stopSpeaking } from "./speak";
 
 export class Reader {
   readonly el: HTMLElement;
@@ -63,7 +63,8 @@ export class Reader {
     tap(el.querySelector(".x")!, () => this.close());
     tap(this.prev, () => this.turn(-1));
     tap(this.next, () => this.turn(1));
-    tap(this.listen, () => {
+    // on the click, not the pointerdown: iOS lets speech begin only from a touch's release
+    speechButton(this.listen, () => {
       if (!this.current) return;
       if (!this.recorded(this.current)) return this.setNative(!this.native);
       this.listening = !this.listening;

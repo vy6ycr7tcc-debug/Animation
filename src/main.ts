@@ -2276,8 +2276,9 @@ function journeyHost(hall: Hall, withSky = false): JourneyHost {
         stopAuto();
         standUp();
       }
-      audio.setTemple(on, false);
-      // the mind's maze: an om sounding now and then among the stone's own sounds
+      // the mind's maze: the temple's far chant (plainchant voices on one mode) under the stone's
+      // own sounds, and an om now and then; the other places apart keep their silence
+      audio.setTemple(on, hall === mazeHall);
       audio.setOm(on && hall === mazeHall);
     },
     outside: () => (hall === pastHall && halls[2]?.journey.via ? egyptGate.outside() : hall.outside()),

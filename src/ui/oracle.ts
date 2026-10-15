@@ -5,7 +5,7 @@
    Privacy: the player's heart notes go with a question only when "Attach my heart" is ticked for
    that question (off each time the panel opens); nothing else leaves the device. */
 import { heartNotes, keepToItself, tapButton } from "./heart";
-import { canSpeak, readAloud, speak, stopSpeaking } from "./speak";
+import { canSpeak, readAloud, speak, speechButton, stopSpeaking, wakeSpeech } from "./speak";
 
 const ENDPOINT = "https://oracle-station.vy6ycr7tcc.workers.dev/oracle";
 const SILENT = "The oracle is silent — check your connection.";
@@ -53,8 +53,13 @@ export class Oracle {
     this.status = el.querySelector(".status")!;
     this.speak = el.querySelector(".speak")!;
     tapButton(el.querySelector(".x")!, () => this.close());
-    tapButton(this.ask, () => void this.send());
-    tapButton(this.speak, () => this.toggleSpeech());
+    // the click wakes the phone's voice (iOS speaks only from a touch), so the answer can be read
+    // aloud when it arrives, seconds later
+    speechButton(this.ask, () => {
+      wakeSpeech();
+      void this.send();
+    });
+    speechButton(this.speak, () => this.toggleSpeech());
     this.q.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
