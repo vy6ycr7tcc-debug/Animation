@@ -23,7 +23,7 @@
    (world/solidity.ts). Frame: the room's own, its centre at the origin; you start at the south
    (+z) facing the centre (−z). Angles: θ = atan2(x, z), 0 toward the start. */
 import * as THREE from "three/webgpu";
-import { T, gpuUniforms, type N } from "../../gpu/tsl";
+import { T, gpuUniforms, spectrum, type N } from "../../gpu/tsl";
 import { keyShadow } from "../../gpu/lightRig";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
 import { landStone, stoneBlock } from "../../world/stoneworks";
@@ -40,6 +40,7 @@ import type { Narration } from "../../core/narration";
 import { JOURNEY_ORIGIN, type Room, type Solid } from "../journey";
 import type { Reading } from "../../world/readables";
 import { buildSun, SUN_AT } from "./sun";
+import { forkRings, Palms, Reach, TouchMap, Trail } from "./mechanics";
 
 const { attribute, cameraProjectionMatrix, cos, float, fract, mix, modelViewMatrix, normalize, positionGeometry, pow, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
 const V3 = THREE.Vector3;
@@ -417,6 +418,16 @@ export interface MazeRoom extends Room {
   doors(): { id: string; pos: THREE.Vector3 }[];
   /** The plan, for the maze's map (room frame). */
   layout(): MazeLayout;
+  /** How high the eagle's view hangs over the seat (m). */
+  eagleHeight(): number;
+  /** Stills: a real touch on the wall nearest (x, z); a road walked through these points. */
+  debugTouch(x: number, z: number): void;
+  debugWalk(pts: [number, number][]): void;
+  /** Stills: walk the true way in, `steps` cells, leaving `touches` palms; where it ends. */
+  debugExplore(steps: number, touches: number): { x: number; z: number; dx: number; dz: number };
+  debugSeated(sec: number): void;
+  /** What the visit holds (tests): marks left, cells walked, forks chosen, road walked. */
+  state(): { marks: number; visited: number; forks: number; trail: number; cell: number; contactT: number };
   /** The sun over the maze (world): where contemplation looks. */
   sunWorld(): THREE.Vector3;
   /** Contemplating (0..1): the sun flares and pours its light down to the head (world). */
@@ -436,6 +447,16 @@ export interface MazeLayout {
   doors: { id: string; x: number; z: number }[];
   /** The place's origin (world): room frame + origin = world. */
   origin: THREE.Vector3;
+  /** Every cell (ring k, from angle a0 to a1) and which have been walked (1). */
+  cells: { k: number; a0: number; a1: number }[];
+  visited: Uint8Array;
+  /** The palms left on the walls: (x, z) pairs, `markCount` of them. */
+  marks: Float32Array;
+  markCount: number;
+  /** The road walked. */
+  trail: { forEachPoint(f: (x: number, z: number, first: boolean) => void): void };
+  /** Changes whenever what is revealed changes (the map redraws only then). */
+  version: number;
 }
 export interface MazeDeps {
   /** The figure the beings wear (shared with the world's), once it has loaded. */
@@ -444,6 +465,9 @@ export interface MazeDeps {
   reduced: () => boolean;
   /** A wall touched: a soft tone as its wave of light goes out. */
   chime?: () => void;
+  /** Whether the wanderer is being moved on (the stick held, a course set): pressed to a wall,
+      the body stands still, but the hand is still on the stone. */
+  pressing?: () => boolean;
   /** The worlds' own buildings out in the world, to stand round the maze behind their doors (the
       owner: "there is beauty and value in seeing the actual buildings"): each its destination's
       id, its object, its door (world) and the heading that walks in through it. */
@@ -533,6 +557,15 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
   const uSanct = uniform(0); // within the sanctuary (its rings of gold show only there)
   const uReveal = uniform(0); // how far out from the centre the paths have lit (m along them)
   const origin = JOURNEY_ORIGIN;
+  // the Veil and the Experience (mechanics.ts): where you have touched, seen from above; the walls
+  // and the floor read it, so the dark thins round every touch
+  const touchMap = new TouchMap(OUTER + 16);
+  ours.push(touchMap.tex);
+  const roomP = T.positionWorld.sub(vec3(origin.x, origin.y, origin.z));
+  const camDist = T.length(T.cameraPosition.sub(T.positionWorld));
+  const touchedHere = touchMap.node(roomP);
+  /** The veil: 0 near, 1 where the dark has closed over it; it lies farther off where touched. */
+  const veilAt = (near: number, far: number) => smoothstep(mix(float(near), float(near + 26), touchedHere), mix(float(far), float(far + 42), touchedHere), camDist);
   const phone = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
   const sunLight = new THREE.DirectionalLight(0xffc27a, 0.35);
 
@@ -608,7 +641,9 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     const streak = vnoise(P.xz.mul(vec2(0.06, 0.2))).mul(0.04).add(0.05);
     const grain = vnoise(P.xz.mul(2.2)).mul(0.5).add(vnoise(P.xz.mul(vec2(0.35, 1.4))).mul(0.6)).add(0.45);
     const scan = scannedGround("sand", 2.6, { hue: 0.15, relief: 1.8, bright: 2.0 });
-    m.colorNode = vec3(0.95, 0.93, 1.12).mul(streak).mul(grain.mul(0.5).add(0.5)).mul(scan.color);
+    // the veil: the ground far off sinks into the dark, except where you have touched
+    const floorVeil = veilAt(14, 30);
+    m.colorNode = vec3(0.95, 0.93, 1.12).mul(streak).mul(grain.mul(0.5).add(0.5)).mul(scan.color).mul(float(1).sub(floorVeil.mul(0.85)));
     m.normalNode = scan.normal;
     const cell = T.floor(P.xz.mul(16));
     const view = T.normalize(T.cameraPosition.sub(T.positionWorld));
@@ -663,7 +698,20 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       const tw = hash3(cell.mul(1.7).add(T.floor(gv.mul(18))));
       const dot_ = smoothstep(0.24, 0, T.length(fract(gq).sub(0.5)));
       const glit = T.step(0.985, hash3(cell)).mul(T.step(0.6, tw)).mul(dot_).mul(float(1).sub(smoothstep(4, 22, camD)));
-      m.emissiveNode = vec3(1.0, 0.86, 0.68).mul(glit).mul(1.1);
+      // the Veil: the stone a little way off closes into the dark (nothing ahead is seen until
+      // it is reached), and lies farther off round every touch; touched masonry keeps a soft gold
+      // edge, visible well beyond the dark (experience lifting the veil)
+      const wallVeil = veilAt(15, 28);
+      m.colorNode = vec4((m.colorNode as N).rgb.mul(float(1).sub(wallVeil.mul(0.88))), 1);
+      const rr = T.length(pr.xz);
+      const fk = T.clamp(float(OUTER + 1).sub(rr).div(OUTER + 1 - RIN), 0, 1);
+      const top = float(BASE).add(fk.mul(fk).mul(float(3).sub(fk.mul(2))).mul(RISE)).add(WALL_H);
+      const nW = T.normalWorld;
+      const topEdge = smoothstep(top.sub(0.4), top.sub(0.03), pr.y).mul(float(1).sub(T.abs(nW.y)));
+      const lid = smoothstep(0.85, 0.98, nW.y).mul(0.6);
+      const rim = pow(float(1).sub(T.abs(T.dot(nW, gv))), 3);
+      const gilt = vec3(1, 0.76, 0.4).mul(touchedHere).mul(topEdge.mul(0.32).add(lid.mul(0.22)).add(rim.mul(0.1))).mul(float(1).sub(smoothstep(60, 110, camD)));
+      m.emissiveNode = vec3(1.0, 0.86, 0.68).mul(glit).mul(1.1).mul(float(1).sub(wallVeil)).add(gilt);
     }
     // touched, a wall answers (the owner, after the series Invasion: not rings): the stone wakes
     // into a sheet of turbulent cyan energy spreading from the touch, nebulous clouds flowing
@@ -694,7 +742,10 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
           const dot_ = smoothstep(0.22, 0.0, T.length(fract(sp).sub(0.5)));
           const spark = T.step(0.988, hash3(cell)).mul(dot_).mul(sin(t.mul(9).add(hash3(cell.add(3)).mul(60))).mul(0.5).add(0.5));
           const k = smoothstep(0.15, 0.6, mask.mul(cloud.add(0.45)));
-          const sheet = vec3(0.02, 0.16, 0.42).mul(cloud.mul(cloud).mul(1.1)).add(vec3(0.15, 0.7, 1).mul(vein.add(vein2)).mul(1.3)).add(vec3(0.7, 0.92, 1).mul(spark));
+          const sheet0 = vec3(0.02, 0.16, 0.42).mul(cloud.mul(cloud).mul(1.1)).add(vec3(0.15, 0.7, 1).mul(vein.add(vein2)).mul(1.3)).add(vec3(0.7, 0.92, 1).mul(spark));
+          // the catalyst's shimmer: through the colours a moment where the touch is freshest
+          const iris = spectrum(cloud.mul(0.7).add(pr.y.mul(0.35)).add(t.mul(0.25)));
+          const sheet = mix(sheet0, sheet0.mul(iris).mul(2.2).add(iris.mul(core).mul(0.6)), core.mul(0.55).add(mask.mul(0.18)));
           out.assign(sheet.mul(k).mul(0.16).add(vec3(0.5, 0.85, 1).mul(core.mul(0.08))));
         });
         return out;
@@ -1199,7 +1250,11 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     // brightness flowing toward the seat along it
     const sA = attribute("aS", "float");
     const fromSeat = float(length).sub(sA);
-    const shown = smoothstep(uReveal, uReveal.sub(6), fromSeat).mul(art.lit);
+    // lit outward from the seat, the ways you chose at the forks first (the delay is set as you
+    // come to the centre, `orderPaths`)
+    const delay = uniform(0);
+    const front = uReveal.sub(delay);
+    const shown = smoothstep(front, front.sub(6), fromSeat).mul(art.lit);
     const flow = sin(sA.mul(0.55).sub(t.mul(2.4))).mul(0.3).add(0.7);
     // laid over (not added): where many paths share a corridor they read as one line, not a blaze
     const mat = ribbonMaterial(vec3(0), 1.4);
@@ -1211,7 +1266,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     mesh.frustumCulled = false;
     g.add(mesh);
     ours.push(geo, mat);
-    return { art, pts, n, length };
+    return { art, pts, n, length, delay };
   });
   // the motes flowing along the lit paths to the seat (placed each frame while you sit)
   const MOTES = 900;
@@ -1226,28 +1281,41 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     g.add(motes.cloud.sprite);
     ours.push(motes.material);
   }
+  const litPaths: typeof paths = [];
   const placeMotes = () => {
-    const lit = paths.filter((p) => p.art.lit.value === 1);
+    litPaths.length = 0;
+    for (const p of paths) if (p.art.lit.value === 1) litPaths.push(p);
     const time = clock.u.value as number;
+    const mp = motes.pos;
+    const chestY = centreY + 1.05;
     for (let i = 0; i < MOTES; i++) {
-      if (!lit.length) {
-        motes.pos.set([0, -50, 0], i * 3);
+      const o3 = i * 3;
+      if (!litPaths.length) {
+        mp[o3] = 0;
+        mp[o3 + 1] = -50;
+        mp[o3 + 2] = 0;
         continue;
       }
       const k0 = motes.k[i * 4], k1 = motes.k[i * 4 + 1], k2 = motes.k[i * 4 + 2];
-      const p = lit[i % lit.length];
+      const p = litPaths[i % litPaths.length];
       const u = (k0 + (time * (3.2 + k1 * 2.4)) / p.length) % 1; // 0 at the thing, 1 at the seat
       const f = u * (p.n - 1), j = Math.min(p.n - 2, Math.floor(f)), w = f - j;
       const o = j * 3;
       const wob = 0.25 * (1 - u);
-      motes.pos.set(
-        [
-          p.pts[o] + (p.pts[o + 3] - p.pts[o]) * w + Math.sin(time * 1.3 + k2 * 40) * wob,
-          p.pts[o + 1] + (p.pts[o + 4] - p.pts[o + 1]) * w + 0.25 + k2 * 0.5 + Math.sin(time * 2 + k1 * 30) * 0.12,
-          p.pts[o + 2] + (p.pts[o + 5] - p.pts[o + 2]) * w + Math.cos(time * 1.1 + k2 * 50) * wob,
-        ],
-        i * 3,
-      );
+      let x = p.pts[o] + (p.pts[o + 3] - p.pts[o]) * w + Math.sin(time * 1.3 + k2 * 40) * wob;
+      let y = p.pts[o + 1] + (p.pts[o + 4] - p.pts[o + 1]) * w + 0.25 + k2 * 0.5 + Math.sin(time * 2 + k1 * 30) * 0.12;
+      let z = p.pts[o + 2] + (p.pts[o + 5] - p.pts[o + 2]) * w + Math.cos(time * 1.1 + k2 * 50) * wob;
+      // the last stretch: every mote converges on the one seated at the centre (it was you)
+      if (u > 0.9) {
+        const c = (u - 0.9) / 0.1, e = c * c * (3 - 2 * c);
+        const sw = 0.35 * (1 - e);
+        x += (Math.sin(k0 * 40 + time) * sw - x) * e;
+        y += (chestY + Math.sin(k1 * 30) * 0.2 * (1 - e) - y) * e;
+        z += (Math.cos(k0 * 40 + time) * sw - z) * e;
+      }
+      mp[o3] = x;
+      mp[o3 + 1] = y;
+      mp[o3 + 2] = z;
     }
     motes.cloud.attrs.position.needsUpdate = true;
   };
@@ -1344,8 +1412,76 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     ours.push(c.material);
   }
 
+  /* ---- the engine (mechanics.ts): the reach, the marks a touch leaves, the road walked, the
+     forks; and what the visit remembers (the cells walked, the first way taken at each fork) ---- */
+  const palms = new Palms(96, t, ours);
+  g.add(palms.mesh);
+  const trail = new Trail(1400, 0.5, t, ours);
+  g.add(trail.mesh);
+  const reach = new Reach(t, ours, R);
+  g.add(reach.sprite);
+  const isFork = (c: number) => plan.cells[c].open.length >= 3 && plan.cells[c].plaza < 0;
+  {
+    const at: { x: number; y: number; z: number }[] = [];
+    plan.cells.forEach((c, n) => {
+      if (!isFork(n)) return;
+      const [x, z] = polar((c.a0 + c.a1) / 2, MID(c.k));
+      at.push({ x, y: mazeFloor(x, z) + 0.04, z });
+    });
+    const rings = forkRings(at, t, ours);
+    if (rings) g.add(rings);
+  }
+  const visited = new Uint8Array(plan.cells.length);
+  const forks = new Int32Array(plan.cells.length).fill(-1);
+  let curCell = -1;
+  let mapVersion = 0;
+  /** The cell a point (room frame) stands in, or −1 outside the rings. */
+  const cellAt = (x: number, z: number): number => {
+    const r = Math.hypot(x, z), k = Math.floor((r - RIN) / CW);
+    if (k < 0 || k >= NC) return -1;
+    const n = COUNTS[k], a = ((Math.atan2(x, z) % TAU) + TAU) % TAU;
+    return plan.index(k, Math.round((a / TAU) * n));
+  };
+  /** The paths light from the seat in the order of the ways you chose: a path whose forks you
+      took first lights first, the others a breath after. */
+  const orderPaths = () => {
+    for (const p of paths) {
+      let at = 0, chosen = 0;
+      for (let c = p.art.cell, prevC = -1; c >= 0; prevC = c, c = c === plan.heart ? -1 : toHeart.prev[c]) {
+        // walking in from the seat, at each fork the way on toward this path's end is `prevC`
+        if (prevC >= 0 && isFork(c)) {
+          at++;
+          const next = c === plan.heart ? -1 : toHeart.prev[c];
+          if (forks[c] === prevC || (next >= 0 && forks[c] === next)) chosen++;
+        }
+      }
+      const score = at ? chosen / at : 0.5;
+      p.delay.value = (1 - score) * 70;
+    }
+  };
+  const cellGeo = plan.cells.map((c) => ({ k: c.k, a0: c.a0, a1: c.a1 }));
+  let seatedT = 0;
+  let contactT = 0;
+  let reachDX = 0, reachDZ = -1;
+
   const local = new V3();
   const tmp = new V3();
+  /** A real touch at (bx, bz) on a wall's face: the wall answers, a palm is left, the veil thins. */
+  const touchWall = (bx: number, bz: number, now: number) => {
+    rips[ripNext].value.set(bx, local.y + 1.15, bz, now);
+    ripNext = (ripNext + 1) % rips.length;
+    lastRipT = now;
+    lastRip.set(bx, 0, bz);
+    let nx = local.x - bx, nz = local.z - bz;
+    const l = Math.hypot(nx, nz) || 1;
+    (nx /= l), (nz /= l);
+    const j = Math.sin(now * 12.9898 + bx * 78.233) * 43758.5453;
+    const r = j - Math.floor(j);
+    palms.place(bx, local.y + 1.02 + r * 0.32, bz, nx, nz, now, (r - 0.5) * 0.7);
+    touchMap.splat(bx, bz, 3.4);
+    mapVersion++;
+    deps?.chime?.();
+  };
   let seated = false;
   let welcomed = false;
   let revealed = false;
@@ -1362,6 +1498,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     onSit() {
       seated = true;
       room.sat = true;
+      orderPaths();
       const n = arts.filter((a) => a.lit.value === 1).length;
       whisper(n ? "From the still centre, every path you walked comes home. Stay as long as you wish; moving stands you up." : "The still centre. Nothing you met walks with you yet: read the steles, meet the archetypes, and their paths will light to here.", 7500);
     },
@@ -1388,6 +1525,12 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       for (const a of arts) if (a.being) a.being.beings.list[0].rite = a.id === id ? 1 : 0;
     },
     eagle: () => (seated ? new V3(0, centreY, 0).add(g.position) : null),
+    eagleHeight: () => {
+      // the eagle's view settles a little lower once the paths have lit, the one seated at the
+      // centre of their own golden map
+      const k = Math.min(1, Math.max(0, (seatedT - 5) / 14));
+      return 125 - 38 * k * k * (3 - 2 * k);
+    },
     doors: () => doorsAt.map((d) => ({ id: d.id, pos: new V3(d.x, mazeFloor(d.x, d.z), d.z).add(g.position) })),
     layout: () => ({
       outer: OUTER,
@@ -1399,7 +1542,73 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       arts: arts.map((a) => ({ id: a.id, title: a.reading.title, x: a.local.x, z: a.local.z, lit: a.lit.value === 1, arch: !!a.being })),
       doors: doorsAt.map((d) => ({ id: d.id, x: d.x, z: d.z })),
       origin: g.position.clone(),
+      cells: cellGeo,
+      visited,
+      marks: palms.at,
+      markCount: palms.count,
+      trail,
+      version: mapVersion,
     }),
+    debugTouch(x: number, z: number) {
+      // stand there and press the nearest wall (for the stills): the touch as a body would make it
+      local.set(x, mazeFloor(x, z), z);
+      let best = 9, bx = 0, bz = 0;
+      for (const w of walls.arcs) {
+        const q = nearArc(w, x, z);
+        if (q.d < best) (best = q.d), (bx = q.x), (bz = q.z);
+      }
+      for (const w of walls.boxes) {
+        const dx = x - w.x, dz = z - w.z, ca = Math.cos(w.a), sa = Math.sin(w.a);
+        const u = dx * ca - dz * sa, v = dx * sa + dz * ca;
+        const cu = Math.max(-w.w / 2, Math.min(w.w / 2, u)), cv = Math.max(-w.d / 2, Math.min(w.d / 2, v));
+        const d = Math.hypot(u - cu, v - cv);
+        if (d < best) (best = d), (bx = w.x + ca * cu + sa * cv), (bz = w.z - sa * cu + ca * cv);
+      }
+      touchWall(bx, bz, clock.u.value as number);
+    },
+    debugWalk(pts: [number, number][]) {
+      let prevC = -1;
+      for (const [x, z] of pts) {
+        trail.walk(x, mazeFloor(x, z) + 0.05, z);
+        const c = cellAt(x, z);
+        if (c >= 0) visited[c] = 1;
+        if (c !== prevC && prevC >= 0 && c >= 0 && isFork(prevC) && forks[prevC] < 0 && plan.cells[prevC].open.some((o) => o.to === c)) forks[prevC] = c;
+        prevC = c;
+      }
+      mapVersion++;
+    },
+    debugExplore(steps: number, touches: number) {
+      // walk the true way in along its corridors (arcs round the rings, straight through the doors)
+      const way: number[] = [];
+      for (let c = plan.entry; c >= 0; c = c === plan.heart ? -1 : toHeart.prev[c]) way.push(c);
+      const pts: [number, number][] = [];
+      let r = MID(NC - 1), a = 0;
+      for (let z = OUTER + 4; z > r; z -= 0.5) pts.push([0, z]);
+      for (let i = 0; i < Math.min(steps, way.length - 1); i++) {
+        const o = plan.cells[way[i]].open.find((q) => q.to === way[i + 1]);
+        if (!o) break;
+        const d = wrap(o.a - a), n = Math.max(1, Math.ceil((Math.abs(d) * r) / 0.5));
+        for (let k = 1; k <= n; k++) pts.push(polar(a + (d * k) / n, r));
+        a = o.a;
+        if (o.r) {
+          const r1 = MID(plan.cells[way[i + 1]].k), m = Math.max(1, Math.ceil(Math.abs(r1 - r) / 0.5));
+          for (let k = 1; k <= m; k++) pts.push(polar(a, r + ((r1 - r) * k) / m));
+          r = r1;
+        }
+      }
+      room.debugWalk(pts);
+      for (let j = 1; j <= touches; j++) {
+        const [x, z] = pts[Math.floor((j / (touches + 1)) * pts.length)];
+        room.debugTouch(x, z);
+      }
+      const [ex, ez] = pts[pts.length - 1], [px, pz] = pts[Math.max(0, pts.length - 4)];
+      local.set(ex, mazeFloor(ex, ez), ez);
+      return { x: ex, z: ez, dx: ex - px, dz: ez - pz };
+    },
+    debugSeated(sec: number) {
+      seatedT = sec;
+    },
+    state: () => ({ marks: palms.count, visited: visited.reduce((a, v) => a + v, 0), forks: forks.filter((f) => f >= 0).length, trail: trail.length, cell: curCell, contactT }),
     sunWorld: () => SUN_AT.clone().add(g.position),
     setNourish(k: number, head: THREE.Vector3) {
       sun.nourish.value = k;
@@ -1432,9 +1641,13 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       local.copy(gpuUniforms.player.value as THREE.Vector3).sub(g.position);
       const rc = Math.hypot(local.x, local.z);
       uCalm.value = damp(uCalm.value as number, seated ? 1 : 0, 0.8, dt);
+      seatedT = seated ? seatedT + dt : 0;
       uSanct.value = damp(uSanct.value as number, rc < RIN + 0.5 ? 1 : 0, 0.7, dt);
       // arrived at the centre: the paths light, spreading out from the seat, and stay lit
-      if (rc < RIN - 0.5) revealed = true;
+      if (rc < RIN - 0.5 && !revealed) {
+        revealed = true;
+        orderPaths();
+      }
       if (revealed) uReveal.value = Math.min(900, (uReveal.value as number) + dt * (seated ? 40 : 22));
       astro.rotation.y += dt * (0.05 + 0.04 * (uCalm.value as number));
       astro.children[0].rotation.x = Math.sin(clock.u.value * 0.07) * 0.08;
@@ -1454,13 +1667,34 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       }
       if (model) hadModel = true;
       if ((uCalm.value as number) > 0.01) placeMotes();
-      // touching a wall: the nearest point of the nearest block within reach, and a wave from it
-      // (one a moment, and again as you go along the wall)
+      // where you walk: the cell you are in (and the first way taken from each fork), the road
+      // laid behind you, and the reach going on ahead
       {
-        const now = clock.u.value as number;
         const moved = Math.hypot(local.x - lastP.x, local.z - lastP.z);
+        const speed = dt > 0 ? moved / dt : 0;
+        if (moved > 0.004 && moved < 2) {
+          const k = Math.min(1, dt * 3);
+          reachDX += ((local.x - lastP.x) / moved - reachDX) * k;
+          reachDZ += ((local.z - lastP.z) / moved - reachDZ) * k;
+          const l = Math.hypot(reachDX, reachDZ) || 1;
+          (reachDX /= l), (reachDZ /= l);
+        }
+        reach.dir.value.set(reachDX, 0, reachDZ);
+        reach.origin.value.set(local.x + reachDX * 0.15, local.y + 1.12, local.z + reachDZ * 0.15);
+        reach.k.value = damp(reach.k.value as number, speed > 0.5 && !seated ? 1 : 0, speed > 0.5 ? 1.6 : 0.8, dt);
+        const c = cellAt(local.x, local.z);
+        if (c !== curCell) {
+          if (c >= 0 && !visited[c]) (visited[c] = 1), mapVersion++;
+          if (curCell >= 0 && c >= 0 && isFork(curCell) && forks[curCell] < 0 && plan.cells[curCell].open.some((o) => o.to === c)) forks[curCell] = c;
+          curCell = c;
+        }
+        if (!seated && Math.hypot(local.x, local.z) < EDGE && trail.walk(local.x, mazeFloor(local.x, local.z) + 0.05, local.z)) mapVersion++;
+        // touching a wall: the nearest point of the nearest block within reach. A real touch (the
+        // body pressed to the stone a moment, not a graze in passing) wakes the wall, shimmers,
+        // and leaves the mark of a palm there; the dark thins round it
+        const now = clock.u.value as number;
         lastP.copy(local);
-        let best = 0.62, bx = 0, bz = 0;
+        let best = 1.2, bx = 0, bz = 0;
         for (const w of walls.boxes) {
           const dx = local.x - w.x, dz = local.z - w.z;
           if (dx * dx + dz * dz > 25) continue;
@@ -1476,13 +1710,9 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
           const q = nearArc(w, local.x, local.z);
           if (q.d < best) (best = q.d), (bx = q.x), (bz = q.z);
         }
-        if (best < 0.62 && moved > 0.002 && now - lastRipT > 1.8 && (Math.hypot(bx - lastRip.x, bz - lastRip.z) > 3 || now - lastRipT > 5)) {
-          rips[ripNext].value.set(bx, local.y + 1.15, bz, now);
-          ripNext = (ripNext + 1) % rips.length;
-          lastRipT = now;
-          lastRip.set(bx, 0, bz);
-          deps?.chime?.();
-        }
+        const pressing = moved > 0.0005 || (deps?.pressing?.() ?? false);
+        contactT = best < 0.42 && pressing && !seated ? contactT + dt : Math.max(0, contactT - dt * 2);
+        if (contactT > 0.15 && now - lastRipT > 1.8 && (Math.hypot(bx - lastRip.x, bz - lastRip.z) > 3 || now - lastRipT > 5)) touchWall(bx, bz, now);
       }
       if (!welcomed) {
         welcomed = true;

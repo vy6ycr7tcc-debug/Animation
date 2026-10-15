@@ -122,6 +122,7 @@ const outline = (pts: number[][]): THREE.Shape => {
   s.closePath();
   return s;
 };
+const ni = (g: THREE.BufferGeometry) => (g.index ? g.toNonIndexed() : g);
 const ex = (s: THREE.Shape | THREE.Shape[]) => new THREE.ExtrudeGeometry(s, { depth: 0.04, bevelEnabled: true, bevelThickness: 0.016, bevelSize: 0.012, bevelSegments: 2, curveSegments: 6 });
 /** The carved animals, in the round flat manner of the pillars, about a unit across. */
 function relief(kind: Relief, R: () => number): THREE.BufferGeometry {
@@ -142,14 +143,14 @@ function relief(kind: Relief, R: () => number): THREE.BufferGeometry {
       }
       const head = new THREE.Shape();
       head.absellipse(Math.sin(20) * 0.1, -0.64, 0.06, 0.09, 0, Math.PI * 2, false, 0);
-      return mergeGeometries([ex(outline([...L, ...Rr.reverse()])), ex(head)].map((g) => g.toNonIndexed()));
+      return mergeGeometries([ex(outline([...L, ...Rr.reverse()])), ex(head)].map(ni));
     }
     case "scorpion": { // a body of segments, claws forward, the tail curling up over the back
       const gs: THREE.BufferGeometry[] = [];
       const disc = (u: number, v: number, a: number, b2: number) => {
         const s = new THREE.Shape();
         s.absellipse(u, v, a, b2, 0, Math.PI * 2, false, 0);
-        gs.push(ex(s).toNonIndexed());
+        gs.push(ni(ex(s)));
       };
       disc(0, 0, 0.16, 0.1);
       for (let i = 0; i < 5; i++) {
@@ -158,8 +159,8 @@ function relief(kind: Relief, R: () => number): THREE.BufferGeometry {
       }
       disc(-0.3, 0.42, 0.04, 0.06);
       for (const s of [-1, 1]) {
-        gs.push(ex(outline([[0.14, s * 0.04], [0.32, s * 0.14], [0.42, s * 0.1], [0.36, s * 0.16], [0.44, s * 0.22], [0.3, s * 0.2], [0.12, s * 0.08]].map(([u, v]) => (s < 0 ? [u, v] : [u, v])))).toNonIndexed());
-        for (let l = 0; l < 3; l++) gs.push(ex(outline([[0.06 - l * 0.08, s * 0.06], [0.1 - l * 0.08, s * 0.2], [0.07 - l * 0.08, s * 0.2], [0.03 - l * 0.08, s * 0.07]])).toNonIndexed());
+        gs.push(ni(ex(outline([[0.14, s * 0.04], [0.32, s * 0.14], [0.42, s * 0.1], [0.36, s * 0.16], [0.44, s * 0.22], [0.3, s * 0.2], [0.12, s * 0.08]].map(([u, v]) => (s < 0 ? [u, v] : [u, v]))))));
+        for (let l = 0; l < 3; l++) gs.push(ni(ex(outline([[0.06 - l * 0.08, s * 0.06], [0.1 - l * 0.08, s * 0.2], [0.07 - l * 0.08, s * 0.2], [0.03 - l * 0.08, s * 0.07]]))));
       }
       return mergeGeometries(gs);
     }
@@ -169,7 +170,7 @@ function relief(kind: Relief, R: () => number): THREE.BufferGeometry {
       // the headless man to one side, birds about, and three bags along the head above
       const gs: THREE.BufferGeometry[] = [];
       const add = (g: THREE.BufferGeometry, m?: THREE.Matrix4) => {
-        const c = g.toNonIndexed();
+        const c = g.index ? g.toNonIndexed() : g.clone();
         if (m) c.applyMatrix4(m);
         gs.push(c);
       };
