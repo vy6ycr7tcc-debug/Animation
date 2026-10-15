@@ -20,16 +20,43 @@ if (canSpeak) {
 }
 
 let token = 0;
-/** Speak `text`; `done` is called when it ends of itself (not when stopped). */
+/** The utterance being spoken, held so Safari can't collect it mid-speech (its end would never come). */
+let held: SpeechSynthesisUtterance | null = null;
+/** Speak `text`; `done` is called when it ends of itself (not when stopped).
+    iOS speaks only from a touch's click or release (never from a pointerdown), and drops a line
+    spoken straight after cancel() when nothing was speaking: so cancel only what is speaking. */
 export function speak(text: string, done?: () => void): void {
   if (!canSpeak || !text.trim()) return;
-  speechSynthesis.cancel();
+  if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
+  if (speechSynthesis.paused) speechSynthesis.resume();
+  if (!voice) pickVoice();
   const my = ++token;
   const u = new SpeechSynthesisUtterance(text);
-  if (voice) u.voice = voice;
+  if (voice) {
+    u.voice = voice;
+    u.lang = voice.lang;
+  }
   u.rate = 0.95;
-  u.onend = () => my === token && done?.();
+  u.onend = () => {
+    if (held === u) held = null;
+    if (my === token) done?.();
+  };
+  held = u;
   speechSynthesis.speak(u);
+}
+
+/** A button that speaks: it acts on the click (a touch's release), which iOS counts as the
+    gesture that lets speech begin; its pointerdown is kept from the game. */
+export function speechButton(b: HTMLElement, f: () => void): void {
+  b.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  });
+  b.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    f();
+  });
 }
 
 export function stopSpeaking(): void {
@@ -72,7 +99,10 @@ export function sayAloud(text: string, done?: () => void): boolean {
     so the game may read aloud later without a touch of its own. */
 export function wakeSpeech(): void {
   if (!readAloud()) return;
-  const u = new SpeechSynthesisUtterance(" ");
+  // iOS skips an empty line without waking anything: a real word, silent and quick
+  const u = new SpeechSynthesisUtterance("ready");
   u.volume = 0;
+  u.rate = 2;
+  held = u;
   speechSynthesis.speak(u);
 }

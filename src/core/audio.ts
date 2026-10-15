@@ -459,7 +459,13 @@ export class AudioEngine {
   /** Into the temple (or out): the water and the night tones fall silent, the stone hall
       takes over, and a far chant begins; outside again, all as it was. */
   setTemple(on: boolean, chant = true): void {
-    if (!this.ctx || on === this.inTemple) return;
+    if (!this.ctx) return;
+    if (on === this.inTemple) {
+      // already within stone walls (one place apart straight into another): only the chant changes
+      if (on && chant && !this.chant) this.startChant();
+      if (this.chant) this.ramp(this.chant.gain, on && chant ? 0.55 : 0, 1.5);
+      return;
+    }
     this.inTemple = on;
     this.ramp(this.worldDry.gain, on ? 0 : 1, on ? 1.2 : 2.5);
     this.ramp(this.worldWet.gain, on ? 0 : 1, on ? 1.2 : 2.5);
@@ -796,7 +802,7 @@ export class AudioEngine {
     this.om.gain.value = 0;
     this.om.connect(this.hall);
     const dry = c.createGain();
-    dry.gain.value = 0.18;
+    dry.gain.value = 0.3;
     this.om.connect(dry).connect(this.templeBus);
     const voices = [[146.83, -6, 1], [146.83, 7, 0.9], [220.0, 2, 0.55], [293.66, -3, 0.35]].map(([f, det, lvl]) => {
       const o = c.createOscillator();
@@ -829,7 +835,7 @@ export class AudioEngine {
       }
       const t = this.ctx.currentTime + 0.05;
       for (const v of voices) {
-        const lag = Math.random() * 0.6, peak = 0.024 * v.lvl;
+        const lag = Math.random() * 0.6, peak = 0.06 * v.lvl;
         // ah (700, 1150) → oh (480, 850) → oo (330, 720) → the M: the mouth closes, a soft hum
         for (const [f, hz] of [[v.f1, [700, 480, 330, 260]], [v.f2, [1150, 850, 720, 500]]] as const) {
           f.frequency.setValueAtTime(hz[0], t);
@@ -848,7 +854,7 @@ export class AudioEngine {
         v.a.gain.linearRampToValueAtTime(0, t + lag + 13.5);
       }
       // then a rest, while the room's air, drops and bowls carry the silence
-      window.setTimeout(sound, (14 + 16 + Math.random() * 22) * 1000);
+      window.setTimeout(sound, (14 + 8 + Math.random() * 12) * 1000);
     };
     window.setTimeout(sound, 2500);
   }

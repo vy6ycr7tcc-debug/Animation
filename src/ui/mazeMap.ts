@@ -18,7 +18,8 @@ export interface MazeMapHost {
   full(): boolean;
 }
 
-const INFO = "The rings are outlines until walked. Tap a walked place to stand there. ◆ steles, numerals the archetypes.";
+const INFO = "Pinch or + − to zoom, drag to look round. Tap a walked place to stand there. ◆ steles, numerals the archetypes.";
+const ZOOM_MAX = 7;
 
 export class MazeMap {
   readonly btn: HTMLButtonElement;
@@ -30,6 +31,14 @@ export class MazeMap {
   private cx = 0;
   private cy = 0;
   private hover: { x: number; y: number } | null = null;
+  /** The view: zoom (1 = the whole maze) and the centre's offset from the canvas's middle (CSS
+      px). While `follow` holds, a zoomed map keeps you in the middle; a drag lets go of it. */
+  private zoom = 1;
+  private panX = 0;
+  private panY = 0;
+  private follow = true;
+  private readonly ptrs = new Map<number, { x: number; y: number }>();
+  private gesture: { moved: boolean; d0: number; z0: number; mx: number; my: number; px: number; py: number } | null = null;
 
   constructor(private readonly host: MazeMapHost) {
     this.btn = document.createElement("button");
@@ -50,7 +59,7 @@ export class MazeMap {
     this.sheet = document.createElement("div");
     this.sheet.id = "maze-map";
     this.sheet.hidden = true;
-    this.sheet.innerHTML = `<div class="mm-head"><span class="mm-title">The mind's maze</span><button type="button" class="mm-close" aria-label="Close the map">✕</button></div>`;
+    this.sheet.innerHTML = `<div class="mm-head"><span class="mm-title">The mind's maze</span><span class="mm-zoom"><button type="button" class="mm-z" data-z="out" aria-label="Zoom out">−</button><button type="button" class="mm-z" data-z="me" aria-label="Centre on me">⌖</button><button type="button" class="mm-z" data-z="in" aria-label="Zoom in">+</button></span><button type="button" class="mm-close" aria-label="Close the map">✕</button></div>`;
     this.cv = document.createElement("canvas");
     this.info = document.createElement("div");
     this.info.className = "mm-info";
@@ -58,25 +67,123 @@ export class MazeMap {
     this.sheet.append(this.cv, this.info);
     document.body.appendChild(this.sheet);
     this.sheet.querySelector(".mm-close")!.addEventListener("pointerdown", (e) => (e.stopPropagation(), this.close()));
+    for (const b of this.sheet.querySelectorAll<HTMLButtonElement>(".mm-z"))
+      b.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const z = b.dataset.z;
+        if (z === "me") {
+          this.follow = true;
+          if (this.zoom < 2.5) this.setZoom(2.5);
+        } else this.setZoom(this.zoom * (z === "in" ? 1.6 : 1 / 1.6));
+        this.draw();
+      });
     this.sheet.addEventListener("pointerdown", (e) => {
       e.stopPropagation();
-      if (e.target !== this.cv) return void this.close();
+      if (e.target === this.sheet) this.close();
+    });
+    // the canvas: one finger drags (or taps to go), two pinch; the wheel zooms about the pointer
+    const local = (e: PointerEvent | WheelEvent) => {
       const r = this.cv.getBoundingClientRect();
-      const qx = e.clientX - r.left, qy = e.clientY - r.top;
-      if (!this.revealed(qx, qy)) return; // only somewhere already walked or touched
-      this.host.go((qx - this.cx) / this.scale, (qy - this.cy) / this.scale);
-      this.draw();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
+    this.cv.addEventListener("pointerdown", (e) => {
+      e.stopPropagation();
+      this.cv.setPointerCapture?.(e.pointerId);
+      this.ptrs.set(e.pointerId, local(e));
+      this.startGesture();
     });
     this.cv.addEventListener("pointermove", (e) => {
-      const r = this.cv.getBoundingClientRect();
-      this.hover = { x: e.clientX - r.left, y: e.clientY - r.top };
+      const q = local(e);
+      this.hover = q;
+      if (!this.ptrs.has(e.pointerId)) return;
+      this.ptrs.set(e.pointerId, q);
+      const g = this.gesture;
+      if (!g) return;
+      const m = this.mid();
+      if (Math.hypot(m.x - g.mx, m.y - g.my) > 8 || this.ptrs.size > 1) g.moved = true;
+      if (!g.moved) return;
+      this.follow = false;
+      if (this.ptrs.size > 1 && g.d0 > 0) {
+        // pinch about the fingers' middle: the point under them stays under them
+        const z = this.clampZoom(g.z0 * (m.d / g.d0));
+        const k = z / g.z0;
+        this.zoom = z;
+        this.panX = m.x - this.half - (g.mx - this.half - g.px) * k;
+        this.panY = m.y - this.half - (g.my - this.half - g.py) * k;
+      } else {
+        this.panX = g.px + (m.x - g.mx);
+        this.panY = g.py + (m.y - g.my);
+      }
+      this.clampPan();
+      this.draw();
     });
+    const up = (e: PointerEvent) => {
+      if (!this.ptrs.has(e.pointerId)) return;
+      const g = this.gesture;
+      const q = local(e);
+      this.ptrs.delete(e.pointerId);
+      if (g && !g.moved && this.ptrs.size === 0 && e.type === "pointerup" && this.revealed(q.x, q.y)) {
+        // a tap: stand there (only somewhere already walked or touched)
+        this.host.go((q.x - this.cx) / this.scale, (q.y - this.cy) / this.scale);
+        this.draw();
+      }
+      if (this.ptrs.size) this.startGesture();
+      else this.gesture = null;
+    };
+    this.cv.addEventListener("pointerup", up);
+    this.cv.addEventListener("pointercancel", up);
+    this.cv.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const q = local(e);
+      const z = this.clampZoom(this.zoom * Math.exp(-e.deltaY * 0.0015));
+      const k = z / this.zoom;
+      this.follow = false;
+      this.panX = q.x - this.half - (q.x - this.half - this.panX) * k;
+      this.panY = q.y - this.half - (q.y - this.half - this.panY) * k;
+      this.zoom = z;
+      this.clampPan();
+      this.draw();
+    }, { passive: false });
     this.cv.addEventListener("pointerleave", () => ((this.hover = null), (this.info.textContent = INFO)));
     window.addEventListener("keydown", (e) => {
       if (e.repeat || (e.target as HTMLElement | null)?.closest?.("input, textarea")) return;
       if (e.code === "KeyN" && !this.btn.hidden) (e.preventDefault(), e.stopPropagation(), this.toggle());
+      else if (this.shown && (e.key === "+" || e.key === "=")) (e.preventDefault(), this.setZoom(this.zoom * 1.6));
+      else if (this.shown && (e.key === "-" || e.key === "_")) (e.preventDefault(), this.setZoom(this.zoom / 1.6));
       else if (e.code === "Escape" && this.shown) (e.preventDefault(), e.stopPropagation(), this.close());
     }, true);
+  }
+
+  /** Half the canvas's size (CSS px). */
+  private half = 0;
+  private clampZoom(z: number): number {
+    return Math.min(ZOOM_MAX, Math.max(1, z));
+  }
+  /** Zoom about the middle of the canvas (or about you, while following). */
+  private setZoom(z: number): void {
+    z = this.clampZoom(z);
+    const k = z / this.zoom;
+    this.panX *= k;
+    this.panY *= k;
+    this.zoom = z;
+    if (z === 1) (this.panX = this.panY = 0), (this.follow = true);
+    this.clampPan();
+  }
+  /** Keep some of the map in view: the centre may move at most as far as the zoom allows. */
+  private clampPan(): void {
+    const lim = this.half * (this.zoom - 1) + this.half * 0.3;
+    this.panX = Math.max(-lim, Math.min(lim, this.panX));
+    this.panY = Math.max(-lim, Math.min(lim, this.panY));
+  }
+  private mid(): { x: number; y: number; d: number } {
+    const p = [...this.ptrs.values()];
+    if (p.length < 2) return { x: p[0]?.x ?? 0, y: p[0]?.y ?? 0, d: 0 };
+    return { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2, d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) };
+  }
+  private startGesture(): void {
+    const m = this.mid();
+    this.gesture = { moved: this.gesture?.moved ?? false, d0: m.d, z0: this.zoom, mx: m.x, my: m.y, px: this.panX, py: this.panY };
   }
 
   get isOpen(): boolean {
@@ -111,6 +218,7 @@ export class MazeMap {
   private full: HTMLCanvasElement | null = null;
   private layerShown: HTMLCanvasElement | null = null;
   private keyed = "";
+  private fullKey = "";
 
   /** Whether a point on the canvas (CSS px) has been revealed. */
   private revealed(px: number, py: number): boolean {
@@ -158,8 +266,16 @@ export class MazeMap {
       this.cv.style.width = this.cv.style.height = `${size}px`;
     }
     const reach = Math.max(L.outer + 34, ...L.doors.map((d) => Math.hypot(d.x, d.z) + 18));
-    const s = (this.scale = size / (reach * 2));
-    const cx = (this.cx = size / 2), cy = (this.cy = size / 2);
+    this.half = size / 2;
+    const s = (this.scale = (size / (reach * 2)) * this.zoom);
+    if (this.follow && this.zoom > 1) {
+      // zoomed and following: you stay in the middle
+      const me0 = this.host.you();
+      this.panX = -me0.x * s;
+      this.panY = -me0.z * s;
+      this.clampPan();
+    }
+    const cx = (this.cx = size / 2 + this.panX), cy = (this.cy = size / 2 + this.panY);
     const X = (x: number) => cx + x * s, Y = (z: number) => cy + z * s;
     const rad = (k: number) => L.rin + L.cw * k;
     const full = this.host.full();
@@ -171,7 +287,9 @@ export class MazeMap {
       return { c, g };
     };
     // the walls and the plazas, drawn once for a size
-    if (!this.full || this.full.width !== W) {
+    const viewKey = `${W}|${this.zoom.toFixed(4)}|${cx.toFixed(1)}|${cy.toFixed(1)}`;
+    if (!this.full || this.fullKey !== viewKey) {
+      this.fullKey = viewKey;
       const { c, g } = layer();
       g.fillStyle = "rgba(255, 220, 170, 0.04)";
       g.beginPath();
@@ -214,7 +332,7 @@ export class MazeMap {
     }
     // what you have walked and touched: the veil lifted only there (the owner's design: your
     // marks draw the map)
-    const key = `${W}|${L.version}|${full}`;
+    const key = `${viewKey}|${L.version}|${full}`;
     if (key !== this.keyed) {
       this.keyed = key;
       const m = layer();
