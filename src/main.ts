@@ -474,6 +474,19 @@ const mazeMap = new MazeMap({
 /** The maze's camera test still (`maze-17`): sampled each frame. */
 let camStep: ((dt: number) => void) | null = null;
 const mazeClear = (a: THREE.Vector3, b: THREE.Vector3): number => maze?.clearance(a, b) ?? 1;
+/** In the maze the stick steers by a frame that turns only slowly after the view: the view turns
+    with the walker's path, and a stick read against it directly turned the walker under the thumb
+    (push a little right and it circled on, the view chasing it). Held, the frame follows the view
+    at most 0.7 rad/s; let go, it is the view's again. */
+let mazeWalk = false;
+let moveYaw = 0;
+function stickYaw(dt: number): number {
+  const held = Math.hypot(input.move.x, input.move.y) > 0.12;
+  if (!mazeWalk || !held) return (moveYaw = follow.yaw);
+  const d = Math.atan2(Math.sin(follow.yaw - moveYaw), Math.cos(follow.yaw - moveYaw));
+  moveYaw += THREE.MathUtils.clamp(d, -0.7 * dt, 0.7 * dt);
+  return moveYaw;
+}
 let mazeLastT = 0;
 function mazeSteleFrame(): void {
   const nowT = performance.now(), mazeDt = Math.min(0.1, (nowT - (mazeLastT || nowT)) / 1000);
@@ -500,17 +513,19 @@ function mazeSteleFrame(): void {
   const fp = false;
   follow.firstPerson = fp;
   input.rollMode = false;
-  follow.targetLift = inMaze && !follow.eagle ? 0.7 : null;
+  // the walker, not the ball (the owner: "an absolute nightmare to play"; his fallback: "we go
+  // back to avatar, but fixing the camera view")
+  follow.targetLift = null;
   // the chase view: always behind the way the ball really goes, the ball at the centre (the rail
   // and arc rest: they chased the corridor's way, not yours)
   follow.chase = inMaze && !follow.eagle;
   follow.rail = null;
   follow.arcCentre = null;
   follow.nearDist = inMaze ? 3.4 : null;
-  wanderer.orbMode = inMaze;
-  // the golden sphere: always in sight in the maze, rolling as it goes, a soft shadow under it
-  if (inMaze && maze) goldSphere.sun.value.copy(maze.sunWorld());
-  goldSphere.update(player.pos, inMaze, heightAt);
+  wanderer.orbMode = false;
+  mazeWalk = inMaze && follow.chase;
+  // the golden sphere rests (kept for a later use)
+  goldSphere.update(player.pos, false, heightAt);
   // the reach of light over the floor while a drag pulls (the way the drag pulls, in the world)
   {
     const mx = input.move.x, my = input.move.y, ml = Math.hypot(mx, my);
@@ -4586,7 +4601,7 @@ function update(dt: number): void {
       const r = autorun.update(dt, player.pos);
       const fx = -Math.sin(follow.yaw), fz = -Math.cos(follow.yaw), rx = Math.cos(follow.yaw), rz = -Math.sin(follow.yaw);
       player.update(dt, { x: (r.x * rx + r.z * rz) * r.push, y: (r.x * fx + r.z * fz) * r.push, glide: false, run: 0.25, hold: false, down: false, pitch: follow.pitch }, follow.yaw);
-    } else player.update(dt, { ...input.move, glide: input.boost, run: input.run, hold: input.hold, down: input.descend, pitch: follow.pitch, free: freeFly }, follow.yaw);
+    } else player.update(dt, { ...input.move, glide: input.boost, run: input.run, hold: input.hold, down: input.descend, pitch: follow.pitch, free: freeFly }, stickYaw(dt));
     follow.freeLook = freeFly && player.flying;
     // the one context word: "Land" high in the air, "Dive" on the water, "Surface" under it
     const ctx = $("#ctx");
