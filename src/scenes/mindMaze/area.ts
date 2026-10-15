@@ -40,7 +40,7 @@ import type { Narration } from "../../core/narration";
 import { JOURNEY_ORIGIN, type Room, type Solid } from "../journey";
 import type { Reading } from "../../world/readables";
 import { buildSun, SUN_AT } from "./sun";
-import { forkRings, Palms, Reach, TouchMap, Trail } from "./mechanics";
+import { forkRings, Palms, TouchMap, Trail } from "./mechanics";
 
 const { attribute, cameraProjectionMatrix, cos, float, fract, mix, modelViewMatrix, normalize, positionGeometry, pow, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
 const V3 = THREE.Vector3;
@@ -1402,14 +1402,12 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     ours.push(c.material);
   }
 
-  /* ---- the engine (mechanics.ts): the reach, the marks a touch leaves, the road walked, the
+  /* ---- the engine (mechanics.ts): the marks a touch leaves, the road walked, the
      forks; and what the visit remembers (the cells walked, the first way taken at each fork) ---- */
   const palms = new Palms(96, t, ours);
   g.add(palms.mesh);
   const trail = new Trail(1400, 0.5, t, ours);
   g.add(trail.mesh);
-  const reach = new Reach(t, ours, R);
-  g.add(reach.sprite);
   const isFork = (c: number) => plan.cells[c].open.length >= 3 && plan.cells[c].plaza < 0;
   {
     const at: { x: number; y: number; z: number }[] = [];
@@ -1452,7 +1450,6 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
   const cellGeo = plan.cells.map((c) => ({ k: c.k, a0: c.a0, a1: c.a1 }));
   let seatedT = 0;
   let contactT = 0;
-  let reachDX = 0, reachDZ = -1;
 
   const local = new V3();
   const tmp = new V3();
@@ -1658,20 +1655,9 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       if (model) hadModel = true;
       if ((uCalm.value as number) > 0.01) placeMotes();
       // where you walk: the cell you are in (and the first way taken from each fork), the road
-      // laid behind you, and the reach going on ahead
+      // laid behind you (the reach of motes ahead is gone: the owner, "remove those sparks following me")
       {
         const moved = Math.hypot(local.x - lastP.x, local.z - lastP.z);
-        const speed = dt > 0 ? moved / dt : 0;
-        if (moved > 0.004 && moved < 2) {
-          const k = Math.min(1, dt * 3);
-          reachDX += ((local.x - lastP.x) / moved - reachDX) * k;
-          reachDZ += ((local.z - lastP.z) / moved - reachDZ) * k;
-          const l = Math.hypot(reachDX, reachDZ) || 1;
-          (reachDX /= l), (reachDZ /= l);
-        }
-        reach.dir.value.set(reachDX, 0, reachDZ);
-        reach.origin.value.set(local.x + reachDX * 0.15, local.y + 1.12, local.z + reachDZ * 0.15);
-        reach.k.value = damp(reach.k.value as number, speed > 0.5 && !seated ? 1 : 0, speed > 0.5 ? 1.6 : 0.8, dt);
         const c = cellAt(local.x, local.z);
         if (c !== curCell) {
           if (c >= 0 && !visited[c]) (visited[c] = 1), mapVersion++;

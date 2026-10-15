@@ -2396,6 +2396,8 @@ function contemplationFrame(dt: number): void {
   // light down into the wanderer's head (the owner: "nourishing the mind")
   const mz = maze && inHall()?.hall === mazeHall && !maze.eagle() ? maze : null;
   follow.skyward = !!mz && want;
+  // lifted just over the walls (4.6 m), so the corridor never hides the sun
+  follow.eyeLift = mz ? 3.8 : 0;
   if (mz && !sunStill) mz.setNourish(inwardK, gzEye.copy(player.pos).setY(player.pos.y + 1.6));
   if (!want) return void (follow.gaze = null);
   gazeFor += dt;

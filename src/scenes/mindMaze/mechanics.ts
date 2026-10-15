@@ -3,8 +3,6 @@
    score, no timer, no popup, nothing on the screen but the world.
    - The Veil: what is far stays dark (the walls' and floor's shading, in area.ts); it thins
      where you have touched.
-   - The Reach (the Potentiator): a faint stream of gold motes going out a little ahead of the
-     wanderer as it moves, the hand reaching into the dark. Intention, not a lamp.
    - The Catalyst: a real touch on a wall wakes it (the wall's own answer in area.ts) and the
      touch shimmers through the colours a moment.
    - The Experience: each touch leaves a gilded palm on the stone, lasting the visit, and the
@@ -18,9 +16,9 @@
 import * as THREE from "three/webgpu";
 import { T, type N, spectrum } from "../../gpu/tsl";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
-import { keepAlpha, pointCloud, touch } from "../densities/roomKit";
+import { keepAlpha } from "../densities/roomKit";
 
-const { attribute, float, vec2, vec3, vec4, sin, cos, smoothstep, fract, mix, pow, uniform, uv } = T;
+const { attribute, float, vec2, vec3, vec4, sin, smoothstep, mix, pow, uniform, uv } = T;
 const TAU = Math.PI * 2;
 
 /* ---------------------------------------------------------------- the touch map */
@@ -242,36 +240,6 @@ export class Trail {
 }
 
 /* ---------------------------------------------------------------- the reach */
-/** The mind reaching into the dark: a thin stream of gold motes going out from the chest a step
-    or two ahead, along the way the wanderer moves, arcing a little upward and curling, each mote
-    faint at its start and gone by its end. Shown only while moving. */
-export class Reach {
-  readonly sprite: THREE.Object3D;
-  readonly origin = uniform(new THREE.Vector3());
-  readonly dir = uniform(new THREE.Vector3(0, 0, -1));
-  readonly k = uniform(0);
-  constructor(t: N, ours: { dispose(): void }[], seed: () => number) {
-    const n = 110;
-    const c = pointCloud(n, 0.045);
-    for (let i = 0; i < n; i++) c.k.set([seed(), seed(), seed(), seed()], i * 4);
-    touch(c.cloud);
-    const K = c.cloud.nodes.aK;
-    const s = fract(K.x.add(t.mul(float(0.28).add(K.y.mul(0.12)))));
-    const len = float(1.1).add(K.z.mul(1.3));
-    const D = this.dir, side = vec3(D.z.negate(), 0, D.x);
-    const curl = sin(s.mul(5).add(K.w.mul(TAU)).add(t.mul(0.8))).mul(s).mul(0.16);
-    const lift = s.mul(s).mul(0.35).add(cos(t.mul(0.6).add(K.y.mul(9))).mul(0.04));
-    c.material.positionNode = this.origin.add(D.mul(s.mul(len).add(0.25))).add(side.mul(curl)).add(vec3(0, lift, 0));
-    const life = smoothstep(0, 0.2, s).mul(float(1).sub(smoothstep(0.55, 1, s)));
-    const tw = sin(t.mul(2.3).add(K.w.mul(40))).mul(0.25).add(0.75);
-    c.material.colorNode = vec4(vec3(1, 0.8, 0.46).mul(c.round).mul(life).mul(tw).mul(this.k).mul(0.55), 1);
-    c.cloud.sprite.frustumCulled = false;
-    this.sprite = c.cloud.sprite;
-    ours.push(c.material);
-  }
-}
-
-/* ---------------------------------------------------------------- the forks */
 /** At every crossing of three or more ways, a slow gold breath on the floor: a fine ring, each
     breathing on its own time, near only (it fades by ~20 m and into the veil). */
 export function forkRings(at: { x: number; y: number; z: number }[], t: N, ours: { dispose(): void }[]): THREE.Mesh | null {
