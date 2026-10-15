@@ -59,6 +59,9 @@ export class FollowCamera {
   ceiling: number | null = null;
   /** A steered view may look high into the sky (the maze's sun in contemplation). */
   skyward = false;
+  /** Contemplation's eye raised this far above the usual 1.6 m (the mind's maze: just over its walls,
+      so its sun is never hidden behind the corridor). */
+  eyeLift = 0;
   private eagleK = 0;
   private eagleAt = new THREE.Vector3();
 
@@ -170,7 +173,7 @@ export class FollowCamera {
       look.copy(cp).addScaledVector(toT.lerp(toG, THREE.MathUtils.smoothstep(this.frameK, 0, 1) * (0.62 + 0.18 * w)).normalize(), d);
     }
     if (this.inward > 0.001) {
-      const eye = new THREE.Vector3(player.x, player.y + 1.6, player.z);
+      const eye = new THREE.Vector3(player.x, player.y + 1.6 + this.eyeLift, player.z);
       const ahead = eye.clone().add(new THREE.Vector3(-Math.sin(this.yaw) * 20, 0.8, -Math.cos(this.yaw) * 20));
       if (!this.gazeHeld) (this.gazeAt.copy(look), (this.gazeHeld = true));
       // the gaze glides from one thing to the next, never snaps

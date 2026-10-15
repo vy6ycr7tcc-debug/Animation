@@ -7,17 +7,18 @@
    - prominences: loops of magma arching out of the surface and falling back along them, and
      ejecta flung out and fading;
    - nourishing: while you contemplate, it flares brighter, its corona swells in slow bursts,
-     more magma leaps from it, and a stream of light spirals down from it to the wanderer's head.
+     more magma leaps from it, and its eruptions grow: fountains of magma bursting out of the
+     surface, arcing and falling back (nothing comes down to the wanderer: the owner).
    Contained: its light is warm and strong but no glare spreads from it. */
 import * as THREE from "three/webgpu";
 import { T, type N } from "../../gpu/tsl";
 import { pointCloud, touch, seeded } from "../densities/roomKit";
 
-const { float, vec3, vec4, sin, cos, mix, smoothstep, pow, fract, normalize, uniform, uv } = T;
+const { float, vec3, vec4, sin, cos, mix, smoothstep, pow, fract, floor, normalize, uniform, uv } = T;
 
 /** Where the sun hangs (the maze's frame) and its radius (m). */
-export const SUN_AT = new THREE.Vector3(0, 72, -16);
-export const SUN_R = 9;
+export const SUN_AT = new THREE.Vector3(0, 80, -16);
+export const SUN_R = 12;
 
 export interface MazeSun {
   /** 0..1: contemplating, it flares and pours its light down. */
@@ -136,27 +137,35 @@ export function buildSun(g: THREE.Group, t: N, ours: { dispose(): void }[], phon
     ours.push(c.material);
   }
 
-  /* ---- the stream of light down to the wanderer's head, while contemplating ---- */
+  /* ---- eruptions: every few seconds magma bursts out of one place on the surface in a great
+     fountain, arcs out and falls back, white-hot to ember (the owner: "explosions of magma out of
+     the sun"); a quiet one now and then, great ones while you contemplate ---- */
   {
-    const N_ = phone ? 900 : 1500;
-    const c = pointCloud(N_, 0.16);
-    for (let i = 0; i < N_; i++) c.k.set([R(), R(), R(), R()], i * 4);
+    const SITES = 3, N_ = phone ? 1800 : 3000;
+    const c = pointCloud(N_, 0.5);
+    for (let i = 0; i < N_; i++) c.k.set([(i % SITES) / SITES, R(), R(), R()], i * 4);
     touch(c.cloud);
     const K = c.cloud.nodes.aK;
-    const top = S, bottom = vec3(head.x, head.y.add(0.25), head.z);
-    const axis = bottom.sub(top);
-    const ax = normalize(axis);
-    const b1 = normalize(T.cross(ax, vec3(1, 0, 0)));
-    const b2 = T.cross(ax, b1);
-    const s = fract(K.y.add(t.mul(float(0.07).add(K.z.mul(0.05)))));
-    // a spiral narrowing as it comes down, from the sun's width to a hand's breadth at the head
-    const rad = mix(float(SUN_R * 0.7), float(0.18), pow(s, 0.7)).mul(K.w.mul(0.6).add(0.4));
-    const a = K.x.mul(Math.PI * 2).add(s.mul(9)).add(t.mul(0.4));
-    const P = top.add(axis.mul(s)).add(b1.mul(cos(a).mul(rad))).add(b2.mul(sin(a).mul(rad)));
-    c.material.positionNode = P;
-    const ends = smoothstep(0, 0.08, s).mul(smoothstep(1, 0.9, s));
-    const col = mix(vec3(1.25, 0.7, 0.3), vec3(1.15, 1.0, 0.82), s);
-    c.material.colorNode = vec4(col.mul(c.round).mul(ends).mul(nourish).mul(0.7), 1);
+    // each site keeps its own clock, a burst every ~7 s, a new place on the surface each time
+    const cyc = t.mul(0.14).add(K.x);
+    const n = floor(cyc);
+    const e = fract(cyc).mul(1 / 0.14); // seconds since this site's burst
+    const h1 = fract(sin(n.mul(12.9898).add(K.x.mul(78.233))).mul(43758.5453));
+    const h2 = fract(sin(n.mul(39.346).add(K.x.mul(11.135))).mul(24634.6345));
+    const zz = h1.mul(2).sub(1), az = h2.mul(Math.PI * 2), rr = T.sqrt(float(1).sub(zz.mul(zz)));
+    const site = vec3(rr.mul(cos(az)), zz, rr.mul(sin(az)));
+    // a fountain: each drop leaves in a cone about the site's normal, slows under the sun's pull
+    // and falls back; the strength grows while contemplating
+    const cone = vec3(sin(K.y.mul(91)), cos(K.z.mul(57)), sin(K.w.mul(33))).mul(0.55);
+    const dir = normalize(site.add(cone));
+    const strength = float(0.35).add(nourish.mul(0.65));
+    const v = mix(float(5), float(15), K.w).mul(strength.mul(0.7).add(0.3));
+    const out = v.mul(e).sub(e.mul(e).mul(1.9)).max(0);
+    c.material.positionNode = S.add(site.mul(SUN_R * 0.97)).add(dir.mul(out));
+    const age = e.div(5.5).min(1);
+    const hot = mix(vec3(1.5, 1.05, 0.55), mix(vec3(1.2, 0.42, 0.08), vec3(0.4, 0.06, 0.02), smoothstep(0.45, 1, age)), smoothstep(0.03, 0.35, age));
+    const alive = smoothstep(0, 0.12, e).mul(smoothstep(5.8, 3.8, e)).mul(T.step(0.001, out));
+    c.material.colorNode = vec4(hot.mul(c.round).mul(alive).mul(strength).mul(0.9), 1);
     c.cloud.sprite.frustumCulled = false;
     g.add(c.cloud.sprite);
     ours.push(c.material);
