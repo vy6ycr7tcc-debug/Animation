@@ -5,17 +5,19 @@
    a sky made for it: the maze's storm-dark indigo, an ember band low toward the volcano, fine stars,
    and a hot highlight toward the maze's sun; a strong fresnel rim; a seed-of-life of fine engraved
    rings cut into the gold, which turns with the roll (the reflection, rightly, does not), so it
-   reads as rolling. Seen in the maze only when the view is not the sphere's own eyes: arriving,
-   leaving, and from the eagle's height at the centre. One mesh; nothing allocated per frame. */
+   reads as rolling. Always in sight in the maze, the view close and low behind it, a soft contact
+   shadow under it so it sits on the floor. Nothing allocated per frame. */
 import * as THREE from "three/webgpu";
 import { T, hash3 } from "../gpu/tsl";
 
 const { float, vec3, vec4, mix, smoothstep, pow, max, normalize, dot, reflect, uniform, length, abs, sin, fract } = T;
 
-export const GOLD_R = 0.7;
+export const GOLD_R = 0.45;
 
 export class GoldSphere {
   readonly mesh: THREE.Mesh;
+  /** A soft darkness on the floor under it (add beside the mesh). */
+  readonly shadow: THREE.Mesh;
   /** Where the maze's sun hangs (world), for the highlight. */
   readonly sun = uniform(new THREE.Vector3(0, 200, 0));
   private readonly axis = new THREE.Vector3();
@@ -41,7 +43,7 @@ export class GoldSphere {
     const hot = pow(rs, float(260)).mul(5).add(pow(rs, float(18)).mul(0.6));
     const mirror = sky.add(vec3(1.0, 0.6, 0.3).mul(band)).add(vec3(0.9, 0.92, 1.0).mul(star)).add(vec3(1.0, 0.86, 0.6).mul(hot));
     // gold takes its colour from what it mirrors; a fresnel edge brightens toward white-gold
-    const gold = vec3(1.0, 0.74, 0.32);
+    const gold = vec3(1.0, 0.66, 0.2);
     const fres = pow(float(1).sub(max(dot(N, V), 0)), float(4));
     const P = T.positionGeometry.div(GOLD_R); // in the sphere's own (rolling) frame
     // engraved rings: the seed of life, seven circles over the sphere, cut as fine dark grooves
@@ -52,16 +54,25 @@ export class GoldSphere {
       groove = max(groove, smoothstep(0.022, 0.0, d));
     }
     const shimmer = sin(T.positionGeometry.y.mul(90)).mul(0.015).add(1);
-    const col = gold.mul(mirror.mul(1.9).add(0.03)).mul(shimmer).mul(float(1).sub(groove.mul(0.55))).add(vec3(1.0, 0.9, 0.7).mul(fres.mul(0.55)));
+    const col = gold.mul(mirror.mul(2.3).add(0.05)).mul(shimmer).mul(float(1).sub(groove.mul(0.6))).add(vec3(1.0, 0.78, 0.38).mul(fres.mul(0.4)));
     m.colorNode = vec4(col, 1);
     this.mesh = new THREE.Mesh(geo, m);
     this.mesh.visible = false;
     this.mesh.renderOrder = 2;
+    // the contact shadow: a gaussian disc of darkness, multiplied over the floor
+    const sm = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, fog: false });
+    const d = T.uv().sub(0.5).mul(2);
+    const r2 = dot(d, d);
+    sm.colorNode = vec4(vec3(0), T.exp(r2.mul(-3.2)).mul(float(1).sub(smoothstep(0.8, 1.0, r2))).mul(0.62));
+    this.shadow = new THREE.Mesh(new THREE.PlaneGeometry(GOLD_R * 3.2, GOLD_R * 3.2).rotateX(-Math.PI / 2), sm);
+    this.shadow.visible = false;
+    this.shadow.renderOrder = 1;
   }
 
   /** Each frame: stand on the ground at `feet`, rolling as it moves (world). */
-  update(feet: THREE.Vector3, visible: boolean): void {
+  update(feet: THREE.Vector3, visible: boolean, ground?: (x: number, z: number) => number): void {
     this.mesh.visible = visible;
+    this.shadow.visible = visible;
     const p = this.mesh.position;
     if (!this.placed) this.last.copy(feet), (this.placed = true);
     const dx = feet.x - this.last.x, dz = feet.z - this.last.z, d = Math.hypot(dx, dz);
@@ -73,6 +84,7 @@ export class GoldSphere {
     }
     this.last.copy(feet);
     p.set(feet.x, feet.y + GOLD_R, feet.z);
+    this.shadow.position.set(feet.x, (ground ? ground(feet.x, feet.z) : feet.y) + 0.02, feet.z);
   }
 }
 

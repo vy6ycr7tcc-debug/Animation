@@ -308,7 +308,7 @@ const wanderer = new Wanderer(camera);
 scene.add(wanderer.root, wanderer.fx);
 // the mind's maze: the wanderer becomes a sphere of polished gold, and the view its own eyes
 const goldSphere = new GoldSphere();
-scene.add(goldSphere.mesh);
+scene.add(goldSphere.mesh, goldSphere.shadow);
 const reachLine = new ReachLine(gpuUniforms.time);
 scene.add(reachLine.mesh);
 wanderer.load("models/wanderer.glb");
@@ -494,16 +494,19 @@ function mazeSteleFrame(): void {
   // the maze in first person (the owner's v2: "the player IS a rolling sphere, first-person; the
   // camera is the ball"): one gesture, a drag anywhere, rolls you; the view is the sphere's own
   // eyes; the third-person rail and arc rest (they serve the eagle's descent only)
-  const fp = inMaze && !follow.eagle && !crossing;
+  // (the owner: "you don't see any sphere and the experience on the controls is AWFUL"): the view
+  // stands close and low behind the golden sphere, always in sight, and the usual stick moves it
+  const fp = false;
   follow.firstPerson = fp;
-  input.rollMode = inMaze;
+  input.rollMode = false;
+  follow.targetLift = inMaze && !follow.eagle ? 0.7 : null;
   follow.rail = inMaze && maze && !fp ? maze.railYaw(player.pos, player.heading) : null;
   follow.arcCentre = inMaze && maze && !fp ? maze.railArc() : null;
-  follow.nearDist = inMaze ? 4.6 : null;
+  follow.nearDist = inMaze ? 3.4 : null;
   wanderer.orbMode = inMaze;
-  // the golden sphere: seen when the view is not its own eyes (the eagle's height at the centre)
+  // the golden sphere: always in sight in the maze, rolling as it goes, a soft shadow under it
   if (inMaze && maze) goldSphere.sun.value.copy(maze.sunWorld());
-  goldSphere.update(player.pos, inMaze && !fp);
+  goldSphere.update(player.pos, inMaze, heightAt);
   // the reach of light over the floor while a drag pulls (the way the drag pulls, in the world)
   {
     const mx = input.move.x, my = input.move.y, ml = Math.hypot(mx, my);
