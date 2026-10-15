@@ -5,7 +5,7 @@
    Privacy: the player's heart notes go with a question only when "Attach my heart" is ticked for
    that question (off each time the panel opens); nothing else leaves the device. */
 import { heartNotes, keepToItself, tapButton } from "./heart";
-import { canSpeak, speak, stopSpeaking } from "./speak";
+import { canSpeak, readAloud, speak, stopSpeaking } from "./speak";
 
 const ENDPOINT = "https://oracle-station.vy6ycr7tcc.workers.dev/oracle";
 const SILENT = "The oracle is silent — check your connection.";
@@ -135,6 +135,7 @@ export class Oracle {
       this.answer.scrollTop = 0;
       this.status.textContent = "";
       this.speak.hidden = !canSpeak;
+      if (readAloud()) this.toggleSpeech();
     } catch {
       // one quiet line; the question stays where it was
       this.status.textContent = SILENT;

@@ -6,7 +6,7 @@
    recording it can be heard as it is read (one for all, or one per page). While it is open the
    stick and the button rest so a thumb on the text never walks you away. */
 import type { Reading } from "../world/readables";
-import { canSpeak, speak, stopSpeaking } from "./speak";
+import { canSpeak, readAloud, speak, stopSpeaking } from "./speak";
 
 export class Reader {
   readonly el: HTMLElement;
@@ -110,6 +110,8 @@ export class Reader {
     document.body.classList.add("reading");
     this.render();
     if (this.listening) this.onListen(r, true, 0);
+    // read aloud by itself (⋮ → Read words aloud) when there is no recording of its own
+    else if (!this.recorded(r) && readAloud()) this.setNative(true);
   }
 
   close(): void {
