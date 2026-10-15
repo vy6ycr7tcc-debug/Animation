@@ -304,6 +304,10 @@ export class Wanderer {
   private skinMeshes: THREE.Mesh[] = [];
 
   private orb = new THREE.Group();
+  /** The mind's maze: the body is gone on land too (the owner: "become the ball thingy"); the
+      golden sphere (`player/goldSphere.ts`) stands in its place, and the small water orb rests. */
+  orbMode = false;
+  private orbLand = 0;
   private orbCore: THREE.MeshBasicMaterial;
   private ribbons = [new Ribbon(30, 0.035), new Ribbon(30, 0.035), new Ribbon(22, 0.05)];
   private geo = new GeoForm();
@@ -455,7 +459,9 @@ export class Wanderer {
     const ease = (key: keyof typeof this.k, target: number, rate: number) =>
       (this.k[key] += (target - this.k[key]) * Math.min(1, dt * rate));
     // "swim" blends the swimming clips, in the water only; flight is held as a pose (flyPose)
-    const water = ease("water", pose === "swim" ? 1 : 0, 2.5);
+    const water = ease("water", pose === "swim" || this.orbMode ? 1 : 0, 2.5);
+    // on land the orb is larger and floats lower (in the water it rides the surface)
+    this.orbLand += ((this.orbMode && pose !== "swim" ? 1 : 0) - this.orbLand) * Math.min(1, dt * 2.5);
     const swim = ease("swim", pose === "swim" ? 1 : 0, 2.5);
     const fly = ease("fly", pose === "fly" || pose === "hover" ? 1 : 0, 3);
     // stretched out flat when moving, upright when hovering
@@ -525,8 +531,8 @@ export class Wanderer {
     for (const m of this.skinMeshes) m.visible = this.skin.opacity > 0.01;
     tickLightBody(this.skin, t);
     const orbK = THREE.MathUtils.smoothstep(water, 0.2, 1);
-    this.orb.scale.setScalar(Math.max(0.001, orbK * (1 + (reduced ? 0 : Math.sin(t * 2.2) * 0.05))));
-    this.orb.position.y = 1.22 + (reduced ? 0 : Math.sin(t * 1.3) * 0.04);
+    this.orb.scale.setScalar(Math.max(0.001, orbK * (1 - this.orbLand) * (1 + (reduced ? 0 : Math.sin(t * 2.2) * 0.05))));
+    this.orb.position.y = 1.22 - this.orbLand * 0.3 + (reduced ? 0 : Math.sin(t * 1.3) * (0.04 + this.orbLand * 0.05));
     this.orbCore.opacity = orbK;
     this.motes.points.visible = water < 0.5 && flameK < 0.5 && this.presence > 0.3;
     {

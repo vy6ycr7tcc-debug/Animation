@@ -147,6 +147,8 @@ export class Trail {
   private readonly sAt: Float32Array;
   private readonly posAttr: THREE.BufferAttribute;
   private readonly sAttr: THREE.BufferAttribute;
+  private readonly across: Float32Array;
+  private readonly acrossAttr: THREE.BufferAttribute;
   private next = 0;
   private hasLast = false;
   private lx = 0;
@@ -154,6 +156,8 @@ export class Trail {
   private lz = 0;
   /** Distance walked (m), the head of the thread. */
   readonly head = uniform(0);
+  /** How brightly the whole road shows (the centre's reveal from the eagle's height). */
+  readonly reveal = uniform(0);
   length = 0;
   /** The last `pts` points walked (x, z), oldest first from `ptsStart`, for the map. */
   readonly pts: Float32Array;
@@ -163,6 +167,7 @@ export class Trail {
     this.pos = new Float32Array(cap * 4 * 3);
     this.sAt = new Float32Array(cap * 4);
     const side = new Float32Array(cap * 4);
+    this.across = new Float32Array(cap * 4 * 2);
     const idx = new Uint32Array(cap * 6);
     for (let s = 0; s < cap; s++) {
       side.set([-1, 1, -1, 1], s * 4);
@@ -174,16 +179,23 @@ export class Trail {
     g.setAttribute("position", this.posAttr);
     g.setAttribute("aS", this.sAttr);
     g.setAttribute("aSide", new THREE.BufferAttribute(side, 1));
+    this.acrossAttr = new THREE.BufferAttribute(this.across, 2).setUsage(THREE.DynamicDrawUsage);
+    g.setAttribute("aAcross", this.acrossAttr);
     g.setIndex(new THREE.BufferAttribute(idx, 1));
     const m = keepAlpha(new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }));
-    const s = attribute("aS", "float"), sd = attribute("aSide", "float");
+    const s = attribute("aS", "float"), sd = attribute("aSide", "float"), ac = attribute("aAcross", "vec2");
+    // the points lie on the road's centre line; it is widened here, much wider when revealed from
+    // the eagle's height (at 0.28 m it would be under a pixel from 90 m up)
+    const halfW = mix(float(0.14), float(1.0), this.reveal);
+    m.positionNode = T.positionLocal.add(vec3(ac.x, 0, ac.y).mul(sd.mul(halfW)));
     const behind = this.head.sub(s);
-    const fade = float(1).sub(smoothstep(320, 640, behind)).mul(smoothstep(0.4, 2.2, behind));
+    // the whole road at once when revealed from on high (no fading with distance then)
+    const fade = float(1).sub(smoothstep(320, 640, behind)).mul(smoothstep(0.4, 2.2, behind)).max(this.reveal);
     const across = float(1).sub(sd.mul(sd)).max(0);
     const soft = pow(across, 1.6);
     // a slow brightness travelling along the thread toward you
     const flow = sin(s.mul(0.5).sub(t.mul(1.1))).mul(0.25).add(0.75);
-    m.colorNode = vec4(vec3(1, 0.78, 0.42).mul(soft).mul(flow).mul(fade).mul(0.16), 1);
+    m.colorNode = vec4(vec3(1, 0.78, 0.42).mul(soft).mul(flow).mul(fade).mul(float(0.16).add(this.reveal.mul(0.2))), 1);
     this.mesh = new THREE.Mesh(g, m);
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 2;
@@ -205,15 +217,15 @@ export class Trail {
       (this.lx = x), (this.ly = y), (this.lz = z);
       return false;
     }
-    const w = 0.14, ux = (-dz / d) * w, uz = (dx / d) * w;
+    const ux = -dz / d, uz = dx / d;
     const i = this.next;
     this.next = (this.next + 1) % this.cap;
     const s0 = this.length, s1 = this.length + d;
     const p = this.pos, o = i * 12;
-    p[o] = this.lx - ux; p[o + 1] = this.ly; p[o + 2] = this.lz - uz;
-    p[o + 3] = this.lx + ux; p[o + 4] = this.ly; p[o + 5] = this.lz + uz;
-    p[o + 6] = x - ux; p[o + 7] = y; p[o + 8] = z - uz;
-    p[o + 9] = x + ux; p[o + 10] = y; p[o + 11] = z + uz;
+    p[o] = p[o + 3] = this.lx; p[o + 1] = p[o + 4] = this.ly; p[o + 2] = p[o + 5] = this.lz;
+    p[o + 6] = p[o + 9] = x; p[o + 7] = p[o + 10] = y; p[o + 8] = p[o + 11] = z;
+    for (let v = 0; v < 4; v++) (this.across[i * 8 + v * 2] = ux), (this.across[i * 8 + v * 2 + 1] = uz);
+    this.acrossAttr.needsUpdate = true;
     this.sAt[i * 4] = this.sAt[i * 4 + 1] = s0;
     this.sAt[i * 4 + 2] = this.sAt[i * 4 + 3] = s1;
     this.posAttr.needsUpdate = true;

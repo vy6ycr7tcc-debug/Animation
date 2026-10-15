@@ -40,6 +40,7 @@ import type { Narration } from "../../core/narration";
 import { JOURNEY_ORIGIN, type Room, type Solid } from "../journey";
 import type { Reading } from "../../world/readables";
 import { buildSun, SUN_AT } from "./sun";
+import { galaxyWindows, windowSpots } from "./windows";
 import { forkRings, Palms, TouchMap, Trail } from "./mechanics";
 
 const { attribute, cameraProjectionMatrix, cos, float, fract, mix, modelViewMatrix, normalize, positionGeometry, pow, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
@@ -476,6 +477,8 @@ export interface MazeRoom extends Room {
   /** Stills: walk the true way in, `steps` cells, leaving `touches` palms; where it ends. */
   debugExplore(steps: number, touches: number): { x: number; z: number; dx: number; dz: number };
   debugSeated(sec: number): void;
+  /** Stills: the galaxy windows (room frame), each with the way it looks and whether it ends a corridor. */
+  debugWindows(): { x: number; z: number; nx: number; nz: number; end: boolean }[];
   /** Tests: the corridors' way from reading `i` in to the seat (world points, every half metre). */
   debugRoute(i: number): THREE.Vector3[];
   /** What the visit holds (tests): marks left, cells walked, forks chosen, road walked. */
@@ -485,6 +488,9 @@ export interface MazeRoom extends Room {
   /** The way the corridor runs where you stand (world), the one of its two directions nearer
       `heading`, as a camera yaw; null in a plaza, the sanctuary or the forecourt (free there). */
   railYaw(p: THREE.Vector3, heading: number): number | null;
+  /** The maze's centre (world), and whether the last way railYaw gave runs along a ring (so the
+      view may follow the ring's curve behind you). */
+  railArc(): THREE.Vector3 | null;
   /** How far along from `a` to `b` (world) the view is clear of the maze's walls, 0..1. */
   clearance(a: THREE.Vector3, b: THREE.Vector3): number;
   /** Contemplating (0..1): the sun flares and pours its light down to the head (world). */
@@ -768,7 +774,17 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       const lid = smoothstep(0.85, 0.98, nW.y).mul(0.6);
       const rim = pow(float(1).sub(T.abs(T.dot(nW, gv))), 3);
       const gilt = vec3(1, 0.76, 0.4).mul(touchedHere).mul(topEdge.mul(0.32).add(lid.mul(0.22)).add(rim.mul(0.1))).mul(float(1).sub(smoothstep(60, 110, camD)));
-      m.emissiveNode = vec3(1.0, 0.86, 0.68).mul(glit).mul(1.1).mul(float(1).sub(wallVeil)).add(gilt);
+      // the corridors made lovely to walk (the owner's v2): a faint warm strip of light low along
+      // every wall, as if the floor were lit from its edges, and fine veins of gold through the
+      // stone, near only; contemplative, never busy
+      const base = top.sub(WALL_H);
+      const hb = pr.y.sub(base);
+      const upright = float(1).sub(T.abs(nW.y));
+      const strip = smoothstep(0.06, 0.11, hb).mul(smoothstep(0.2, 0.15, hb)).mul(upright).mul(float(1).sub(smoothstep(10, 34, camD)));
+      const vq = vnoise(pr.xz.mul(0.55).add(pr.y.mul(0.32))).mul(2).sub(1);
+      const vein = pow(float(1).sub(T.abs(vq)), float(90)).mul(upright).mul(float(1).sub(smoothstep(4, 16, camD)));
+      m.emissiveNode = vec3(1.0, 0.86, 0.68).mul(glit).mul(1.1).mul(float(1).sub(wallVeil)).add(gilt)
+        .add(vec3(1.0, 0.66, 0.34).mul(strip.mul(0.07))).add(vec3(1.0, 0.78, 0.42).mul(vein.mul(0.09)));
     }
     // touched, a wall answers (the owner, after the series Invasion: not rings): the stone wakes
     // into a sheet of turbulent cyan energy spreading from the touch, nebulous clouds flowing
@@ -1463,10 +1479,12 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
      forks; and what the visit remembers (the cells walked, the first way taken at each fork) ---- */
   const palms = new Palms(96, t, ours);
   g.add(palms.mesh);
-  // the road walked is remembered (the map draws it) but not drawn on the floor: on a phone the
-  // band of light behind you read as a beam running down the screen (the owner: "the beam
-  // tracking is super obnoxious and crowds the screen")
+  // the road walked: never drawn while you roll (the owner: "the beam tracking… crowds the
+  // screen"; and in first person it lies behind you); the maze's map draws it, and at the centre,
+  // from the eagle's height, the whole golden road is revealed at once (the owner's v2)
   const trail = new Trail(1400, 0.5, t, ours);
+  trail.mesh.visible = false;
+  g.add(trail.mesh);
   const isFork = (c: number) => plan.cells[c].open.length >= 3 && plan.cells[c].plaza < 0;
   {
     const at: { x: number; y: number; z: number }[] = [];
@@ -1489,6 +1507,16 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     const n = COUNTS[k], a = ((Math.atan2(x, z) % TAU) + TAU) % TAU;
     return plan.index(k, Math.round((a / TAU) * n));
   };
+  // windows onto the galaxy in the corridors' walls, warmer along the one true way in
+  {
+    const onWayCells = new Set<number>();
+    for (let c = plan.entry; c >= 0; c = toHeart.prev[c]) onWayCells.add(c);
+    const win = galaxyWindows({ arcs: walls.arcs, boxes: walls.boxes, rin: RIN, outer: OUTER, floor: mazeFloor, onWay: (x, z) => onWayCells.has(cellAt(x, z)), rand: seeded(7177), t });
+    if (win) {
+      g.add(win);
+      ours.push(win.geometry, win.material as THREE.Material);
+    }
+  }
   /** The paths light from the seat in the order of the ways you chose: a path whose forks you
       took first lights first, the others a breath after. */
   const orderPaths = () => {
@@ -1508,6 +1536,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
   };
   const cellGeo = plan.cells.map((c) => ({ k: c.k, a0: c.a0, a1: c.a1 }));
   let seatedT = 0;
+  let railRing = false;
   let contactT = 0;
 
   const local = new V3();
@@ -1656,6 +1685,8 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     },
     state: () => ({ marks: palms.count, visited: visited.reduce((a, v) => a + v, 0), forks: forks.filter((f) => f >= 0).length, trail: trail.length, cell: curCell, contactT }),
     sunWorld: () => SUN_AT.clone().add(g.position),
+    railArc: () => (railRing ? g.position : null),
+    debugWindows: () => windowSpots,
     debugRoute: (i) => {
       const p = paths[Math.min(paths.length - 1, i)].pts, out: THREE.Vector3[] = [];
       for (let k = 0; k < p.length; k += 3) out.push(new V3(p[k], p[k + 1], p[k + 2]).add(g.position));
@@ -1664,6 +1695,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     railYaw: (p, heading) => {
       const x = p.x - g.position.x, z = p.z - g.position.z;
       const c = cellAt(x, z);
+      railRing = false;
       if (c < 0 || plan.cells[c].plaza >= 0) return null;
       const r = Math.hypot(x, z) || 1;
       const hx = -Math.sin(heading), hz = -Math.cos(heading);
@@ -1671,6 +1703,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       const tx = z / r, tz = -x / r, ux = x / r, uz = z / r;
       let bx = tx, bz = tz, bd = tx * hx + tz * hz;
       if (bd < 0) (bx = -tx), (bz = -tz), (bd = -bd);
+      railRing = true;
       const k = Math.floor((r - RIN) / CW), a = Math.atan2(x, z);
       for (let side = 0; side < 2; side++) {
         const rb = RAD(k + side);
@@ -1684,7 +1717,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
         }
         if (shut) continue;
         const sgn = rb > r ? 1 : -1, d = (ux * hx + uz * hz) * sgn;
-        if (d > bd) (bx = ux * sgn), (bz = uz * sgn), (bd = d);
+        if (d > bd) (bx = ux * sgn), (bz = uz * sgn), (bd = d), (railRing = false);
       }
       return Math.atan2(-bx, -bz);
     },
@@ -1721,6 +1754,12 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       const rc = Math.hypot(local.x, local.z);
       uCalm.value = damp(uCalm.value as number, seated ? 1 : 0, 0.8, dt);
       seatedT = seated ? seatedT + dt : 0;
+      // the golden road revealed from on high, a few seconds into the eagle's rise
+      {
+        const rv = seated ? Math.min(1, Math.max(0, (seatedT - 4) / 6)) : 0;
+        trail.reveal.value = damp(trail.reveal.value as number, rv, rv > (trail.reveal.value as number) ? 0.8 : 3, dt);
+        trail.mesh.visible = (trail.reveal.value as number) > 0.01;
+      }
       uSanct.value = damp(uSanct.value as number, rc < RIN + 0.5 ? 1 : 0, 0.7, dt);
       // arrived at the centre: the paths light, spreading out from the seat, and stay lit
       if (rc < RIN - 0.5 && !revealed) {

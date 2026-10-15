@@ -71,9 +71,34 @@ export class FollowCamera {
   /** A flat line-of-sight test (the maze's own walls, from its plan): how far from a to b is
       clear, 0..1. The view stands in front of the first wall, easing, never snapping. */
   clearance: ((a: THREE.Vector3, b: THREE.Vector3) => number) | null = null;
+  /** The maze's centre (world) while the way runs along a ring: the view then stands on the
+      ring's own curve behind you, so the line from it to you stays inside the corridor and no
+      wall swings in between (no pulling in and out). Null: a straight line behind. */
+  arcCentre: THREE.Vector3 | null = null;
+  private arcK = 0;
+  private arcAt = new THREE.Vector2();
+  /** Where the view stands behind the target along the ring at horizontal distance h (xz). */
+  private arcPoint(h: number, fx: number, fz: number): THREE.Vector2 {
+    const o = this.arcCentre!;
+    const rx = this.target.x - o.x, rz = this.target.z - o.z, r = Math.max(4, Math.hypot(rx, rz));
+    const th = Math.atan2(rx, rz), s = fx * Math.cos(th) - fz * Math.sin(th) >= 0 ? 1 : -1;
+    const tc = th - (s * h) / r;
+    return this.arcAt.set(o.x + Math.sin(tc) * r, o.z + Math.cos(tc) * r);
+  }
   private clrT = 0;
   private clrAt = Infinity;
   private clrB = new THREE.Vector3();
+  /** The mind's maze: first person, the eye at the sphere's centre (`fpEye` over the ground),
+      looking the way you roll, with only a slight sway as it rolls and leans into a turn (never a
+      bob). The eagle's view at the centre and contemplation's sun still take over. */
+  firstPerson = false;
+  fpEye = 0.7;
+  private fpK = 0;
+  private fpRoll = 0;
+  private fpYawLast = 0;
+  private upV = new THREE.Vector3(0, 1, 0);
+  private fpTmp = new THREE.Vector3();
+  private fpTmp2 = new THREE.Vector3();
   private eagleK = 0;
   private eagleAt = new THREE.Vector3();
 
@@ -103,7 +128,12 @@ export class FollowCamera {
     if (!this.underwater && !this.freeLook && this.pitch < -0.15) this.pitch += (-0.15 - this.pitch) * Math.min(1, dt * 2);
     // Ease behind the wanderer while they move, unless the viewer is looking around; in flight
     // sooner and more firmly, so steering with the stick turns the view with you (as in Sky).
-    if (this.rail !== null && moving && !flying) {
+    if (this.firstPerson && moving) {
+      // first person: the view turns with the way you roll, softly (a little behind the turn)
+      let d = heading - this.yaw;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      this.yaw += d * Math.min(1, dt * 2.6);
+    } else if (this.rail !== null && moving && !flying) {
       // the maze: settle behind along the corridor, soon after a look and firmly (critically damped)
       let d = this.rail - this.yaw;
       d = Math.atan2(Math.sin(d), Math.cos(d));
@@ -155,7 +185,10 @@ export class FollowCamera {
       this.clrT -= dt;
       if (this.clrT <= 0) {
         this.clrT = 1 / 30;
-        this.clrB.set(this.target.x - fx * cp * dist, this.target.y, this.target.z - fz * cp * dist);
+        if (this.arcK > 0.5) {
+          const a = this.arcPoint(cp * dist, fx, fz);
+          this.clrB.set(a.x, this.target.y, a.y);
+        } else this.clrB.set(this.target.x - fx * cp * dist, this.target.y, this.target.z - fz * cp * dist);
         const f = this.clearance(this.target, this.clrB);
         this.clrAt = f >= 1 ? Infinity : Math.max(1.2, f * dist - 0.25);
       }
@@ -164,6 +197,12 @@ export class FollowCamera {
     this.effDist += (clear - this.effDist) * Math.min(1, dt * (clear < this.effDist ? (this.clearance ? 7 : 10) : this.clearance ? 1.4 : 2));
     const ed = this.effDist;
     const followPos = new THREE.Vector3(this.target.x - fx * cp * ed, this.target.y + sp * ed, this.target.z - fz * cp * ed);
+    this.arcK += ((this.arcCentre && this.rail !== null && this.sinceLook > 1.2 ? 1 : 0) - this.arcK) * Math.min(1, dt * 1.6);
+    if (this.arcK > 0.001 && this.arcCentre) {
+      const a = this.arcPoint(cp * ed, fx, fz), k = THREE.MathUtils.smoothstep(this.arcK, 0, 1);
+      followPos.x += (a.x - followPos.x) * k;
+      followPos.z += (a.y - followPos.z) * k;
+    }
     const floor = Math.max(heightAt(followPos.x, followPos.z), this.underwater ? -1e9 : WATER_Y) + 0.35;
     // under the water, stay under it (no bobbing through the surface)
     if (this.underwater) followPos.y = Math.min(followPos.y, WATER_Y - 0.3);
@@ -200,6 +239,20 @@ export class FollowCamera {
       const toT = look.clone().sub(cp).normalize(), toG = this.frameAt.clone().sub(cp).normalize();
       look.copy(cp).addScaledVector(toT.lerp(toG, THREE.MathUtils.smoothstep(this.frameK, 0, 1) * (0.62 + 0.18 * w)).normalize(), d);
     }
+    this.fpK += ((this.firstPerson ? 1 : 0) - this.fpK) * Math.min(1, dt * 2.2);
+    if (this.fpK > 0.001) {
+      const s = THREE.MathUtils.smoothstep(this.fpK, 0, 1);
+      const eye = this.fpTmp.set(player.x, player.y + this.fpEye, player.z);
+      this.cam.position.lerp(eye, s);
+      look.lerp(this.fpTmp2.set(eye.x - Math.sin(this.yaw) * 12, eye.y - 0.35, eye.z - Math.cos(this.yaw) * 12), s);
+      // the sway: leaning a few degrees into a turn, and the faintest roll while moving
+      let dy = this.yaw - this.fpYawLast;
+      dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+      const turn = THREE.MathUtils.clamp(-(dy / Math.max(dt, 1e-3)) * 0.025, -0.032, 0.032);
+      const sway = reduced ? 0 : Math.sin(t * 1.25) * (moving ? 0.008 : 0.002);
+      this.fpRoll += (turn + sway - this.fpRoll) * Math.min(1, dt * 2);
+    }
+    this.fpYawLast = this.yaw;
     if (this.inward > 0.001) {
       const eye = new THREE.Vector3(player.x, player.y + 1.6 + this.eyeLift, player.z);
       const ahead = eye.clone().add(new THREE.Vector3(-Math.sin(this.yaw) * 20, 0.8, -Math.cos(this.yaw) * 20));
@@ -232,6 +285,10 @@ export class FollowCamera {
       this.cam.position.lerp(high, s);
       look.lerp(this.eagleAt, s);
     }
+    // the first person's lean about the line of sight (none once the eagle's view rises)
+    const roll = this.fpRoll * THREE.MathUtils.smoothstep(this.fpK, 0, 1) * (1 - THREE.MathUtils.smoothstep(this.eagleK, 0, 1));
+    this.upV.set(Math.cos(this.yaw) * Math.sin(roll), Math.cos(roll), -Math.sin(this.yaw) * Math.sin(roll));
+    this.cam.up.copy(this.upV);
     this.cam.lookAt(look);
   }
 }

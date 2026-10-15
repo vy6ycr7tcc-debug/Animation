@@ -27,6 +27,7 @@ import { clear, load, save, type SaveData } from "./core/save";
 import { FollowCamera } from "./player/camera";
 import { Controller } from "./player/controller";
 import { Footprints } from "./player/footprints";
+import { GoldSphere, ReachLine } from "./player/goldSphere";
 import { Wanderer } from "./player/wanderer";
 import { Clouds } from "./world/atmosphere";
 import { buildMandala, etchedStone, etchUniforms, vibeUniforms } from "./world/etching";
@@ -305,6 +306,11 @@ scene.add(motes.points);
 
 const wanderer = new Wanderer(camera);
 scene.add(wanderer.root, wanderer.fx);
+// the mind's maze: the wanderer becomes a sphere of polished gold, and the view its own eyes
+const goldSphere = new GoldSphere();
+scene.add(goldSphere.mesh);
+const reachLine = new ReachLine(gpuUniforms.time);
+scene.add(reachLine.mesh);
 wanderer.load("models/wanderer.glb");
 const player = new Controller();
 player.pos.set(SPAWN.x, spawnY + 0.13, SPAWN.z);
@@ -468,7 +474,10 @@ const mazeMap = new MazeMap({
 /** The maze's camera test still (`maze-17`): sampled each frame. */
 let camStep: ((dt: number) => void) | null = null;
 const mazeClear = (a: THREE.Vector3, b: THREE.Vector3): number => maze?.clearance(a, b) ?? 1;
+let mazeLastT = 0;
 function mazeSteleFrame(): void {
+  const nowT = performance.now(), mazeDt = Math.min(0.1, (nowT - (mazeLastT || nowT)) / 1000);
+  mazeLastT = nowT;
   const inMaze = !!maze && inHall()?.hall === mazeHall;
   mazeMap.frame(inMaze && !crossing);
   // on foot only in the maze: no jumping, no flight (the round button rests); and seated at its
@@ -482,8 +491,26 @@ function mazeSteleFrame(): void {
   follow.ceiling = inMaze ? player.pos.y + 3.2 : null;
   // and the view keeps to the corridors (the owner: the camera "fucking annoying"): close behind,
   // settling along the corridor's way as you walk, standing in front of any wall, never behind one
-  follow.rail = inMaze && maze ? maze.railYaw(player.pos, player.heading) : null;
-  follow.nearDist = inMaze ? 4.8 : null;
+  // the maze in first person (the owner's v2: "the player IS a rolling sphere, first-person; the
+  // camera is the ball"): one gesture, a drag anywhere, rolls you; the view is the sphere's own
+  // eyes; the third-person rail and arc rest (they serve the eagle's descent only)
+  const fp = inMaze && !follow.eagle && !crossing;
+  follow.firstPerson = fp;
+  input.rollMode = inMaze;
+  follow.rail = inMaze && maze && !fp ? maze.railYaw(player.pos, player.heading) : null;
+  follow.arcCentre = inMaze && maze && !fp ? maze.railArc() : null;
+  follow.nearDist = inMaze ? 4.6 : null;
+  wanderer.orbMode = inMaze;
+  // the golden sphere: seen when the view is not its own eyes (the eagle's height at the centre)
+  if (inMaze && maze) goldSphere.sun.value.copy(maze.sunWorld());
+  goldSphere.update(player.pos, inMaze && !fp);
+  // the reach of light over the floor while a drag pulls (the way the drag pulls, in the world)
+  {
+    const mx = input.move.x, my = input.move.y, ml = Math.hypot(mx, my);
+    const fx = -Math.sin(follow.yaw), fz = -Math.cos(follow.yaw), rx = Math.cos(follow.yaw), rz = -Math.sin(follow.yaw);
+    const ax = ml > 1e-3 ? (rx * mx + fx * my) / ml : fx, az = ml > 1e-3 ? (rz * mx + fz * my) / ml : fz;
+    reachLine.update(mazeDt, fp && input.rolling && ml > 0.05, player.pos, -Math.sin(player.heading), -Math.cos(player.heading), ax, az, heightAt);
+  }
   follow.clearance = inMaze && maze ? mazeClear : null;
   // through one of the forecourt's doors: on to that world, the way "where next" goes there
   const door = inMaze && !mazeGone && !crossing ? maze?.portalAt(player.pos) : null;
@@ -4583,7 +4610,7 @@ function update(dt: number): void {
     const hx = standAt(px + 0.4, pz) - standAt(px - 0.4, pz), hz = standAt(px, pz + 0.4) - standAt(px, pz - 0.4);
     wanderer.groundNormal.set(-hx / 0.8, 1, -hz / 0.8).normalize();
   }
-  wanderer.root.visible = S.mode !== "intro";
+  wanderer.root.visible = S.mode !== "intro" && !follow.firstPerson; // in the maze the view is the sphere's own eyes
   wanderer.animate(dt, player.pose, player.speed, t, S.reduced, dpr);
   wanderer.fx.visible = wanderer.root.visible;
 
@@ -5115,19 +5142,34 @@ renderer
             const fy = mazeFloor(Math.sin(a) * M, Math.cos(a) * M);
             return { eye: [o.x + Math.sin(a + 0.05) * (M - 3), fy + 2.2, o.z + Math.cos(a + 0.05) * (M - 3)], look: [o.x + Math.sin(a) * R, fy + 1.3, o.z + Math.cos(a) * R] };
           }
+          if (n === 18 && maze) {
+            // first person down a corridor toward a galaxy window that ends it (&w=<i> picks one)
+            const ws = maze.debugWindows().filter((w) => w.end && Math.hypot(w.x, w.z) > 40 && Math.hypot(w.x, w.z) < 100);
+            const w = ws[Number(new URLSearchParams(location.search).get("w") ?? 0) % Math.max(1, ws.length)];
+            const back = Number(new URLSearchParams(location.search).get("back") ?? 9);
+            const sx = w.x + w.nx * back, sz = w.z + w.nz * back;
+            stand(sx, sz, w.x, w.z);
+            player.heading = Math.atan2(w.nx, w.nz);
+            follow.yaw = player.heading;
+            const fy = mazeFloor(sx, sz);
+            return { eye: [o.x + sx, fy + 0.7, o.z + sz], look: [o.x + w.x, fy + 1.4, o.z + w.z] };
+          }
           if (n === 17 && maze) {
             // the camera test (&route=i, with &live=S): walk the corridors' way from reading i in
             // toward the centre, turns and doors and all, setting course a few metres ahead along it
             // each tenth of a second; each sample notes whether a wall stands between the view and
             // the wanderer, how far the view stands, and how much it turned (window.__camStats)
             const route = maze.debugRoute(Number(new URLSearchParams(location.search).get("route") ?? 0));
-            const p0 = route[0], p1 = route[Math.min(route.length - 1, 6)];
+            const rollIt = new URLSearchParams(location.search).has("roll");
+            if (rollIt) input.enabled = true; // stills keep input off; a roll drag needs it
+            // a few metres along, clear of the reading at the route's start
+            const r0 = Math.min(route.length - 8, 24), p0 = route[r0], p1 = route[Math.min(route.length - 1, r0 + 6)];
             stand(p0.x - o.x, p0.z - o.z, p1.x - o.x, p1.z - o.z);
             const st = { n: 0, blocked: 0, dist: 0, walked: 0, turn: 0 };
             (window as unknown as { __camStats: typeof st }).__camStats = st;
             const chest = new THREE.Vector3();
             const last = player.pos.clone();
-            let acc = 0, at = 0, lastYaw = follow.yaw;
+            let acc = 0, at = r0, lastYaw = follow.yaw;
             camStep = (dt: number) => {
               acc += dt;
               if (acc < 0.1) return;
@@ -5140,7 +5182,13 @@ renderer
               }
               at = best;
               const q = route[Math.min(route.length - 1, at + 7)];
-              player.target = new THREE.Vector2(q.x, q.z);
+              if (rollIt) {
+                // as a hand would: a drag toward the way on, relative to the view
+                const dx = q.x - player.pos.x, dz = q.z - player.pos.z, l = Math.hypot(dx, dz) || 1;
+                const fx = -Math.sin(follow.yaw), fz = -Math.cos(follow.yaw);
+                const fwd = (dx * fx + dz * fz) / l, right = (dx * Math.cos(follow.yaw) - dz * Math.sin(follow.yaw)) / l;
+                input.debugRoll({ x: right, y: fwd });
+              } else player.target = new THREE.Vector2(q.x, q.z);
               chest.copy(player.pos).setY(player.pos.y + 1.3);
               st.n++;
               if (maze!.clearance(chest, camera.position) < 0.98) st.blocked++;
@@ -5159,6 +5207,13 @@ renderer
               maze.debugSeated(30);
               stand(0, 0.05, 0, -3);
               const cy0 = mazeFloor(0, 0);
+              if (new URLSearchParams(location.search).has("eagle")) {
+                // the mirror: from the eagle's height, the golden sphere at the heart of its own golden road
+                maze.debugExplore(200, 0);
+                stand(0, 0.05, 0, -3);
+                maze.debugSeated(30);
+                return { eye: [o.x + 0.01, cy0 + 87, o.z + 0.02], look: [o.x, cy0, o.z] };
+              }
               return { eye: [o.x + 3.4, cy0 + 2.4, o.z + 4.6], look: [o.x, cy0 + 1.0, o.z] };
             }
             // walked some way in along the true way, touching the walls as it went
@@ -5173,9 +5228,10 @@ renderer
             }
             if (n === 13) {
               // palms left along a wall as the hand went, the touched stone edged in gold
-              for (const b of [1.5, 4.5, 7.5]) maze.debugTouch(e.x - fx * b - fz * 2.4, e.z - fz * b + fx * 2.4);
+              for (const b of [7.5, 4.5, 1.5]) maze.debugTouch(e.x - fx * b - fz * 2.4, e.z - fz * b + fx * 2.4);
               stand(e.x + fz * 1.2, e.z - fx * 1.2, e.x - fz * 3, e.z + fx * 3);
-              return { eye: [o.x + e.x + fx * 2.5 + fz * 2.2, fy + 1.7, o.z + e.z + fz * 2.5 - fx * 2.2], look: [o.x + e.x - fx * 4.5 - fz * 3, fy + 1.4, o.z + e.z - fz * 4.5 + fx * 3] };
+              // from the sphere's own eye (0.7 m), along the wall it touched
+              return { eye: [o.x + e.x + fx * 2.5 + fz * 1.6, fy + 0.7, o.z + e.z + fz * 2.5 - fx * 1.6], look: [o.x + e.x - fx * 4.5 - fz * 3, fy + 1.2, o.z + e.z - fz * 4.5 + fx * 3] };
             }
             // 14: the road walked, glowing behind the wanderer
             stand(e.x, e.z, e.x + fx * 5, e.z + fz * 5);

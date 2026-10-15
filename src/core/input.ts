@@ -50,6 +50,27 @@ export class Input {
   /** In the water, C sinks rather than calling the context word. */
   inWater = false;
 
+  /** The mind's maze: one gesture moves you. A drag anywhere (finger or mouse) is the way to roll,
+      relative to the view (up forward, left veering left), its length the pace, capped slow; let
+      go and the sphere eases to rest. No stick, no look-drag; a tap is still a tap. */
+  rollMode = false;
+  /** The roll drag's own reach (CSS px for a full pace) and its cap (a contemplative walk). */
+  private readonly ROLL_R = 110;
+  private readonly ROLL_CAP = 0.62;
+  private rollId: number | null = null;
+  private rollFrom = { x: 0, y: 0 };
+  private rollAim = { x: 0, y: 0 };
+  private rollVec = { x: 0, y: 0 };
+  private rollT = 0;
+  /** Still frames: hold a roll drag toward `aim` (view-relative, x right, y forward), or let go. */
+  debugRoll(aim: { x: number; y: number } | null): void {
+    this.rollId = aim ? -7 : null;
+    this.rollAim = aim ? { x: aim.x * this.ROLL_CAP, y: aim.y * this.ROLL_CAP } : { x: 0, y: 0 };
+  }
+  /** Dragging to roll right now (for the reach of light ahead). */
+  get rolling(): boolean {
+    return this.rollId !== null;
+  }
   private keys = new Set<string>();
   private joyId: number | null = null;
   private joyCenter = { x: 0, y: 0 };
@@ -123,6 +144,15 @@ export class Input {
       if (this.pointers.size === 1 && this.pointers.has(id) && id !== this.joyId) this.onHold?.(hx, hy);
     }, 750);
     this.surface.setPointerCapture?.(e.pointerId);
+    if (this.rollMode) {
+      if (e.pointerType === "touch") this.touchUsed = true;
+      if (this.rollId === null) {
+        this.rollId = e.pointerId;
+        this.rollFrom = { x: e.clientX, y: e.clientY };
+        this.rollAim = { x: 0, y: 0 };
+      }
+      return;
+    }
     if (e.pointerType === "touch") {
       this.touchUsed = true;
       this.joyEl.hidden = false; // a touch screen that didn't say so (a touch laptop): show the stick
@@ -184,6 +214,15 @@ export class Input {
       this.pinch.d = d;
       return;
     }
+    if (e.pointerId === this.rollId) {
+      const R = this.ROLL_R;
+      const dx = e.clientX - this.rollFrom.x, dy = e.clientY - this.rollFrom.y, d = Math.hypot(dx, dy);
+      // a small rest at the start (a tap is not a roll), then the pace rises smoothly to its cap
+      const m = d < 10 ? 0 : Math.min(1, (d - 10) / R);
+      const ease = m * m * (3 - 2 * m);
+      this.rollAim = d < 1e-3 ? { x: 0, y: 0 } : { x: (dx / d) * ease * this.ROLL_CAP, y: (-dy / d) * ease * this.ROLL_CAP };
+      return;
+    }
     if (e.pointerId === this.joyId) {
       this.stick(e.clientX, e.clientY);
       return;
@@ -237,6 +276,7 @@ export class Input {
       this.joyEl.style.transform = "";
     }
     if (e.pointerId === this.lookId) this.lookId = null;
+    if (e.pointerId === this.rollId) (this.rollId = null), (this.rollAim = { x: 0, y: 0 });
     if (e.pointerType !== "touch") this.mouseDown = false;
   }
 
@@ -254,6 +294,17 @@ export class Input {
       this.move = { x: x / l, y: y / l };
       this.glide = k.has("shift");
       this.run = this.glide ? 1 : 0;
+    } else if (this.rollMode) {
+      // the roll eases toward the drag, and to rest once let go (never stops dead)
+      const now = performance.now(), dt = Math.min(0.1, (now - (this.rollT || now)) / 1000);
+      this.rollT = now;
+      const k = Math.min(1, dt * (this.rollId !== null ? 5 : 2.2));
+      this.rollVec.x += (this.rollAim.x - this.rollVec.x) * k;
+      this.rollVec.y += (this.rollAim.y - this.rollVec.y) * k;
+      if (this.rollId === null && Math.hypot(this.rollVec.x, this.rollVec.y) < 0.02) this.rollVec.x = this.rollVec.y = 0;
+      this.move = { x: this.rollVec.x, y: this.rollVec.y };
+      this.run = 0;
+      this.glide = false;
     } else {
       this.move = { ...this.joyVec };
       // pushing the thumb out past the inner half rises into a run
