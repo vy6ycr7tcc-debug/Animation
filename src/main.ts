@@ -500,8 +500,11 @@ function mazeSteleFrame(): void {
   follow.firstPerson = fp;
   input.rollMode = false;
   follow.targetLift = inMaze && !follow.eagle ? 0.7 : null;
-  follow.rail = inMaze && maze && !fp ? maze.railYaw(player.pos, player.heading) : null;
-  follow.arcCentre = inMaze && maze && !fp ? maze.railArc() : null;
+  // the chase view: always behind the way the ball really goes, the ball at the centre (the rail
+  // and arc rest: they chased the corridor's way, not yours)
+  follow.chase = inMaze && !follow.eagle;
+  follow.rail = null;
+  follow.arcCentre = null;
   follow.nearDist = inMaze ? 3.4 : null;
   wanderer.orbMode = inMaze;
   // the golden sphere: always in sight in the maze, rolling as it goes, a soft shadow under it
