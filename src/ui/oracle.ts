@@ -120,6 +120,7 @@ export class Oracle {
     this.status.textContent = "Listening…";
     this.answer.hidden = true;
     this.speak.hidden = true;
+    this.el.classList.remove("answered");
     // The request. The API also takes `station` (a lens id) and `origin` (a hidden archetype
     // pre-prompt): the future station-specific triggers will pass those; here it is the whole oracle.
     const body: { mode: "overall"; question: string; heart?: string[] } = { mode: "overall", question };
@@ -137,6 +138,7 @@ export class Oracle {
         ...text.split(/\n\s*\n/).map((p) => Object.assign(document.createElement("p"), { textContent: p.trim() })),
       );
       this.answer.hidden = false;
+      this.el.classList.add("answered");
       this.answer.scrollTop = 0;
       this.status.textContent = "";
       this.speak.hidden = !canSpeak;
