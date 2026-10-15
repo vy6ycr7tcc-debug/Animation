@@ -154,6 +154,8 @@ export class Trail {
   private lz = 0;
   /** Distance walked (m), the head of the thread. */
   readonly head = uniform(0);
+  /** How brightly the whole road shows (the centre's reveal from the eagle's height). */
+  readonly reveal = uniform(0);
   length = 0;
   /** The last `pts` points walked (x, z), oldest first from `ptsStart`, for the map. */
   readonly pts: Float32Array;
@@ -178,12 +180,13 @@ export class Trail {
     const m = keepAlpha(new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }));
     const s = attribute("aS", "float"), sd = attribute("aSide", "float");
     const behind = this.head.sub(s);
-    const fade = float(1).sub(smoothstep(320, 640, behind)).mul(smoothstep(0.4, 2.2, behind));
+    // the whole road at once when revealed from on high (no fading with distance then)
+    const fade = float(1).sub(smoothstep(320, 640, behind)).mul(smoothstep(0.4, 2.2, behind)).max(this.reveal);
     const across = float(1).sub(sd.mul(sd)).max(0);
     const soft = pow(across, 1.6);
     // a slow brightness travelling along the thread toward you
     const flow = sin(s.mul(0.5).sub(t.mul(1.1))).mul(0.25).add(0.75);
-    m.colorNode = vec4(vec3(1, 0.78, 0.42).mul(soft).mul(flow).mul(fade).mul(0.16), 1);
+    m.colorNode = vec4(vec3(1, 0.78, 0.42).mul(soft).mul(flow).mul(fade).mul(float(0.16).add(this.reveal.mul(0.5))), 1);
     this.mesh = new THREE.Mesh(g, m);
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 2;

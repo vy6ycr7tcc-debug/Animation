@@ -304,8 +304,8 @@ export class Wanderer {
   private skinMeshes: THREE.Mesh[] = [];
 
   private orb = new THREE.Group();
-  /** The mind's maze: on land too the body is the orb (the owner: "become the ball thingy for
-      the maze"), larger and floating lower, gliding through the corridors. */
+  /** The mind's maze: the body is gone on land too (the owner: "become the ball thingy"); the
+      golden sphere (`player/goldSphere.ts`) stands in its place, and the small water orb rests. */
   orbMode = false;
   private orbLand = 0;
   private orbCore: THREE.MeshBasicMaterial;
@@ -531,7 +531,7 @@ export class Wanderer {
     for (const m of this.skinMeshes) m.visible = this.skin.opacity > 0.01;
     tickLightBody(this.skin, t);
     const orbK = THREE.MathUtils.smoothstep(water, 0.2, 1);
-    this.orb.scale.setScalar(Math.max(0.001, orbK * (1 + this.orbLand * 0.7) * (1 + (reduced ? 0 : Math.sin(t * 2.2) * 0.05))));
+    this.orb.scale.setScalar(Math.max(0.001, orbK * (1 - this.orbLand) * (1 + (reduced ? 0 : Math.sin(t * 2.2) * 0.05))));
     this.orb.position.y = 1.22 - this.orbLand * 0.3 + (reduced ? 0 : Math.sin(t * 1.3) * (0.04 + this.orbLand * 0.05));
     this.orbCore.opacity = orbK;
     this.motes.points.visible = water < 0.5 && flameK < 0.5 && this.presence > 0.3;

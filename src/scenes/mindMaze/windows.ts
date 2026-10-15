@@ -13,12 +13,15 @@ import * as THREE from "three/webgpu";
 import { T, hash3, vnoise, type N } from "../../gpu/tsl";
 import { merge } from "../densities/roomKit";
 import { passable } from "../../world/solidity";
-import type { WallArc } from "./area";
+import type { WallArc, WallBox } from "./area";
 
 const { attribute, float, vec2, vec3, vec4, sin, mix, smoothstep, pow, exp, length, normalize, dot, abs, min, clamp } = T;
 
 export interface WindowOpts {
   arcs: WallArc[];
+  /** The straight walls across the rings, which end corridors: a window there faces straight
+      down the corridor, a glimpse from far off. */
+  boxes: WallBox[];
   /** The rings' radii: the sanctuary's wall and the outer wall (no windows out to the forecourt). */
   rin: number;
   outer: number;
@@ -44,6 +47,29 @@ export function galaxyWindows(o: WindowOpts): THREE.Mesh | null {
   const proto = new THREE.ShapeGeometry(shape, 18);
   const pp = proto.attributes.position as THREE.BufferAttribute;
 
+  const add = (cx: number, cz: number, nx: number, nz: number) => {
+    const tx = -nz, tz = nx; // across the window, seen from the corridor
+    const viewX = cx + nx * 2, viewZ = cz + nz * 2;
+    const base = o.floor(viewX, viewZ) + 0.45;
+    const way = o.onWay(viewX, viewZ) ? 1 : 0;
+    const seed = o.rand();
+    const g = proto.clone();
+    const pos = new Float32Array(pp.count * 3), uvw = new Float32Array(pp.count * 2);
+    for (let k = 0; k < pp.count; k++) {
+      const lx = pp.getX(k), ly = pp.getY(k);
+      pos.set([cx + tx * lx, base + ly, cz + tz * lx], k * 3);
+      uvw.set([lx, ly], k * 2);
+    }
+    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    g.setAttribute("aWin", new THREE.BufferAttribute(uvw, 2));
+    const per = (v: number[]) => new THREE.BufferAttribute(new Float32Array(Array.from({ length: pp.count }, () => v).flat()), v.length);
+    g.setAttribute("aCentre", per([cx, base + H * 0.45, cz]));
+    g.setAttribute("aN", per([nx, 0, nz]));
+    g.setAttribute("aInfo", per([way, seed]));
+    g.deleteAttribute("uv");
+    g.deleteAttribute("normal");
+    parts.push(g);
+  };
   for (const w of o.arcs) {
     if (w.r < o.rin + 0.5) continue; // the sanctuary's wall keeps its own stone
     const span = w.a1 - w.a0;
@@ -62,28 +88,17 @@ export function galaxyWindows(o: WindowOpts): THREE.Mesh | null {
         const cx = Math.sin(a) * rr, cz = Math.cos(a) * rr;
         // the corridor it looks out of: inward for side 0, outward for side 1
         const nx = side === 0 ? -Math.sin(a) : Math.sin(a), nz = side === 0 ? -Math.cos(a) : Math.cos(a);
-        const tx = -nz, tz = nx; // across the window, seen from the corridor
-        const viewX = cx + nx * 2, viewZ = cz + nz * 2;
-        const base = o.floor(viewX, viewZ) + 0.45;
-        const way = o.onWay(viewX, viewZ) ? 1 : 0;
-        const seed = o.rand();
-        const g = proto.clone();
-        const pos = new Float32Array(pp.count * 3), uvw = new Float32Array(pp.count * 2);
-        for (let k = 0; k < pp.count; k++) {
-          const lx = pp.getX(k), ly = pp.getY(k);
-          pos.set([cx + tx * lx, base + ly, cz + tz * lx], k * 3);
-          uvw.set([lx, ly], k * 2);
-        }
-        g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-        g.setAttribute("aWin", new THREE.BufferAttribute(uvw, 2));
-        const per = (v: number[]) => new THREE.BufferAttribute(new Float32Array(Array.from({ length: pp.count }, () => v).flat()), v.length);
-        g.setAttribute("aCentre", per([cx, base + H * 0.45, cz]));
-        g.setAttribute("aN", per([nx, 0, nz]));
-        g.setAttribute("aInfo", per([way, seed]));
-        g.deleteAttribute("uv");
-        g.deleteAttribute("normal");
-        parts.push(g);
+        add(cx, cz, nx, nz);
       }
+    }
+  }
+  for (const b of o.boxes) {
+    if (b.w < W + 0.9) continue; // a pillar of a colonnade, not a wall
+    for (let side = -1; side <= 1; side += 2) {
+      if (o.rand() < 0.5) continue;
+      // the slab's faces look along the ring (it was turned by a about y)
+      const nx = Math.sin(b.a) * side, nz = Math.cos(b.a) * side;
+      add(b.x + nx * (b.d / 2 + 0.035), b.z + nz * (b.d / 2 + 0.035), nx, nz);
     }
   }
   proto.dispose();
@@ -91,7 +106,7 @@ export function galaxyWindows(o: WindowOpts): THREE.Mesh | null {
   const geo = merge(parts);
   for (const p of parts) p.dispose();
 
-  const m = new THREE.MeshBasicNodeMaterial({ fog: false, side: THREE.FrontSide });
+  const m = new THREE.MeshBasicNodeMaterial({ fog: false, side: THREE.DoubleSide });
   const P = T.positionWorld, cam = T.cameraPosition;
   const C = attribute("aCentre", "vec3"), Nw = attribute("aN", "vec3"), info = attribute("aInfo", "vec2"), win = attribute("aWin", "vec2");
   const way = info.x, seed = info.y;

@@ -772,7 +772,17 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       const lid = smoothstep(0.85, 0.98, nW.y).mul(0.6);
       const rim = pow(float(1).sub(T.abs(T.dot(nW, gv))), 3);
       const gilt = vec3(1, 0.76, 0.4).mul(touchedHere).mul(topEdge.mul(0.32).add(lid.mul(0.22)).add(rim.mul(0.1))).mul(float(1).sub(smoothstep(60, 110, camD)));
-      m.emissiveNode = vec3(1.0, 0.86, 0.68).mul(glit).mul(1.1).mul(float(1).sub(wallVeil)).add(gilt);
+      // the corridors made lovely to walk (the owner's v2): a faint warm strip of light low along
+      // every wall, as if the floor were lit from its edges, and fine veins of gold through the
+      // stone, near only; contemplative, never busy
+      const base = top.sub(WALL_H);
+      const hb = pr.y.sub(base);
+      const upright = float(1).sub(T.abs(nW.y));
+      const strip = smoothstep(0.1, 0.2, hb).mul(smoothstep(0.34, 0.24, hb)).mul(upright).mul(float(1).sub(smoothstep(10, 34, camD)));
+      const vq = vnoise(pr.xz.mul(0.55).add(pr.y.mul(0.32))).mul(2).sub(1);
+      const vein = pow(float(1).sub(T.abs(vq)), float(46)).mul(upright).mul(float(1).sub(smoothstep(4, 16, camD)));
+      m.emissiveNode = vec3(1.0, 0.86, 0.68).mul(glit).mul(1.1).mul(float(1).sub(wallVeil)).add(gilt)
+        .add(vec3(1.0, 0.66, 0.34).mul(strip.mul(0.22))).add(vec3(1.0, 0.78, 0.42).mul(vein.mul(0.16)));
     }
     // touched, a wall answers (the owner, after the series Invasion: not rings): the stone wakes
     // into a sheet of turbulent cyan energy spreading from the touch, nebulous clouds flowing
@@ -1467,10 +1477,12 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
      forks; and what the visit remembers (the cells walked, the first way taken at each fork) ---- */
   const palms = new Palms(96, t, ours);
   g.add(palms.mesh);
-  // the road walked is remembered (the map draws it) but not drawn on the floor: on a phone the
-  // band of light behind you read as a beam running down the screen (the owner: "the beam
-  // tracking is super obnoxious and crowds the screen")
+  // the road walked: never drawn while you roll (the owner: "the beam tracking… crowds the
+  // screen"; and in first person it lies behind you); the maze's map draws it, and at the centre,
+  // from the eagle's height, the whole golden road is revealed at once (the owner's v2)
   const trail = new Trail(1400, 0.5, t, ours);
+  trail.mesh.visible = false;
+  g.add(trail.mesh);
   const isFork = (c: number) => plan.cells[c].open.length >= 3 && plan.cells[c].plaza < 0;
   {
     const at: { x: number; y: number; z: number }[] = [];
@@ -1497,7 +1509,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
   {
     const onWayCells = new Set<number>();
     for (let c = plan.entry; c >= 0; c = toHeart.prev[c]) onWayCells.add(c);
-    const win = galaxyWindows({ arcs: walls.arcs, rin: RIN, outer: OUTER, floor: mazeFloor, onWay: (x, z) => onWayCells.has(cellAt(x, z)), rand: seeded(7177), t });
+    const win = galaxyWindows({ arcs: walls.arcs, boxes: walls.boxes, rin: RIN, outer: OUTER, floor: mazeFloor, onWay: (x, z) => onWayCells.has(cellAt(x, z)), rand: seeded(7177), t });
     if (win) {
       g.add(win);
       ours.push(win.geometry, win.material as THREE.Material);
@@ -1739,6 +1751,12 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       const rc = Math.hypot(local.x, local.z);
       uCalm.value = damp(uCalm.value as number, seated ? 1 : 0, 0.8, dt);
       seatedT = seated ? seatedT + dt : 0;
+      // the golden road revealed from on high, a few seconds into the eagle's rise
+      {
+        const rv = seated ? Math.min(1, Math.max(0, (seatedT - 4) / 6)) : 0;
+        trail.reveal.value = damp(trail.reveal.value as number, rv, rv > (trail.reveal.value as number) ? 0.8 : 3, dt);
+        trail.mesh.visible = (trail.reveal.value as number) > 0.01;
+      }
       uSanct.value = damp(uSanct.value as number, rc < RIN + 0.5 ? 1 : 0, 0.7, dt);
       // arrived at the centre: the paths light, spreading out from the seat, and stay lit
       if (rc < RIN - 0.5 && !revealed) {

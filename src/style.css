@@ -1009,4 +1009,6 @@ body.calm #maze-map-btn { opacity: 0.25; transition: opacity 1s; }
 #maze-map canvas { position: static; flex: none; margin-top: auto; touch-action: none; cursor: crosshair; }
 #maze-map .mm-info { margin-bottom: auto; }
 #maze-map .mm-info { font-size: 13px; opacity: 0.75; padding: 10px 12px 0; text-align: center; max-width: 520px; line-height: 1.4; }
+/* the maze rolls by a drag anywhere: no stick there */
+body.walkonly #joy { display: none; }
 body.mazemapping :is(#joy, #act, #ctx, #auto, #menu-btn, #tp, #tp-mini, #whisper, #keys, #tour-start, #breath-cue, #hear-again, #nprog, #seat-hint, #labels, #maze-map-btn) { visibility: hidden; }
