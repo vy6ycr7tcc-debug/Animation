@@ -107,6 +107,11 @@ export class FollowCamera {
       down the corridor past the ball, which sits in the lower third. Nothing cranes, swings, zooms
       or answers a look-drag; it only orbits round the ball (never through it) when the way turns. */
   railBack = 4.2;
+  /** A fixed overhead view (its yaw), or null: the mind's maze (the owner: every following view was
+      "a nightmare"). It never turns; the stick moves the way it is pushed on the screen. */
+  overhead: number | null = null;
+  overheadH = 15;
+  overheadBack = 3.5;
   railHeight = 6.2;
   /** Where the rail view looks: this high over the feet, 6 m ahead of the one it follows. */
   railLookY = 0.8;
@@ -428,6 +433,13 @@ export class FollowCamera {
       // looking down ~40° to a point just ahead of it, so the corridor round you and where it turns
       // are in sight; the Veil keeps the far maze dark, so its mystery holds
       this.railLook.set(bx - Math.sin(this.railYaw) * this.railLookAhead, player.y + this.railLookY, bz - Math.cos(this.railYaw) * this.railLookAhead);
+      if (this.overhead !== null) {
+        // high and steep, always from the same side: up on the screen is always the same way
+        const oy = this.overhead;
+        this.yaw = oy;
+        this.railPos.set(bx + Math.sin(oy) * this.overheadBack, player.y + this.overheadH, bz + Math.cos(oy) * this.overheadBack);
+        this.railLook.set(bx - Math.sin(oy) * 1.5, player.y + 0.6, bz - Math.cos(oy) * 1.5);
+      }
       const s = THREE.MathUtils.smoothstep(this.railK, 0, 1);
       this.cam.position.lerp(this.railPos, s);
       look.lerp(this.railLook, s);

@@ -523,7 +523,11 @@ function mazeSteleFrame(): void {
   follow.arcCentre = null;
   follow.nearDist = inMaze ? 3.4 : null;
   wanderer.orbMode = false;
-  mazeWalk = inMaze && follow.chase;
+  // a fixed view from above (the way in at the foot of the screen, the centre up it), so nothing
+  // turns under the thumb
+  follow.overhead = inMaze && follow.chase ? 0 : null;
+  mazeWalk = false;
+  if (maze) maze.veilShift(inMaze && follow.chase ? Math.max(0, camera.position.distanceTo(player.pos) - 5) : 0);
   // the golden sphere rests (kept for a later use)
   goldSphere.update(player.pos, false, heightAt);
   // the reach of light over the floor while a drag pulls (the way the drag pulls, in the world)

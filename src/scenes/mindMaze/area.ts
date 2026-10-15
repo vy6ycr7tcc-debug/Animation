@@ -488,6 +488,8 @@ export interface MazeRoom extends Room {
   /** The way the corridor runs where you stand (world), the one of its two directions nearer
       `heading`, as a camera yaw; null in a plaza, the sanctuary or the forecourt (free there). */
   railYaw(p: THREE.Vector3, heading: number): number | null;
+  /** How far from the lens the veil begins to close, beyond its own distances (m). */
+  veilShift(m: number): void;
   /** The maze's centre (world), and whether the last way railYaw gave runs along a ring (so the
       view may follow the ring's curve behind you). */
   railArc(): THREE.Vector3 | null;
@@ -628,7 +630,10 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
   const camDist = T.length(T.cameraPosition.sub(T.positionWorld));
   const touchedHere = touchMap.node(roomP);
   /** The veil: 0 near, 1 where the dark has closed over it; it lies farther off where touched. */
-  const veilAt = (near: number, far: number) => smoothstep(mix(float(near), float(near + 26), touchedHere), mix(float(far), float(far + 42), touchedHere), camDist);
+  // (counted from a little short of where the view stands: from high above, the floor round you is
+  // already far from the lens)
+  const uVeilShift = uniform(0);
+  const veilAt = (near: number, far: number) => smoothstep(mix(float(near), float(near + 26), touchedHere), mix(float(far), float(far + 42), touchedHere), T.max(camDist.sub(uVeilShift), 0));
   const phone = typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
   const sunLight = new THREE.DirectionalLight(0xffc27a, 0.35);
 
@@ -1721,6 +1726,7 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       }
       return Math.atan2(-bx, -bz);
     },
+    veilShift: (m: number) => { uVeilShift.value = m; },
     clearance: (a, b) => mazeRayHit(walls, a.x - g.position.x, a.z - g.position.z, b.x - g.position.x, b.z - g.position.z, 0.35),
     setNourish(k: number, head: THREE.Vector3) {
       sun.nourish.value = k;
