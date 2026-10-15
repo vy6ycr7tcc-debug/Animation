@@ -40,7 +40,6 @@ import type { Narration } from "../../core/narration";
 import { JOURNEY_ORIGIN, type Room, type Solid } from "../journey";
 import type { Reading } from "../../world/readables";
 import { buildSun, SUN_AT } from "./sun";
-import { galaxyWindows, windowSpots } from "./windows";
 import { forkRings, Palms, TouchMap, Trail } from "./mechanics";
 
 const { attribute, cameraProjectionMatrix, cos, float, fract, mix, modelViewMatrix, normalize, positionGeometry, pow, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
@@ -477,8 +476,6 @@ export interface MazeRoom extends Room {
   /** Stills: walk the true way in, `steps` cells, leaving `touches` palms; where it ends. */
   debugExplore(steps: number, touches: number): { x: number; z: number; dx: number; dz: number };
   debugSeated(sec: number): void;
-  /** Stills: the galaxy windows (room frame), each with the way it looks and whether it ends a corridor. */
-  debugWindows(): { x: number; z: number; nx: number; nz: number; end: boolean }[];
   /** Tests: the corridors' way from reading `i` in to the seat (world points, every half metre). */
   debugRoute(i: number): THREE.Vector3[];
   /** What the visit holds (tests): marks left, cells walked, forks chosen, road walked. */
@@ -1516,16 +1513,6 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     const n = COUNTS[k], a = ((Math.atan2(x, z) % TAU) + TAU) % TAU;
     return plan.index(k, Math.round((a / TAU) * n));
   };
-  // windows onto the galaxy in the corridors' walls, warmer along the one true way in
-  {
-    const onWayCells = new Set<number>();
-    for (let c = plan.entry; c >= 0; c = toHeart.prev[c]) onWayCells.add(c);
-    const win = galaxyWindows({ arcs: walls.arcs, boxes: walls.boxes, rin: RIN, outer: OUTER, floor: mazeFloor, onWay: (x, z) => onWayCells.has(cellAt(x, z)), rand: seeded(7177), t });
-    if (win) {
-      g.add(win);
-      ours.push(win.geometry, win.material as THREE.Material);
-    }
-  }
   /** The paths light from the seat in the order of the ways you chose: a path whose forks you
       took first lights first, the others a breath after. */
   const orderPaths = () => {
@@ -1695,7 +1682,6 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     state: () => ({ marks: palms.count, visited: visited.reduce((a, v) => a + v, 0), forks: forks.filter((f) => f >= 0).length, trail: trail.length, cell: curCell, contactT }),
     sunWorld: () => SUN_AT.clone().add(g.position),
     railArc: () => (railRing ? g.position : null),
-    debugWindows: () => windowSpots,
     debugRoute: (i) => {
       const p = paths[Math.min(paths.length - 1, i)].pts, out: THREE.Vector3[] = [];
       for (let k = 0; k < p.length; k += 3) out.push(new V3(p[k], p[k + 1], p[k + 2]).add(g.position));
