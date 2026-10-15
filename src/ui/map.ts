@@ -24,6 +24,8 @@ export interface Place {
   /** Its order in its tab (lower first; the ancient worlds oldest first). */
   order?: number;
   deep?: boolean;
+  /** Its own mark instead of a point: "maze", a small round labyrinth (the mind's maze). */
+  icon?: "maze";
   x: number;
   z: number;
   narration: string;
@@ -714,6 +716,40 @@ export class StartMap {
           else g.moveTo(x, y);
         }
         g.stroke();
+      } else if (p.icon === "maze") {
+        // the mind's maze: a small round labyrinth in gold, its rings broken by their doors, a
+        // point at its still centre
+        const R = (on ? 11 : 9) * k;
+        g.save();
+        g.shadowColor = "rgba(255,210,150,0.9)";
+        g.shadowBlur = (on ? 14 : 6) * k;
+        g.fillStyle = "rgba(11,10,28,0.85)";
+        g.beginPath();
+        g.arc(x, y, R + 2 * k, 0, Math.PI * 2);
+        g.fill();
+        g.restore();
+        g.strokeStyle = on ? "#fff4dc" : "rgba(255,214,150,0.95)";
+        g.lineWidth = 1.1 * k;
+        g.lineCap = "round";
+        // each ring: its door's angle (from the top, clockwise), rings turning their doors about
+        const rings: [number, number][] = [[1, 0.5], [0.72, 3.6], [0.44, 1.9]];
+        for (const [f, door] of rings) {
+          g.beginPath();
+          g.arc(x, y, R * f, -Math.PI / 2 + door + 0.42, -Math.PI / 2 + door - 0.42 + Math.PI * 2);
+          g.stroke();
+        }
+        // a few walls across the corridors
+        g.beginPath();
+        for (const [a, f0, f1] of [[2.4, 0.72, 1], [5.1, 0.44, 0.72], [0.9, 0.44, 0.72], [4.2, 0.72, 1]] as [number, number, number][]) {
+          const ax = Math.sin(a), ay = -Math.cos(a);
+          g.moveTo(x + ax * R * f0, y + ay * R * f0);
+          g.lineTo(x + ax * R * f1, y + ay * R * f1);
+        }
+        g.stroke();
+        g.fillStyle = g.strokeStyle;
+        g.beginPath();
+        g.arc(x, y, 1.6 * k, 0, Math.PI * 2);
+        g.fill();
       } else {
         // any other place: a small point of its kind's colour in a fine ring (they were all
         // the shore's spiral, a field of identical whorls)
