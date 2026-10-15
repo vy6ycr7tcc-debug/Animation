@@ -1556,12 +1556,16 @@ function tapOnHeart(x: number, y: number): boolean {
   heartAt(heartScreen).project(camera);
   const sx = (heartScreen.x * 0.5 + 0.5) * innerWidth, sy = (-heartScreen.y * 0.5 + 0.5) * innerHeight;
   if (heartScreen.z >= 1 || Math.hypot(x - sx, y - sy) > Math.max(70, innerHeight * 0.09)) return false;
+  // only the second tap is taken: a single tap near the wanderer still walks there (in the maze,
+  // seen from above, the walker is small and most short taps land near it)
   const now = performance.now();
   if (now - lastHeartTap < 350) {
     lastHeartTap = 0;
     openHeart();
-  } else lastHeartTap = now;
-  return true;
+    return true;
+  }
+  lastHeartTap = now;
+  return false;
 }
 /** Each frame: the small ♥ while seated or laying hands; the oracle's offer at the Choice (once
     its part has been spoken) and at the maze's still centre. */
