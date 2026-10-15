@@ -4,7 +4,7 @@
    heard in the device's own voice (speechSynthesis), on a tap.
    Privacy: the player's heart notes go with a question only when "Attach my heart" is ticked for
    that question (off each time the panel opens); nothing else leaves the device. */
-import { heartNotes, keepToItself, tapButton } from "./heart";
+import { heartNotes, keepNote, keepToItself, tapButton } from "./heart";
 import { canSpeak, pieces, readAloud, speak, speechButton, stopSpeaking, wakeSpeech } from "./speak";
 
 const ENDPOINT = "https://oracle-station.vy6ycr7tcc.workers.dev/oracle";
@@ -24,7 +24,15 @@ export class Oracle {
   private status: HTMLElement;
   private from_: HTMLElement;
   private speak: HTMLButtonElement;
+  private after: HTMLElement;
+  private keep: HTMLButtonElement;
   private offer: HTMLElement;
+  /** The last exchange, carried into a follow-up question (the oracle keeps no memory of its own). */
+  private last: { q: string; a: string } | null = null;
+  /** The next question follows on from the last answer. */
+  private following = false;
+  /** A soft sound when an answer is kept in the heart. */
+  onKept: () => void = () => {};
   private offerOn = false;
   private asking = false;
   private speaking = false;
@@ -48,6 +56,7 @@ export class Oracle {
         <h2 class="title">The oracle</h2>
         <p class="o-from"></p>
       </div>
+      <button class="o-asked" type="button" hidden></button>
       <div class="o-ask">
         <textarea rows="2" maxlength="600" placeholder="What would you ask?" aria-label="Your question"></textarea>
         <div class="o-row">
@@ -56,10 +65,13 @@ export class Oracle {
         </div>
         <p class="o-consent" hidden>Your notes go with this question only.</p>
       </div>
-      <button class="o-asked" type="button" hidden></button>
       <p class="status" aria-live="polite"></p>
       <div class="answer" tabindex="0" hidden></div>
-      <button class="o-voice" type="button" hidden aria-label="Hear it"><span class="bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span class="lbl">Hear it</span></button>`;
+      <div class="o-after" hidden>
+        <button class="o-keep" type="button">${HEART}<span>Keep</span></button>
+        <button class="o-voice" type="button" aria-label="Hear it"><span class="bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span class="lbl">Hear it</span></button>
+        <button class="o-more" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v7a4 4 0 0 0 4 4h8M14 12l4 4-4 4"/></svg><span>Follow up</span></button>
+      </div>`;
     document.body.appendChild(el);
     keepToItself(el);
     this.el = el;
@@ -72,6 +84,10 @@ export class Oracle {
     this.status = el.querySelector(".status")!;
     this.from_ = el.querySelector(".o-from")!;
     this.speak = el.querySelector(".o-voice")!;
+    this.after = el.querySelector(".o-after")!;
+    this.keep = el.querySelector(".o-keep")!;
+    tapButton(this.keep, () => this.keepIt());
+    tapButton(el.querySelector(".o-more")!, () => this.again(true));
     tapButton(el.querySelector(".x")!, () => this.close());
     tapButton(this.heartBtn, () => this.setHeart(!this.withHeart));
     // the click wakes the phone's voice (iOS speaks only from a touch), so the answer can be read
@@ -109,16 +125,31 @@ export class Oracle {
     this.consent.hidden = !on;
   }
 
-  /** Back to the question (the answer set aside). */
-  private again(): void {
+  /** Back to the question (the answer set aside): anew, or following on from the last answer. */
+  private again(follow = false): void {
     this.stopSpeech();
+    this.following = follow && !!this.last;
     this.el.classList.remove("answered");
+    this.el.classList.toggle("following", this.following);
     this.answer.hidden = true;
-    this.speak.hidden = true;
-    this.asked.hidden = true;
+    this.after.hidden = true;
+    this.asked.hidden = !this.following;
     this.status.textContent = "";
+    this.q.value = "";
+    this.el.classList.remove("ready");
+    this.q.placeholder = this.following ? "And what follows from it?" : "What would you ask?";
     this.setHeart(false);
     requestAnimationFrame(() => this.q.focus());
+  }
+
+  /** The answer, with its question, kept in My Heart (on this device only). */
+  private keepIt(): void {
+    if (!this.last || this.keep.disabled) return;
+    const ok = keepNote(`“${this.last.q}”\n\n${this.last.a}`, this.from ? `The oracle · ${this.from}` : "The oracle");
+    this.keep.querySelector("span")!.textContent = ok ? "Kept" : "Not kept";
+    this.keep.classList.toggle("kept", ok);
+    this.keep.disabled = true;
+    if (ok) this.onKept();
   }
 
   /** A quiet line under the question (the phone's voice would not start). */
@@ -145,6 +176,13 @@ export class Oracle {
     this.from = from;
     this.setHeart(false); // consent is asked anew each time
     this.from_.textContent = from;
+    if (this.el.hidden) {
+      // a fresh visit begins a fresh thread
+      this.last = null;
+      this.following = false;
+      this.el.classList.remove("following");
+      this.q.placeholder = "What would you ask?";
+    }
     this.el.hidden = false;
     this.offer.hidden = true;
     this.offerOn = false;
@@ -168,12 +206,20 @@ export class Oracle {
     this.el.classList.add("asking");
     this.status.textContent = "Listening…";
     this.answer.hidden = true;
-    this.speak.hidden = true;
+    this.after.hidden = true;
     this.el.classList.remove("answered");
     this.q.blur();
     // The request. The API also takes `station` (a lens id) and `origin` (a hidden archetype
     // pre-prompt): the future station-specific triggers will pass those; here it is the whole oracle.
-    const body: { mode: "overall"; question: string; heart?: string[] } = { mode: "overall", question };
+    // A follow-up carries the last exchange inside the question (the API keeps no thread), within
+    // its 1000 characters: the new question whole, the earlier ones shortened.
+    let asked = question;
+    if (this.following && this.last) {
+      const cut = (t: string, n: number) => (t.length > n ? t.slice(0, n).replace(/\s+\S*$/, "") + "…" : t);
+      const room = Math.max(120, 960 - question.length - 120);
+      asked = `Earlier I asked: "${cut(this.last.q, 160)}". You reflected: "${cut(this.last.a, room - 160)}". Following on from that, I ask: "${question}"`.slice(0, 1000);
+    }
+    const body: { mode: "overall"; question: string; heart?: string[] } = { mode: "overall", question: asked };
     if (this.withHeart) {
       const notes = heartNotes().slice(0, 8).map((n) => n.text.slice(0, 400));
       if (notes.length) body.heart = notes;
@@ -202,12 +248,20 @@ export class Oracle {
         }),
       );
       this.asked.textContent = `“${question}”`;
+      this.last = { q: question, a: text };
+      this.following = false;
+      this.el.classList.remove("following");
+      this.after.hidden = false;
+      this.keep.disabled = false;
+      this.keep.classList.remove("kept");
+      this.keep.querySelector("span")!.textContent = "Keep";
       this.asked.hidden = false;
       this.answer.hidden = false;
       this.el.classList.add("answered");
       this.answer.scrollTop = 0;
       this.status.textContent = "";
       this.speak.hidden = !canSpeak;
+      this.q.value = "";
       if (readAloud()) this.toggleSpeech();
     } catch {
       // one quiet line; the question stays where it was

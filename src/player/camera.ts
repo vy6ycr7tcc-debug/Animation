@@ -112,13 +112,13 @@ export class FollowCamera {
   overheadH = 15;
   overheadBack = 3.5;
   /** Contemplating (0..1, eased): the view draws back and tilts toward the horizon, 10 m up and
-      15.4 m back, looking ~25° down, the walker in the middle and the sun, the volcanoes and the
-      monuments along the top (the owner: the horizon view "in contemplation mode… that's how you
-      see the beautiful maze", while playing "it's just a bit much"). */
+      15.4 m back, looking ~13° down: the sky's upper third, the sun, the volcanoes and the
+      monuments over the maze, the walker low in the view (the owner: the horizon view "in
+      contemplation mode… that's how you see the beautiful maze"; then "see more of the sky"). */
   overheadTilt = 0;
   tiltH = 10;
   tiltBack = 15.4;
-  overheadPitch = 0.44;
+  overheadPitch = 0.22;
   railHeight = 6.2;
   /** Where the rail view looks: this high over the feet, 6 m ahead of the one it follows. */
   railLookY = 0.8;

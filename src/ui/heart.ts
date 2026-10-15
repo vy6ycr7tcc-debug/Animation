@@ -54,6 +54,14 @@ export function keepToItself(el: HTMLElement): void {
   el.addEventListener("keyup", (e) => e.stopPropagation());
 }
 
+/** Keep a note in the heart from elsewhere (the oracle's "Keep in my heart"). False if the device
+    would not keep it. */
+export function keepNote(text: string, scene: string): boolean {
+  const notes = heartNotes();
+  notes.unshift({ text, createdAt: Date.now(), scene });
+  return saveNotes(notes);
+}
+
 const ORN = `<div class="orn" aria-hidden="true"><i></i><b></b><i></i></div>`;
 
 function when(t: number): string {
