@@ -1268,15 +1268,16 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     ours.push(geo, mat);
     return { art, pts, n, length, delay };
   });
-  // the motes flowing along the lit paths to the seat (placed each frame while you sit)
-  const MOTES = 900;
-  const motes = pointCloud(MOTES, 0.62);
+  // fine sparks flowing along the lit paths to the seat (placed each frame while you sit);
+  // small and few, so they read as a stream of light, never as bubbles across the view
+  const MOTES = 420;
+  const motes = pointCloud(MOTES, 0.085);
   {
     for (let i = 0; i < MOTES; i++) motes.k.set([R(), R(), R(), R()], i * 4);
     touch(motes.cloud);
     const K = motes.cloud.nodes.aK;
     const tw = sin(t.mul(3.1).add(K.w.mul(40))).mul(0.3).add(0.7);
-    motes.material.colorNode = vec4(mix(vec3(1, 0.86, 0.6), vec3(1, 0.97, 0.88), K.z).mul(motes.round).mul(tw).mul(uCalm).mul(1.0), 1);
+    motes.material.colorNode = vec4(mix(vec3(1, 0.86, 0.6), vec3(1, 0.97, 0.88), K.z).mul(motes.round).mul(tw).mul(uCalm).mul(0.8), 1);
     motes.cloud.sprite.frustumCulled = false;
     g.add(motes.cloud.sprite);
     ours.push(motes.material);
@@ -1301,9 +1302,9 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       const u = (k0 + (time * (3.2 + k1 * 2.4)) / p.length) % 1; // 0 at the thing, 1 at the seat
       const f = u * (p.n - 1), j = Math.min(p.n - 2, Math.floor(f)), w = f - j;
       const o = j * 3;
-      const wob = 0.25 * (1 - u);
+      const wob = 0.12 * (1 - u);
       let x = p.pts[o] + (p.pts[o + 3] - p.pts[o]) * w + Math.sin(time * 1.3 + k2 * 40) * wob;
-      let y = p.pts[o + 1] + (p.pts[o + 4] - p.pts[o + 1]) * w + 0.25 + k2 * 0.5 + Math.sin(time * 2 + k1 * 30) * 0.12;
+      let y = p.pts[o + 1] + (p.pts[o + 4] - p.pts[o + 1]) * w + 0.2 + k2 * 0.25 + Math.sin(time * 2 + k1 * 30) * 0.06;
       let z = p.pts[o + 2] + (p.pts[o + 5] - p.pts[o + 2]) * w + Math.cos(time * 1.1 + k2 * 50) * wob;
       // the last stretch: every mote converges on the one seated at the centre (it was you)
       if (u > 0.9) {
