@@ -91,6 +91,50 @@ export class FollowCamera {
   /** The mind's maze: first person, the eye at the sphere's centre (`fpEye` over the ground),
       looking the way you roll, with only a slight sway as it rolls and leans into a turn (never a
       bob). The eagle's view at the centre and contemplation's sun still take over. */
+  /** The chase view (the mind's maze, after racing and ball games): the view stands on the ball's
+      own path a few metres back, so it is always behind the way it is really going, the ball held
+      at the centre of the screen, and, since the ball has just been there, inside the corridor
+      with nothing in between (no pulling in and out). The turn toward it is a critically damped
+      spring (soft start, no overshoot, frame-rate independent). A look-drag still works; the
+      view comes back behind ~1 s after. */
+  chase = false;
+  chasePitch = 0.36;
+  private chaseVel = 0;
+  private trail = new Float32Array(2 * 48);
+  private trailN = 0;
+  private chaseWant(p: THREE.Vector3, heading: number, back: number): number {
+    const t = this.trail;
+    // record the path every 0.25 m (newest first)
+    if (this.trailN === 0 || Math.hypot(p.x - t[0], p.z - t[1]) > 0.25) {
+      if (this.trailN > 0) {
+        // turned back on itself: the old path is ahead now, begin it again
+        const ox = t[0] - (this.trailN > 1 ? t[2] : t[0]), oz = t[1] - (this.trailN > 1 ? t[3] : t[1]);
+        const nx = p.x - t[0], nz = p.z - t[1];
+        if (ox * nx + oz * nz < 0) this.trailN = 1;
+      }
+      t.copyWithin(2, 0, t.length - 2);
+      t[0] = p.x;
+      t[1] = p.z;
+      this.trailN = Math.min(t.length / 2, this.trailN + 1);
+    }
+    // the point `back` metres back along it
+    let acc = Math.hypot(p.x - t[0], p.z - t[1]), px = t[0], pz = t[1];
+    for (let i = 1; i < this.trailN && acc < back; i++) {
+      const sx = t[i * 2], sz = t[i * 2 + 1], d = Math.hypot(sx - px, sz - pz);
+      if (acc + d >= back) {
+        const k = (back - acc) / Math.max(1e-4, d);
+        px += (sx - px) * k;
+        pz += (sz - pz) * k;
+        acc = back;
+        break;
+      }
+      acc += d;
+      px = sx;
+      pz = sz;
+    }
+    if (acc < 1) return heading; // too little path yet: behind the way it faces
+    return Math.atan2(px - p.x, pz - p.z);
+  }
   /** How high over the feet the view looks (null: the usual 1.3 m; the maze's ball looks lower). */
   targetLift: number | null = null;
   firstPerson = false;
@@ -130,7 +174,16 @@ export class FollowCamera {
     if (!this.underwater && !this.freeLook && this.pitch < -0.15) this.pitch += (-0.15 - this.pitch) * Math.min(1, dt * 2);
     // Ease behind the wanderer while they move, unless the viewer is looking around; in flight
     // sooner and more firmly, so steering with the stick turns the view with you (as in Sky).
-    if (this.firstPerson && moving) {
+    if (this.chase) {
+      const want = moving ? this.chaseWant(player, heading, 3) : null;
+      if (want !== null && this.sinceLook > 0.9) {
+        const d = Math.atan2(Math.sin(want - this.yaw), Math.cos(want - this.yaw));
+        const w = 3.2, h = Math.min(dt, 0.05);
+        this.chaseVel += (w * w * d - 2 * w * this.chaseVel) * h;
+        this.yaw += this.chaseVel * h;
+      } else this.chaseVel *= Math.exp(-dt * 6);
+      if (this.sinceLook > 1.5) this.pitch += (this.chasePitch - this.pitch) * Math.min(1, dt * 1.5);
+    } else if (this.firstPerson && moving) {
       // first person: the view turns with the way you roll, softly (a little behind the turn)
       let d = heading - this.yaw;
       d = Math.atan2(Math.sin(d), Math.cos(d));
