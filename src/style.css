@@ -243,7 +243,7 @@ body.touring #nprog { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
 #menu { z-index: 40; }
 #menu-btn { z-index: 41; }
 #menu .menu-scroll { gap: 0; padding: 12px 16px 14px; }
-#menu .menu-go { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding-bottom: 12px; }
+#menu .menu-go { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding-bottom: 12px; }
 #menu .menu-go button {
   display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 64px; padding: 8px 4px;
   border: 1px solid var(--line); border-radius: 12px; color: var(--gold); font-size: 14px;
@@ -1011,3 +1011,83 @@ body.calm #maze-map-btn { opacity: 0.25; transition: opacity 1s; }
 #maze-map .mm-info { font-size: 13px; opacity: 0.75; padding: 10px 12px 0; text-align: center; max-width: 520px; line-height: 1.4; }
 /* the maze rolls by a drag anywhere: no stick there */
 body.mazemapping :is(#joy, #act, #ctx, #auto, #menu-btn, #tp, #tp-mini, #whisper, #keys, #tour-start, #breath-cue, #hear-again, #nprog, #seat-hint, #labels, #maze-map-btn) { visibility: hidden; }
+
+/* ---- the heart's notes and the oracle (ui/heart.ts, ui/oracle.ts): the reading panel's look,
+   words set in the dark over the world, gold hairlines, a quiet serif ---- */
+.heart-panel {
+  position: fixed; left: 0; right: 0; margin: 0 auto; z-index: 27;
+  top: calc(env(safe-area-inset-top, 0px) + 6vh); max-height: calc(var(--fh, 100vh) - 6vh - 24px - env(safe-area-inset-top, 0px));
+  width: min(96vw, 32em); box-sizing: border-box; padding: 30px 28px 16px;
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  background: radial-gradient(ellipse 64% 60% at 50% 46%, rgba(6, 5, 12, 0.92) 0%, rgba(6, 5, 12, 0.84) 54%, rgba(6, 5, 12, 0.46) 78%, rgba(6, 5, 12, 0) 100%);
+  animation: reader-in 0.9s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.heart-panel[hidden] { display: none; }
+.heart-panel .x { position: absolute; top: 6px; right: 6px; width: 44px; height: 44px; border: 0; background: none; color: rgba(244, 236, 220, 0.45); font-size: 15px; }
+.heart-panel .orn { display: flex; align-items: center; gap: 10px; width: 9em; margin-bottom: 12px; }
+.heart-panel .orn i { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(226, 191, 126, 0.75)); }
+.heart-panel .orn i:last-child { transform: scaleX(-1); }
+.heart-panel .orn b { width: 5px; height: 5px; transform: rotate(45deg); background: var(--gold); box-shadow: 0 0 8px rgba(255, 210, 140, 0.9); }
+.heart-panel .title { margin: 0 24px 14px; font: 500 13px/1.5 var(--serif); color: var(--gold); letter-spacing: 0.32em; text-transform: uppercase; text-shadow: 0 0 14px rgba(255, 196, 110, 0.45); }
+.heart-panel textarea {
+  width: 100%; box-sizing: border-box; resize: none; padding: 12px 14px; border-radius: 10px;
+  background: rgba(10, 8, 18, 0.55); border: 1px solid rgba(226, 191, 126, 0.32); color: #f1e8d8;
+  font: 17px/1.6 var(--serif); outline: none;
+}
+.heart-panel textarea:focus { border-color: rgba(226, 191, 126, 0.75); box-shadow: 0 0 14px rgba(226, 191, 126, 0.18); }
+.heart-panel textarea::placeholder { color: rgba(241, 232, 216, 0.38); font-style: italic; }
+.heart-panel .note { margin: 8px 0 0; font: italic 13px var(--serif); color: var(--pearl); opacity: 0.6; }
+.heart-panel .foot { display: flex; align-items: center; justify-content: center; gap: 22px; min-height: 44px; margin-top: 10px; }
+.heart-panel .foot:has(> [hidden]:only-child) { display: none; }
+.heart-panel .word { min-height: 40px; padding: 4px 6px; border: 0; background: none; color: var(--gold); font: italic 16px var(--serif); letter-spacing: 0.06em; border-bottom: 1px solid rgba(226, 191, 126, 0.35); border-radius: 0; }
+.heart-panel .word[hidden] { display: none; }
+.heart-panel .word:disabled { opacity: 0.4; }
+.heart-panel .word.cancel { color: var(--pearl); opacity: 0.7; border-bottom-color: transparent; }
+.heart-panel .notes, .heart-panel .answer { overflow-y: auto; overscroll-behavior: contain; width: 100%; max-width: 26em; outline: none; -webkit-mask-image: linear-gradient(transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%); mask-image: linear-gradient(transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%); }
+.heart-panel .notes .empty { font: italic 16px/1.6 var(--serif); color: var(--pearl); opacity: 0.7; }
+.heart-panel .notes .item { display: flex; flex-direction: column; gap: 4px; width: 100%; margin: 0 0 10px; padding: 10px 6px 12px; border: 0; border-bottom: 1px solid rgba(226, 191, 126, 0.16); background: none; text-align: left; color: #f1e8d8; }
+.heart-panel .notes .meta { font: italic 12px var(--serif); color: var(--gold); opacity: 0.8; letter-spacing: 0.04em; }
+.heart-panel .notes .text { font: 16px/1.6 var(--serif); white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.heart-panel .notes .item.open .text { display: block; -webkit-line-clamp: unset; }
+#oracle .check { display: flex; align-items: center; gap: 8px; margin-top: 10px; font: 15px var(--serif); color: #f1e8d8; text-align: left; }
+#oracle .consent { margin: 4px 0 0; font-size: 12px; }
+#oracle .check input { width: 18px; height: 18px; accent-color: var(--gold); }
+#oracle .status { min-height: 1.4em; margin: 6px 0 0; font: italic 14px var(--serif); color: var(--pearl); opacity: 0.75; }
+#oracle .answer { margin-top: 4px; font: 18px/1.7 var(--serif); color: #f1e8d8; text-shadow: 0 1px 12px rgba(0, 0, 0, 0.9); }
+#oracle .answer[hidden] { display: none; }
+#oracle .answer p { margin: 0.4em 0 0.9em; }
+#oracle .answer p:first-child::first-letter { color: var(--gold); }
+body.hearting :is(#joy, #act, #ctx, #auto, #seat-hint, #tour-start, #breath-cue, #heart-mini, #oracle-offer, #reader),
+body.oracling :is(#joy, #act, #ctx, #auto, #seat-hint, #tour-start, #breath-cue, #heart-mini, #oracle-offer, #reader) { visibility: hidden; }
+body.hearting #stats, body.oracling #stats { display: none; }
+
+/* the small heart at the edge of the view, while seated or laying hands; and the oracle's offer */
+#heart-mini { position: fixed; z-index: 7; left: calc(12px + env(safe-area-inset-left, 0px)); top: 44%; display: flex; align-items: flex-start; animation: heart-mini-in 1.4s ease; }
+#heart-mini[hidden] { display: none; }
+#heart-mini .open {
+  width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(226, 191, 126, 0.42);
+  background: radial-gradient(circle at 50% 45%, rgba(70, 30, 30, 0.55), rgba(14, 10, 22, 0.62));
+  color: #f0b9a6; font-size: 19px; line-height: 1; text-shadow: 0 0 10px rgba(255, 170, 150, 0.7);
+  animation: heart-mini-beat 4.2s ease-in-out infinite;
+}
+#heart-mini .dis { width: 22px; height: 22px; margin-left: -6px; border: 0; background: none; color: rgba(244, 236, 220, 0.4); font-size: 10px; }
+@keyframes heart-mini-in { from { opacity: 0; } }
+@keyframes heart-mini-beat { 0%, 100% { transform: scale(1); } 8% { transform: scale(1.08); } 16% { transform: scale(1); } 24% { transform: scale(1.05); } 32% { transform: scale(1); } }
+#oracle-offer {
+  position: fixed; z-index: 7; left: calc(12px + env(safe-area-inset-left, 0px)); top: calc(44% + 56px);
+  display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 16px 4px 12px; border-radius: 24px;
+  background: radial-gradient(ellipse at 30% 50%, rgba(60, 40, 14, 0.62), rgba(14, 10, 22, 0.66));
+  border: 1px solid rgba(226, 191, 126, 0.45); color: var(--gold); font: italic 15.5px var(--serif); letter-spacing: 0.05em;
+  animation: heart-mini-in 1.4s ease;
+}
+#oracle-offer[hidden] { display: none; }
+#oracle-offer .seed { font-style: normal; text-shadow: 0 0 8px rgba(255, 210, 140, 0.8); }
+@media (prefers-reduced-motion: reduce) { #heart-mini, #heart-mini .open, #oracle-offer, .heart-panel { animation: none; } }
+body:has(#menu:not([hidden])) :is(#heart-mini, #oracle-offer), body:has(#howto:not([hidden])) :is(#heart-mini, #oracle-offer), body:has(#guide:not([hidden])) :is(#heart-mini, #oracle-offer), body.recording :is(#heart-mini, #oracle-offer), body.film :is(#heart-mini, #oracle-offer), body.mapping :is(#heart-mini, #oracle-offer) { visibility: hidden; }
+@media (max-height: 540px) and (orientation: landscape) {
+  .heart-panel { top: calc(6px + env(safe-area-inset-top, 0px)); max-height: calc(var(--fh, 100vh) - 12px); width: min(72vw, 34em); padding: 10px 18px 6px; }
+  .heart-panel .title { margin-bottom: 6px; font-size: 12px; }
+  .heart-panel .orn { margin-bottom: 6px; }
+  #heart-mini { top: 34%; }
+  #oracle-offer { top: calc(34% + 52px); }
+}

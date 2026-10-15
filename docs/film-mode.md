@@ -22,7 +22,7 @@ Keep the tab in front while it records. The REC dot is DOM, so it is never in th
 
 ## The setup page (`/film.html`)
 
-Open `film.html` beside the game (same address, `film.html` instead of the page). Tick what to record (each tour, autofly, auto-walk, genesis, the grand tour), pick the quality (720p, 1080p, 1440p, 4K), fast or live, and the frame rate, then press Start filming. It builds the `?film=` address for you (shown at the foot) and remembers your choices on the device.
+Open `film.html` beside the game (same address, `film.html` instead of the page). Tick what to record (each tour, autofly, auto-walk, the grand tour), pick the quality (720p, 1080p, 1440p, 4K), fast or live, and the frame rate, then press Start filming. It builds the `?film=` address for you (shown at the foot) and remembers your choices on the device.
 
 ## Everything, walk-away (`?film=everything`)
 
@@ -30,7 +30,7 @@ One address films every part of the game as its own clip and writes a manifest f
 
 ```
 ?film=everything                    temple, pyramid, densities, adept, past, veil, descent, ancient,
-                                    lessons, visions, duat, then autofly, autowalk and genesis
+                                    lessons, visions, duat, then autofly and autowalk
 &only=temple,autofly                just these      &skip=duat     all but these
 &grand=1                            also the whole walk as one long clip
 &flysecs=240  &walksecs=150         how long the autofly and auto-walk clips run
@@ -63,8 +63,8 @@ after every clip `manifest.json` is rewritten, so a stopped run still leaves a u
 ```
 
 A chapter is one stop of a tour (a shrine, a room, a walk between places, a story of the Duat), or
-the whole of autofly, auto-walk or genesis. `start` and `end` are seconds from the clip's first
-frame; `kind` is `stop`, `travel`, `temple`, `duat`, `autofly`, `autowalk`, `genesis` or `free`;
+the whole of autofly or auto-walk. `start` and `end` are seconds from the clip's first
+frame; `kind` is `stop`, `travel`, `temple`, `duat`, `autofly`, `autowalk` or `free`;
 `where` is the game's own place name when the chapter began. To jump to a part: open the clip,
 seek to the chapter's `start`, play to its `end`. A TV page config can name a clip and a chapter id
 (or a clip and a time), e.g. `{ "clip": "temple", "chapter": "03-iii-the-empress" }`.
