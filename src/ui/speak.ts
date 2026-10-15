@@ -30,7 +30,7 @@ export function onSpeechFail(f: (msg: string) => void): void {
 const QUIET = "The phone's voice didn't start. If the ringer switch is on silent, turn it off: the phone's voice obeys it.";
 
 /** The text in pieces of a sentence or two (iOS can go silent on one long utterance). */
-function pieces(text: string): string[] {
+export function pieces(text: string): string[] {
   const out: string[] = [];
   let cur = "";
   for (const sen of text.replace(/\s+/g, " ").match(/[^.!?…]+[.!?…]*["'”’)]*\s*/g) ?? [text]) {
@@ -45,10 +45,11 @@ function pieces(text: string): string[] {
     iOS speaks only from a touch's click or release (never from a pointerdown). If nothing has
     begun after a moment it tries once more in the phone's default voice (a chosen voice can be
     listed yet silent), and if that too stays silent says so. */
-export function speak(text: string, done?: () => void, fail?: () => void): void {
-  if (!canSpeak || !text.trim()) return;
+export function speak(text: string | string[], done?: () => void, fail?: () => void, onPart?: (i: number) => void): void {
+  if (!canSpeak) return;
+  const parts = typeof text === "string" ? pieces(text) : text.filter((t) => t.trim());
+  if (!parts.length) return;
   const my = ++token;
-  const parts = pieces(text);
   let started = false;
   const queue = (withVoice: boolean) => {
     speechSynthesis.cancel();
@@ -59,7 +60,10 @@ export function speak(text: string, done?: () => void, fail?: () => void): void 
       if (withVoice && voice) u.voice = voice;
       u.lang = (withVoice && voice?.lang) || navigator.language || "en-US";
       u.rate = 0.95;
-      u.onstart = () => (started = true);
+      u.onstart = () => {
+        started = true;
+        if (my === token) onPart?.(i);
+      };
       if (i === parts.length - 1)
         u.onend = () => {
           if (my !== token) return;
