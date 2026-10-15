@@ -2506,6 +2506,7 @@ function contemplationFrame(dt: number): void {
   follow.skyward = false;
   follow.eyeLift = 0;
   follow.overheadTilt = mz ? inwardK : 0;
+  follow.overheadSun = mz ? (follow.overheadSun ?? new THREE.Vector3()).copy(mz.sunWorld()) : null;
   if (mz && !sunStill) mz.setNourish(inwardK, gzEye.copy(player.pos).setY(player.pos.y + 1.6));
   if (!want) return void (follow.gaze = null);
   gazeFor += dt;

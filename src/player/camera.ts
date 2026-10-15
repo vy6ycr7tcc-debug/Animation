@@ -116,6 +116,8 @@ export class FollowCamera {
       monuments over the maze, the walker low in the view (the owner: the horizon view "in
       contemplation mode… that's how you see the beautiful maze"; then "see more of the sky"). */
   overheadTilt = 0;
+  /** Where the maze's sun hangs (world): contemplating, the view turns to it. */
+  overheadSun: THREE.Vector3 | null = null;
   tiltH = 10;
   tiltBack = 15.4;
   overheadPitch = 0.22;
@@ -442,13 +444,26 @@ export class FollowCamera {
       this.railLook.set(bx - Math.sin(this.railYaw) * this.railLookAhead, player.y + this.railLookY, bz - Math.cos(this.railYaw) * this.railLookAhead);
       if (this.overhead !== null) {
         // high and steep, always from the same side: up on the screen is always the same way
-        const oy = this.overhead;
-        this.yaw = oy;
         const k = THREE.MathUtils.smoothstep(this.overheadTilt, 0, 1);
+        let oy = this.overhead;
+        const sun = this.overheadSun;
+        if (sun && k > 0) {
+          // contemplating: the view comes round behind you, facing the sun over the maze's heart
+          const toSun = Math.atan2(bx - sun.x, bz - sun.z);
+          oy += THREE.MathUtils.euclideanModulo(toSun - oy + Math.PI, Math.PI * 2) - Math.PI;
+          oy = this.overhead + (oy - this.overhead) * k;
+        }
+        this.yaw = oy;
         const back = THREE.MathUtils.lerp(this.overheadBack, this.tiltBack, k), h = THREE.MathUtils.lerp(this.overheadH, this.tiltH, k);
         this.railPos.set(bx + Math.sin(oy) * back, player.y + h, bz + Math.cos(oy) * back);
-        // steep: at a point just ahead of the walker; tilted: along a fixed pitch, toward the horizon
-        const cp = Math.cos(this.overheadPitch), sp = Math.sin(this.overheadPitch);
+        // steep: at a point just ahead of the walker; tilted: toward the sun, held a little above
+        // the middle of the view (or along a fixed pitch toward the horizon, with no sun)
+        let pitch = this.overheadPitch;
+        if (sun) {
+          const el = Math.atan2(sun.y - this.railPos.y, Math.hypot(sun.x - this.railPos.x, sun.z - this.railPos.z));
+          pitch = THREE.MathUtils.clamp(-(el - THREE.MathUtils.degToRad(this.cam.fov) * 0.5 * 0.45), -1.15, 0.35);
+        }
+        const cp = Math.cos(pitch), sp = Math.sin(pitch);
         const tx = this.railPos.x - Math.sin(oy) * cp * 10, ty = this.railPos.y - sp * 10, tz = this.railPos.z - Math.cos(oy) * cp * 10;
         this.railLook.set(
           THREE.MathUtils.lerp(bx - Math.sin(oy) * 1.5, tx, k),
