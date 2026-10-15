@@ -1542,6 +1542,7 @@ myHeart.place = () => {
   return best && bd < 160 ? best.label : "The world";
 };
 myHeart.onSaved = () => audio.bowl(330, 0.03);
+oracle.onKept = () => audio.bowl(330, 0.03);
 myHeart.say = (t) => whisper(t, 3200);
 function openHeart(): void {
   if (S.mode !== "play" || oracle.isOpen || reader.current) return;
