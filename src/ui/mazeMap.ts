@@ -18,6 +18,8 @@ export interface MazeMapHost {
   full(): boolean;
 }
 
+const INFO = "The rings are outlines until walked. Tap a walked place to stand there. ◆ steles, numerals the archetypes.";
+
 export class MazeMap {
   readonly btn: HTMLButtonElement;
   private readonly sheet: HTMLDivElement;
@@ -52,7 +54,7 @@ export class MazeMap {
     this.cv = document.createElement("canvas");
     this.info = document.createElement("div");
     this.info.className = "mm-info";
-    this.info.textContent = "Only what you have walked and touched is drawn · tap there to stand there · ◆ steles · numerals the archetypes";
+    this.info.textContent = INFO;
     this.sheet.append(this.cv, this.info);
     document.body.appendChild(this.sheet);
     this.sheet.querySelector(".mm-close")!.addEventListener("pointerdown", (e) => (e.stopPropagation(), this.close()));
@@ -69,7 +71,7 @@ export class MazeMap {
       const r = this.cv.getBoundingClientRect();
       this.hover = { x: e.clientX - r.left, y: e.clientY - r.top };
     });
-    this.cv.addEventListener("pointerleave", () => (this.hover = null));
+    this.cv.addEventListener("pointerleave", () => ((this.hover = null), (this.info.textContent = INFO)));
     window.addEventListener("keydown", (e) => {
       if (e.repeat || (e.target as HTMLElement | null)?.closest?.("input, textarea")) return;
       if (e.code === "KeyN" && !this.btn.hidden) (e.preventDefault(), e.stopPropagation(), this.toggle());
@@ -137,6 +139,8 @@ export class MazeMap {
   }
   /** The archetypes and steles known, by the reveal's version. */
   private known: boolean[] = [];
+  /** The labels placed this frame (x, y, w, h), so none is written over another. */
+  private readonly boxes = new Float32Array(4 * 64);
   private knownKey = "";
   private centreKnown = false;
 
@@ -145,7 +149,8 @@ export class MazeMap {
     if (!L) return;
     const dpr = Math.min(2, devicePixelRatio || 1);
     const box = this.sheet.getBoundingClientRect();
-    const head = (this.sheet.querySelector(".mm-head") as HTMLElement).offsetHeight + this.info.offsetHeight + 24;
+    const cs = getComputedStyle(this.sheet);
+    const head = (this.sheet.querySelector(".mm-head") as HTMLElement).offsetHeight + this.info.offsetHeight + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + 8;
     const size = Math.max(200, Math.min(box.width - 16, box.height - head));
     const W = Math.round(size * dpr);
     if (this.cv.width !== W) {
@@ -268,13 +273,26 @@ export class MazeMap {
     const c = this.cv.getContext("2d")!;
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.clearRect(0, 0, W, W);
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // the maze's shape, before it is walked: every ring as a faint unbroken outline (which ways
+    // lead through stays unknown until walked), and the sanctuary at its heart
+    if (!full) {
+      c.strokeStyle = "rgba(236, 228, 214, 0.16)";
+      c.lineWidth = 1;
+      for (let k = 0; k <= Math.round((L.outer - L.rin) / L.cw); k++) {
+        c.beginPath();
+        c.arc(cx, cy, rad(k) * s, 0, Math.PI * 2);
+        c.stroke();
+      }
+    }
+    c.setTransform(1, 0, 0, 1, 0, 0);
     if (this.layerShown) c.drawImage(this.layerShown, 0, 0);
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     // labels: the centre once reached, the way in, the monuments' doors (out in the open)
     c.textAlign = "center";
     c.textBaseline = "middle";
     const font = (px: number, italic = false) => (c.font = `${italic ? "italic " : ""}${px}px Georgia, serif`);
-    font(Math.max(9, Math.min(12, size / 70)), true);
+    font(Math.max(12, Math.min(14, size / 30)), true);
     c.fillStyle = "rgba(255, 214, 150, 0.9)";
     if (this.centreKnown) c.fillText("centre", cx, cy);
     c.fillText("way in", cx, Y(L.outer + 6));
@@ -286,20 +304,45 @@ export class MazeMap {
       c.fillText(d.id, X(d.x), Y(d.z) + 11);
     }
     // the archetypes and steles, once their place has been walked (or they have been read)
-    font(Math.max(8, Math.min(11, size / 80)));
+    font(Math.max(10, Math.min(12, size / 36)));
     if (this.knownKey !== this.keyed) {
       this.knownKey = this.keyed;
       this.known = L.arts.map((a) => full || a.lit || this.revealed(X(a.x), Y(a.z)));
       this.centreKnown = full || this.revealed(cx, cy);
     }
+    // labels never overlap: each archetype is a dot, and its numeral is written beside it only
+    // where it clears every label already placed (outward from the centre first, then inward)
+    let placed = 0;
     for (let ai = 0; ai < L.arts.length; ai++) {
       const a = L.arts[ai];
       const x = X(a.x), y = Y(a.z);
       if (!this.known[ai]) continue;
       if (a.arch) {
         const num = a.title.split(" ·")[0];
-        c.fillStyle = a.lit ? "rgba(255, 210, 120, 1)" : "rgba(160, 230, 255, 0.95)";
-        c.fillText(num, x, y);
+        const col = a.lit ? "rgba(255, 210, 120, 1)" : "rgba(160, 230, 255, 0.95)";
+        c.fillStyle = col;
+        c.beginPath();
+        c.arc(x, y, 2.2, 0, Math.PI * 2);
+        c.fill();
+        const w = c.measureText(num).width + 4, hh = 13;
+        const rr = Math.hypot(x - cx, y - cy) || 1, ox = (x - cx) / rr, oy = (y - cy) / rr;
+        for (const side of [1, -1]) {
+          const lx = x + ox * side * (w / 2 + 5), ly = y + oy * side * (hh / 2 + 4);
+          let clear = true;
+          for (let q = 0; q < placed; q++) {
+            const b = this.boxes;
+            if (Math.abs(lx - b[q * 4]) < (w + b[q * 4 + 2]) / 2 && Math.abs(ly - b[q * 4 + 1]) < (hh + b[q * 4 + 3]) / 2) {
+              clear = false;
+              break;
+            }
+          }
+          if (!clear) continue;
+          if (placed * 4 + 4 > this.boxes.length) break;
+          this.boxes.set([lx, ly, w, hh], placed * 4);
+          placed++;
+          c.fillText(num, lx, ly);
+          break;
+        }
       } else {
         c.fillStyle = a.lit ? "rgba(255, 210, 120, 1)" : "rgba(200, 160, 255, 0.95)";
         c.beginPath();

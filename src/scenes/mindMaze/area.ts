@@ -699,8 +699,8 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     const grain = vnoise(P.xz.mul(2.2)).mul(0.5).add(vnoise(P.xz.mul(vec2(0.35, 1.4))).mul(0.6)).add(0.45);
     const scan = scannedGround("sand", 2.6, { hue: 0.15, relief: 1.8, bright: 2.0 });
     // the veil: the ground far off sinks into the dark, except where you have touched
-    const floorVeil = veilAt(14, 30);
-    m.colorNode = vec3(0.95, 0.93, 1.12).mul(streak).mul(grain.mul(0.5).add(0.5)).mul(scan.color).mul(float(1).sub(floorVeil.mul(0.85)));
+    const floorVeil = veilAt(18, 40);
+    m.colorNode = vec3(0.95, 0.93, 1.12).mul(streak).mul(grain.mul(0.5).add(0.5)).mul(scan.color).mul(float(1).sub(floorVeil.mul(0.6)));
     m.normalNode = scan.normal;
     const cell = T.floor(P.xz.mul(16));
     const view = T.normalize(T.cameraPosition.sub(T.positionWorld));
@@ -758,8 +758,8 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       // the Veil: the stone a little way off closes into the dark (nothing ahead is seen until
       // it is reached), and lies farther off round every touch; touched masonry keeps a soft gold
       // edge, visible well beyond the dark (experience lifting the veil)
-      const wallVeil = veilAt(15, 28);
-      m.colorNode = vec4((m.colorNode as N).rgb.mul(float(1).sub(wallVeil.mul(0.88))), 1);
+      const wallVeil = veilAt(20, 40);
+      m.colorNode = vec4((m.colorNode as N).rgb.mul(float(1).sub(wallVeil.mul(0.62))), 1);
       const rr = T.length(pr.xz);
       const fk = T.clamp(float(OUTER + 1).sub(rr).div(OUTER + 1 - RIN), 0, 1);
       const top = float(BASE).add(fk.mul(fk).mul(float(3).sub(fk.mul(2))).mul(RISE)).add(WALL_H);
