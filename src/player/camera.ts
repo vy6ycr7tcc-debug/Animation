@@ -190,7 +190,7 @@ export class FollowCamera {
     if (this.eagleK > 0.001) {
       const s = THREE.MathUtils.smoothstep(this.eagleK, 0, 1);
       const a = this.yaw + (reduced ? 0 : t * 0.012);
-      const high = new THREE.Vector3(this.eagleAt.x + Math.sin(a) * 20, this.eagleAt.y + 58, this.eagleAt.z + Math.cos(a) * 20);
+      const high = new THREE.Vector3(this.eagleAt.x + Math.sin(a) * 34, this.eagleAt.y + 125, this.eagleAt.z + Math.cos(a) * 34);
       this.cam.position.lerp(high, s);
       look.lerp(this.eagleAt, s);
     }
