@@ -13,6 +13,8 @@ export interface HeartNote {
   scene: string;
 }
 
+import { heartPrompt } from "./anonymise";
+
 const KEY = "ij:heart:v1";
 
 export function heartNotes(): HeartNote[] {
@@ -62,6 +64,16 @@ export function keepNote(text: string, scene: string): boolean {
   return saveNotes(notes);
 }
 
+/** A button that acts on the click (a touch's release): copying and sharing need it on iOS. */
+function clickButton(b: HTMLElement, f: () => void): void {
+  b.addEventListener("pointerdown", (e) => e.stopPropagation());
+  b.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    f();
+  });
+}
+
 const ORN = `<div class="orn" aria-hidden="true"><i></i><b></b><i></i></div>`;
 
 function when(t: number): string {
@@ -78,6 +90,10 @@ export class Heart {
   private list: HTMLElement;
   private listBody: HTMLElement;
   private mini: HTMLElement;
+  private bring: HTMLElement;
+  private bringText: HTMLTextAreaElement;
+  private bringInfo: HTMLElement;
+  private bringCopy: HTMLButtonElement;
   private miniOn = false;
   private miniDismissed = false;
   /** Where the note is being written (asked when the composer opens). */
@@ -118,7 +134,7 @@ export class Heart {
       ${ORN}
       <h2 class="title">My heart</h2>
       <div class="notes" tabindex="0"></div>
-      <div class="foot"><button class="word add" type="button">A new note</button></div>`;
+      <div class="foot"><button class="word add" type="button">A new note</button><button class="word bring-open" type="button">Bring my heart</button></div>`;
     document.body.appendChild(list);
     keepToItself(list);
     this.list = list;
@@ -128,6 +144,41 @@ export class Heart {
       this.closeList();
       this.openCompose();
     });
+    tapButton(list.querySelector(".bring-open")!, () => this.openBring());
+
+    // Bring my heart: the notes as an anonymised prompt to paste into any other AI, for an
+    // overview of the journey. Made here, shown and editable, and only copied or shared by you.
+    const bring = document.createElement("div");
+    bring.id = "heart-bring";
+    bring.className = "heart-panel";
+    bring.hidden = true;
+    bring.setAttribute("role", "dialog");
+    bring.setAttribute("aria-label", "Bring my heart");
+    bring.innerHTML = `
+      <button class="x" type="button" aria-label="Close">✕</button>
+      ${ORN}
+      <h2 class="title">Bring my heart</h2>
+      <p class="lead">Your notes, made into a prompt for any AI you trust, to see an overview of your journey. Names, places, contact details, numbers and dates are taken out first. Read it, change anything, then copy it and paste it there. Nothing is sent from here.</p>
+      <textarea class="prompt" spellcheck="false" aria-label="The prompt"></textarea>
+      <p class="info" aria-live="polite"></p>
+      <div class="foot"><button class="word back" type="button">Back</button><button class="word share" type="button" hidden>Share</button><button class="word copy" type="button">Copy the prompt</button></div>`;
+    document.body.appendChild(bring);
+    keepToItself(bring);
+    this.bring = bring;
+    this.bringText = bring.querySelector(".prompt")!;
+    this.bringInfo = bring.querySelector(".info")!;
+    this.bringCopy = bring.querySelector(".copy")!;
+    tapButton(bring.querySelector(".x")!, () => this.closeBring());
+    tapButton(bring.querySelector(".back")!, () => {
+      this.closeBring();
+      this.openList();
+    });
+    clickButton(this.bringCopy, () => void this.copyBring());
+    const share = bring.querySelector<HTMLButtonElement>(".share")!;
+    if (typeof navigator.share === "function") {
+      share.hidden = false;
+      clickButton(share, () => void navigator.share({ title: "My heart", text: this.bringText.value }).catch(() => {}));
+    }
 
     const mini = document.createElement("div");
     mini.id = "heart-mini";
@@ -146,11 +197,12 @@ export class Heart {
       if (e.key !== "Escape") return;
       if (!compose.hidden) this.closeCompose();
       else if (!list.hidden) this.closeList();
+      else if (!this.bring.hidden) this.closeBring();
     });
   }
 
   get open(): boolean {
-    return !this.compose.hidden || !this.list.hidden;
+    return !this.compose.hidden || !this.list.hidden || !this.bring.hidden;
   }
 
   private mark(): void {
@@ -212,8 +264,50 @@ export class Heart {
       item.addEventListener("click", () => item.classList.toggle("open"));
       this.listBody.append(item);
     }
+    (this.list.querySelector(".bring-open") as HTMLElement).hidden = !notes.length;
     this.list.hidden = false;
     this.mark();
+  }
+
+  openBring(): void {
+    const notes = heartNotes();
+    if (!notes.length) return;
+    this.list.hidden = true;
+    this.compose.hidden = true;
+    const { text, names } = heartPrompt(notes);
+    this.bringText.value = text;
+    this.bringText.scrollTop = 0;
+    this.bringInfo.textContent = `${notes.length} ${notes.length === 1 ? "note" : "notes"}${names ? ` · ${names} ${names === 1 ? "name" : "names"} taken out` : ""}. Check it before you share it: the clearing is careful, not perfect.`;
+    this.bringCopy.textContent = "Copy the prompt";
+    this.bring.hidden = false;
+    this.mark();
+  }
+
+  closeBring(): void {
+    this.bring.hidden = true;
+    this.bringText.blur();
+    this.mark();
+  }
+
+  private async copyBring(): Promise<void> {
+    const t = this.bringText.value;
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(t);
+      ok = true;
+    } catch {
+      // older browsers: select it and copy
+      this.bringText.focus();
+      this.bringText.select();
+      try {
+        ok = document.execCommand("copy");
+      } catch {
+        ok = false;
+      }
+      this.bringText.setSelectionRange(0, 0);
+      this.bringText.blur();
+    }
+    this.bringCopy.textContent = ok ? "Copied ✓" : "Select it and copy";
   }
 
   closeList(): void {

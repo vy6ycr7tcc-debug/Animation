@@ -1068,6 +1068,9 @@ body.oracling :is(#whisper, #tp, #tp-mini, #menu-btn, #keys, #hear-again, #nprog
 .heart-panel .word:disabled { opacity: 0.4; }
 .heart-panel .word.cancel { color: var(--pearl); opacity: 0.7; border-bottom-color: transparent; }
 .heart-panel .notes, .heart-panel .answer { overflow-y: auto; overscroll-behavior: contain; width: 100%; max-width: 26em; outline: none; -webkit-mask-image: linear-gradient(transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%); mask-image: linear-gradient(transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%); }
+#heart-bring .lead { margin: 0 0 12px; font: italic 14px/1.55 var(--serif); color: var(--pearl); opacity: 0.8; }
+#heart-bring .prompt { flex: 1 1 auto; min-height: min(44vh, 26em); font: 16px/1.55 var(--serif); color: rgba(241, 232, 216, 0.85); }
+#heart-bring .info { margin: 8px 0 0; font: italic 12.5px/1.45 var(--serif); color: var(--gold); opacity: 0.8; }
 .heart-panel .notes .empty { font: italic 16px/1.6 var(--serif); color: var(--pearl); opacity: 0.7; }
 .heart-panel .notes .item { display: flex; flex-direction: column; gap: 4px; width: 100%; margin: 0 0 10px; padding: 10px 6px 12px; border: 0; border-bottom: 1px solid rgba(226, 191, 126, 0.16); background: none; text-align: left; color: #f1e8d8; }
 .heart-panel .notes .meta { font: italic 12px var(--serif); color: var(--gold); opacity: 0.8; letter-spacing: 0.04em; }
