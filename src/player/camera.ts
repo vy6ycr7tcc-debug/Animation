@@ -106,6 +106,10 @@ export class FollowCamera {
   chaseMin = 2.6;
   private crane = 0;
   private craneWant = 0;
+  private prevT = new THREE.Vector3();
+  private predA = new THREE.Vector3();
+  private predB = new THREE.Vector3();
+  private clrDt = 0;
   private trail = new Float32Array(2 * 48);
   private trailN = 0;
   private chaseWant(p: THREE.Vector3, heading: number, back: number): number {
@@ -266,14 +270,26 @@ export class FollowCamera {
     } else this.blockAt = Infinity;
     if (this.clearance) {
       this.clrT -= dt;
+      this.clrDt += dt;
       if (this.clrT <= 0) {
         this.clrT = 1 / 30;
         if (this.arcK > 0.5) {
           const a = this.arcPoint(cp * dist, fx, fz);
           this.clrB.set(a.x, this.target.y, a.y);
         } else this.clrB.set(this.target.x - fx * cp * dist, this.target.y, this.target.z - fz * cp * dist);
-        const f = this.clearance(this.target, this.clrB);
+        let f = this.clearance(this.target, this.clrB);
         if (this.chase) {
+          // predictive (after Haigh-Hutchinson's Real-Time Cameras: a camera that foresees an
+          // obstruction moves before it, a reactive one too late): test too where the ball will be
+          // in half a second, with the view in the same place relative to it, and heed the worse
+          const vx = (this.target.x - this.prevT.x) / Math.max(1e-3, this.clrDt), vz = (this.target.z - this.prevT.z) / Math.max(1e-3, this.clrDt);
+          this.prevT.copy(this.target);
+          this.clrDt = 0;
+          if (vx * vx + vz * vz > 0.04) {
+            this.predA.set(this.target.x + vx * 0.5, this.target.y, this.target.z + vz * 0.5);
+            this.predB.set(this.clrB.x + vx * 0.5, this.clrB.y, this.clrB.z + vz * 0.5);
+            f = Math.min(f, this.clearance(this.predA, this.predB));
+          }
           // the horizontal reach that stays clear, and the pitch whose foot fits inside it
           const base = pitch - this.crane;
           const hClear = Math.max(0.5, f * cp * dist - 0.3);
