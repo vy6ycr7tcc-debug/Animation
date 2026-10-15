@@ -1243,29 +1243,11 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
   const paths = arts.map((art) => {
     const pts = pathOf(art);
     const n = pts.length / 3;
-    const line: [number, number, number][] = [];
-    for (let k = 0; k < n; k++) line.push([pts[k * 3], pts[k * 3 + 1], pts[k * 3 + 2]]);
-    const { geo, length } = threadGeometry([line]);
-    // lit from the seat outward as it is revealed (distance from the seat: length − s), a slow
-    // brightness flowing toward the seat along it
-    const sA = attribute("aS", "float");
-    const fromSeat = float(length).sub(sA);
-    // lit outward from the seat, the ways you chose at the forks first (the delay is set as you
-    // come to the centre, `orderPaths`)
+    // the path is not drawn (standing lines of light to every reading crowded the view): only the
+    // sparks flowing along it to the seat show it (`placeMotes`). Its length orders the forks.
+    let length = 0;
+    for (let k = 1; k < n; k++) length += Math.hypot(pts[k * 3] - pts[k * 3 - 3], pts[k * 3 + 2] - pts[k * 3 - 1]);
     const delay = uniform(0);
-    const front = uReveal.sub(delay);
-    const shown = smoothstep(front, front.sub(6), fromSeat).mul(art.lit);
-    const flow = sin(sA.mul(0.55).sub(t.mul(2.4))).mul(0.3).add(0.7);
-    // laid over (not added): where many paths share a corridor they read as one line, not a blaze
-    const mat = ribbonMaterial(vec3(0), 1.4);
-    mat.blending = THREE.NormalBlending;
-    const sd = attribute("aSide", "float");
-    const soft = float(1).sub(sd.mul(sd)).mul(1.8).min(1);
-    mat.colorNode = vec4(vec3(1, 0.84, 0.52).mul(flow.mul(0.35).add(0.55)).mul(float(0.75).add(uCalm.mul(0.25))), shown.mul(soft).mul(0.9));
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.frustumCulled = false;
-    g.add(mesh);
-    ours.push(geo, mat);
     return { art, pts, n, length, delay };
   });
   // fine sparks flowing along the lit paths to the seat (placed each frame while you sit);
@@ -1300,6 +1282,13 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
       const k0 = motes.k[i * 4], k1 = motes.k[i * 4 + 1], k2 = motes.k[i * 4 + 2];
       const p = litPaths[i % litPaths.length];
       const u = (k0 + (time * (3.2 + k1 * 2.4)) / p.length) % 1; // 0 at the thing, 1 at the seat
+      // revealed outward from the seat, the ways chosen at the forks first (`orderPaths`)
+      if ((1 - u) * p.length > (uReveal.value as number) - (p.delay.value as number)) {
+        mp[o3] = 0;
+        mp[o3 + 1] = -50;
+        mp[o3 + 2] = 0;
+        continue;
+      }
       const f = u * (p.n - 1), j = Math.min(p.n - 2, Math.floor(f)), w = f - j;
       const o = j * 3;
       const wob = 0.12 * (1 - u);
