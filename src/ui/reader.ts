@@ -6,7 +6,7 @@
    recording it can be heard as it is read (one for all, or one per page). While it is open the
    stick and the button rest so a thumb on the text never walks you away. */
 import type { Reading } from "../world/readables";
-import { canSpeak, readAloud, speak, speechButton, stopSpeaking } from "./speak";
+import { canSpeak, pieces, readAloud, speak, speechButton, stopSpeaking } from "./speak";
 
 export class Reader {
   readonly el: HTMLElement;
@@ -40,7 +40,7 @@ export class Reader {
       <div class="body" tabindex="0"></div>
       <div class="foot">
         <span class="pager"><button class="prev" type="button" aria-label="Previous page">‹</button><span class="count" aria-live="polite"></span><button class="next" type="button" aria-label="Next page">›</button></span>
-        <button class="listen" type="button" hidden>Listen</button>
+        <button class="listen" type="button" hidden><span class="bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span class="lbl">Listen</span></button>
       </div>`;
     document.body.appendChild(el);
     this.el = el;
@@ -68,7 +68,7 @@ export class Reader {
       if (!this.current) return;
       if (!this.recorded(this.current)) return this.setNative(!this.native);
       this.listening = !this.listening;
-      this.listen.textContent = this.listening ? "Quiet" : "Listen";
+      this.label(this.listening ? "Quiet" : "Listen");
       this.listen.classList.toggle("on", this.listening);
       this.onListen(this.current, this.listening, this.page);
     });
@@ -101,11 +101,11 @@ export class Reader {
     this.current = r;
     this.page = 0;
     this.listening = !!r.autoVoice && !!(r.audio || r.voices?.length);
-    this.listen.textContent = this.listening ? "Quiet" : "Listen";
+    this.label(this.listening ? "Quiet" : "Listen");
     this.listen.classList.toggle("on", this.listening);
     this.setNative(false);
     this.listen.hidden = !this.recorded(r) && !canSpeak;
-    if (!this.recorded(r)) this.listen.textContent = "Speak";
+    if (!this.recorded(r)) this.label("Hear it");
     this.title.textContent = r.title;
     this.el.hidden = false;
     document.body.classList.add("reading");
@@ -139,6 +139,10 @@ export class Reader {
     if (this.native) this.speakPage();
   }
 
+  private label(t: string): void {
+    this.listen.querySelector(".lbl")!.textContent = t;
+  }
+
   private recorded(r: Reading): boolean {
     return !!(r.audio || r.voices?.length);
   }
@@ -147,21 +151,35 @@ export class Reader {
   private setNative(on: boolean): void {
     this.native = on && canSpeak;
     if (this.current && !this.recorded(this.current)) {
-      this.listen.textContent = this.native ? "Stop" : "Speak";
+      this.label(this.native ? "Quiet" : "Hear it");
       this.listen.classList.toggle("on", this.native);
     }
     if (this.native) this.speakPage();
-    else stopSpeaking();
+    else {
+      stopSpeaking();
+      this.body.classList.remove("reading");
+      for (const e of this.body.querySelectorAll(".s.now")) e.classList.remove("now");
+    }
   }
 
   private speakPage(): void {
     const r = this.current;
     if (!r) return;
-    speak(`${this.page === 0 ? r.title + ". " : ""}${r.pages[this.page] ?? ""}`, () => {
+    // the page's sentences, each lit in turn as the phone's voice reads it
+    const spans = [...this.body.querySelectorAll<HTMLElement>(".s")];
+    const parts = spans.map((e) => e.textContent ?? "");
+    if (this.page === 0) parts[0] = `${r.title}. ${parts[0] ?? ""}`;
+    this.body.classList.add("reading");
+    const light = (i: number) => {
+      for (const e of spans) e.classList.remove("now");
+      spans[i]?.classList.add("now");
+      spans[i]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    };
+    speak(parts, () => {
       if (!this.native || this.current !== r) return;
       if (this.page < r.pages.length - 1) this.turn(1);
       else this.setNative(false);
-    }, () => this.setNative(false));
+    }, () => this.setNative(false), light);
   }
 
   private render(): void {
@@ -170,7 +188,7 @@ export class Reader {
     this.body.replaceChildren(
       ...(r.pages[this.page] ?? "").split(/\n\s*\n/).map((t) => {
         const p = document.createElement("p");
-        p.textContent = t.trim();
+        for (const piece of pieces(t.trim())) p.append(Object.assign(document.createElement("span"), { className: "s", textContent: piece + " " }));
         return p;
       }),
     );
