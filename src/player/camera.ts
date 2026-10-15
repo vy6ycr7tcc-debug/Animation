@@ -51,6 +51,12 @@ export class FollowCamera {
   /** The eagle's view (the mind's maze, seated at its centre): the camera rises on a slow crane
       high over this point and looks down on it, circling very slowly. */
   eagle: THREE.Vector3 | null = null;
+  /** How high the eagle's view hangs over its point (m). */
+  eagleH = 125;
+  /** A ceiling for the following view (world y), or null: in the mind's maze the view never rises
+      over the walls, so the way ahead stays veiled (the eagle's view at the centre is the one
+      earned exception). */
+  ceiling: number | null = null;
   /** A steered view may look high into the sky (the maze's sun in contemplation). */
   skyward = false;
   private eagleK = 0;
@@ -131,6 +137,7 @@ export class FollowCamera {
     // under the water, stay under it (no bobbing through the surface)
     if (this.underwater) followPos.y = Math.min(followPos.y, WATER_Y - 0.3);
     if (followPos.y < floor) followPos.y = floor;
+    if (this.ceiling !== null && followPos.y > this.ceiling) followPos.y = Math.max(floor, this.ceiling);
 
     // The intro: low over the shallows, drifting slowly, looking out toward the far island.
     const drift = reduced ? 0 : t;
@@ -190,7 +197,7 @@ export class FollowCamera {
     if (this.eagleK > 0.001) {
       const s = THREE.MathUtils.smoothstep(this.eagleK, 0, 1);
       const a = this.yaw + (reduced ? 0 : t * 0.012);
-      const high = new THREE.Vector3(this.eagleAt.x + Math.sin(a) * 34, this.eagleAt.y + 125, this.eagleAt.z + Math.cos(a) * 34);
+      const high = new THREE.Vector3(this.eagleAt.x + Math.sin(a) * 34, this.eagleAt.y + this.eagleH, this.eagleAt.z + Math.cos(a) * 34);
       this.cam.position.lerp(high, s);
       look.lerp(this.eagleAt, s);
     }

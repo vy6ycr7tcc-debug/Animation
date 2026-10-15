@@ -463,6 +463,7 @@ const mazeMap = new MazeMap({
     player.target = null;
     follow.snapTo(player.pos);
   },
+  full: () => devMode(),
 });
 function mazeSteleFrame(): void {
   const inMaze = !!maze && inHall()?.hall === mazeHall;
@@ -473,6 +474,9 @@ function mazeSteleFrame(): void {
   if (inMaze && player.flying) player.flying = false;
   document.body.classList.toggle("walkonly", inMaze);
   follow.eagle = inMaze ? (maze?.eagle() ?? null) : null;
+  if (inMaze && maze) follow.eagleH = maze.eagleHeight();
+  // the veil: in the maze the following view stays below the walls' tops
+  follow.ceiling = inMaze ? player.pos.y + 3.2 : null;
   // through one of the forecourt's doors: on to that world, the way "where next" goes there
   const door = inMaze && !mazeGone && !crossing ? maze?.portalAt(player.pos) : null;
   if (door) {
@@ -2240,6 +2244,7 @@ const halls: { hall: Hall; journey: Journey; lit: number }[] = [];
         id: "mindMaze",
         title: "The mind's maze",
         make: async (sc, nar, wh) => createMindMaze(sc, nar, wh, { model: () => beingModel, sparks, reduced: () => S.reduced, chime: () => audio.bowl(294 + Math.random() * 98, 0.012, undefined, 6),
+          pressing: () => Math.hypot(input.move.x, input.move.y) > 0.2 || !!player.target,
           // the worlds' own buildings round it, behind their doors (the pyramid far off, a landmark)
           buildings: () => [
             { id: "temple", obj: temple.gate, door: temple.gateAt, face: temple.gateHeading },
@@ -5087,9 +5092,51 @@ renderer
             return { eye: [o.x, OUT * 2.05, o.z + OUT * 0.72], look: [o.x, 0, o.z + 2] };
           }
           if (n === 3) return near("maze-arch-I", 2.2, 2.2);
+          if (n === 16 && maze) {
+            // a real walk into a wall (&ring=k): set course through the ring's outer wall and let the
+            // controller press the body to the stone (with &live=S the game runs S seconds)
+            const k = Number(new URLSearchParams(location.search).get("ring") ?? 14);
+            const L = maze.layout(), R = L.rin + L.cw * (k + 1), M = L.rin + L.cw * (k + 0.5);
+            const arc = L.arcs.filter((w) => Math.abs(w.r - R) < 0.01).sort((p, q) => q.a1 - q.a0 - (p.a1 - p.a0))[0];
+            const a = (arc.a0 + arc.a1) / 2;
+            stand(Math.sin(a) * M, Math.cos(a) * M, Math.sin(a) * R, Math.cos(a) * R);
+            player.target = new THREE.Vector2(o.x + Math.sin(a) * (R + 3), o.z + Math.cos(a) * (R + 3));
+            const fy = mazeFloor(Math.sin(a) * M, Math.cos(a) * M);
+            return { eye: [o.x + Math.sin(a + 0.05) * (M - 3), fy + 2.2, o.z + Math.cos(a + 0.05) * (M - 3)], look: [o.x + Math.sin(a) * R, fy + 1.3, o.z + Math.cos(a) * R] };
+          }
+          if (n >= 12 && n <= 15 && maze) {
+            if (n === 15) {
+              // the centre: sat at the seat, every path lit, the motes come home to the one seated
+              maze.debugAll();
+              maze.debugSeated(30);
+              stand(0, 0.05, 0, -3);
+              const cy0 = mazeFloor(0, 0);
+              return { eye: [o.x + 3.4, cy0 + 2.4, o.z + 4.6], look: [o.x, cy0 + 1.0, o.z] };
+            }
+            // walked some way in along the true way, touching the walls as it went
+            const e = maze.debugExplore(n === 12 ? 3 : n === 13 ? 9 : 16, n === 12 ? 0 : n === 13 ? 4 : 3);
+            const l = Math.hypot(e.dx, e.dz) || 1, fx = e.dx / l, fz = e.dz / l;
+            const fy = mazeFloor(e.x, e.z);
+            if (n === 12) {
+              // a touch, mid-shimmer: the wall answering where the hand met it
+              maze.debugTouch(e.x - fz * 2.4, e.z + fx * 2.4);
+              stand(e.x, e.z, e.x - fz * 3, e.z + fx * 3);
+              return { eye: [o.x + e.x + fz * 1.2 - fx * 2.2, fy + 1.6, o.z + e.z - fx * 1.2 - fz * 2.2], look: [o.x + e.x - fz * 3 + fx * 0.6, fy + 1.2, o.z + e.z + fx * 3 + fz * 0.6] };
+            }
+            if (n === 13) {
+              // palms left along a wall as the hand went, the touched stone edged in gold
+              for (const b of [1.5, 4.5, 7.5]) maze.debugTouch(e.x - fx * b - fz * 2.4, e.z - fz * b + fx * 2.4);
+              stand(e.x + fz * 1.2, e.z - fx * 1.2, e.x - fz * 3, e.z + fx * 3);
+              return { eye: [o.x + e.x + fx * 2.5 + fz * 2.2, fy + 1.7, o.z + e.z + fz * 2.5 - fx * 2.2], look: [o.x + e.x - fx * 4.5 - fz * 3, fy + 1.4, o.z + e.z - fz * 4.5 + fx * 3] };
+            }
+            // 14: the road walked, glowing behind the wanderer
+            stand(e.x, e.z, e.x + fx * 5, e.z + fz * 5);
+            return { eye: [o.x + e.x - fx * 6.5, fy + 3.1, o.z + e.z - fz * 6.5], look: [o.x + e.x + fx * 1.5, fy + 0.6, o.z + e.z + fz * 1.5] };
+          }
           if (n === 11) {
             // the maze's own map, open, standing just inside the way in
             stand(0, OUT - 3.25, 0, 0);
+            maze?.debugExplore(40, 6);
             requestAnimationFrame(() => mazeMap.open());
             return { eye: [o.x, mazeFloor(0, OUT) + 3, o.z + OUT + 4], look: [o.x, mazeFloor(0, 0), o.z] };
           }
