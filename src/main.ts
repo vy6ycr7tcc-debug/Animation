@@ -53,6 +53,8 @@ import { SpiritHorses } from "./world/spiritHorses";
 import { SpiritCritters } from "./world/spiritCritters";
 import { Readables, type Reading } from "./world/readables";
 import { Reader } from "./ui/reader";
+import { Heart } from "./ui/heart";
+import { Oracle } from "./ui/oracle";
 import { Vessels } from "./world/vessels";
 import { TranscriptPlayer } from "./ui/transcriptPlayer";
 import { tourBar, type TourBarOwner } from "./ui/tourBar";
@@ -64,7 +66,6 @@ import { Autofly } from "./player/autofly";
 import { Autorun } from "./player/autorun";
 import { BreathGuide } from "./world/breath";
 import { LungParticles } from "./ui/breathLungs";
-import { Genesis } from "./world/genesis";
 import { Touch } from "./world/touch";
 import { Depths, RUIN_NAMES, RUIN_SITES } from "./world/depths";
 import { Ancients } from "./world/ancient";
@@ -89,7 +90,6 @@ import { createMindMaze, maze, mazeConfine, mazeFloor, MAZE_AIR, MAZE_EXIT, MAZE
 import { MazeMap } from "./ui/mazeMap";
 import { createLongDescent, wandererConfine, wandererFloor, WANDERER_EXIT } from "./scenes/wanderer/area";
 import { moodForce } from "./world/moods";
-import { cloudUniforms } from "./world/atmosphere";
 import { NO_MIRROR_LAYER, Water } from "./world/water";
 import { FOG } from "./world/fog";
 import { MOOD_NAMES, Moods } from "./world/moods";
@@ -877,7 +877,6 @@ function tapOnOrb(x: number, y: number): boolean {
   return true;
 }
 input.onAction = () => {
-  if (genesis.active) return;
   if (wanderer.gesture !== "none") wanderer.setGesture("none");
   if (player.swimming) {
     player.stroke();
@@ -885,7 +884,7 @@ input.onAction = () => {
   } else player.jump();
 };
 input.onTap = (x, y, touch) => {
-  if (isTv || S.mode !== "play" || genesis.active || temple.cardsOpen) return;
+  if (isTv || S.mode !== "play" || temple.cardsOpen) return;
   // in the deep archive: a tablet plays its narration again, an alcove's light its archetype
   if (depths.inside) {
     const got = depths.pick(x, y, camera);
@@ -903,6 +902,7 @@ input.onTap = (x, y, touch) => {
     return;
   }
   if (tapOnOrb(x, y)) return;
+  if (tapOnHeart(x, y)) return;
   // a whisper's thing under the tap: a door, a stone, a wandering world, a quartz, a star, a tree
   {
     const w = apart() ? null : whispers.pick(x, y, camera);
@@ -1375,7 +1375,7 @@ function templeFrame(dt: number): void {
     toldGate = true;
     whisper("A temple. Walk through its door.", 5000);
   }
-  if (d < 6 && !crossing && !autofly.active && !genesis.active && sitting.phase !== "seated" && temple.atGateDoor(player.pos)) crossTemple(true);
+  if (d < 6 && !crossing && !autofly.active && sitting.phase !== "seated" && temple.atGateDoor(player.pos)) crossTemple(true);
 }
 
 // Autofly (⋮ → Autofly, or P): the wanderer flies by itself, low over the land from place to
@@ -1388,7 +1388,7 @@ function setAutofly(on: boolean): void {
   if (isTv && !on) return;
   if (on === autofly.active) return;
   if (on) {
-    if (S.mode !== "play" || sitting.phase === "seated" || tourScenes.movementHeld || player.diving || genesis.active || apart()) return;
+    if (S.mode !== "play" || sitting.phase === "seated" || tourScenes.movementHeld || player.diving || apart()) return;
     player.target = null;
     if (autorun.active) setAutorun(false);
     autofly.start(player.pos, player.heading);
@@ -1411,7 +1411,7 @@ scene.add(breath.group);
 function setAutorun(on: boolean): void {
   if (isTv || on === autorun.active) return;
   if (on) {
-    if (S.mode !== "play" || sitting.phase === "seated" || tourScenes.movementHeld || player.swimming || player.flying || genesis.active || apart()) return;
+    if (S.mode !== "play" || sitting.phase === "seated" || tourScenes.movementHeld || player.swimming || player.flying || apart()) return;
     if (autofly.active) setAutofly(false);
     player.target = null;
     autorun.start(player.pos, player.heading);
@@ -1510,39 +1510,65 @@ addEventListener("keydown", (e) => {
   if (e.key.toLowerCase() === "p" && !e.repeat && S.mode === "play" && !(e.target as HTMLElement)?.closest?.("input, #menu")) setAutofly(!autofly.active);
 });
 
-// Genesis: a long press on the wanderer's heart (or H). The world goes dark, lines of light
-// grow from the heart to all of creation, and creation rebuilds itself (world/genesis.ts).
-const genesis = new Genesis();
-scene.add(genesis.group);
+// The wanderer's heart, where a double tap opens its notes (and, in the water, where the orb is).
 const heartScreen = new THREE.Vector3();
-let genesisBells = 0;
+const HEART_UP = new THREE.Vector3(0, 1.15, 0);
 function heartAt(out: THREE.Vector3): THREE.Vector3 {
-  return out.copy(player.pos).add(new THREE.Vector3(0, 1.15, 0));
+  return out.copy(player.pos).add(HEART_UP);
 }
-function beginGenesis(): void {
-  if (S.mode !== "play" || genesis.active || sitting.phase === "seated" || tourScenes.movementHeld || player.flying || player.diving || apart()) return;
-  // the forms whose geometry lights up: the land gold, living things rose, the sky's vessels pale blue
-  const layers = [
-    { root: terrain.group, color: new THREE.Color(0.75, 0.58, 0.32) },
-    { root: creation.group, color: new THREE.Color(0.5, 0.33, 0.31) }, // dense forms: dimmer, their lines crowd
-    { root: wilds.group, color: new THREE.Color(0.55, 0.38, 0.3) },
-    { root: vessels.group, color: new THREE.Color(0.62, 0.8, 1.0) },
-    { root: pyramid.world, color: new THREE.Color(0.95, 0.75, 0.42) },
-    ...landmarks.list.map((st) => ({ root: st.group, color: new THREE.Color(0.9, 0.85, 1.0) })),
-  ];
-  player.target = null;
-  genesis.start(heartAt(new THREE.Vector3()), layers);
-  genesisBells = 0;
-  audio.duck(true);
-  audio.genesisScore();
-  quality.hold(4);
+input.onHold = (x, y) => beginTouch(x, y);
+
+/* The heart's notes (ui/heart.ts): a double tap on the wanderer's heart, or H, opens a note; they
+   are kept on this device only. ⋮ → My Heart lists them; a small ♥ rests at the edge of the view
+   while seated or laying hands. The oracle (ui/oracle.ts) is offered at the Choice's seat and at
+   the maze's still centre. */
+const myHeart = new Heart();
+const oracle = new Oracle();
+myHeart.place = () => {
+  // the place in the game's own words (no ids, no metres)
+  const h = inHall();
+  if (h) return h.journey.stage && h.journey.inside ? h.journey.stage.title : h.hall.label;
+  if (temple.inside) return "The temple";
+  if (pyramid.isInside) return player.pos.distanceTo(DUAT_ORIGIN) < 260 ? "The Duat" : "The pyramid";
+  if (depths.inside) return "The deep archive";
+  let best: Place | null = null, bd = Infinity;
+  for (const p of places()) {
+    const d = Math.hypot(p.x - player.pos.x, p.z - player.pos.z);
+    if (d < bd) (bd = d), (best = p);
+  }
+  return best && bd < 160 ? best.label : "The world";
+};
+myHeart.onSaved = () => audio.bowl(330, 0.03);
+myHeart.say = (t) => whisper(t, 3200);
+function openHeart(): void {
+  if (S.mode !== "play" || oracle.isOpen || reader.current) return;
+  myHeart.openCompose();
 }
-input.onHold = (x, y) => {
+input.onHeart = openHeart;
+let lastHeartTap = 0;
+/** A double tap (within 350 ms) on the wanderer's heart opens a note. In the water the orb's own
+    double tap (down to the floor) comes first. */
+function tapOnHeart(x: number, y: number): boolean {
+  if (player.swimming) return false;
   heartAt(heartScreen).project(camera);
   const sx = (heartScreen.x * 0.5 + 0.5) * innerWidth, sy = (-heartScreen.y * 0.5 + 0.5) * innerHeight;
-  if (heartScreen.z < 1 && Math.hypot(x - sx, y - sy) < Math.max(70, innerHeight * 0.09)) beginGenesis();
-  else beginTouch(x, y);
-};
+  if (heartScreen.z >= 1 || Math.hypot(x - sx, y - sy) > Math.max(70, innerHeight * 0.09)) return false;
+  const now = performance.now();
+  if (now - lastHeartTap < 350) {
+    lastHeartTap = 0;
+    openHeart();
+  } else lastHeartTap = now;
+  return true;
+}
+/** Each frame: the small ♥ while seated or laying hands; the oracle's offer at the Choice (once
+    its part has been spoken) and at the maze's still centre. */
+function heartFrame(): void {
+  const play = S.mode === "play" && !crossing;
+  myHeart.affordance(play && (sitting.phase === "seated" || touch.active));
+  const atChoice = choiceSit.on && choiceSit.after > 0 && S.t - choiceSit.after > 4;
+  const atCentre = sitting.phase === "seated" && inHall()?.hall === mazeHall;
+  oracle.offerAt(play && !myHeart.open ? (atChoice ? "At the Choice" : atCentre ? "At the still centre" : null) : null);
+}
 
 // Laying hands on the world: hold a finger on a tree, a stone, a crystal or the ground
 // (world/touch.ts). The wanderer goes to it, kneels or embraces it, and they talk in light.
@@ -1553,7 +1579,7 @@ const touch = new Touch(creation, wanderer, player, {
 scene.add(touch.points);
 let toldTouch = false;
 function canTouch(): boolean {
-  return S.mode === "play" && player.grounded && !player.swimming && !player.flying && !apart() && !genesis.active &&
+  return S.mode === "play" && player.grounded && !player.swimming && !player.flying && !apart() &&
     !autofly.active && sitting.phase === "none" && !startMap.isOpen;
 }
 function beginTouch(x: number, y: number): void {
@@ -1577,32 +1603,6 @@ addEventListener("keydown", (e) => {
   if (touch.active) touch.stop();
   else beginTouch(innerWidth / 2, innerHeight * 0.6);
 });
-input.onHeart = beginGenesis;
-function genesisFrame(dt: number): void {
-  const g = genesis.update(dt, camera, S.reduced);
-  // the bells: one as the dark falls, two as creation comes back (all above ~200 Hz)
-  const bells = [[0.2, 264], [18.5, 396], [21, 528]];
-  while (genesisBells < bells.length && genesis.t >= bells[genesisBells][0]) audio.bell(bells[genesisBells++][1], 0.16, 7);
-  // the air: black and thick at the start, thinning again from the heart outward
-  const air = g.air;
-  fogUniforms.color.value.multiplyScalar(1 - air);
-  fogUniforms.glow.value.multiplyScalar(1 - air);
-  fogUniforms.density.value = fogUniforms.density.value * Math.pow(0.6 / fogUniforms.density.value, air);
-  const k = g.sky;
-  skyUniforms.uZen.value.multiplyScalar(k);
-  skyUniforms.uMid.value.multiplyScalar(k);
-  skyUniforms.uHor.value.multiplyScalar(k);
-  skyUniforms.uStars.value *= k;
-  skyUniforms.uSunK.value *= k;
-  skyUniforms.uMoonK.value *= k;
-  cloudUniforms.shade.value.multiplyScalar(k);
-  cloudUniforms.light.value.multiplyScalar(k);
-  post.starVis.value *= k; // the moon's rays
-  follow.lift = genesis.active ? g.lift : 0;
-  const lit = !g.lightsHidden;
-  vessels.group.visible = lanterns.points.visible = lit;
-  if (!genesis.active) audio.duck(false);
-}
 player.onLand = () => {
   if (!player.swimming) wanderer.land();
   const y = Math.max(heightAt(player.pos.x, player.pos.z), WATER_Y);
@@ -2381,7 +2381,7 @@ function journeyFrame(dt: number): void {
     at.journey.update(dt, player.pos);
     post.starVis.value = 0;
     post.raysOn.value = 0;
-  } else if (!at && S.mode === "play" && !crossing && !autofly.active && !genesis.active && sitting.phase !== "seated") {
+  } else if (!at && S.mode === "play" && !crossing && !autofly.active && sitting.phase !== "seated") {
     const h = halls.find((h) => h.hall.atDoor(player.pos));
     if (h) void h.journey.enter();
     else if (egyptGate.atGate(player.pos) && !halls[2].journey.crossing) {
@@ -2468,7 +2468,7 @@ let sunStill = false;
 function contemplationFrame(dt: number): void {
   const idle = performance.now() - lastTouch > INWARD_AFTER && Math.hypot(input.move.x, input.move.y) < 0.05 && !input.hold;
   const want = inwardOn && idle && S.mode === "play" && !startMap.isOpen && $("#menu").hidden && player.speed < 0.3 &&
-    !player.flying && !player.diving && !follow.underwater && !autofly.active && !autorun.active && !genesis.active && !crossing &&
+    !player.flying && !player.diving && !follow.underwater && !autofly.active && !autorun.active && !crossing &&
     (sitting.phase === "none" || lessonSeated()) && !document.body.classList.contains("touring");
   inwardK += ((want ? 1 : 0) - inwardK) * Math.min(1, dt * (want ? 0.35 : 3));
   if (inwardK < 0.002 && !want) inwardK = 0;
@@ -3435,7 +3435,7 @@ function tourOfferFrame(dt: number): void {
     else driveTo(h.hall.door.x, h.hall.door.z, null, pendingArea.since);
   }
   let want: { place: TourPlace; inside: boolean } | null = null;
-  const free = S.mode === "play" && !walk && !duatTour && !areaTour && !pendingArea && !tourScenes.tour.active && !crossing && !genesis.active && !nextUp.shown &&
+  const free = S.mode === "play" && !walk && !duatTour && !areaTour && !pendingArea && !tourScenes.tour.active && !crossing && !nextUp.shown &&
     sitting.phase === "none" && !startMap.isOpen && $("#menu").hidden && !temple.cardsOpen && !inHall()?.journey.crossing;
   if (free) {
     for (const pl of TOUR_PLACES) {
@@ -3853,7 +3853,7 @@ function pyramidFrame(dt: number): void {
   if (!pyramid.isInside) {
     if (player.pos.distanceTo(pyramid.door) < 90) tellPyr("near", "A pyramid. Its door is on the north face; or climb its faces to the apex.", 6000);
     if (atApex) tellPyr("apex", "At the apex. Higher guidance speaks of a third spiral leaving it, like a candle flame.", 7000);
-    if (!crossing && !autofly.active && !genesis.active && !player.flying && pyramid.atDoor(player.pos)) crossPyr(true);
+    if (!crossing && !autofly.active && !player.flying && pyramid.atDoor(player.pos)) crossPyr(true);
     return;
   }
   // inside: the rooms are close, so the camera stays near
@@ -4181,6 +4181,10 @@ function closeGuide(): void {
   input.enabled = S.mode === "play";
 }
 $("#guide-open").addEventListener("click", openGuide);
+$("#heart-open").addEventListener("click", () => {
+  setMenu(false);
+  myHeart.openList();
+});
 $("#guide-close").addEventListener("click", closeGuide);
 /* "Walk me there" (the owner: "one click and it completes; the stick takes over"): the guide's
    light goes ahead and the wanderer goes after it by itself, on foot or in flight (`driveTo`),
@@ -4627,7 +4631,7 @@ function update(dt: number): void {
     if (wanderer.gesture !== "none" && Math.hypot(input.move.x, input.move.y) > 0.2 && wanderer.gesture === "sit") wanderer.setGesture("none");
     if (autofly.active && !isTv && (Math.hypot(input.move.x, input.move.y) > 0.25 || input.hold)) setAutofly(false); // the thumb takes over
     if (autorun.active && (Math.hypot(input.move.x, input.move.y) > 0.25 || input.hold || player.swimming || player.flying || player.target)) setAutorun(false);
-    if (genesis.active || temple.cardsOpen || tourScenes.tour.active) player.update(dt, { x: 0, y: 0, glide: false, run: 0, hold: false, down: false, pitch: follow.pitch }, follow.yaw);
+    if (temple.cardsOpen || tourScenes.tour.active) player.update(dt, { x: 0, y: 0, glide: false, run: 0, hold: false, down: false, pitch: follow.pitch }, follow.yaw);
     else if (walk?.phase === "travel" || walk?.phase === "go" || (walk?.phase === "listen" && player.target) || (duatTour?.phase === "walk" && player.target) || guideAuto) player.update(dt, { x: 0, y: 0, glide: false, run: 1, hold: travelHold, down: false, pitch: follow.pitch }, follow.yaw);
     else if (autofly.active) {
       const r = autofly.update(dt, player.pos);
@@ -4734,7 +4738,7 @@ function update(dt: number): void {
   if (world) updateStillness(dt, wt);
   if (S.mode === "play") {
     const letGo = Math.hypot(input.move.x, input.move.y) > 0.2 || input.hold || (touch.phase === "touching" && !!player.target) ||
-      startMap.isOpen || apart() || genesis.active || autofly.active || sitting.phase !== "none";
+      startMap.isOpen || apart() || autofly.active || sitting.phase !== "none";
     touch.update(dt, dpr, letGo, S.reduced);
     // a stone or crystal in the hands vibrates with light, as it does before stillness
     if (touch.vibe > 0.01 && touch.target) {
@@ -4823,6 +4827,7 @@ function update(dt: number): void {
   journeyFrame(dt);
   busyFrame();
   calmFrame();
+  heartFrame();
   autoFrame(realDt);
   gravityFrame(realDt);
   contemplationFrame(realDt);
@@ -4839,7 +4844,6 @@ function update(dt: number): void {
     vision.update(dt, vd < 420, S.reduced);
     // (no words: the forms speak for themselves; Samuel)
   }
-  if (genesis.active) genesisFrame(dt);
   // the sky's reflection is baked once: baking it again as the moods drifted (every few seconds
   // while travelling) hitched the frame on a phone and made the ground's sheen jump; the moods'
   // own lights (the hemisphere, the moon or sun, the fog) carry the change of colour
@@ -5098,11 +5102,6 @@ renderer
                 else spiritCritters.summon(player.pos, { x: player.pos.x + 1, z: player.pos.z }, new URLSearchParams(location.search).has("hop"));
               }
             : glyphsLoaded,
-        genesisAt: (tt) => {
-          beginGenesis();
-          genesis.t = Math.max(0, tt - 1 / 60); // the one update that follows brings it to tt
-          return [player.pos.x, player.pos.y, player.pos.z];
-        },
         update,
         veil: async (n) => {
           if (n === 1) {
@@ -5519,11 +5518,10 @@ if (FILM) {
       start: (kind, id) => {
         if (kind === "autofly") setAutofly(true);
         else if (kind === "autowalk") setAutorun(true);
-        else if (kind === "genesis") beginGenesis();
         else if (id === "duat") duatTourStart();
         else walkStart(id);
       },
-      active: () => !!walk || !!duatTour || tourScenes.tour.active || genesis.active,
+      active: () => !!walk || !!duatTour || tourScenes.tour.active,
       chapter: () => {
         const where = devPlace();
         const info = tourBar().info();
@@ -5533,7 +5531,6 @@ if (FILM) {
         }
         if (autofly.active) return { key: "autofly", label: "Autofly", detail: "", kind: "autofly", where };
         if (autorun.active) return { key: "autowalk", label: "Auto-walk", detail: "", kind: "autowalk", where };
-        if (genesis.active) return { key: "genesis", label: "The heart: genesis", detail: "", kind: "genesis", where };
         return { key: "free", label: "The world", detail: "", kind: "free", where };
       },
       reset: async () => {
@@ -5544,7 +5541,7 @@ if (FILM) {
         stopAuto();
         narration.stop(0.5);
         standUp();
-        // back on foot (an autofly clip leaves the wanderer flying, and genesis needs it standing)
+        // back on foot (an autofly clip leaves the wanderer flying)
         Object.assign(player, { flying: false, landing: false, gliding: false, vy: 0 });
         const shore = places()[0];
         arrive({ place: shore, ...shore.start }, false);
@@ -5567,5 +5564,5 @@ if (FILM) {
     }),
   );
 }
-Object.assign(window, { __ij: { solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, genesis, beginGenesis, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, maze: () => maze } });
+Object.assign(window, { __ij: { solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, myHeart, oracle, heartFrame, maze: () => maze } });
 Object.assign((window as unknown as { __ij: object }).__ij, { whispers, hearWhisper, rapaNui });

@@ -9,8 +9,6 @@ export class FollowCamera {
   dist = 7;
   /** Free flight while flying: the view may look well up, to climb where you look. */
   freeLook = false;
-  /** 0..1: drawn back and up to take in the land (genesis). */
-  lift = 0;
   private target = new THREE.Vector3();
   private sinceLook = 99;
   private effDist = 7; // shortened when a hillside would block the view
@@ -270,7 +268,7 @@ export class FollowCamera {
     // the chase view's crane: where a wall would come between, it rises and looks down over the
     // ball instead of coming closer (eased up quickly, down slowly)
     this.crane += ((this.chase ? this.craneWant : 0) - this.crane) * Math.min(1, dt * (this.craneWant > this.crane ? 8 : 1.1));
-    const pitch = this.pitch + this.crane + (0.98 - this.pitch) * this.lift + 0.1 * w, dist = Math.min(this.dist, this.nearDist ?? Infinity) * (1 + 4.5 * this.lift) * (1 + 1.3 * w);
+    const pitch = this.pitch + this.crane + 0.1 * w, dist = Math.min(this.dist, this.nearDist ?? Infinity) * (1 + 1.3 * w);
     const cp = Math.cos(pitch), sp = Math.sin(pitch);
     // Pull in when the ground would come between the camera and the wanderer.
     let clear = dist;

@@ -43,9 +43,9 @@ export interface FilmHost {
   /** in the world, awake, not in a crossing */
   playing(): boolean;
   begin(): void;
-  /** begin a clip: a tour (by its walk id), autofly, auto-walk or genesis */
+  /** begin a clip: a tour (by its walk id), autofly or auto-walk */
   start(kind: string, tour: string): void;
-  /** a tour or genesis is still going */
+  /** a tour is still going */
   active(): boolean;
   /** what the game is doing now (the chapter it belongs to) */
   chapter(): ChapterInfo;
@@ -245,11 +245,11 @@ const status: Status = { state: "boot", frames: 0, seconds: 0, bytes: 0, name: "
 
 /* ------------------------------------------------------------------ clips and chapters */
 
-/** One recording: a tour, autofly, auto-walk or the heart's genesis. */
+/** One recording: a tour, autofly or auto-walk. */
 interface Clip {
   id: string;
   label: string;
-  kind: "tour" | "autofly" | "autowalk" | "genesis";
+  kind: "tour" | "autofly" | "autowalk";
   /** for a tour: the walk's id */
   tour?: string;
   /** for the timed kinds: how long to film */
@@ -352,7 +352,6 @@ function clipsAsked(host: FilmHost): { clips: Clip[]; many: boolean } | string {
   const timed: Clip[] = [
     { id: "autofly", label: "Autofly", kind: "autofly", secs: flySecs },
     { id: "autowalk", label: "Auto-walk", kind: "autowalk", secs: walkSecs },
-    { id: "genesis", label: "Genesis, the heart", kind: "genesis" },
   ];
   if (asked === "everything" || asked === "all-clips") {
     let clips: Clip[] = [...host.tours.filter((t) => t.id !== "all").map((t) => ({ id: t.id, label: t.label, kind: "tour" as const, tour: t.id })), ...timed];
@@ -367,7 +366,7 @@ function clipsAsked(host: FilmHost): { clips: Clip[]; many: boolean } | string {
   if (t) return { clips: [t], many: false };
   const id = asked === "grand" ? "all" : asked;
   const tour = host.tours.find((x) => x.id === id);
-  if (!tour) return `There is no tour called “${asked}”. Try: everything, grand, autofly, autowalk, genesis, ${host.tours.map((x) => x.id).join(", ")}.`;
+  if (!tour) return `There is no tour called “${asked}”. Try: everything, grand, autofly, autowalk, ${host.tours.map((x) => x.id).join(", ")}.`;
   return { clips: [{ id: asked, label: asked === "grand" ? "The grand tour, end to end" : tour.label, kind: "tour", tour: id }], many: false };
 }
 

@@ -111,7 +111,7 @@ export function installFeedback(host: FeedbackHost): void {
   root.append(card);
   document.body.append(root);
 
-  // the game never hears what happens in here: keys typed (H would wake genesis, WASD walk) and
+  // the game never hears what happens in here: keys typed (H would open the heart, WASD walk) and
   // touches (the stick, look, tap to walk) stay in the panel
   for (const ev of ["keydown", "keyup", "keypress"] as const) root.addEventListener(ev, (e) => {
     if (ev === "keydown" && (e as KeyboardEvent).key === "Escape") close();

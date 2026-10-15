@@ -37,7 +37,6 @@ const DEFAULT_T: Record<string, number> = {
   greetings: 68,
   pyramid: 30,
   duat: 30,
-  genesis: 9,
 };
 
 type XYZ = [number, number, number];
@@ -62,7 +61,6 @@ const VIEWS: Record<string, { eye: XYZ; look: XYZ }> = {
   "tree-station": { eye: [0, 1.7, 0], look: [2.5, 9.0, 8] }, // seated view, tilted up: the tree stands ~5m above the seat on the slope
   pyramid: { eye: [0, 58, 210], look: [0, 32, 0] }, // offsets from PYRAMID (terrain)
   duat: { eye: [-6, 3.5, 8], look: [18, 0.5, -14] }, // duat-local: behind/above the entry, down the PATH toward station 1
-  genesis: { eye: [0, 5.5, 15], look: [0, 2.2, 0] }, // from the wanderer's feet: behind and above, the heart ahead
 };
 
 /** The tour's public API, plus just enough of main.ts to boot a single frame. */
@@ -88,8 +86,6 @@ export interface ShotCtx {
   /** The gateway into the telling of Egypt (world). */
   gate?: { x: number; y: number; z: number };
   setInside(inside: boolean): void;
-  /** Begin genesis where the wanderer stands, at time t of the sequence; returns the feet. */
-  genesisAt?(t: number): XYZ;
   update(dt: number): void;
   draw(): void;
   /** Settles when what the frame needs has loaded (the recorded figure the visions pose). */
@@ -429,10 +425,6 @@ export function runShot(ctx: ShotCtx): void {
     base = [hx, heightAt(hx, hz), hz];
     view = { eye: [7, 3.2, 9], look: [0, 1.2, 0] };
     ctx.player.pos.set(hx + 5, heightAt(hx + 5, hz + 7), hz + 7);
-  } else if (id === "genesis") {
-    if (!ctx.genesisAt) return;
-    base = ctx.genesisAt(t);
-    view = VIEWS.genesis;
   } else if (/^duat-\d$/.test(id)) {
     // over the shoulder of the wanderer standing at hour k (main.ts places it), toward the vision
     const p = ctx.player.pos, fx = -Math.sin(ctx.player.heading), fz = -Math.cos(ctx.player.heading);
