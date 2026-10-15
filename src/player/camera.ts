@@ -420,9 +420,9 @@ export class FollowCamera {
       this.yaw = this.railYaw; // the stick goes where the view looks
       this.railPos.set(bx + Math.sin(this.railYaw) * this.railR, player.y + this.railHeight, bz + Math.cos(this.railYaw) * this.railR);
       // ahead down the corridor, nearly level: the ball sits low in the middle of the frame, where
-      // the owner circled it: looking a touch above level, the ball's centre ~26° below the centre with the
-      // 58° view, so it rests right at the foot of the screen
-      this.railLook.set(bx - Math.sin(this.railYaw) * 6, player.y + this.railHeight + 0.35, bz - Math.cos(this.railYaw) * 6);
+      // the owner circled it: looking a little above level, the ball's centre ~30° below the centre with the
+      // 58° view: it rests at the foot of the screen, its lower edge just cut by it (the owner's X)
+      this.railLook.set(bx - Math.sin(this.railYaw) * 6, player.y + this.railHeight + 1.05, bz - Math.cos(this.railYaw) * 6);
       const s = THREE.MathUtils.smoothstep(this.railK, 0, 1);
       this.cam.position.lerp(this.railPos, s);
       look.lerp(this.railLook, s);
