@@ -106,6 +106,8 @@ export class Controller {
   onLand: (() => void) | null = null;
   /** Tap-to-move destination; cleared on arrival or when the player steers. */
   target: THREE.Vector2 | null = null;
+  /** Run all the way to `target` (a course of many short legs, as through the maze). */
+  runCourse = false;
   private solid = { x: 0, z: 0 };
 
   /** Come down to land (from the "Land" word). */
@@ -223,7 +225,7 @@ export class Controller {
         dx = tx;
         dz = tz;
         mag = Math.min(1, d / 1.2);
-        courseRun = THREE.MathUtils.smoothstep(d, 10, 28); // a far place: run there, walking in the last metres
+        courseRun = this.runCourse ? 1 : THREE.MathUtils.smoothstep(d, 10, 28); // a far place: run there, walking in the last metres
       }
     }
     // In the air with the stick let go, the wanderer glides on ahead (as in Sky), sinking gently.
