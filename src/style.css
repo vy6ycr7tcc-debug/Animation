@@ -1019,12 +1019,20 @@ body.mazemapping :is(#joy, #act, #ctx, #auto, #menu-btn, #tp, #tp-mini, #whisper
    words set in the dark over the world, gold hairlines, a quiet serif ---- */
 .heart-panel {
   position: fixed; left: 0; right: 0; margin: 0 auto; z-index: 27;
-  top: calc(env(safe-area-inset-top, 0px) + 6vh); max-height: calc(var(--fh, 100vh) - 6vh - 24px - env(safe-area-inset-top, 0px));
-  width: min(96vw, 32em); box-sizing: border-box; padding: 30px 28px 16px;
+  top: calc(env(safe-area-inset-top, 0px) + 12px); max-height: calc(var(--fh, 100vh) - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  width: min(94vw, 32em); box-sizing: border-box; padding: 26px 22px 14px;
   display: flex; flex-direction: column; align-items: center; text-align: center;
-  background: radial-gradient(ellipse 64% 60% at 50% 46%, rgba(6, 5, 12, 0.92) 0%, rgba(6, 5, 12, 0.84) 54%, rgba(6, 5, 12, 0.46) 78%, rgba(6, 5, 12, 0) 100%);
+  background: rgba(9, 8, 16, 0.94); border: 1px solid rgba(226, 191, 126, 0.18); border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
   animation: reader-in 0.9s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
+/* behind an open note or the oracle the world is veiled, and nothing of the game shows over it */
+body.hearting::after, body.oracling::after {
+  content: ""; position: fixed; inset: 0; z-index: 26; pointer-events: none;
+  background: rgba(4, 3, 10, 0.72); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+body.hearting :is(#whisper, #tp, #tp-mini, #menu-btn, #keys, #hear-again, #nprog, #labels, #maze-map-btn, #busy),
+body.oracling :is(#whisper, #tp, #tp-mini, #menu-btn, #keys, #hear-again, #nprog, #labels, #maze-map-btn, #busy) { visibility: hidden; }
 .heart-panel[hidden] { display: none; }
 .heart-panel .x { position: absolute; top: 6px; right: 6px; width: 44px; height: 44px; border: 0; background: none; color: rgba(244, 236, 220, 0.45); font-size: 15px; }
 .heart-panel .orn { display: flex; align-items: center; gap: 10px; width: 9em; margin-bottom: 12px; }
@@ -1056,7 +1064,10 @@ body.mazemapping :is(#joy, #act, #ctx, #auto, #menu-btn, #tp, #tp-mini, #whisper
 #oracle .consent { margin: 4px 0 0; font-size: 12px; }
 #oracle .check input { width: 18px; height: 18px; accent-color: var(--gold); }
 #oracle .status { min-height: 1.4em; margin: 6px 0 0; font: italic 14px var(--serif); color: var(--pearl); opacity: 0.75; }
-#oracle .answer { margin-top: 4px; font: 18px/1.7 var(--serif); color: #f1e8d8; text-shadow: 0 1px 12px rgba(0, 0, 0, 0.9); }
+#oracle .answer { flex: 1 1 auto; min-height: 0; margin-top: 4px; padding: 6px 4px; font: 17px/1.65 var(--serif); color: #f1e8d8; text-align: left; }
+#oracle textarea { flex: none; }
+#oracle.answered textarea { height: 3.4em; font-size: 15px; padding: 8px 12px; }
+#oracle.answered .consent { display: none; }
 #oracle .answer[hidden] { display: none; }
 #oracle .answer p { margin: 0.4em 0 0.9em; }
 #oracle .answer p:first-child::first-letter { color: var(--gold); }
