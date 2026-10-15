@@ -465,6 +465,9 @@ const mazeMap = new MazeMap({
   },
   full: () => devMode(),
 });
+/** The maze's camera test still (`maze-17`): sampled each frame. */
+let camStep: ((dt: number) => void) | null = null;
+const mazeClear = (a: THREE.Vector3, b: THREE.Vector3): number => maze?.clearance(a, b) ?? 1;
 function mazeSteleFrame(): void {
   const inMaze = !!maze && inHall()?.hall === mazeHall;
   mazeMap.frame(inMaze && !crossing);
@@ -477,6 +480,11 @@ function mazeSteleFrame(): void {
   if (inMaze && maze) follow.eagleH = maze.eagleHeight();
   // the veil: in the maze the following view stays below the walls' tops
   follow.ceiling = inMaze ? player.pos.y + 3.2 : null;
+  // and the view keeps to the corridors (the owner: the camera "fucking annoying"): close behind,
+  // settling along the corridor's way as you walk, standing in front of any wall, never behind one
+  follow.rail = inMaze && maze ? maze.railYaw(player.pos, player.heading) : null;
+  follow.nearDist = inMaze ? 4.8 : null;
+  follow.clearance = inMaze && maze ? mazeClear : null;
   // through one of the forecourt's doors: on to that world, the way "where next" goes there
   const door = inMaze && !mazeGone && !crossing ? maze?.portalAt(player.pos) : null;
   if (door) {
@@ -4652,6 +4660,7 @@ function update(dt: number): void {
   if (S.mode !== "intro") spiritHorses.update(wt, dt, player.pos, medK, player.speed > 3 || player.gliding, S.reduced, !world || player.swimming);
   if (S.mode !== "intro") readables.update(wt, player.pos, apart());
   readingFrame();
+  camStep?.(dt);
   if (S.mode !== "intro") spiritCritters.update(wt, dt, player.pos, medK, player.speed > 3 || player.gliding, S.reduced, !world || player.swimming);
   const camUnder = camera.position.y < WATER_Y - 0.05;
   post.under.value = camUnder ? 1 : 0;
@@ -5105,6 +5114,43 @@ renderer
             player.target = new THREE.Vector2(o.x + Math.sin(a) * (R + 3), o.z + Math.cos(a) * (R + 3));
             const fy = mazeFloor(Math.sin(a) * M, Math.cos(a) * M);
             return { eye: [o.x + Math.sin(a + 0.05) * (M - 3), fy + 2.2, o.z + Math.cos(a + 0.05) * (M - 3)], look: [o.x + Math.sin(a) * R, fy + 1.3, o.z + Math.cos(a) * R] };
+          }
+          if (n === 17 && maze) {
+            // the camera test (&route=i, with &live=S): walk the corridors' way from reading i in
+            // toward the centre, turns and doors and all, setting course a few metres ahead along it
+            // each tenth of a second; each sample notes whether a wall stands between the view and
+            // the wanderer, how far the view stands, and how much it turned (window.__camStats)
+            const route = maze.debugRoute(Number(new URLSearchParams(location.search).get("route") ?? 0));
+            const p0 = route[0], p1 = route[Math.min(route.length - 1, 6)];
+            stand(p0.x - o.x, p0.z - o.z, p1.x - o.x, p1.z - o.z);
+            const st = { n: 0, blocked: 0, dist: 0, walked: 0, turn: 0 };
+            (window as unknown as { __camStats: typeof st }).__camStats = st;
+            const chest = new THREE.Vector3();
+            const last = player.pos.clone();
+            let acc = 0, at = 0, lastYaw = follow.yaw;
+            camStep = (dt: number) => {
+              acc += dt;
+              if (acc < 0.1) return;
+              acc = 0;
+              // the nearest route point ahead of where it is, then a few metres on
+              let best = at, bd = Infinity;
+              for (let j = at; j < Math.min(route.length, at + 40); j++) {
+                const d = Math.hypot(route[j].x - player.pos.x, route[j].z - player.pos.z);
+                if (d < bd) (bd = d), (best = j);
+              }
+              at = best;
+              const q = route[Math.min(route.length - 1, at + 7)];
+              player.target = new THREE.Vector2(q.x, q.z);
+              chest.copy(player.pos).setY(player.pos.y + 1.3);
+              st.n++;
+              if (maze!.clearance(chest, camera.position) < 0.98) st.blocked++;
+              st.dist += chest.distanceTo(camera.position);
+              st.walked += player.pos.distanceTo(last);
+              st.turn += Math.abs(Math.atan2(Math.sin(follow.yaw - lastYaw), Math.cos(follow.yaw - lastYaw)));
+              lastYaw = follow.yaw;
+              last.copy(player.pos);
+            };
+            return { eye: [p0.x, p0.y + 3, p0.z + 4], look: [p1.x, p1.y + 1.3, p1.z] };
           }
           if (n >= 12 && n <= 15 && maze) {
             if (n === 15) {
