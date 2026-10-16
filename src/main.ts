@@ -56,6 +56,7 @@ import { Reader } from "./ui/reader";
 import { Heart, keepToItself } from "./ui/heart";
 import { Oracle, type Lens } from "./ui/oracle";
 import { Install, buildIntro, isStandalone } from "./ui/intro";
+import { StationGlow } from "./world/stationGlow";
 import { OracleVision } from "./world/oracleVision";
 import { allVoices, chosenVoice, onSpeechFail, onSpeechStart, readAloud, sayAloud, setReadAloud, setVoice, speak, speechButton, tierOf, wakeSpeech } from "./ui/speak";
 import { Vessels } from "./world/vessels";
@@ -364,6 +365,9 @@ const presences = new Presences();
 scene.add(presences.group);
 // the entities' figures are left out: one walked beside the wanderer through every narration
 // (Samuel: "remove that annoying chasing character")
+/* the oracle at work at an archetype or a shrine, in that archetype's own light */
+const stationGlow = new StationGlow();
+scene.add(stationGlow.points);
 scene.add(sparks.points, grass.mesh, flowers.mesh, blooms.mesh, wilds.group, lanterns.points);
 // The whole creation: trees and their roots, rocks, crystals, spirits, and the light through them.
 creationUniforms.uFogC.value.copy(FOG_COLOR);
@@ -1121,7 +1125,12 @@ const withEl = $("#with"), withLine = $("#with-line");
 let shrineAt = -1;
 /* Being with a shrine: its own panel (its words as the rite speaks them, its three recordings,
    and "Go deeper", asked of the oracle through that shrine's archetype) */
-const shrineDeeper = deeperField(() => (shrineAt >= 0 ? temple.shrineInfo(shrineAt) : null));
+const shrineDeeper = deeperField(
+  () => (shrineAt >= 0 ? temple.shrineInfo(shrineAt) : null),
+  undefined,
+  // the carving's heart: a little under the framing point, which sits above its middle
+  (out) => (shrineAt >= 0 && temple.frameFor(shrineAt, out) ? (out.y -= 2.0, 1.9) : 0),
+);
 $("#with-deeper").append(shrineDeeper);
 keepToItself(withEl);
 /** "The Catalyst of the Mind": an archetype's place among the seven, in its realm. */
@@ -1746,7 +1755,9 @@ $("#intro-link").addEventListener("click", (e) => {
 /** Once a journey is under way (not straight away, never over a tour or a panel), the card offers
     to keep Inland as an app; at most once a week, never once it is one. */
 let installOffered = false;
+const introLink = $("#intro-link");
 function installFrame(): void {
+  if (S.mode === "play" && !introLink.hidden) introLink.hidden = true; // only ever on the water's title
   if (installOffered || isStandalone() || S.mode !== "play" || S.t < 50) return;
   if (!(MOBILE || install.canPrompt)) return;
   if (document.body.classList.contains("touring") || document.body.classList.contains("oracling") || document.body.classList.contains("withing") || sitting.phase !== "none") return;
@@ -2019,7 +2030,7 @@ function sitDown(): void {
     sitting.asked = true;
     stillness(false);
     b.greet();
-  });
+  }, (out) => (out.copy(b.root.position).setY(b.root.position.y + 1.25), 1.3));
   box.append(g, deep);
   heart.reset();
   sitPanel.hidden = false;
@@ -2029,7 +2040,12 @@ function sitDown(): void {
 /** "Go deeper": one line to write in and a ✧ to send. What is written opens the oracle, asked at
     once through the archetype `who()` names (its lens), and is kept in My Heart. Used at the
     world's archetypes (seated) and at the temple's shrines. */
-function deeperField(who: () => { numeral: string; name: string } | null, before: () => void = () => {}): HTMLElement {
+function deeperField(
+  who: () => { numeral: string; name: string } | null,
+  before: () => void = () => {},
+  /** Where the archetype's heart is (into `out`), and how far round it its light gathers; 0: nowhere. */
+  where: (out: THREE.Vector3) => number = () => 0,
+): HTMLElement {
   const wrap = document.createElement("div");
   wrap.className = "deeper-wrap";
   const deep = document.createElement("div");
@@ -2060,6 +2076,12 @@ function deeperField(who: () => { numeral: string; name: string } | null, before
     field.value = "";
     deep.classList.remove("ready");
     field.blur();
+    // the oracle works in the archetype's own light here (no sun to crowd the screen)
+    const rad = where(stationGlow.at);
+    const i = ARCHETYPES.findIndex((x) => x.numeral === a.numeral);
+    if (i >= 0) stationGlow.color.setRGB(...(ARCHETYPES[i].tint as [number, number, number])).lerp(new THREE.Color(1, 0.86, 0.6), 0.45);
+    stationGlow.radius = rad || 1.4;
+    oracle.stationPresence = rad ? stationGlow : { summon() {}, dismiss() {}, setState() {}, pulse() {} };
     oracle.show(`${a.numeral} · ${a.name}`, archetypeLens(a.numeral, a.name), text, withHeart);
     setHeart(false);
   };
@@ -4972,6 +4994,7 @@ function update(dt: number): void {
   if (world) creation.update(life, (innerHeight * dpr) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
   if (world) spirits.update(life, camera);
   sparks.update(dt, dpr);
+  stationGlow.update(dt, dpr);
   if (world) landmarks.update(wt, dt, player.pos, S.mode === "play" ? player.speed : 1, S.reduced);
   if (S.mode === "play" && world) beings.update(wt, dt, player.pos, S.reduced);
   updateSitting(dt);
