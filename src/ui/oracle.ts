@@ -45,6 +45,8 @@ export interface OraclePresenceLike {
   pulse(): void;
 }
 
+const QUIET: OraclePresenceLike = { summon() {}, dismiss() {}, setState() {}, pulse() {} };
+
 export class Oracle {
   private el: HTMLElement;
   private q: HTMLTextAreaElement;
@@ -60,6 +62,12 @@ export class Oracle {
   private offer: HTMLElement;
   /** The oracle's presence in the world: a body of light that breathes, thinks and speaks. */
   presence: OraclePresenceLike = { summon() {}, dismiss() {}, setState() {}, pulse() {} };
+  /** Whether the oracle's body of light is summoned this visit (not at an archetype or a shrine,
+      where the being itself is before you and the sun would crowd the screen). */
+  private embodied = true;
+  private get body(): OraclePresenceLike {
+    return this.embodied ? this.presence : QUIET;
+  }
   /** The last exchange, carried into a follow-up question (the oracle keeps no memory of its own). */
   private last: { q: string; a: string } | null = null;
   /** The next question follows on from the last answer. */
@@ -248,8 +256,9 @@ export class Oracle {
     this.offer.hidden = true;
     this.offerOn = false;
     document.body.classList.add("oracling");
-    this.presence.summon();
-    this.presence.setState(this.asking ? "thinking" : this.speaking ? "speaking" : "quiet");
+    this.embodied = !lens; // asked from an archetype or a shrine, it has its own presence there: no sun
+    this.body.summon();
+    this.body.setState(this.asking ? "thinking" : this.speaking ? "speaking" : "quiet");
     if (ask && !this.asking) {
       this.again();
       this.setHeart(heart); // "share my heart" chosen where the question was written
@@ -265,7 +274,7 @@ export class Oracle {
     this.stopSpeech();
     this.el.hidden = true;
     this.q.blur();
-    this.presence.dismiss();
+    this.presence.dismiss(); // always let go, whichever way it was opened
     document.body.classList.remove("oracling");
   }
 
@@ -276,7 +285,7 @@ export class Oracle {
     this.stopSpeech();
     this.ask.disabled = true;
     this.el.classList.add("asking");
-    this.presence.setState("thinking");
+    this.body.setState("thinking");
     this.status.textContent = "Listening…";
     this.answer.hidden = true;
     this.after.hidden = true;
@@ -340,8 +349,8 @@ export class Oracle {
       this.el.classList.add("answered");
       this.answer.scrollTop = 0;
       // it has spoken: one ring goes out as the answer comes, then it quiets
-      this.presence.setState("quiet");
-      this.presence.pulse();
+      this.body.setState("quiet");
+      this.body.pulse();
       this.status.textContent = "";
       this.speak.hidden = !canSpeak;
       this.q.value = "";
@@ -350,7 +359,7 @@ export class Oracle {
     } catch (err) {
       // one quiet line; the question stays where it was
       this.status.textContent = silence((err as { status?: number }).status ?? 0);
-      this.presence.setState("quiet");
+      this.body.setState("quiet");
     } finally {
       this.asking = false;
       this.ask.disabled = false;
@@ -365,7 +374,7 @@ export class Oracle {
     this.speak.classList.add("on");
     this.speak.querySelector(".lbl")!.textContent = "Quiet";
     this.answer.classList.add("reading");
-    this.presence.setState("speaking");
+    this.body.setState("speaking");
     speak(
       this.sentences.map((s) => s.text),
       () => this.endSpeech(),
@@ -373,7 +382,7 @@ export class Oracle {
       (i) => {
         // the sentence being read glows; the view keeps it in sight
         for (const s of this.sentences) s.el.classList.remove("now");
-        this.presence.pulse();
+        this.body.pulse();
         const s = this.sentences[i];
         if (!s) return;
         s.el.classList.add("now");
@@ -388,7 +397,7 @@ export class Oracle {
     this.speak.querySelector(".lbl")!.textContent = "Hear it";
     this.answer.classList.remove("reading");
     for (const s of this.sentences) s.el.classList.remove("now");
-    this.presence.setState("quiet");
+    this.body.setState("quiet");
   }
 
   private stopSpeech(): void {
