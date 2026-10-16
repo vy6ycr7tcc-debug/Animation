@@ -114,7 +114,7 @@ export class Oracle {
           <p class="o-consent">Nothing is stored in the cloud. What you send always goes anonymously.</p>
           <div class="o-bar">
             <button class="o-heart" type="button" aria-pressed="false" aria-label="Share my heart" title="Share my heart">${HEART}<span>share my heart</span></button>
-            <textarea rows="1" maxlength="600" placeholder="What would you ask?" aria-label="Your question"></textarea>
+            <textarea rows="1" maxlength="600" enterkeyhint="send" placeholder="What would you ask?" aria-label="Your question"></textarea>
             <button class="o-seal" type="button" aria-label="Ask">${SEED}</button>
           </div>
         </div>
@@ -155,17 +155,8 @@ export class Oracle {
       this.el.classList.toggle("ready", !!this.q.value.trim());
       this.grow();
     });
-    // the phone's keyboard: the bar rides up on top of it
-    const vv = window.visualViewport;
-    const lift = () => {
-      if (this.el.hidden || !vv) return;
-      const kb = Math.max(0, this.el.getBoundingClientRect().bottom - (vv.offsetTop + vv.height));
-      this.el.style.setProperty("--kb", `${Math.round(kb)}px`);
-    };
-    vv?.addEventListener("resize", lift);
-    vv?.addEventListener("scroll", lift);
-    this.q.addEventListener("focus", () => setTimeout(lift, 350));
-    this.q.addEventListener("blur", () => setTimeout(lift, 350));
+    // the phone's keyboard: the panel keeps to the area above it while you type (core/keyboard.ts
+    // marks the body \`typing\`), so the question is always in view; Enter sends and lets it go
     addEventListener("keydown", (e) => e.key === "Escape" && !el.hidden && this.close());
 
     const offer = document.createElement("button");
