@@ -82,7 +82,7 @@ export class Oracle {
         <div class="o-ask">
           <p class="o-consent" hidden>Your notes go with this question only, names and details taken out, and aren't kept.</p>
           <div class="o-bar">
-            <button class="o-heart" type="button" aria-pressed="false" aria-label="With my heart" title="With my heart">${HEART}<span>heart</span></button>
+            <button class="o-heart" type="button" aria-pressed="false" aria-label="Share my heart" title="Share my heart">${HEART}<span>share my heart</span></button>
             <textarea rows="1" maxlength="600" placeholder="What would you ask?" aria-label="Your question"></textarea>
             <button class="o-seal" type="button" aria-label="Ask">${SEED}</button>
           </div>
