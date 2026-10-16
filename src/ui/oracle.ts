@@ -1,11 +1,12 @@
-/* The oracle: one panel, asked from two places (the Choice's seat in the temple, and the seat at
+/* The oracle: summoned in the world (world/oracleVision.ts, through `presence`), with only a
+   question bar at the foot of the screen and, once it has answered, its words in a lower third.
+   Asked from two places (the Choice's seat in the temple, and the seat at
    the still centre of the mind's maze). Overall mode: it names which of the twenty-two archetypes
    are at play and then reflects. Only its words are shown, never its sources. The answer can be
    heard in the device's own voice (speechSynthesis), on a tap.
    Privacy: the player's heart notes go with a question only when "Attach my heart" is ticked for
    that question (off each time the panel opens); nothing else leaves the device. */
 import { heartNotes, keepNote, keepToItself, tapButton } from "./heart";
-import { OraclePresence } from "./oraclePresence";
 import { Anonymiser } from "./anonymise";
 import { canSpeak, pieces, readAloud, speak, speechButton, stopSpeaking, wakeSpeech } from "./speak";
 
@@ -14,6 +15,15 @@ const SILENT = "The oracle is silent — check your connection.";
 
 const SEED = `<svg viewBox="0 0 40 40" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.1"><circle cx="20" cy="20" r="6"/><circle cx="20" cy="14" r="6"/><circle cx="20" cy="26" r="6"/><circle cx="14.8" cy="17" r="6"/><circle cx="25.2" cy="17" r="6"/><circle cx="14.8" cy="23" r="6"/><circle cx="25.2" cy="23" r="6"/><circle cx="20" cy="20" r="12" opacity="0.6"/></g></svg>`;
 const HEART = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.3s-7.6-4.6-7.6-10.1A4.2 4.2 0 0 1 12 7.8a4.2 4.2 0 0 1 7.6 2.4c0 5.5-7.6 10.1-7.6 10.1z"/></svg>`;
+
+export type PresenceState = "quiet" | "thinking" | "speaking";
+/** The oracle's body in the world: summoned when the oracle opens, let go when it closes. */
+export interface OraclePresenceLike {
+  summon(): void;
+  dismiss(): void;
+  setState(s: PresenceState): void;
+  pulse(): void;
+}
 
 export class Oracle {
   private el: HTMLElement;
@@ -29,8 +39,8 @@ export class Oracle {
   private after: HTMLElement;
   private keep: HTMLButtonElement;
   private offer: HTMLElement;
-  /** The oracle's presence: a body of light that breathes, thinks and speaks. */
-  private presence = new OraclePresence();
+  /** The oracle's presence in the world: a body of light that breathes, thinks and speaks. */
+  presence: OraclePresenceLike = { summon() {}, dismiss() {}, setState() {}, pulse() {} };
   /** The last exchange, carried into a follow-up question (the oracle keeps no memory of its own). */
   private last: { q: string; a: string } | null = null;
   /** The next question follows on from the last answer. */
@@ -60,22 +70,23 @@ export class Oracle {
         <h2 class="title">The oracle</h2>
         <p class="o-from"></p>
       </div>
-      <div class="o-presence-wrap"></div>
-      <button class="o-asked" type="button" hidden></button>
-      <div class="o-ask">
-        <textarea rows="2" maxlength="600" placeholder="What would you ask?" aria-label="Your question"></textarea>
-        <div class="o-row">
-          <button class="o-heart" type="button" aria-pressed="false">${HEART}<span>with my heart</span></button>
-          <button class="o-seal" type="button" aria-label="Ask">${SEED}</button>
+      <div class="o-dock">
+        <button class="o-asked" type="button" hidden></button>
+        <p class="status" aria-live="polite"></p>
+        <div class="answer" tabindex="0" hidden></div>
+        <div class="o-after" hidden>
+          <button class="o-keep" type="button">${HEART}<span>Keep</span></button>
+          <button class="o-voice" type="button" aria-label="Hear it"><span class="bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span class="lbl">Hear it</span></button>
+          <button class="o-more" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v7a4 4 0 0 0 4 4h8M14 12l4 4-4 4"/></svg><span>Follow up</span></button>
         </div>
-        <p class="o-consent" hidden>Your notes go with this question only, names and details taken out, and aren't kept.</p>
-      </div>
-      <p class="status" aria-live="polite"></p>
-      <div class="answer" tabindex="0" hidden></div>
-      <div class="o-after" hidden>
-        <button class="o-keep" type="button">${HEART}<span>Keep</span></button>
-        <button class="o-voice" type="button" aria-label="Hear it"><span class="bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span class="lbl">Hear it</span></button>
-        <button class="o-more" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v7a4 4 0 0 0 4 4h8M14 12l4 4-4 4"/></svg><span>Follow up</span></button>
+        <div class="o-ask">
+          <p class="o-consent" hidden>Your notes go with this question only, names and details taken out, and aren't kept.</p>
+          <div class="o-bar">
+            <button class="o-heart" type="button" aria-pressed="false" aria-label="With my heart" title="With my heart">${HEART}<span>heart</span></button>
+            <textarea rows="1" maxlength="600" placeholder="What would you ask?" aria-label="Your question"></textarea>
+            <button class="o-seal" type="button" aria-label="Ask">${SEED}</button>
+          </div>
+        </div>
       </div>`;
     document.body.appendChild(el);
     keepToItself(el);
@@ -88,7 +99,6 @@ export class Oracle {
     this.answer = el.querySelector(".answer")!;
     this.status = el.querySelector(".status")!;
     this.from_ = el.querySelector(".o-from")!;
-    el.querySelector(".o-presence-wrap")!.append(this.presence.el);
     this.speak = el.querySelector(".o-voice")!;
     this.after = el.querySelector(".o-after")!;
     this.keep = el.querySelector(".o-keep")!;
@@ -111,7 +121,21 @@ export class Oracle {
         void this.send();
       }
     });
-    this.q.addEventListener("input", () => this.el.classList.toggle("ready", !!this.q.value.trim()));
+    this.q.addEventListener("input", () => {
+      this.el.classList.toggle("ready", !!this.q.value.trim());
+      this.grow();
+    });
+    // the phone's keyboard: the bar rides up on top of it
+    const vv = window.visualViewport;
+    const lift = () => {
+      if (this.el.hidden || !vv) return;
+      const kb = Math.max(0, this.el.getBoundingClientRect().bottom - (vv.offsetTop + vv.height));
+      this.el.style.setProperty("--kb", `${Math.round(kb)}px`);
+    };
+    vv?.addEventListener("resize", lift);
+    vv?.addEventListener("scroll", lift);
+    this.q.addEventListener("focus", () => setTimeout(lift, 350));
+    this.q.addEventListener("blur", () => setTimeout(lift, 350));
     addEventListener("keydown", (e) => e.key === "Escape" && !el.hidden && this.close());
 
     const offer = document.createElement("button");
@@ -123,6 +147,12 @@ export class Oracle {
     keepToItself(offer);
     tapButton(offer, () => this.show(this.from));
     this.offer = offer;
+  }
+
+  /** The question's field grows with what is written, up to four lines. */
+  private grow(): void {
+    this.q.style.height = "auto";
+    this.q.style.height = `${Math.min(this.q.scrollHeight, 104)}px`;
   }
 
   private setHeart(on: boolean): void {
@@ -142,6 +172,7 @@ export class Oracle {
     this.asked.hidden = !this.following;
     this.status.textContent = "";
     this.q.value = "";
+    this.grow();
     this.el.classList.remove("ready");
     this.q.placeholder = this.following ? "And what follows from it?" : "What would you ask?";
     this.setHeart(false);
@@ -193,8 +224,8 @@ export class Oracle {
     this.offer.hidden = true;
     this.offerOn = false;
     document.body.classList.add("oracling");
+    this.presence.summon();
     this.presence.setState(this.asking ? "thinking" : this.speaking ? "speaking" : "quiet");
-    this.presence.start();
     requestAnimationFrame(() => this.q.focus());
   }
 
@@ -202,7 +233,7 @@ export class Oracle {
     this.stopSpeech();
     this.el.hidden = true;
     this.q.blur();
-    this.presence.stop();
+    this.presence.dismiss();
     document.body.classList.remove("oracling");
   }
 
@@ -279,6 +310,7 @@ export class Oracle {
       this.status.textContent = "";
       this.speak.hidden = !canSpeak;
       this.q.value = "";
+      this.grow();
       if (readAloud()) this.toggleSpeech();
     } catch {
       // one quiet line; the question stays where it was
