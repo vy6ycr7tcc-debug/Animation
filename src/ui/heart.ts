@@ -134,6 +134,7 @@ export class Heart {
       ${ORN}
       <h2 class="title">My heart</h2>
       <div class="notes" tabindex="0"></div>
+      <p class="privacy">Your notes live only on this device, in this browser's own storage; nothing is sent anywhere. Only when you choose "with my heart" for a question do they go, with names and details taken out, to the oracle for that one answer, and they are not kept there.</p>
       <div class="foot"><button class="word add" type="button">A new note</button><button class="word bring-open" type="button">Bring my heart</button></div>`;
     document.body.appendChild(list);
     keepToItself(list);
@@ -262,11 +263,42 @@ export class Heart {
       item.append(meta, body);
       // a tap opens a note to read it whole (and folds it again)
       item.addEventListener("click", () => item.classList.toggle("open"));
-      this.listBody.append(item);
+      // ✕ deletes it: a first tap asks ("Delete?"), a second within a few seconds deletes
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "del";
+      del.setAttribute("aria-label", "Delete this note");
+      del.textContent = "✕";
+      let armed = 0;
+      tapButton(del, () => {
+        if (!armed) {
+          del.textContent = "Delete?";
+          del.classList.add("armed");
+          armed = window.setTimeout(() => {
+            armed = 0;
+            del.textContent = "✕";
+            del.classList.remove("armed");
+          }, 3500);
+          return;
+        }
+        window.clearTimeout(armed);
+        this.deleteNote(n);
+      });
+      const row = document.createElement("div");
+      row.className = "row";
+      row.append(item, del);
+      this.listBody.append(row);
     }
     (this.list.querySelector(".bring-open") as HTMLElement).hidden = !notes.length;
     this.list.hidden = false;
     this.mark();
+  }
+
+  /** Remove one note from this device for good. */
+  private deleteNote(n: HeartNote): void {
+    const left = heartNotes().filter((m) => !(m.createdAt === n.createdAt && m.text === n.text));
+    saveNotes(left);
+    this.openList();
   }
 
   openBring(): void {

@@ -6,6 +6,7 @@
    that question (off each time the panel opens); nothing else leaves the device. */
 import { heartNotes, keepNote, keepToItself, tapButton } from "./heart";
 import { OraclePresence } from "./oraclePresence";
+import { Anonymiser } from "./anonymise";
 import { canSpeak, pieces, readAloud, speak, speechButton, stopSpeaking, wakeSpeech } from "./speak";
 
 const ENDPOINT = "https://oracle-station.vy6ycr7tcc.workers.dev/oracle";
@@ -67,7 +68,7 @@ export class Oracle {
           <button class="o-heart" type="button" aria-pressed="false">${HEART}<span>with my heart</span></button>
           <button class="o-seal" type="button" aria-label="Ask">${SEED}</button>
         </div>
-        <p class="o-consent" hidden>Your notes go with this question only.</p>
+        <p class="o-consent" hidden>Your notes go with this question only, names and details taken out, and aren't kept.</p>
       </div>
       <p class="status" aria-live="polite"></p>
       <div class="answer" tabindex="0" hidden></div>
@@ -230,7 +231,11 @@ export class Oracle {
     }
     const body: { mode: "overall"; question: string; heart?: string[] } = { mode: "overall", question: asked };
     if (this.withHeart) {
-      const notes = heartNotes().slice(0, 8).map((n) => n.text.slice(0, 400));
+      // anonymised here first, as Bring my heart does: names, places and details never leave the device
+      const list = heartNotes().slice(0, 8);
+      const an = new Anonymiser();
+      an.learn(list.map((n) => n.text));
+      const notes = list.map((n) => an.scrub(n.text).slice(0, 400));
       if (notes.length) body.heart = notes;
     }
     try {
