@@ -37,6 +37,24 @@ export function listVoices(): SpeechSynthesisVoice[] {
     .filter((v) => v.lang.toLowerCase().startsWith(base) && usable(v))
     .sort((a, b) => score(b, lang) - score(a, lang) || a.name.localeCompare(b.name));
 }
+/** Every voice the device gives the browser, in three groups: the reader's language (best first),
+    the other languages (by language, best first), and the novelty and older voices. Nothing is
+    left out; only the automatic choice ignores the last group. */
+export function allVoices(): { label: string; voices: SpeechSynthesisVoice[] }[] {
+  if (!canSpeak) return [];
+  const lang = (navigator.language || "en").toLowerCase(), base = lang.split("-")[0];
+  const all = speechSynthesis.getVoices();
+  const mine = listVoices();
+  const others = all
+    .filter((v) => !v.lang.toLowerCase().startsWith(base) && usable(v))
+    .sort((a, b) => a.lang.localeCompare(b.lang) || score(b, "") - score(a, "") || a.name.localeCompare(b.name));
+  const odd = all.filter((v) => !usable(v)).sort((a, b) => a.lang.localeCompare(b.lang) || a.name.localeCompare(b.name));
+  return [
+    { label: "Your language", voices: mine },
+    { label: "Other languages", voices: others },
+    { label: "Novelty and older voices", voices: odd },
+  ].filter((g) => g.voices.length);
+}
 const VOICE_KEY = "inward-journey:voice";
 let chosen = "";
 try {
