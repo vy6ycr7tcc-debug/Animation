@@ -11,6 +11,9 @@ import { Anonymiser } from "./anonymise";
 import { canSpeak, pieces, readAloud, speak, speechButton, stopSpeaking, wakeSpeech } from "./speak";
 
 const ENDPOINT = "https://oracle-station.vy6ycr7tcc.workers.dev/oracle";
+/** The worker's shared key (prompts/opus-heart-notes-oracle-wiring-prompt.md, the owner's contract):
+    abuse protection only, shipped in the page by design; the real ceiling is the worker's per-IP quota. */
+const ORACLE_KEY = "a16af48d2554193869f51e95784801297ea36eb2bf6d9193c3004f2758ad0d97";
 const SILENT = "The oracle is silent — check your connection.";
 
 const SEED = `<svg viewBox="0 0 40 40" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.1"><circle cx="20" cy="20" r="6"/><circle cx="20" cy="14" r="6"/><circle cx="20" cy="26" r="6"/><circle cx="14.8" cy="17" r="6"/><circle cx="25.2" cy="17" r="6"/><circle cx="14.8" cy="23" r="6"/><circle cx="25.2" cy="23" r="6"/><circle cx="20" cy="20" r="12" opacity="0.6"/></g></svg>`;
@@ -270,7 +273,7 @@ export class Oracle {
       if (notes.length) body.heart = notes;
     }
     try {
-      const r = await fetch(ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const r = await fetch(ENDPOINT, { method: "POST", headers: { "content-type": "application/json", "x-oracle-key": ORACLE_KEY }, body: JSON.stringify(body) });
       if (!r.ok) throw new Error(String(r.status));
       const got = (await r.json()) as { text?: unknown };
       const text = typeof got.text === "string" ? got.text.trim() : "";
