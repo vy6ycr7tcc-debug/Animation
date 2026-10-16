@@ -18,6 +18,13 @@ const ENDPOINT = "https://oracle-station.vy6ycr7tcc.workers.dev/oracle";
     abuse protection only, shipped in the page by design; the real ceiling is the worker's per-IP quota. */
 const ORACLE_KEY = "a16af48d2554193869f51e95784801297ea36eb2bf6d9193c3004f2758ad0d97";
 const SILENT = "The oracle is silent — check your connection.";
+/** What the oracle's answer says went wrong, in a line (the question stays where it was). */
+function silence(status: number): string {
+  if (status === 401 || status === 403) return "The oracle's door is locked: its key has changed. It will answer again once the game has the new one.";
+  if (status === 429) return "The oracle rests until tomorrow: today's questions have all been asked.";
+  if (status >= 500) return "The oracle is resting a moment. Ask again in a little while.";
+  return SILENT;
+}
 
 const SEED = `<svg viewBox="0 0 40 40" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.1"><circle cx="20" cy="20" r="6"/><circle cx="20" cy="14" r="6"/><circle cx="20" cy="26" r="6"/><circle cx="14.8" cy="17" r="6"/><circle cx="25.2" cy="17" r="6"/><circle cx="14.8" cy="23" r="6"/><circle cx="25.2" cy="23" r="6"/><circle cx="20" cy="20" r="12" opacity="0.6"/></g></svg>`;
 const HEART = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.3s-7.6-4.6-7.6-10.1A4.2 4.2 0 0 1 12 7.8a4.2 4.2 0 0 1 7.6 2.4c0 5.5-7.6 10.1-7.6 10.1z"/></svg>`;
@@ -298,7 +305,7 @@ export class Oracle {
     if (list.length) body.heart = list.map((n) => an.scrub(n.text).slice(0, 400));
     try {
       const r = await fetch(ENDPOINT, { method: "POST", headers: { "content-type": "application/json", "x-oracle-key": ORACLE_KEY }, body: JSON.stringify(body) });
-      if (!r.ok) throw new Error(String(r.status));
+      if (!r.ok) throw Object.assign(new Error(String(r.status)), { status: r.status });
       const got = (await r.json()) as { text?: unknown };
       const text = typeof got.text === "string" ? got.text.trim() : "";
       if (!text) throw new Error("empty");
@@ -340,9 +347,9 @@ export class Oracle {
       this.q.value = "";
       this.grow();
       if (readAloud()) this.toggleSpeech();
-    } catch {
+    } catch (err) {
       // one quiet line; the question stays where it was
-      this.status.textContent = SILENT;
+      this.status.textContent = silence((err as { status?: number }).status ?? 0);
       this.presence.setState("quiet");
     } finally {
       this.asking = false;
