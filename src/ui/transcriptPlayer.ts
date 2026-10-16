@@ -159,7 +159,7 @@ export class TranscriptPlayer {
     this.audio.duck(true);
     const ms = navigator.mediaSession;
     if (ms && "MediaMetadata" in window) {
-      ms.metadata = new MediaMetadata({ title: n.title, artist: "Inward Journey", album: "Inward Journey" });
+      ms.metadata = new MediaMetadata({ title: n.title, artist: "Inland", album: "Inland" });
     }
     this.onChange?.(n.id);
   }

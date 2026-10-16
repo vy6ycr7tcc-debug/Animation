@@ -108,7 +108,7 @@ export function heartPrompt(notes: HeartNote[]): { text: string; names: number }
     const where = n.scene ? ` · written at "${n.scene}" (a place in a contemplative game)` : "";
     return `Entry ${i + 1} · day ${day}${where}\n${an.scrub(n.text.trim())}`;
   });
-  const text = `I keep a private journal of the heart while playing Inward Journey, a contemplative game about the 22 archetypes of mind, body and spirit. Below are my entries, oldest first. They have been anonymised: names and places appear as [name A], [name B]…; contact details, numbers and dates are removed; "day N" counts days since my first entry. Some entries are questions I asked the game's oracle, with its reflection.
+  const text = `I keep a private journal of the heart while playing Inland, a contemplative game about the 22 archetypes of mind, body and spirit. Below are my entries, oldest first. They have been anonymised: names and places appear as [name A], [name B]…; contact details, numbers and dates are removed; "day N" counts days since my first entry. Some entries are questions I asked the game's oracle, with its reflection.
 
 Please read them as a whole and give me a gentle overview of my journey:
 1. The main themes and what seems to matter most to me.

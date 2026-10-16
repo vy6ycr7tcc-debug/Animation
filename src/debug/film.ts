@@ -535,7 +535,7 @@ async function session(host: FilmHost, ui: Screen, clips: Clip[], total: number,
     if (n > 0) await betweenClips(host, wait, settle);
     status.clip = clip.id;
     status.progress = `${doneBefore.length + n + 1} of ${total}`;
-    const prefix = many ? "" : "inward-journey-";
+    const prefix = many ? "" : "inland-";
     const base = many ? clip.id : `${prefix}${q.get("film")}`;
     let out: Captured;
     if (FAST) {
