@@ -65,8 +65,10 @@ export class Oracle {
   /** Whether the oracle's body of light is summoned this visit (not at an archetype or a shrine,
       where the being itself is before you and the sun would crowd the screen). */
   private embodied = true;
+  /** At an archetype or a shrine: its own light shows the oracle at work instead (world/stationGlow.ts). */
+  stationPresence: OraclePresenceLike = QUIET;
   private get body(): OraclePresenceLike {
-    return this.embodied ? this.presence : QUIET;
+    return this.embodied ? this.presence : this.stationPresence;
   }
   /** The last exchange, carried into a follow-up question (the oracle keeps no memory of its own). */
   private last: { q: string; a: string } | null = null;
@@ -275,6 +277,7 @@ export class Oracle {
     this.el.hidden = true;
     this.q.blur();
     this.presence.dismiss(); // always let go, whichever way it was opened
+    this.stationPresence.dismiss();
     document.body.classList.remove("oracling");
   }
 
