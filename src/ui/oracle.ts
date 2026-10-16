@@ -42,7 +42,6 @@ export class Oracle {
   private el: HTMLElement;
   private q: HTMLTextAreaElement;
   private heartBtn: HTMLButtonElement;
-  private consent: HTMLElement;
   private ask: HTMLButtonElement;
   private asked: HTMLButtonElement;
   private answer: HTMLElement;
@@ -95,7 +94,7 @@ export class Oracle {
           <button class="o-more" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v7a4 4 0 0 0 4 4h8M14 12l4 4-4 4"/></svg><span>Follow up</span></button>
         </div>
         <div class="o-ask">
-          <p class="o-consent" hidden>Your notes go with this question only, names and details taken out, and aren't kept.</p>
+          <p class="o-consent">Nothing is stored in the cloud. What you send always goes anonymously.</p>
           <div class="o-bar">
             <button class="o-heart" type="button" aria-pressed="false" aria-label="Share my heart" title="Share my heart">${HEART}<span>share my heart</span></button>
             <textarea rows="1" maxlength="600" placeholder="What would you ask?" aria-label="Your question"></textarea>
@@ -108,7 +107,6 @@ export class Oracle {
     this.el = el;
     this.q = el.querySelector("textarea")!;
     this.heartBtn = el.querySelector(".o-heart")!;
-    this.consent = el.querySelector(".o-consent")!;
     this.ask = el.querySelector(".o-seal")!;
     this.asked = el.querySelector(".o-asked")!;
     this.answer = el.querySelector(".answer")!;
@@ -173,7 +171,6 @@ export class Oracle {
   private setHeart(on: boolean): void {
     this.withHeart = on;
     this.heartBtn.setAttribute("aria-pressed", String(on));
-    this.consent.hidden = !on;
   }
 
   /** Back to the question (the answer set aside): anew, or following on from the last answer. */
@@ -288,18 +285,17 @@ export class Oracle {
       const room = Math.max(120, 960 - question.length - 120);
       asked = `Earlier I asked: "${cut(this.last.q, 160)}". You reflected: "${cut(this.last.a, room - 160)}". Following on from that, I ask: "${question}"`.slice(0, 1000);
     }
+    // Everything sent is anonymised here first, as Bring my heart is (names, places and details never
+    // leave the device): the question always, the notes when "share my heart" is on. The oracle's own
+    // kept answers stay home (only the person's own words go). The note kept in My Heart keeps the
+    // question as it was written.
+    const list = this.withHeart ? heartNotes().filter((n) => !n.scene.startsWith("The oracle")).slice(0, 8) : [];
+    const an = new Anonymiser();
+    an.learn([...list.map((n) => n.text), asked]);
     const body: { mode: "overall" | "station"; question: string; station?: string; origin?: string; heart?: string[] } = this.lens
-      ? { mode: "station", question: asked, origin: this.lens.origin.slice(0, 300), ...(this.lens.station ? { station: this.lens.station } : {}) }
-      : { mode: "overall", question: asked };
-    if (this.withHeart) {
-      // anonymised here first, as Bring my heart does: names, places and details never leave the device;
-      // the oracle's own kept answers stay home (only the person's own words go)
-      const list = heartNotes().filter((n) => !n.scene.startsWith("The oracle")).slice(0, 8);
-      const an = new Anonymiser();
-      an.learn(list.map((n) => n.text));
-      const notes = list.map((n) => an.scrub(n.text).slice(0, 400));
-      if (notes.length) body.heart = notes;
-    }
+      ? { mode: "station", question: an.scrub(asked).slice(0, 1000), origin: this.lens.origin.slice(0, 300), ...(this.lens.station ? { station: this.lens.station } : {}) }
+      : { mode: "overall", question: an.scrub(asked).slice(0, 1000) };
+    if (list.length) body.heart = list.map((n) => an.scrub(n.text).slice(0, 400));
     try {
       const r = await fetch(ENDPOINT, { method: "POST", headers: { "content-type": "application/json", "x-oracle-key": ORACLE_KEY }, body: JSON.stringify(body) });
       if (!r.ok) throw new Error(String(r.status));
