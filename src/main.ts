@@ -1117,6 +1117,9 @@ const synthDone = new Set<number>(saved?.journey?.synth ?? []);
 for (let i = 0; i < 22; i++) if (kindled.has(temple.shrineInfo(i).numeral)) temple.kindle(i, true);
 const shrineEl = $("#shrine"), riteWords = $("#rite-words"), riteEndBtn = $<HTMLButtonElement>("#rite-end");
 let shrineAt = -1;
+/* Go deeper at a shrine: written, asked of the oracle through that shrine's archetype */
+const shrineDeeper = deeperField(() => (shrineAt >= 0 ? temple.shrineInfo(shrineAt) : null));
+shrineEl.append(shrineDeeper);
 type TRite = { i: number; phase: "walk" | "on" | "after"; t: number; step: number; next: number; clips: (AudioBuffer | null)[]; voice: { stop(f?: number): void } | null };
 let trite: TRite | null = null;
 let wordsOff = 0;
@@ -1212,6 +1215,7 @@ function riteFrame(dt: number): void {
         const lit = kindled.has(info.numeral);
         const locked = info.numeral === "XXII" && litCount() < 21;
         $("#shrine-be").textContent = locked ? `Waiting · ${litCount()} of 21 lamps` : lit ? "Be with it again" : "Be with it";
+        (shrineDeeper.querySelector("textarea") as HTMLTextAreaElement).placeholder = `Ask ${info.name} to go deeper…`;
       }
     }
     return;
@@ -1941,25 +1945,39 @@ function sitDown(): void {
   const g = document.createElement("p");
   g.className = "group";
   g.textContent = "Go deeper";
-  const lens = archetypeLens(b.spec.numeral, b.spec.name);
-  const from = `${b.spec.numeral} · ${b.spec.name}`;
+  const deep = deeperField(() => ({ numeral: b.spec.numeral, name: b.spec.name }), () => {
+    sitting.asked = true;
+    stillness(false);
+    b.greet();
+  });
+  box.append(g, deep);
+  heart.reset();
+  sitPanel.hidden = false;
+  (box.querySelector("button") as HTMLButtonElement | null)?.focus({ preventScroll: true });
+  say(`You sit with ${b.spec.name}.`);
+}
+/** "Go deeper": one line to write in and a ✧ to send. What is written opens the oracle, asked at
+    once through the archetype `who()` names (its lens), and is kept in My Heart. Used at the
+    world's archetypes (seated) and at the temple's shrines. */
+function deeperField(who: () => { numeral: string; name: string } | null, before: () => void = () => {}): HTMLElement {
   const deep = document.createElement("div");
   deep.className = "deeper";
   deep.innerHTML = `<textarea rows="1" maxlength="600" aria-label="Ask the oracle, through this archetype"></textarea><button type="button" aria-label="Ask the oracle">✧</button>`;
   const field = deep.querySelector("textarea")!, go = deep.querySelector("button")!;
-  field.placeholder = `Ask ${b.spec.name} to go deeper…`;
+  const a0 = who();
+  field.placeholder = a0 ? `Ask ${a0.name} to go deeper…` : "Go deeper…";
   keepToItself(deep);
   const ask = () => {
-    const text = field.value.trim();
+    const a = who(), text = field.value.trim();
+    if (!a) return;
     if (!text) return field.focus();
-    sitting.asked = true;
-    stillness(false);
-    b.greet();
+    before();
     if (tp.active) tp.close();
     if (narration.current?.startsWith("A-")) narration.stop(1.5);
     field.value = "";
+    deep.classList.remove("ready");
     field.blur();
-    oracle.show(from, lens, text);
+    oracle.show(`${a.numeral} · ${a.name}`, archetypeLens(a.numeral, a.name), text);
   };
   // the click wakes the phone's voice, so the answer can be read aloud when it comes
   speechButton(go, () => {
@@ -1977,11 +1995,7 @@ function sitDown(): void {
     field.style.height = "auto";
     field.style.height = `${Math.min(field.scrollHeight, 92)}px`;
   });
-  box.append(g, deep);
-  heart.reset();
-  sitPanel.hidden = false;
-  (box.querySelector("button") as HTMLButtonElement | null)?.focus({ preventScroll: true });
-  say(`You sit with ${b.spec.name}.`);
+  return deep;
 }
 /** An archetype as the oracle's point of origin: its place among the seven (the worker's station
     ids, which tint what it draws on) and a short hidden line naming it (the worker's `origin`). */
@@ -1997,10 +2011,10 @@ const SEVEN = [
 function archetypeLens(numeral: string, name: string): Lens {
   const i = ARCHETYPES.findIndex((a) => a.numeral === numeral);
   if (i < 0 || i > 20)
-    return { origin: `The person sits with ${name} (${numeral}), the Choice: how to love, toward others or toward self. They ask to go deeper.` };
+    return { origin: `The person is with ${name} (${numeral}), the Choice: how to love, toward others or toward self. They ask to go deeper.` };
   const [station, pos, theme] = SEVEN[i % 7];
   const realm = ["Mind", "Body", "Spirit"][Math.floor(i / 7)];
-  return { station, origin: `The person sits with ${name} (${numeral}), ${pos} of the ${realm}: ${theme}. They ask to go deeper; let this archetype's light meet it.` };
+  return { station, origin: `The person is with ${name} (${numeral}), ${pos} of the ${realm}: ${theme}. They ask to go deeper; let this archetype's light meet it.` };
 }
 function standUp(): void {
   if (sitting.phase === "none") return;
