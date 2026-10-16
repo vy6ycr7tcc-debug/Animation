@@ -2037,16 +2037,14 @@ function deeperField(who: () => { numeral: string; name: string } | null, before
   deep.innerHTML = `<textarea rows="1" maxlength="600" aria-label="Ask the oracle, through this archetype"></textarea><button type="button" class="d-go" aria-label="Ask the oracle">✧</button>`;
   const opts = document.createElement("div");
   opts.className = "d-opts";
-  opts.innerHTML = `<button type="button" class="d-heart" aria-pressed="false">♥ share my heart</button><p class="d-consent" hidden>Your notes go with this question only, names and details taken out, and aren't kept.</p>`;
+  opts.innerHTML = `<button type="button" class="d-heart" aria-pressed="false">♥ share my heart</button><p class="d-consent">Nothing is stored in the cloud. What you send always goes anonymously.</p>`;
   wrap.append(deep, opts);
-  const note = opts.querySelector<HTMLElement>(".d-consent")!;
   const field = deep.querySelector("textarea")!, go = deep.querySelector<HTMLButtonElement>(".d-go")!, heartBtn = opts.querySelector<HTMLButtonElement>(".d-heart")!;
   // share my heart, for this one question (asked anew each time)
   let withHeart = false;
   const setHeart = (on: boolean) => {
     withHeart = on;
     heartBtn.setAttribute("aria-pressed", String(on));
-    note.hidden = !on;
   };
   heartBtn.addEventListener("click", () => setHeart(!withHeart));
   const a0 = who();

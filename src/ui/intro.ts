@@ -176,7 +176,7 @@ export function buildIntro(install: Install, howto: () => void): { open(): void;
 
       <section>
         <h3>Your heart and the oracle</h3>
-        <p>A double tap on your own heart opens a note. Your notes (⋮ → My Heart) live only on this device; nothing is sent anywhere. The <b>oracle</b> (⋮ → Oracle, at the Choice, at the maze's centre, and in every Go deeper) reflects on what you ask; every exchange is kept in your notes. Only when you choose <b>♥ share my heart</b> do your notes go with that one question, with names and details taken out, and they are not kept.</p>
+        <p>A double tap on your own heart opens a note. Your notes (⋮ → My Heart) live only on this device; nothing is sent anywhere. The <b>oracle</b> (⋮ → Oracle, at the Choice, at the maze's centre, and in every Go deeper) reflects on what you ask; every exchange is kept in your notes, on this device. Nothing is stored in the cloud, and what you send always goes anonymously: names and details are taken out first. Your notes go with a question only when you choose <b>♥ share my heart</b>.</p>
       </section>
 
       <section>
