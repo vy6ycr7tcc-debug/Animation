@@ -56,7 +56,7 @@ import { Reader } from "./ui/reader";
 import { Heart } from "./ui/heart";
 import { Oracle } from "./ui/oracle";
 import { OracleVision } from "./world/oracleVision";
-import { chosenVoice, listVoices, onSpeechFail, readAloud, sayAloud, setReadAloud, setVoice, speak, speechButton, tierOf, wakeSpeech } from "./ui/speak";
+import { allVoices, chosenVoice, onSpeechFail, readAloud, sayAloud, setReadAloud, setVoice, speak, speechButton, tierOf, wakeSpeech } from "./ui/speak";
 import { Vessels } from "./world/vessels";
 import { TranscriptPlayer } from "./ui/transcriptPlayer";
 import { tourBar, type TourBarOwner } from "./ui/tourBar";
@@ -4238,9 +4238,18 @@ $("#guide-open").addEventListener("click", openGuide);
   const vs = $<HTMLSelectElement>("#voice");
   const tierName = { premium: "Premium", enhanced: "Enhanced", natural: "Natural", standard: "Standard" };
   const fill = () => {
-    const list = listVoices();
-    vs.replaceChildren(new Option("The best on this device", ""), ...list.map((v) => new Option(`${v.name} · ${tierName[tierOf(v)]}`, v.voiceURI)));
-    vs.value = list.some((v) => v.voiceURI === chosenVoice()) ? chosenVoice() : "";
+    const groups = allVoices();
+    const names = (v: SpeechSynthesisVoice, g: number) => `${v.name} · ${tierName[tierOf(v)]}${g ? ` · ${v.lang}` : ""}`;
+    vs.replaceChildren(
+      new Option(`The best on this device${groups.length ? "" : " (none listed yet)"}`, ""),
+      ...groups.map((g, gi) => {
+        const og = document.createElement("optgroup");
+        og.label = `${g.label} (${g.voices.length})`;
+        og.append(...g.voices.map((v) => new Option(names(v, gi), v.voiceURI)));
+        return og;
+      }),
+    );
+    vs.value = groups.some((g) => g.voices.some((v) => v.voiceURI === chosenVoice())) ? chosenVoice() : "";
   };
   if ("speechSynthesis" in window) {
     fill();
