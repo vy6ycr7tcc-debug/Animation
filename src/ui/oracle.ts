@@ -5,6 +5,7 @@
    Privacy: the player's heart notes go with a question only when "Attach my heart" is ticked for
    that question (off each time the panel opens); nothing else leaves the device. */
 import { heartNotes, keepNote, keepToItself, tapButton } from "./heart";
+import { OraclePresence } from "./oraclePresence";
 import { canSpeak, pieces, readAloud, speak, speechButton, stopSpeaking, wakeSpeech } from "./speak";
 
 const ENDPOINT = "https://oracle-station.vy6ycr7tcc.workers.dev/oracle";
@@ -27,6 +28,8 @@ export class Oracle {
   private after: HTMLElement;
   private keep: HTMLButtonElement;
   private offer: HTMLElement;
+  /** The oracle's presence: a body of light that breathes, thinks and speaks. */
+  private presence = new OraclePresence();
   /** The last exchange, carried into a follow-up question (the oracle keeps no memory of its own). */
   private last: { q: string; a: string } | null = null;
   /** The next question follows on from the last answer. */
@@ -56,6 +59,7 @@ export class Oracle {
         <h2 class="title">The oracle</h2>
         <p class="o-from"></p>
       </div>
+      <div class="o-presence-wrap"></div>
       <button class="o-asked" type="button" hidden></button>
       <div class="o-ask">
         <textarea rows="2" maxlength="600" placeholder="What would you ask?" aria-label="Your question"></textarea>
@@ -83,6 +87,7 @@ export class Oracle {
     this.answer = el.querySelector(".answer")!;
     this.status = el.querySelector(".status")!;
     this.from_ = el.querySelector(".o-from")!;
+    el.querySelector(".o-presence-wrap")!.append(this.presence.el);
     this.speak = el.querySelector(".o-voice")!;
     this.after = el.querySelector(".o-after")!;
     this.keep = el.querySelector(".o-keep")!;
@@ -187,6 +192,8 @@ export class Oracle {
     this.offer.hidden = true;
     this.offerOn = false;
     document.body.classList.add("oracling");
+    this.presence.setState(this.asking ? "thinking" : this.speaking ? "speaking" : "quiet");
+    this.presence.start();
     requestAnimationFrame(() => this.q.focus());
   }
 
@@ -194,6 +201,7 @@ export class Oracle {
     this.stopSpeech();
     this.el.hidden = true;
     this.q.blur();
+    this.presence.stop();
     document.body.classList.remove("oracling");
   }
 
@@ -204,6 +212,7 @@ export class Oracle {
     this.stopSpeech();
     this.ask.disabled = true;
     this.el.classList.add("asking");
+    this.presence.setState("thinking");
     this.status.textContent = "Listening…";
     this.answer.hidden = true;
     this.after.hidden = true;
@@ -259,6 +268,9 @@ export class Oracle {
       this.answer.hidden = false;
       this.el.classList.add("answered");
       this.answer.scrollTop = 0;
+      // it has spoken: one ring goes out as the answer comes, then it quiets
+      this.presence.setState("quiet");
+      this.presence.pulse();
       this.status.textContent = "";
       this.speak.hidden = !canSpeak;
       this.q.value = "";
@@ -266,6 +278,7 @@ export class Oracle {
     } catch {
       // one quiet line; the question stays where it was
       this.status.textContent = SILENT;
+      this.presence.setState("quiet");
     } finally {
       this.asking = false;
       this.ask.disabled = false;
@@ -280,6 +293,7 @@ export class Oracle {
     this.speak.classList.add("on");
     this.speak.querySelector(".lbl")!.textContent = "Quiet";
     this.answer.classList.add("reading");
+    this.presence.setState("speaking");
     speak(
       this.sentences.map((s) => s.text),
       () => this.endSpeech(),
@@ -287,6 +301,7 @@ export class Oracle {
       (i) => {
         // the sentence being read glows; the view keeps it in sight
         for (const s of this.sentences) s.el.classList.remove("now");
+        this.presence.pulse();
         const s = this.sentences[i];
         if (!s) return;
         s.el.classList.add("now");
@@ -301,6 +316,7 @@ export class Oracle {
     this.speak.querySelector(".lbl")!.textContent = "Hear it";
     this.answer.classList.remove("reading");
     for (const s of this.sentences) s.el.classList.remove("now");
+    this.presence.setState("quiet");
   }
 
   private stopSpeech(): void {
