@@ -31,8 +31,8 @@ export default defineConfig({
         globIgnores: ['audio/**', 'models/**', 'textures/**', 'assets.json']
       },
       manifest: {
-        name: "The Inward Journey",
-        short_name: "Inward Journey",
+        name: "Inland",
+        short_name: "Inland",
         description: "A contemplative third-person exploration game about Mind, Body and Spirit.",
         theme_color: "#0b0a1c",
         background_color: "#0b0a1c",

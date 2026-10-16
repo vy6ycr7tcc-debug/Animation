@@ -1,4 +1,4 @@
-/* The Inward Journey — an open world of night and light.
+/* Inland — an open world of night and light.
    Wander anywhere. The land answers as you pass: grass brightens along your path, flowers
    bloom and chime, lanterns kindle, and the old
    forms (beam, veil, garden, throne, arch, rings) stand as landmarks to wander toward.

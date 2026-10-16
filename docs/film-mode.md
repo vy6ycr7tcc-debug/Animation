@@ -16,7 +16,7 @@ Open a URL, walk away, come back to a video file with the tour's picture and sou
 ```
 
 In real time the file is an `.mp4` (H.264, made by the computer's own video hardware, so recording barely slows the game) where the browser can, else a `.webm`. The game wakes at the shore (the device's save is neither read nor written), plays the tour with
-every control, label and word hidden, and offers `inward-journey-<tour>.webm` at the end, with its
+every control, label and word hidden, and offers `inland-<tour>.webm` at the end, with its
 size. If the browser won't let sound start by itself it shows one "Begin filming" button first.
 Keep the tab in front while it records. The REC dot is DOM, so it is never in the picture.
 
@@ -88,7 +88,7 @@ water bed and its ducking, the master level, all on the audio clock. That is the
 water**. The generated layer (modal pad, bowls, chimes, one-shots) is made live from random choices
 and is **not** in a fast capture; use real time for the full mix.
 
-Alongside the video comes `inward-journey-<tour>.timeline.json`: fps, frame count, size, seed and
+Alongside the video comes `inland-<tour>.timeline.json`: fps, frame count, size, seed and
 every audio event with the frame it fires on.
 
 Without WebCodecs (Firefox, Safari) a zip comes instead: `frames/f000000.jpg…`, `timeline.json` and
