@@ -1116,20 +1116,52 @@ const kindled = new Set<string>(saved?.journey?.kindled ?? []);
 const synthDone = new Set<number>(saved?.journey?.synth ?? []);
 for (let i = 0; i < 22; i++) if (kindled.has(temple.shrineInfo(i).numeral)) temple.kindle(i, true);
 const shrineEl = $("#shrine"), riteWords = $("#rite-words"), riteEndBtn = $<HTMLButtonElement>("#rite-end");
+const withEl = $("#with"), withLine = $("#with-line");
 let shrineAt = -1;
-/* Go deeper at a shrine: written, asked of the oracle through that shrine's archetype */
+/* Being with a shrine: its own panel (its words as the rite speaks them, its three recordings,
+   and "Go deeper", asked of the oracle through that shrine's archetype) */
 const shrineDeeper = deeperField(() => (shrineAt >= 0 ? temple.shrineInfo(shrineAt) : null));
-shrineEl.append(shrineDeeper);
-type TRite = { i: number; phase: "walk" | "on" | "after"; t: number; step: number; next: number; clips: (AudioBuffer | null)[]; voice: { stop(f?: number): void } | null };
+$("#with-deeper").append(shrineDeeper);
+keepToItself(withEl);
+/** "The Catalyst of the Mind": an archetype's place among the seven, in its realm. */
+function roleOf(numeral: string): string {
+  const i = ARCHETYPES.findIndex((a) => a.numeral === numeral);
+  if (i < 0 || i > 20) return "The Choice";
+  return `${SEVEN[i % 7][1].replace(/^the /, "The ")} of the ${["Mind", "Body", "Spirit"][Math.floor(i / 7)]}`;
+}
+function openWith(i: number): void {
+  const info = temple.shrineInfo(i);
+  $("#with-title").textContent = `${info.numeral} · ${info.name}`;
+  $("#with-role").textContent = roleOf(info.numeral);
+  withLine.textContent = "";
+  withLine.classList.remove("ask");
+  (shrineDeeper.querySelector("textarea") as HTMLTextAreaElement).placeholder = `Ask ${info.name} to go deeper…`;
+  withEl.hidden = false;
+  document.body.classList.add("withing");
+}
+function closeWith(): void {
+  withEl.hidden = true;
+  document.body.classList.remove("withing");
+}
+type TRite = { i: number; phase: "walk" | "on" | "after"; t: number; step: number; next: number; clips: (AudioBuffer | null)[]; voice: { stop(f?: number): void } | null; lit?: boolean };
 let trite: TRite | null = null;
 let wordsOff = 0;
 let riteDist = 7; // the view's distance before a rite, given back after
 let spoken: { stop(f?: number): void } | null = null;
 /** A line of the temple's words: shown low in the view, spoken if its recording is there. */
 function templeWords(text: string, clip: AudioBuffer | null, ask = false): number {
-  riteWords.textContent = text;
-  riteWords.classList.toggle("ask", ask);
-  riteWords.classList.add("on");
+  if (!withEl.hidden) {
+    // being with a shrine: its words are in its panel, where they stay to be read
+    withLine.textContent = text;
+    withLine.classList.toggle("ask", ask);
+    withLine.classList.remove("in");
+    void withLine.offsetWidth;
+    withLine.classList.add("in");
+  } else {
+    riteWords.textContent = text;
+    riteWords.classList.toggle("ask", ask);
+    riteWords.classList.add("on");
+  }
   spoken?.stop(0.6);
   spoken = clip ? audio.playClip(clip, 0.95) : null;
   // no recording: in the phone's own voice when reading aloud is on (a little slower than reading)
@@ -1155,7 +1187,7 @@ function beginTempleRite(i: number): void {
   temple.quietStage = i >= 14;
   trite = { i, phase: "walk", t: 0, step: 0, next: 0, clips: [null, null, null], voice: null };
   shrineEl.hidden = true;
-  riteEndBtn.hidden = false;
+  openWith(i);
 }
 function endTempleRite(done: boolean): void {
   const r = trite;
@@ -1165,12 +1197,18 @@ function endTempleRite(done: boolean): void {
   temple.setRite(r.i, false);
   wanderer.echo.rite = 0;
   follow.dist = riteDist;
-  riteEndBtn.hidden = true;
-  if (!done) {
-    spoken?.stop(1.5);
+  closeWith();
+  shrineAt = -1; // the approach panel comes back if you are still before it
+  if (!done || r.lit) {
+    if (!done) spoken?.stop(1.5);
     riteWords.classList.remove("on");
     return;
   }
+  lightLamp(r.i);
+}
+/** The rite's three things said: its lamp burns, and a place lit in all three realms wakes the altar. */
+function lightLamp(i: number): void {
+  const r = { i };
   const info = temple.shrineInfo(r.i);
   temple.kindle(r.i);
   audio.bell(396, 0.07, 6);
@@ -1215,7 +1253,7 @@ function riteFrame(dt: number): void {
         const lit = kindled.has(info.numeral);
         const locked = info.numeral === "XXII" && litCount() < 21;
         $("#shrine-be").textContent = locked ? `Waiting · ${litCount()} of 21 lamps` : lit ? "Be with it again" : "Be with it";
-        (shrineDeeper.querySelector("textarea") as HTMLTextAreaElement).placeholder = `Ask ${info.name} to go deeper…`;
+        $("#shrine-role").textContent = roleOf(info.numeral);
       }
     }
     return;
@@ -1263,7 +1301,12 @@ function riteFrame(dt: number): void {
       const dur = templeWords(text, r.clips[r.step], r.step === 2);
       r.next = r.t + Math.max(r.step === 0 ? 9 : 8, dur + (r.step === 2 ? 7 : 3.5));
       r.step++;
-    } else endTempleRite(true);
+    } else {
+      // all three said: its lamp is lit, and you stay with it as long as you like (Return, or walk on)
+      r.phase = "after";
+      r.lit = true;
+      lightLamp(r.i);
+    }
   }
 }
 const shrineDo = (fn: (n: string) => void) => (e: Event) => {
@@ -1287,10 +1330,11 @@ riteEndBtn.addEventListener("pointerdown", (e) => {
   endTempleRite(false);
 });
 // the same from the keyboard (Enter or Space make a click with no pointer)
-for (const id of ["#shrine-be", "#shrine-who", "#shrine-teach", "#shrine-life", "#rite-end"])
+for (const id of ["#shrine-be", "#shrine-who", "#shrine-teach", "#shrine-life", "#rite-end"]) {
   $(id).addEventListener("click", (e) => {
     if ((e as MouseEvent).detail === 0) $(id).dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
   });
+}
 
 // the view moves to the altar while the cards are open, and back after
 let cardsView = 0;
@@ -1960,10 +2004,25 @@ function sitDown(): void {
     once through the archetype `who()` names (its lens), and is kept in My Heart. Used at the
     world's archetypes (seated) and at the temple's shrines. */
 function deeperField(who: () => { numeral: string; name: string } | null, before: () => void = () => {}): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "deeper-wrap";
   const deep = document.createElement("div");
   deep.className = "deeper";
-  deep.innerHTML = `<textarea rows="1" maxlength="600" aria-label="Ask the oracle, through this archetype"></textarea><button type="button" aria-label="Ask the oracle">✧</button>`;
-  const field = deep.querySelector("textarea")!, go = deep.querySelector("button")!;
+  deep.innerHTML = `<textarea rows="1" maxlength="600" aria-label="Ask the oracle, through this archetype"></textarea><button type="button" class="d-go" aria-label="Ask the oracle">✧</button>`;
+  const opts = document.createElement("div");
+  opts.className = "d-opts";
+  opts.innerHTML = `<button type="button" class="d-heart" aria-pressed="false">♥ share my heart</button><p class="d-consent" hidden>Your notes go with this question only, names and details taken out, and aren't kept.</p>`;
+  wrap.append(deep, opts);
+  const note = opts.querySelector<HTMLElement>(".d-consent")!;
+  const field = deep.querySelector("textarea")!, go = deep.querySelector<HTMLButtonElement>(".d-go")!, heartBtn = opts.querySelector<HTMLButtonElement>(".d-heart")!;
+  // share my heart, for this one question (asked anew each time)
+  let withHeart = false;
+  const setHeart = (on: boolean) => {
+    withHeart = on;
+    heartBtn.setAttribute("aria-pressed", String(on));
+    note.hidden = !on;
+  };
+  heartBtn.addEventListener("click", () => setHeart(!withHeart));
   const a0 = who();
   field.placeholder = a0 ? `Ask ${a0.name} to go deeper…` : "Go deeper…";
   keepToItself(deep);
@@ -1977,7 +2036,8 @@ function deeperField(who: () => { numeral: string; name: string } | null, before
     field.value = "";
     deep.classList.remove("ready");
     field.blur();
-    oracle.show(`${a.numeral} · ${a.name}`, archetypeLens(a.numeral, a.name), text);
+    oracle.show(`${a.numeral} · ${a.name}`, archetypeLens(a.numeral, a.name), text, withHeart);
+    setHeart(false);
   };
   // the click wakes the phone's voice, so the answer can be read aloud when it comes
   speechButton(go, () => {
@@ -1995,7 +2055,7 @@ function deeperField(who: () => { numeral: string; name: string } | null, before
     field.style.height = "auto";
     field.style.height = `${Math.min(field.scrollHeight, 92)}px`;
   });
-  return deep;
+  return wrap;
 }
 /** An archetype as the oracle's point of origin: its place among the seven (the worker's station
     ids, which tint what it draws on) and a short hidden line naming it (the worker's `origin`). */
@@ -5280,7 +5340,7 @@ renderer
                 const f = q.get("ask");
                 if (f) {
                   (document.querySelector("#sit-prompts .deeper textarea") as HTMLTextAreaElement).value = f;
-                  (document.querySelector("#sit-prompts .deeper button") as HTMLButtonElement).click();
+                  (document.querySelector("#sit-prompts .d-go") as HTMLButtonElement).click();
                 }
               },
         update,

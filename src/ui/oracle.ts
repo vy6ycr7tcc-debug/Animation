@@ -227,7 +227,7 @@ export class Oracle {
 
   /** Open it. `lens`: an archetype's point of view for this visit; `ask`: a question (a feeling)
       asked at once. */
-  show(from: string, lens: Lens | null = null, ask = ""): void {
+  show(from: string, lens: Lens | null = null, ask = "", heart = false): void {
     if (!this.el.hidden && (lens || from !== this.from)) this.close(); // a new lens, a new thread
     this.from = from;
     this.lens = lens;
@@ -248,6 +248,7 @@ export class Oracle {
     this.presence.setState(this.asking ? "thinking" : this.speaking ? "speaking" : "quiet");
     if (ask && !this.asking) {
       this.again();
+      this.setHeart(heart); // "share my heart" chosen where the question was written
       this.q.value = ask;
       this.el.classList.add("ready");
       void this.send();
