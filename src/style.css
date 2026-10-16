@@ -1271,31 +1271,49 @@ body:has(#menu:not([hidden])) :is(#heart-mini, #oracle-offer), body:has(#howto:n
 #intro-link[hidden] { display: none; }
 body.loading #intro-link { visibility: hidden; }
 #intro {
-  position: fixed; inset: 0; height: var(--fh, 100vh); z-index: 40; overflow-y: auto; -webkit-overflow-scrolling: touch;
-  background: radial-gradient(ellipse at 50% 0%, rgba(40, 32, 70, 0.92), rgba(8, 7, 18, 0.97) 70%);
+  position: fixed; inset: 0; height: var(--fh, 100vh); z-index: 40; display: flex; flex-direction: column; align-items: center;
+  padding: calc(18px + env(safe-area-inset-top, 0px)) 22px calc(16px + env(safe-area-inset-bottom, 0px)); color: #e9dcc3;
+  background: radial-gradient(ellipse at 50% 0%, rgba(40, 32, 70, 0.94), rgba(8, 7, 18, 0.97) 70%);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); animation: rise 0.8s ease;
 }
 #intro[hidden] { display: none; }
-#intro .x { position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); right: calc(14px + env(safe-area-inset-right, 0px)); width: 44px; height: 44px; font-size: 18px; color: var(--dim); }
-#intro .in-body { max-width: 34em; margin: 0 auto; padding: calc(56px + env(safe-area-inset-top, 0px)) 24px calc(40px + env(safe-area-inset-bottom, 0px)); color: #e9dcc3; }
-#intro .orn { display: flex; align-items: center; justify-content: center; gap: 10px; }
-#intro .orn i { width: 48px; height: 1px; background: linear-gradient(90deg, transparent, rgba(226, 191, 126, 0.7), transparent); }
-#intro .orn b { width: 6px; height: 6px; transform: rotate(45deg); background: var(--gold); }
-#intro h2 { margin: 14px 0 6px; text-align: center; font-weight: 400; font-size: 34px; letter-spacing: 0.32em; text-indent: 0.32em; color: #f3e6cc; text-transform: uppercase; }
-#intro .lede { margin: 0 0 26px; text-align: center; font-size: 17px; font-style: italic; line-height: 1.5; color: var(--gold); }
-#intro section { margin: 0 0 22px; }
-#intro h3 { margin: 0 0 6px; font-weight: 400; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--gold); }
-#intro p, #intro li { margin: 0; font-size: 15.5px; line-height: 1.6; }
+#intro .x { position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); right: calc(12px + env(safe-area-inset-right, 0px)); width: 44px; height: 44px; font-size: 18px; color: var(--dim); }
+#intro .in-head { text-align: center; max-width: 30em; }
+#intro h2 { margin: 6px 0 4px; font-weight: 400; font-size: 26px; letter-spacing: 0.34em; text-indent: 0.34em; color: #f3e6cc; text-transform: uppercase; }
+#intro .lede { margin: 0; font-size: 14.5px; font-style: italic; line-height: 1.45; color: var(--gold); }
+#intro .in-pages { flex: 1; min-height: 0; width: 100%; max-width: 32em; overflow-y: auto; -webkit-overflow-scrolling: touch; margin-top: 10px; touch-action: pan-y; }
+#intro .in-page { display: flex; flex-direction: column; align-items: center; min-height: 100%; justify-content: center; text-align: center; }
+#intro .in-page[hidden] { display: none; }
+#intro .in-page.in { animation: page-in 0.7s ease; }
+@keyframes page-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+#intro .art { width: min(62vw, 230px); height: auto; color: var(--gold); filter: drop-shadow(0 0 6px rgba(226, 191, 126, 0.35)); margin: 4px 0 10px; flex: none; }
+#intro h3 { margin: 0 0 10px; font-weight: 400; font-size: 13px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); }
+#intro .in-words { width: 100%; }
+#intro .in-text { text-align: left; }
+#intro p, #intro li { margin: 0 0 10px; font-size: 15.5px; line-height: 1.58; }
 #intro b { font-weight: 600; color: #f6ead2; }
-#intro .steps, #install .steps { margin: 10px 0 0; padding-left: 1.3em; }
+#intro .steps, #install .steps { margin: 6px 0 0; padding-left: 1.3em; }
 #intro .steps li, #install .steps li { margin: 0 0 6px; }
 .ico-share { width: 17px; height: 17px; vertical-align: -3px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 #intro .in-install, #install .i-install { margin-top: 8px; min-height: 42px; padding: 6px 22px; font-size: 15px; font-style: italic; color: var(--gold); border-radius: 21px; border: 1px solid rgba(214, 170, 90, 0.55); }
 #intro .in-install[hidden], #install .i-install[hidden] { display: none; }
-#intro section[hidden] { display: none; }
-#intro .in-foot { display: flex; justify-content: center; gap: 12px; margin-top: 30px; }
+#intro .in-nav { display: flex; align-items: center; gap: 14px; margin: 10px 0 4px; }
+#intro .in-prev, #intro .in-next { width: 44px; height: 44px; font-size: 26px; line-height: 1; color: var(--gold); border-radius: 50%; border: 1px solid rgba(214, 170, 90, 0.35); }
+#intro .in-prev:disabled, #intro .in-next:disabled { opacity: 0.25; }
+#intro .in-dots { display: flex; gap: 2px; }
+#intro .in-dot { width: 18px; height: 30px; padding: 0; position: relative; }
+#intro .in-dot::after { content: ""; position: absolute; left: 6px; top: 12px; width: 6px; height: 6px; border-radius: 50%; background: rgba(226, 191, 126, 0.3); transition: background 0.3s, transform 0.3s; }
+#intro .in-dot.on::after { background: var(--gold); transform: scale(1.35); }
+#intro .in-dot[hidden] { display: none; }
+#intro .in-foot { display: flex; justify-content: center; gap: 12px; }
 #intro .in-foot button { min-height: 44px; padding: 8px 24px; font-size: 16px; font-style: italic; border-radius: 22px; border: 1px solid rgba(214, 170, 90, 0.4); color: #e9dcc3; }
 #intro .in-close { color: var(--gold) !important; border-color: rgba(214, 170, 90, 0.7) !important; }
+@media (max-height: 540px) and (orientation: landscape) {
+  #intro .in-page { flex-direction: row; gap: 18px; justify-content: center; align-items: center; text-align: left; }
+  #intro .art { width: 170px; margin: 0; }
+  #intro .in-words { width: auto; flex: 1; }
+  #intro .in-head .lede { display: none; }
+}
 /* keep it as an app: a card low in the view */
 #install {
   position: fixed; left: 50%; transform: translateX(-50%); z-index: 30;
@@ -1316,3 +1334,14 @@ body.introing :is(#joy, #act, #ctx, #auto, #menu-btn, #tp-mini, #whisper, #keys,
   #install { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); width: min(52vw, 26em); }
   #intro-link { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
 }
+/* the ✕ in every panel's corner */
+.px {
+  position: absolute; top: 4px; right: 4px; z-index: 3; width: 40px; height: 40px; padding: 0;
+  font-size: 15px; line-height: 1; color: var(--dim); border-radius: 50%; background: transparent;
+}
+.px:hover, .px:focus-visible { color: var(--gold); }
+.px[hidden] { display: none; }
+#map > .px { position: fixed; top: calc(8px + env(safe-area-inset-top, 0px)); right: calc(10px + env(safe-area-inset-right, 0px)); width: 44px; height: 44px; font-size: 18px; }
+#next-up > .px, #shrine > .px { top: 2px; right: 2px; }
+#menu > .px { top: 2px; right: 2px; }
+#menu > .menu-scroll { padding-top: 34px; }
