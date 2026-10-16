@@ -36,7 +36,7 @@ function steps(): string {
       <li>Inland then opens from its own icon, in its own window.</li>
     </ol>`;
 }
-const WHY = `Full screen, no browser bars; your place, notes and lamps are kept safe (Safari can clear a website's storage after a week unvisited, but not an app's); and after ⋮ → Download for offline play it opens with no connection at all.`;
+const WHY = `Full screen, no browser bars; your place, notes and lamps are kept safe (Safari can clear a website's storage after a week unvisited, but not an app's). And once downloaded for offline play, it opens with no connection at all.`;
 
 export class Install {
   private deferred: Deferred | null = null;
@@ -137,51 +137,43 @@ export function buildIntro(install: Install, howto: () => void): { open(): void;
     <div class="in-body">
       <div class="orn" aria-hidden="true"><i></i><b></b><i></i></div>
       <h2 id="intro-title">Inland</h2>
-      <p class="lede">A contemplative world of night and light, to wander through the twenty-two archetypes of mind, body and spirit.</p>
+      <p class="lede">A contemplative world of night and light, where getting lost is the way in.</p>
 
       <section>
         <h3>What it is for</h3>
-        <p>Inland is not a game to win. There are no enemies, scores, timers or ways to fail. It is a place to slow down and look inward: to meet the archetypes, the deep patterns every life passes through, and to listen, rest and reflect. Keep it open beside you while you work, or lie down and let it hold you.</p>
+        <p>Inland is not a game to win. There are no enemies, scores, timers, or ways to fail. It is a place to slow down and look inward — to meet the deep patterns every life passes through, and to listen, rest, and reflect. Keep it open beside you while you work, or lie down and let it hold you.</p>
       </section>
 
       <section>
         <h3>Moving</h3>
-        <p><b>Your thumb, low on the left</b> walks; push further to run. <b>Drag</b> anywhere else to look. <b>Tap the land</b> and you walk there. <b>The round button</b> jumps; hold it to fly, let go to glide. In water, the word beside it says what it does (Dive, Floor, Surface). On a computer: W A S D, Space, the mouse.</p>
+        <p>Your thumb, low on the left, walks; push further to run. <b>Drag</b> anywhere else to look. <b>Tap the land</b> and you walk there. <b>The round button</b> jumps; hold it to fly, let go to glide. In water, the word beside it says what it does (Dive, Floor, Surface). On a computer: W A S D, Space, the mouse.</p>
       </section>
 
       <section>
-        <h3>The archetypes</h3>
-        <p>Twenty-two beings of light live across the world: the Mind near the shore, the Body to the east, the Spirit to the west, the Choice on an island to the north. Come near and one greets you. <b>Sit</b> with it to hear who it is, what it teaches and its practice, in recorded voices; then <b>go deeper</b>: write what is on your heart and the oracle answers through that archetype.</p>
+        <h3>The twenty-two</h3>
+        <p>Twenty-two beings of light live across the world — not gods, not guides, but the shapes a human life takes: the part of you that grieves, the part that dares, the part that doubts at 3 a.m., the part that loves without keeping score.</p>
+        <p>Seven near the shore, seven to the east, seven to the west — and one alone on an island to the north, waiting.</p>
+        <p>Come near and one greets you. <b>Sit</b> with it to hear its story and its practice, in recorded voices. Then, when you are ready, <b>go deeper</b>: write what is on your heart, and the oracle will meet you there, seeing through that figure's eyes.</p>
       </section>
 
       <section>
         <h3>The temple</h3>
-        <p>An Egyptian temple near the shore holds all twenty-two as glowing carvings. At each shrine, <b>Be with it</b>: make its gesture with it, read its words, listen, go deeper, and its lamp is lit. When a place is lit in mind, body and spirit, the altar answers; when all twenty-one are lit, the Choice opens. A guided tour walks the whole temple with you.</p>
-      </section>
-
-      <section>
-        <h3>Places to enter</h3>
-        <p>The monuments each take you through rooms of a telling: the <b>densities</b> of creation, the <b>school of the adept</b>, the <b>past choices</b> of other worlds, the <b>mind's maze</b> with a sun at its heart. The <b>pyramid</b> has its chambers and the Duat below. There are ancient worlds (Göbekli Tepe, Nan Madol, and drowned cities beneath the water), lessons told on stone seats, visions of creation, and the world after the veil. Some things are hidden; a curious visitor finds them.</p>
-      </section>
-
-      <section>
-        <h3>The voices in the sky</h3>
-        <p>Planets, stars, fruit on great trees and crystals each keep a narration. <b>Tap one</b> to hear it. The half-moon at the top right plays, pauses and goes on to the next; "Only nature" rests every voice.</p>
-      </section>
-
-      <section>
-        <h3>Practices</h3>
-        <p><b>Stillness:</b> stop for a few seconds and the view turns inward, toward whatever moves nearby. <b>Square breathing:</b> the small ring above the round button lets the world carry you while lungs of light breathe with you. <b>Laying hands:</b> hold your finger on a tree, a stone, a crystal or the ground and the wanderer goes to touch it.</p>
+        <p>On the island to the north stands a temple. Inside, all twenty-two are gathered in one place — come here when you want to sit with any of them, or to find the one you need.</p>
       </section>
 
       <section>
         <h3>Your heart and the oracle</h3>
-        <p>A double tap on your own heart opens a note. Your notes (⋮ → My Heart) live only on this device; nothing is sent anywhere. The <b>oracle</b> (⋮ → Oracle, at the Choice, at the maze's centre, and in every Go deeper) reflects on what you ask; every exchange is kept in your notes, on this device. Nothing is stored in the cloud, and what you send always goes anonymously: names and details are taken out first. Your notes go with a question only when you choose <b>♥ share my heart</b>.</p>
+        <p>A double tap on your own heart opens a note. Your notes live only on this device; nothing is sent anywhere. The <b>oracle</b> reflects on what you ask — on the island, at the maze's centre, and wherever you go deeper. Every exchange is kept in your notes. Only when you choose ♥ <b>share my heart</b> do your notes travel with that one question — with names and details taken out — and they are not kept.</p>
+      </section>
+
+      <section>
+        <h3>Your data</h3>
+        <p>What you write here is yours. Your notes live only on this device and are never sent anywhere — except when you ask the oracle, and then only your question travels, to bring back an answer. Nothing you write or ask is kept, sold, or linked to an identity; there are no accounts, no profiles, no advertising. If you choose ♥ “share my heart,” your notes go with that single question, with names and details taken out, and are not kept.</p>
       </section>
 
       <section>
         <h3>Finding your way</h3>
-        <p>⋮ opens the <b>map</b> (tap anywhere to go there), the <b>guide</b> ("Walk me there"), <b>tours</b> that take you from place to place, and autofly. When something ends, a card offers where to go next.</p>
+        <p>The menu opens the <b>map</b> (tap anywhere to go there), the <b>guide</b> (“Walk me there”), <b>tours</b> that take you from place to place, and autofly. When something ends, a card offers where to go next.</p>
       </section>
 
       <section class="in-app">
