@@ -78,7 +78,12 @@ export function setVoice(uri: string): void {
 function pickVoice(): void {
   if (!canSpeak) return;
   const all = listVoices();
-  voice = (chosen && speechSynthesis.getVoices().find((v) => v.voiceURI === chosen)) || all[0] || null;
+  const best = all[0];
+  // With nothing chosen, a Premium or Enhanced voice is named; otherwise none is, so the phone speaks
+  // in its own voice for the language: on an iPhone the one picked in Settings → Accessibility →
+  // Spoken Content → Voices. Naming the plain default (often the only voice Safari lists, as
+  // Samantha) would override a better voice chosen there.
+  voice = (chosen && speechSynthesis.getVoices().find((v) => v.voiceURI === chosen)) || (best && tierOf(best) !== "standard" ? best : null);
 }
 if (canSpeak) {
   pickVoice();

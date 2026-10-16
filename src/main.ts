@@ -4241,7 +4241,7 @@ $("#guide-open").addEventListener("click", openGuide);
     const groups = allVoices();
     const names = (v: SpeechSynthesisVoice, g: number) => `${v.name} · ${tierName[tierOf(v)]}${g ? ` · ${v.lang}` : ""}`;
     vs.replaceChildren(
-      new Option(`The best on this device${groups.length ? "" : " (none listed yet)"}`, ""),
+      new Option("The phone's own voice", ""),
       ...groups.map((g, gi) => {
         const og = document.createElement("optgroup");
         og.label = `${g.label} (${g.voices.length})`;
@@ -4263,7 +4263,7 @@ $("#guide-open").addEventListener("click", openGuide);
     });
     // say which voice actually began, so a chosen voice the phone won't use is not a mystery
     onSpeechStart((how, name) => {
-      note.textContent = how === "chosen" ? `Speaking as ${name || "the phone's default"}` : "Your chosen voice wouldn't start, so the phone's default spoke. Try another.";
+      note.textContent = how === "chosen" ? name ? `Speaking as ${name}` : "Speaking in the phone's own voice (set in Settings → Spoken Content)" : "Your chosen voice wouldn't start, so the phone's default spoke. Try another.";
     });
   } else $("#voice-row").hidden = true;
 }
