@@ -41,7 +41,15 @@ export class Input {
   /** The keyboard's way to press the heart (H). */
   onHeart: (() => void) | null = null;
   onHold: ((x: number, y: number) => void) | null = null;
+  /** The finger (or mouse) that made a long press is lifted. */
+  onHoldEnd: (() => void) | null = null;
+  private holdId: number | null = null;
   private holdTimer = 0;
+  /** A mode that takes some touches for itself (the sanctuary's drawing and shaping): asked at
+      each pointerdown (after the stick has had its chance); a pointer it takes never looks, taps
+      or holds, and its moves and lift go to it alone. */
+  capture: { down(e: PointerEvent): boolean; move(e: PointerEvent): void; up(e: PointerEvent): void } | null = null;
+  private captured = new Set<number>();
   /** A short tap or click without dragging (`touch` for a finger). */
   onTap: ((x: number, y: number, touch: boolean) => void) | null = null;
   private downAt = new Map<number, { x: number; y: number; t: number }>();
@@ -141,7 +149,10 @@ export class Input {
     const hx = e.clientX, hy = e.clientY, id = e.pointerId;
     // held still (not on the stick, not a pinch): a long press
     this.holdTimer = window.setTimeout(() => {
-      if (this.pointers.size === 1 && this.pointers.has(id) && id !== this.joyId) this.onHold?.(hx, hy);
+      if (this.pointers.size === 1 && this.pointers.has(id) && id !== this.joyId && !this.captured.has(id)) {
+        this.holdId = id;
+        this.onHold?.(hx, hy);
+      }
     }, 750);
     this.surface.setPointerCapture?.(e.pointerId);
     if (this.rollMode) {
@@ -156,7 +167,15 @@ export class Input {
     if (e.pointerType === "touch") {
       this.touchUsed = true;
       this.joyEl.hidden = false; // a touch screen that didn't say so (a touch laptop): show the stick
-      if (this.pointers.size === 2 && this.joyId === null) {
+      if (this.captured.size) {
+        // a second finger while one shapes a form: the form's (lift, turn)
+        if (this.capture?.down(e)) {
+          this.captured.add(e.pointerId);
+          window.clearTimeout(this.holdTimer);
+          return;
+        }
+      }
+      if (this.pointers.size === 2 && this.joyId === null && !this.captured.size) {
         const [a, b] = [...this.pointers.keys()];
         this.pinch = { a, b, d: this.pinchDist() };
         this.lookId = null;
@@ -188,11 +207,21 @@ export class Input {
           return;
         }
       }
+      if (this.capture?.down(e)) {
+        this.captured.add(e.pointerId);
+        window.clearTimeout(this.holdTimer);
+        return;
+      }
       if (this.lookId === null) {
         this.lookId = e.pointerId;
         this.lookLast = { x: e.clientX, y: e.clientY };
       }
     } else {
+      if (this.capture?.down(e)) {
+        this.captured.add(e.pointerId);
+        window.clearTimeout(this.holdTimer);
+        return;
+      }
       this.mouseDown = true;
       this.lookLast = { x: e.clientX, y: e.clientY };
     }
@@ -208,6 +237,10 @@ export class Input {
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const d0 = this.downAt.get(e.pointerId);
     if (d0 && Math.hypot(e.clientX - d0.x, e.clientY - d0.y) > 12) window.clearTimeout(this.holdTimer);
+    if (this.captured.has(e.pointerId)) {
+      this.capture?.move(e);
+      return;
+    }
     if (this.pinch) {
       const d = this.pinchDist();
       this.zoom *= this.pinch.d / Math.max(1, d);
@@ -257,6 +290,18 @@ export class Input {
 
   private up(e: PointerEvent): void {
     window.clearTimeout(this.holdTimer);
+    if (e.pointerId === this.holdId) {
+      this.holdId = null;
+      this.onHoldEnd?.();
+    }
+    if (this.captured.has(e.pointerId)) {
+      this.captured.delete(e.pointerId);
+      this.downAt.delete(e.pointerId);
+      this.pointers.delete(e.pointerId);
+      if (e.pointerType !== "touch") this.mouseDown = false;
+      this.capture?.up(e);
+      return;
+    }
     const d = this.downAt.get(e.pointerId);
     this.downAt.delete(e.pointerId);
     if (d && this.enabled && !this.pinch && e.type === "pointerup" && this.pointers.size <= 1 && e.pointerId !== this.joyId &&

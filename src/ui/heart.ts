@@ -29,6 +29,8 @@ export function heartNotes(): HeartNote[] {
 function saveNotes(list: HeartNote[]): boolean {
   try {
     localStorage.setItem(KEY, JSON.stringify(list));
+    // the sanctuary's gold follows the notes (world/sanctuary.ts)
+    dispatchEvent(new Event("heart-changed"));
     return true;
   } catch {
     return false;
