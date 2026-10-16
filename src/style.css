@@ -1229,6 +1229,9 @@ body:has(#menu:not([hidden])) :is(#heart-mini, #oracle-offer), body:has(#howto:n
 }
 #voice-row .voice-tip { flex: 1 1 100%; margin: 4px 0 6px; font-size: 12.5px; line-height: 1.4; opacity: 0.62; }
 #voice-note { font-size: 12.5px; font-style: italic; opacity: 0.75; }
-/* a feeling shared goes to the oracle: no "heard", it is answered in words */
-#sit-prompts button.feel.heard::after { content: none; }
-#sit-prompts button.feel { font-style: italic; }
+/* Go deeper: typed, sent to the oracle through the archetype */
+#sit-prompts .deeper { flex-basis: 100%; display: flex; align-items: flex-end; gap: 8px; padding: 4px 6px 2px; border-bottom: 1px solid rgba(226, 191, 126, 0.45); margin: 0 6px 4px; }
+#sit-prompts .deeper textarea { flex: 1; min-width: 0; resize: none; background: transparent; border: 0; outline: none; color: var(--pearl, #f0e8da); font: italic 16px/1.4 Georgia, "Times New Roman", serif; padding: 6px 0; }
+#sit-prompts .deeper textarea::placeholder { color: var(--dim); }
+#sit-prompts .deeper button { flex: none; width: 38px; min-height: 38px; padding: 0; border-radius: 50%; color: var(--gold, #e2bf7e); opacity: 0.45; transition: opacity 0.3s; }
+#sit-prompts .deeper.ready button { opacity: 1; box-shadow: 0 0 12px rgba(226, 191, 126, 0.35); }
