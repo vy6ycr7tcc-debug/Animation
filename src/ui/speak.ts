@@ -6,13 +6,61 @@
 export const canSpeak = typeof window !== "undefined" && "speechSynthesis" in window;
 
 let voice: SpeechSynthesisVoice | null = null;
+
+/* Which of the device's voices are worth hearing. On an iPhone Safari lists every installed voice,
+   and its names don't say "Enhanced" or "Premium": that is in the voiceURI
+   (com.apple.voice.premium.en-US.Zoe, ….enhanced.…, ….compact.…). It also lists the novelty voices
+   (Bubbles, Zarvox, Whisper…) and the old Eloquence ones (Grandma, Rocko, Reed…), which sound
+   robotic; they are never chosen. Siri's own voices are not given to websites at all. */
+const NOVELTY = /^(albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|fred|junior|kathy|ralph|eddy|flo|grandma|grandpa|reed|rocko|sandy|shelley)\b/i;
+export type VoiceTier = "premium" | "enhanced" | "natural" | "standard";
+export function tierOf(v: SpeechSynthesisVoice): VoiceTier {
+  const id = `${v.voiceURI} ${v.name}`;
+  if (/premium/i.test(id)) return "premium";
+  if (/enhanced|siri/i.test(id)) return "enhanced";
+  if (/natural|neural|online|google/i.test(id)) return "natural"; // Edge's and Chrome's network voices
+  return "standard";
+}
+function usable(v: SpeechSynthesisVoice): boolean {
+  return !NOVELTY.test(v.name) && !/eloquence|speech\.synthesis\.voice/i.test(v.voiceURI);
+}
+function score(v: SpeechSynthesisVoice, lang: string): number {
+  const t = tierOf(v);
+  return (t === "premium" ? 8 : t === "enhanced" ? 6 : t === "natural" ? 5 : 0) + (v.lang.toLowerCase().replace("_", "-") === lang ? 1 : 0) + (v.default ? 0.5 : 0);
+}
+/** The device's voices in the reader's language worth offering, best first. */
+export function listVoices(): SpeechSynthesisVoice[] {
+  if (!canSpeak) return [];
+  const lang = (navigator.language || "en").toLowerCase(), base = lang.split("-")[0];
+  return speechSynthesis
+    .getVoices()
+    .filter((v) => v.lang.toLowerCase().startsWith(base) && usable(v))
+    .sort((a, b) => score(b, lang) - score(a, lang) || a.name.localeCompare(b.name));
+}
+const VOICE_KEY = "inward-journey:voice";
+let chosen = "";
+try {
+  chosen = localStorage.getItem(VOICE_KEY) ?? "";
+} catch {
+  /* private mode */
+}
+/** The voice chosen in ⋮ ("" = the best this device has). */
+export function chosenVoice(): string {
+  return chosen;
+}
+export function setVoice(uri: string): void {
+  chosen = uri;
+  try {
+    localStorage.setItem(VOICE_KEY, uri);
+  } catch {
+    /* not kept */
+  }
+  pickVoice();
+}
 function pickVoice(): void {
   if (!canSpeak) return;
-  const lang = (navigator.language || "en").toLowerCase(), base = lang.split("-")[0];
-  const all = speechSynthesis.getVoices().filter((v) => v.lang.toLowerCase().startsWith(base));
-  const rank = (v: SpeechSynthesisVoice) =>
-    (/premium/i.test(v.name) ? 4 : /enhanced/i.test(v.name) ? 3 : 0) + (v.lang.toLowerCase() === lang ? 1 : 0) + (v.localService ? 0.5 : 0);
-  voice = all.sort((a, b) => rank(b) - rank(a))[0] ?? null;
+  const all = listVoices();
+  voice = (chosen && speechSynthesis.getVoices().find((v) => v.voiceURI === chosen)) || all[0] || null;
 }
 if (canSpeak) {
   pickVoice();
@@ -113,7 +161,8 @@ export function stopSpeaking(): void {
    they appear (readings, steles, the archetypes' and the rites' words, the oracle's answers), no
    button to press each time. Saved on the device. The switch's own tap also wakes the phone's
    voice (iOS lets speech begin only from a touch, once; after that the game may speak). */
-const AUTO_KEY = "inward-journey:readaloud";
+// "-v2": off for everyone once (the owner: never read aloud by default); turning it on is kept
+const AUTO_KEY = "inward-journey:readaloud-v2";
 let auto = false;
 try {
   auto = localStorage.getItem(AUTO_KEY) === "1";
