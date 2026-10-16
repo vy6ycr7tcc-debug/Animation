@@ -4,6 +4,9 @@
    the still centre of the mind's maze). Overall mode: it names which of the twenty-two archetypes
    are at play and then reflects. Only its words are shown, never its sources. The answer can be
    heard in the device's own voice (speechSynthesis), on a tap.
+   At each archetype, "Share a feeling" opens it through that archetype's lens (`Lens`: the worker's
+   `station` and a hidden `origin` line), the feeling already asked.
+   Every exchange is kept in My Heart by itself (on this device only).
    Privacy: the player's heart notes go with a question only when "Attach my heart" is ticked for
    that question (off each time the panel opens); nothing else leaves the device. */
 import { heartNotes, keepNote, keepToItself, tapButton } from "./heart";
@@ -18,6 +21,13 @@ const SILENT = "The oracle is silent — check your connection.";
 
 const SEED = `<svg viewBox="0 0 40 40" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.1"><circle cx="20" cy="20" r="6"/><circle cx="20" cy="14" r="6"/><circle cx="20" cy="26" r="6"/><circle cx="14.8" cy="17" r="6"/><circle cx="25.2" cy="17" r="6"/><circle cx="14.8" cy="23" r="6"/><circle cx="25.2" cy="23" r="6"/><circle cx="20" cy="20" r="12" opacity="0.6"/></g></svg>`;
 const HEART = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.3s-7.6-4.6-7.6-10.1A4.2 4.2 0 0 1 12 7.8a4.2 4.2 0 0 1 7.6 2.4c0 5.5-7.6 10.1-7.6 10.1z"/></svg>`;
+
+/** The point a question comes from: an archetype's lens (the worker's `station` id for its place
+    among the seven, and a short hidden `origin` line naming it). */
+export interface Lens {
+  station?: string;
+  origin: string;
+}
 
 export type PresenceState = "quiet" | "thinking" | "speaking";
 /** The oracle's body in the world: summoned when the oracle opens, let go when it closes. */
@@ -59,6 +69,8 @@ export class Oracle {
   private sentences: { text: string; el: HTMLElement }[] = [];
   /** where it was opened from (shown under the title) */
   private from = "";
+  /** The lens of this visit (an archetype's), kept through its follow-ups. */
+  private lens: Lens | null = null;
 
   constructor() {
     const el = document.createElement("div");
@@ -182,7 +194,8 @@ export class Oracle {
     requestAnimationFrame(() => this.q.focus());
   }
 
-  /** The answer, with its question, kept in My Heart (on this device only). */
+  /** The answer, with its question, kept in My Heart (on this device only). Every answer is kept
+      by itself as it comes; the pill only says so (or tries again if the device refused). */
   private keepIt(): void {
     if (!this.last || this.keep.disabled) return;
     const ok = keepNote(`“${this.last.q}”\n\n${this.last.a}`, this.from ? `The oracle · ${this.from}` : "The oracle");
@@ -212,8 +225,12 @@ export class Oracle {
     this.offer.hidden = !on;
   }
 
-  show(from: string): void {
+  /** Open it. `lens`: an archetype's point of view for this visit; `ask`: a question (a feeling)
+      asked at once. */
+  show(from: string, lens: Lens | null = null, ask = ""): void {
+    if (!this.el.hidden && (lens || from !== this.from)) this.close(); // a new lens, a new thread
     this.from = from;
+    this.lens = lens;
     this.setHeart(false); // consent is asked anew each time
     this.from_.textContent = from;
     if (this.el.hidden) {
@@ -229,6 +246,13 @@ export class Oracle {
     document.body.classList.add("oracling");
     this.presence.summon();
     this.presence.setState(this.asking ? "thinking" : this.speaking ? "speaking" : "quiet");
+    if (ask && !this.asking) {
+      this.again();
+      this.q.value = ask;
+      this.el.classList.add("ready");
+      void this.send();
+      return;
+    }
     requestAnimationFrame(() => this.q.focus());
   }
 
@@ -253,8 +277,8 @@ export class Oracle {
     this.after.hidden = true;
     this.el.classList.remove("answered");
     this.q.blur();
-    // The request. The API also takes `station` (a lens id) and `origin` (a hidden archetype
-    // pre-prompt): the future station-specific triggers will pass those; here it is the whole oracle.
+    // The request: the whole oracle ("overall"), or, from an archetype, its lens: the worker's
+    // `station` (a lens id among the seven) and `origin` (a hidden line naming the archetype).
     // A follow-up carries the last exchange inside the question (the API keeps no thread), within
     // its 1000 characters: the new question whole, the earlier ones shortened.
     let asked = question;
@@ -263,10 +287,13 @@ export class Oracle {
       const room = Math.max(120, 960 - question.length - 120);
       asked = `Earlier I asked: "${cut(this.last.q, 160)}". You reflected: "${cut(this.last.a, room - 160)}". Following on from that, I ask: "${question}"`.slice(0, 1000);
     }
-    const body: { mode: "overall"; question: string; heart?: string[] } = { mode: "overall", question: asked };
+    const body: { mode: "overall" | "station"; question: string; station?: string; origin?: string; heart?: string[] } = this.lens
+      ? { mode: "station", question: asked, origin: this.lens.origin.slice(0, 300), ...(this.lens.station ? { station: this.lens.station } : {}) }
+      : { mode: "overall", question: asked };
     if (this.withHeart) {
-      // anonymised here first, as Bring my heart does: names, places and details never leave the device
-      const list = heartNotes().slice(0, 8);
+      // anonymised here first, as Bring my heart does: names, places and details never leave the device;
+      // the oracle's own kept answers stay home (only the person's own words go)
+      const list = heartNotes().filter((n) => !n.scene.startsWith("The oracle")).slice(0, 8);
       const an = new Anonymiser();
       an.learn(list.map((n) => n.text));
       const notes = list.map((n) => an.scrub(n.text).slice(0, 400));
@@ -303,6 +330,7 @@ export class Oracle {
       this.keep.disabled = false;
       this.keep.classList.remove("kept");
       this.keep.querySelector("span")!.textContent = "Keep";
+      this.keepIt(); // every exchange goes into My Heart by itself
       this.asked.hidden = false;
       this.answer.hidden = false;
       this.el.classList.add("answered");

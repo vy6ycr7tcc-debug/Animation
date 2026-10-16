@@ -1187,7 +1187,7 @@ body.oracling :is(#whisper, #tp, #tp-mini, #menu-btn, #keys, #hear-again, #nprog
 @media (prefers-reduced-motion: reduce) { #oracle, #oracle .answer .s, #oracle .o-voice.on .bars i { animation: none; opacity: 1; } }
 @media (max-height: 540px) and (orientation: landscape) { #oracle .orn { display: none; } #oracle.answered .o-dock { max-height: 64%; } }
 body.hearting :is(#joy, #act, #ctx, #auto, #seat-hint, #tour-start, #breath-cue, #heart-mini, #oracle-offer, #reader),
-body.oracling :is(#joy, #act, #ctx, #auto, #seat-hint, #tour-start, #breath-cue, #heart-mini, #oracle-offer, #reader) { visibility: hidden; }
+body.oracling :is(#joy, #act, #ctx, #auto, #seat-hint, #tour-start, #breath-cue, #heart-mini, #oracle-offer, #reader, #sit-panel) { visibility: hidden; }
 body.hearting #stats, body.oracling #stats { display: none; }
 
 /* the small heart at the edge of the view, while seated or laying hands; and the oracle's offer */
@@ -1229,3 +1229,6 @@ body:has(#menu:not([hidden])) :is(#heart-mini, #oracle-offer), body:has(#howto:n
 }
 #voice-row .voice-tip { flex: 1 1 100%; margin: 4px 0 6px; font-size: 12.5px; line-height: 1.4; opacity: 0.62; }
 #voice-note { font-size: 12.5px; font-style: italic; opacity: 0.75; }
+/* a feeling shared goes to the oracle: no "heard", it is answered in words */
+#sit-prompts button.feel.heard::after { content: none; }
+#sit-prompts button.feel { font-style: italic; }
