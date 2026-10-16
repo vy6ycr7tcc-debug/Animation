@@ -55,6 +55,7 @@ import { Readables, type Reading } from "./world/readables";
 import { Reader } from "./ui/reader";
 import { Heart } from "./ui/heart";
 import { Oracle } from "./ui/oracle";
+import { OracleVision } from "./world/oracleVision";
 import { onSpeechFail, readAloud, sayAloud, setReadAloud, wakeSpeech } from "./ui/speak";
 import { Vessels } from "./world/vessels";
 import { TranscriptPlayer } from "./ui/transcriptPlayer";
@@ -1543,6 +1544,39 @@ myHeart.place = () => {
 };
 myHeart.onSaved = () => audio.bowl(330, 0.03);
 oracle.onKept = () => audio.bowl(330, 0.03);
+/* the oracle summoned in the world (world/oracleVision.ts): a body of light ahead of the view,
+   brought nearer where something solid stands closer (the temple's small room, a corridor) */
+const oracleRay = new THREE.Raycaster();
+const oracleHits: THREE.Intersection[] = [];
+const oracleVision = new OracleVision(scene, camera, (from, dir, near, max) => {
+  // the first solid surface along the way (the wanderer's own body is skinned, so it is passed)
+  oracleRay.set(from, dir);
+  oracleRay.near = near;
+  oracleRay.far = max;
+  let best = max;
+  const look = (o: THREE.Object3D): void => {
+    if (!o.visible) return;
+    const m = o as THREE.Mesh;
+    if (m.isMesh && !(o as THREE.SkinnedMesh).isSkinnedMesh) {
+      oracleHits.length = 0;
+      try {
+        oracleRay.intersectObject(m, false, oracleHits);
+      } catch {
+        /* a mesh that can't be tested is passed */
+      }
+      for (const h of oracleHits) if (h.distance < best) best = h.distance;
+    }
+    for (const c of o.children) look(c);
+  };
+  look(scene);
+  return best;
+}, () => player.pos);
+oracle.presence = {
+  summon: () => oracleVision.summon(follow.overhead !== null),
+  dismiss: () => oracleVision.dismiss(),
+  setState: (s) => oracleVision.setState(s),
+  pulse: () => oracleVision.pulse(),
+};
 myHeart.say = (t) => whisper(t, 3200);
 function openHeart(): void {
   if (S.mode !== "play" || oracle.isOpen || reader.current) return;
@@ -2479,7 +2513,7 @@ const Y_UP = new THREE.Vector3(0, 1, 0);
 let sunStill = false;
 function contemplationFrame(dt: number): void {
   const idle = performance.now() - lastTouch > INWARD_AFTER && Math.hypot(input.move.x, input.move.y) < 0.05 && !input.hold;
-  const want = inwardOn && idle && S.mode === "play" && !startMap.isOpen && $("#menu").hidden && player.speed < 0.3 &&
+  const want = inwardOn && idle && S.mode === "play" && !startMap.isOpen && $("#menu").hidden && !oracle.isOpen && player.speed < 0.3 &&
     !player.flying && !player.diving && !follow.underwater && !autofly.active && !autorun.active && !crossing &&
     (sitting.phase === "none" || lessonSeated()) && !document.body.classList.contains("touring");
   inwardK += ((want ? 1 : 0) - inwardK) * Math.min(1, dt * (want ? 0.35 : 3));
@@ -4853,6 +4887,7 @@ function update(dt: number): void {
   busyFrame();
   calmFrame();
   heartFrame();
+  oracleVision.update(realDt, S.reduced);
   autoFrame(realDt);
   gravityFrame(realDt);
   contemplationFrame(realDt);
@@ -5589,5 +5624,5 @@ if (FILM) {
     }),
   );
 }
-Object.assign(window, { __ij: { solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, myHeart, oracle, heartFrame, maze: () => maze } });
+Object.assign(window, { __ij: { solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, myHeart, oracle, oracleVision, stepFrames: (n: number, dt = 1 / 60) => { realDt = dt; for (let i = 0; i < n; i++) update(dt); post.render(); }, heartFrame, maze: () => maze } });
 Object.assign((window as unknown as { __ij: object }).__ij, { whispers, hearWhisper, rapaNui });

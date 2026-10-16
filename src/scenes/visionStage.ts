@@ -49,6 +49,8 @@ export const PALE: RGB = [0.72, 0.82, 1.0];
 export const ROSE: RGB = [1.0, 0.7, 0.8];
 export const EMBER: RGB = [1.0, 0.55, 0.32];
 export const PEARL: RGB = [1.0, 0.94, 0.86];
+/** The form a retarget sets off from: where the points were. */
+const SNAP = "__snap";
 const IDLE_TINT: RGB = [0.95, 0.82, 0.62];
 
 const ease = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
@@ -67,6 +69,9 @@ export class VisionStage {
   private uGlow = T.uniform(1);
   private keys: Key[];
   private life = 0;
+  /** Where its points stood when it was last retargeted (a presence driven live, `retarget`). */
+  private snapP: Float32Array | null = null;
+  private snapC: Float32Array | null = null;
 
   constructor(private opts: StageOpts) {
     this.n = MOBILE ? 8000 : 12000;
@@ -119,6 +124,19 @@ export class VisionStage {
     return s;
   }
 
+  /** Drive it live rather than by a narration's keys (the oracle): its keys anew. */
+  setKeys(keys: Key[]): void {
+    this.keys = [...keys].sort((a, b) => a.t - b.t);
+  }
+
+  /** Gather from wherever its points are now into `form`, from clock `t` over `dur` s: no jump,
+      even mid-way between forms. */
+  retarget(t: number, form: string, tint: RGB, dur = 3): void {
+    (this.snapP ??= new Float32Array(this.n * 3)).set(this.P);
+    (this.snapC ??= new Float32Array(this.n * 3)).set(this.C);
+    this.keys = [{ t: -1e6, form: SNAP, tint }, { t, form, tint, dur }];
+  }
+
   /** Each frame near it. `t`: narration seconds (while seated). */
   update(dt: number, t: number, seated: boolean, near: boolean, reduced: boolean): void {
     this.group.visible = near;
@@ -149,7 +167,8 @@ export class VisionStage {
     let k = -1;
     for (let i = 0; i < K.length; i++) if (t >= K[i].t) k = i;
     const into = k >= 0 ? K[k] : null, from = k > 0 ? K[k - 1] : null;
-    const A = from ? this.shape(from.form) : this.idle, B = into ? this.shape(into.form) : this.idle;
+    const snap = from?.form === SNAP ? this.snapC : null;
+    const A = snap ? this.snapP! : from ? this.shape(from.form) : this.idle, B = into ? this.shape(into.form) : this.idle;
     const p = into ? (t - into.t) / (into.dur ?? 5) : 1;
     const tA = from?.tint ?? IDLE_TINT, tB = into?.tint ?? IDLE_TINT;
     // turning while held
@@ -192,9 +211,10 @@ export class VisionStage {
       P[j] = x * br + Math.sin(L * 1.7 + s * 40) * qv;
       P[j + 1] = y + Math.sin(L * 1.3 + s * 60) * qv;
       P[j + 2] = z * br + Math.cos(L * 1.5 + s * 50) * qv;
-      C[j] = tA[0] + (tB[0] - tA[0]) * e;
-      C[j + 1] = tA[1] + (tB[1] - tA[1]) * e;
-      C[j + 2] = tA[2] + (tB[2] - tA[2]) * e;
+      const a0 = snap ? snap[j] : tA[0], a1 = snap ? snap[j + 1] : tA[1], a2 = snap ? snap[j + 2] : tA[2];
+      C[j] = a0 + (tB[0] - a0) * e;
+      C[j + 1] = a1 + (tB[1] - a1) * e;
+      C[j + 2] = a2 + (tB[2] - a2) * e;
     }
     this.cloud.attrs.position.needsUpdate = this.cloud.attrs.aCol.needsUpdate = true;
   }
