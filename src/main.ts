@@ -55,6 +55,7 @@ import { Readables, type Reading } from "./world/readables";
 import { Reader } from "./ui/reader";
 import { Heart, keepToItself } from "./ui/heart";
 import { Oracle, type Lens } from "./ui/oracle";
+import { Install, buildIntro, isStandalone } from "./ui/intro";
 import { OracleVision } from "./world/oracleVision";
 import { allVoices, chosenVoice, onSpeechFail, onSpeechStart, readAloud, sayAloud, setReadAloud, setVoice, speak, speechButton, tierOf, wakeSpeech } from "./ui/speak";
 import { Vessels } from "./world/vessels";
@@ -1399,6 +1400,7 @@ function templeFrame(dt: number): void {
   // the view never stands behind a wall (the temple's walls as they are now: it is rebuilt per visit)
   follow.blockers = temple.inside ? temple.blockers : apart() ? apartBlockers() : NO_BLOCKERS;
   if (S.mode !== "play") return;
+  installFrame();
   if (temple.inside) {
     if (temple.confine(player.pos) && !crossing) crossTemple(false);
     if (player.flying) player.flying = false; // no flight in the temple: you walk here
@@ -1722,12 +1724,35 @@ if (firstWelcome) {
   $("#welcome").hidden = false;
   $("#title").classList.add("first");
 }
+/* What Inland is (ui/intro.ts), and keeping it as an app: ⋮ → "What is Inland?", ⋮ → "Add to
+   Home Screen", and the small link under the title on the water. */
+const install = new Install();
+const intro = buildIntro(install, () => $("#howto-open").click());
 $("#welcome-open").addEventListener("click", () => {
   setMenu(false);
-  $("#welcome-again").hidden = false;
-  $<HTMLButtonElement>("#welcome-close").focus({ preventScroll: true });
+  intro.open();
 });
-$("#welcome-close").addEventListener("click", () => ($("#welcome-again").hidden = true));
+$("#install-open").hidden = isStandalone();
+$("#install-open").addEventListener("click", () => {
+  setMenu(false);
+  install.show(true);
+});
+// the link sits over the water's own touch, so it keeps its touch to itself
+for (const ev of ["pointerdown", "pointerup", "touchstart"]) $("#intro-link").addEventListener(ev, (e) => e.stopPropagation());
+$("#intro-link").addEventListener("click", (e) => {
+  e.stopPropagation();
+  intro.open();
+});
+/** Once a journey is under way (not straight away, never over a tour or a panel), the card offers
+    to keep Inland as an app; at most once a week, never once it is one. */
+let installOffered = false;
+function installFrame(): void {
+  if (installOffered || isStandalone() || S.mode !== "play" || S.t < 50) return;
+  if (!(MOBILE || install.canPrompt)) return;
+  if (document.body.classList.contains("touring") || document.body.classList.contains("oracling") || document.body.classList.contains("withing") || sitting.phase !== "none") return;
+  installOffered = true;
+  install.show();
+}
 
 function begin(e?: Event): void {
   if (S.mode !== "intro" || startMap.isOpen || opening !== "done") return;
@@ -1745,6 +1770,7 @@ function begin(e?: Event): void {
   water.ripple(rp.x, rp.z, 1.4, S.t);
   $("#title").classList.add("gone");
   $("#begin").hidden = true;
+  $("#intro-link").hidden = true;
   awake.want();
   // ask the phone to keep the saved journey safe (granted quietly, most readily on the Home Screen)
   void navigator.storage?.persist?.().catch(() => false);
