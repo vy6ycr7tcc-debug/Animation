@@ -158,12 +158,12 @@ export function buildIntro(install: Install, howto: () => void): { open(): void;
 
       <section>
         <h3>The temple</h3>
-        <p>On the island to the north stands a temple. Inside, all twenty-two are gathered in one place — come here when you want to sit with any of them, or to find the one you need.</p>
+        <p>Near the shore stands a temple. Inside, all twenty-two are gathered in one place — come here when you want to sit with any of them, or to find the one you need.</p>
       </section>
 
       <section>
         <h3>Your heart and the oracle</h3>
-        <p>A double tap on your own heart opens a note. Your notes live only on this device; nothing is sent anywhere. The <b>oracle</b> reflects on what you ask — on the island, at the maze's centre, and wherever you go deeper. Every exchange is kept in your notes. Only when you choose ♥ <b>share my heart</b> do your notes travel with that one question — with names and details taken out — and they are not kept.</p>
+        <p>A double tap on your own heart opens a note. Your notes live only on this device; nothing is sent anywhere. The <b>oracle</b> reflects on what you ask — in the temple, at the maze's centre, from the menu, and wherever you go deeper. Every exchange is kept in your notes. Only when you choose ♥ <b>share my heart</b> do your notes travel with that one question — with names and details taken out — and they are not kept.</p>
       </section>
 
       <section>
