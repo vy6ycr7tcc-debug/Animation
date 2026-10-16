@@ -1228,3 +1228,4 @@ body:has(#menu:not([hidden])) :is(#heart-mini, #oracle-offer), body:has(#howto:n
   color: var(--gold); background: transparent; border: 1px solid var(--line, rgba(226, 191, 126, 0.28));
 }
 #voice-row .voice-tip { flex: 1 1 100%; margin: 4px 0 6px; font-size: 12.5px; line-height: 1.4; opacity: 0.62; }
+#voice-note { font-size: 12.5px; font-style: italic; opacity: 0.75; }

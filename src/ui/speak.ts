@@ -120,13 +120,15 @@ export function speak(text: string | string[], done?: () => void, fail?: () => v
   const queue = (withVoice: boolean) => {
     speechSynthesis.cancel();
     if (speechSynthesis.paused) speechSynthesis.resume();
-    if (withVoice && !voice) pickVoice();
+    // always the voice object the device lists now (iOS can replace them after voiceschanged)
+    if (withVoice) pickVoice();
     held = parts.map((t, i) => {
       const u = new SpeechSynthesisUtterance(t);
       if (withVoice && voice) u.voice = voice;
       u.lang = (withVoice && voice?.lang) || navigator.language || "en-US";
       u.rate = 0.95;
       u.onstart = () => {
+        if (!started) report(withVoice ? "chosen" : "fallback");
         started = true;
         if (my === token) onPart?.(i);
       };
@@ -141,6 +143,10 @@ export function speak(text: string | string[], done?: () => void, fail?: () => v
     for (const u of held) speechSynthesis.speak(u);
   };
   queue(true);
+  // a Premium or Enhanced voice loads its model the first time it speaks, which on an iPhone can
+  // take several seconds: waiting only 1.5 s fell back to the default voice before the chosen one
+  // began, so the chosen voice was never heard. A chosen voice is given 6 s.
+  const patience = chosen ? 6000 : 2500;
   window.setTimeout(() => {
     if (my !== token || started || speechSynthesis.speaking) return;
     queue(false);
@@ -151,7 +157,16 @@ export function speak(text: string | string[], done?: () => void, fail?: () => v
       fail?.();
       failNote(QUIET);
     }, 2500);
-  }, 1500);
+  }, patience);
+}
+
+/** Told how the last speech began: in the voice asked for, or (it would not start) the default. */
+let reportTo: (how: "chosen" | "fallback", name: string) => void = () => {};
+export function onSpeechStart(f: (how: "chosen" | "fallback", name: string) => void): void {
+  reportTo = f;
+}
+function report(how: "chosen" | "fallback"): void {
+  reportTo(how, voice?.name ?? "");
 }
 
 /** A button that speaks: it acts on the click (a touch's release), which iOS counts as the
