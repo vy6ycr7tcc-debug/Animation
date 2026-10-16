@@ -1123,6 +1123,7 @@ for (let i = 0; i < 22; i++) if (kindled.has(temple.shrineInfo(i).numeral)) temp
 const shrineEl = $("#shrine"), riteWords = $("#rite-words"), riteEndBtn = $<HTMLButtonElement>("#rite-end");
 const withEl = $("#with"), withLine = $("#with-line");
 let shrineAt = -1;
+let shrineSetAside = -1; // the shrine whose approach panel was closed (✕), until you step away
 /* Being with a shrine: its own panel (its words as the rite speaks them, its three recordings,
    and "Go deeper", asked of the oracle through that shrine's archetype) */
 const shrineDeeper = deeperField(
@@ -1254,9 +1255,10 @@ function riteFrame(dt: number): void {
     echo.k = Math.max(0, echo.k - dt * 0.8);
     if (echo.k === 0) echo.sig = null;
     const i = temple.inside && !temple.cardsOpen && !crossing && !tourScenes.tour.active && sitting.phase === "none" ? temple.nearShrine(player.pos) : -1;
+    if (i < 0) shrineSetAside = -1;
     if (i !== shrineAt) {
       shrineAt = i;
-      shrineEl.hidden = i < 0;
+      shrineEl.hidden = i < 0 || i === shrineSetAside;
       if (i >= 0) {
         const info = temple.shrineInfo(i);
         $("#shrine-title").textContent = `${info.numeral} · ${info.name}`;
@@ -5851,6 +5853,46 @@ if (FILM) {
       onFrame: (cb) => (filmFrame = cb),
     }),
   );
+}
+/* A ✕ in the corner of every panel laid over the world (the owner: "add close (x) symbol to all
+   the popups across the game"). Panels that already have their own (the reader, the oracle, the
+   heart's pages, the guide, the narration card, the maze's map, the intro, the install card, the
+   tour bar) keep theirs. */
+function addX(el: HTMLElement | null, close: () => void, label = "Close"): HTMLButtonElement | null {
+  if (!el) return null;
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "px";
+  b.setAttribute("aria-label", label);
+  b.textContent = "✕";
+  b.addEventListener("pointerdown", (e) => e.stopPropagation());
+  b.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    close();
+  });
+  el.prepend(b);
+  return b;
+}
+addX($("#menu"), () => setMenu(false));
+addX($("#howto"), () => ($("#howto").hidden = true));
+addX($("#about"), () => ($("#about").hidden = true));
+addX($("#welcome-again"), () => ($("#welcome-again").hidden = true));
+addX($("#cards"), () => closeCards(), "Leave the cards");
+addX($("#sit-panel"), () => standUp(), "Stand up");
+addX($("#with"), () => endTempleRite(false), "Return");
+addX(shrineEl, () => {
+  shrineSetAside = shrineAt;
+  shrineEl.hidden = true;
+});
+addX(document.getElementById("heart-compose"), () => (document.querySelector("#heart-compose .cancel") as HTMLButtonElement | null)?.click());
+addX(document.getElementById("next-up"), () => nextUp.hide(), "Stay here");
+{
+  // the map: only when it can be closed (its "Stay where I am" shows)
+  const mx = addX($("#map"), () => $("#map-close").click(), "Close the map")!;
+  const sync = () => (mx.hidden = $("#map-close").hidden);
+  new MutationObserver(sync).observe($("#map-close"), { attributes: true, attributeFilter: ["hidden"] });
+  sync();
 }
 Object.assign(window, { __ij: { solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, myHeart, oracle, oracleVision, stepFrames: (n: number, dt = 1 / 60) => { realDt = dt; for (let i = 0; i < n; i++) update(dt); post.render(); }, heartFrame, maze: () => maze } });
 Object.assign((window as unknown as { __ij: object }).__ij, { whispers, hearWhisper, rapaNui });
