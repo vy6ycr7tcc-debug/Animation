@@ -55,6 +55,9 @@ export class Touch {
   vibe = 0;
   /** How far the body leans in toward a trunk it holds (metres). */
   lean = 0;
+  /** Each whole breath of a conversation, as it ends (`n`: 1 for the first). */
+  onBreath: ((kind: TouchKind, contact: THREE.Vector3, n: number, centre: THREE.Vector3, r: number) => void) | null = null;
+  private breaths = 0;
   private t = 0;
   private cycle = 0;
   private answers = 0;
@@ -121,6 +124,15 @@ export class Touch {
     this.going = 0;
     this.player.target = t.stand.clone();
     return true;
+  }
+
+  /** Lay hands on a given thing (a still frame, a test): walks to it as a press would. */
+  touchThing(kind: TouchKind, at: THREE.Vector3, r: number, h: number): void {
+    const t = this.shape(kind, at, r, h);
+    this.target = t;
+    this.phase = "going";
+    this.going = 0;
+    this.player.target = t.stand.clone();
   }
 
   /** Where to stand and where the hands go, for each kind of thing. */
@@ -205,6 +217,7 @@ export class Touch {
         this.t = 0;
         this.cycle = 0;
         this.answers = 0;
+        this.breaths = 0;
         this.player.target = null;
         this.wanderer.setGesture("touch");
         const W = this.wanderer.touching;
@@ -242,6 +255,10 @@ export class Touch {
         if (c >= ANSWER && n >= this.answers) {
           this.answers = n + 1;
           this.answer(T0);
+        }
+        if (n > this.breaths) {
+          this.breaths = n;
+          this.onBreath?.(T0.kind, T0.contact, n, T0.centre, T0.r);
         }
       }
     }

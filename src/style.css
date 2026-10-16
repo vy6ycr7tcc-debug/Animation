@@ -1354,3 +1354,42 @@ body.typing :is(#with, #sit-panel):focus-within {
   max-height: calc(var(--vvh, 100vh) - 16px); overflow-y: auto; animation: none;
 }
 body.typing #heart-mini { display: none; }
+
+/* ---- the sanctuary's two inks: small glyphs that hold their essence as light, never a number
+   (world/sanctuary.ts) ---- */
+#essence {
+  position: fixed; left: 50%; bottom: calc(30px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 10px);
+  display: flex; gap: 16px; align-items: center; padding: 10px 14px;
+  opacity: 0; transition: opacity 0.9s ease, transform 0.9s cubic-bezier(0.22, 1, 0.36, 1); z-index: 12;
+  touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+#essence[hidden] { display: none; }
+#essence.open, #essence.peek { opacity: 1; transform: translate(-50%, 0); }
+#essence.peek { pointer-events: none; }
+#essence .ink, #essence .home {
+  position: relative; width: 46px; height: 46px; padding: 0; border-radius: 50%; touch-action: none;
+  border: 1px solid rgba(244, 239, 230, 0.14); background: rgba(14, 12, 34, 0.32);
+  transition: border-color 0.6s, box-shadow 0.6s, opacity 0.6s;
+}
+/* the essence itself: a soft light that is fuller the more there is (--f, 0..1) */
+#essence .ink i {
+  position: absolute; inset: 9px; border-radius: 50%;
+  opacity: calc(0.25 + var(--f, 0) * 0.75); transform: scale(calc(0.55 + var(--f, 0) * 0.45));
+  transition: opacity 1.2s ease, transform 1.2s ease;
+}
+#essence .stone i { background: radial-gradient(circle at 40% 35%, #f1ead9, #b9ab92 55%, rgba(140, 128, 108, 0) 72%); }
+#essence .gold i { background: radial-gradient(circle at 40% 35%, #fff1c4, #e5ab4c 52%, rgba(200, 130, 40, 0) 72%); box-shadow: 0 0 calc(var(--f, 0) * 10px) rgba(255, 200, 110, 0.35); }
+#essence .ink.empty { opacity: 0.45; }
+#essence .ink.on { border-color: rgba(255, 220, 160, 0.75); box-shadow: 0 0 12px rgba(255, 210, 140, 0.28); }
+#essence .home { color: rgba(255, 220, 160, 0.85); display: grid; place-items: center; }
+#essence .home svg { width: 22px; height: 22px; }
+#essence .home[hidden] { display: none; }
+/* let a chosen form go: a small open ring by its base */
+#let-go {
+  position: fixed; left: 0; top: 0; width: 34px; height: 34px; padding: 0; margin: -17px 0 0 -17px; z-index: 12;
+  border-radius: 50%; border: 1px dashed rgba(255, 226, 180, 0.7); background: rgba(14, 12, 34, 0.3);
+  touch-action: none; transition: opacity 0.6s;
+}
+#let-go[hidden] { display: none; }
+body.building #auto, body.building #keys, body.building #tour-start { opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { #essence { transition: opacity 0.3s; } }

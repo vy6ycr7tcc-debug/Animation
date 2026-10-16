@@ -339,6 +339,11 @@ export function runShot(ctx: ShotCtx): void {
     base = [px, heightAt(px, pz), pz];
     view = { eye: [Math.sin(f) * 6 + Math.cos(f) * 5, 2.4, Math.cos(f) * 6 - Math.sin(f) * 5], look: [H.x - px, 12, H.z - pz] };
     ctx.player.pos.set(px, heightAt(px, pz), pz);
+  } else if (id.startsWith("sanctuary-")) {
+    // the temple of the spirit (main.ts lays the scene and says where to look)
+    const f = (window as unknown as { __sanctuaryShot?: (id: string) => { base: XYZ; view: { eye: XYZ; look: XYZ } } | null }).__sanctuaryShot?.(id);
+    base = f?.base ?? [0, 0, 0];
+    view = f?.view ?? { eye: [0, 3, 8], look: [0, 1, 0] };
   } else if (id === "reading") {
     // a readable artifact, from a few steps away (main.ts places it; `&id=` names which)
     const id2 = new URLSearchParams(location.search).get("id") ?? "sample";

@@ -333,6 +333,13 @@ registerTunnel();
 
 /* ============ THE LIVING WORLD ============ */
 const sparks = new Sparks();
+/* The temple of the spirit (world/sanctuary.ts): a sanctuary drawn by hand on its terrace, the
+   strokes grown into walls, rings, pillars, spires and orbs, in stone (from rock meditations) and
+   gold (from the heart's notes); kept on this device only. */
+const sanct = new Sanctuary(
+  { sparks: (at, n, c, s) => sparks.emit(at, n, c, s), bowl: (f, g) => audio.bowl(f, g), bell: (f, g, d) => audio.bell(f, g, d), breath: () => breath.phases },
+  { persist: !new URLSearchParams(location.search).has("shot") },
+);
 const grass = new LightGrass();
 const flowers = new Flowers(sparks, audio);
 const lanterns = new Lanterns(sparks);
@@ -368,7 +375,7 @@ scene.add(presences.group);
 /* the oracle at work at an archetype or a shrine, in that archetype's own light */
 const stationGlow = new StationGlow();
 scene.add(stationGlow.points);
-scene.add(sparks.points, grass.mesh, flowers.mesh, blooms.mesh, wilds.group, lanterns.points);
+scene.add(sparks.points, grass.mesh, flowers.mesh, blooms.mesh, wilds.group, lanterns.points, sanct.group);
 // The whole creation: trees and their roots, rocks, crystals, spirits, and the light through them.
 creationUniforms.uFogC.value.copy(FOG_COLOR);
 creationUniforms.uFogD.value = FOG.density * 0.9;
@@ -908,8 +915,26 @@ input.onTap = (x, y, touch) => {
     }
     return;
   }
+  // building: a tap off the sanctuary's earth (its own touches never come here) lets it rest
+  if (sanct.building) {
+    sanct.close();
+    return;
+  }
   if (tapOnOrb(x, y)) return;
   if (tapOnHeart(x, y)) return;
+  // a block of gold in the sanctuary: its note, read again
+  {
+    const g = apart() || reader.open ? null : sanct.pickNote(x, y, camera);
+    if (g) {
+      if (!g.note) whisper("This held a memory you let go. Its shape stays.", 4200);
+      else {
+        const d = new Date(g.note.createdAt);
+        reader.show({ id: `heart-${g.note.createdAt}`, title: `${d.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })} · ${g.note.scene}`, pages: [g.note.text], place: {} });
+        audio.bowl(660, 0.03, undefined, 5);
+      }
+      return;
+    }
+  }
   // a whisper's thing under the tap: a door, a stone, a wandering world, a quartz, a star, a tree
   {
     const w = apart() ? null : whispers.pick(x, y, camera);
@@ -1582,6 +1607,8 @@ function heartAt(out: THREE.Vector3): THREE.Vector3 {
   return out.copy(player.pos).add(HEART_UP);
 }
 input.onHold = (x, y) => beginTouch(x, y);
+// building's own touches: a stroke on the sanctuary's earth, a touch on a form (world/sanctuary.ts)
+input.capture = sanct.capture;
 
 /* The heart's notes (ui/heart.ts): a double tap on the wanderer's heart, or H, opens a note; they
    are kept on this device only. ⋮ → My Heart lists them; a small ♥ rests at the edge of the view
@@ -1683,13 +1710,42 @@ const touch = new Touch(creation, wanderer, player, {
   sparks: (at, n, c, spread) => sparks.emit(at, n, c, spread),
 });
 scene.add(touch.points);
+// a whole breath with a rock: a stone gathers out of it and comes to the satchel (once a sitting)
+const chestAt = new THREE.Vector3();
+touch.onBreath = (kind, contact, n, centre, r) => {
+  if (kind === "rock" && n === 1 && !sanct.formingNow) sanct.formStone(contact, centre, r, () => heartAt(chestAt));
+};
+sanct.onHome = () => {
+  const c = sanct.centre, d = 13;
+  arrive({ place: places()[0], x: c.x + Math.sin(c.face) * d, z: c.z + Math.cos(c.face) * d, heading: c.face }, false);
+};
 let toldTouch = false;
 function canTouch(): boolean {
   return S.mode === "play" && player.grounded && !player.swimming && !player.flying && !apart() &&
     !autofly.active && sitting.phase === "none" && !startMap.isOpen;
 }
-function beginTouch(x: number, y: number): void {
-  if (!canTouch() || !touch.pick(x, y, camera, groundPoint(x, y))) return;
+/** Building begins with a hold on open ground: the satchel, and at the sanctuary its grid. */
+function beginBuild(x: number, y: number): void {
+  const g = groundPoint(x, y);
+  if (!g || g.y <= WATER_Y + 0.05) return;
+  touch.stop();
+  stopAuto();
+  player.target = null;
+  sanct.open(sanct.distance(player.pos) < 22);
+  const mark = Object.assign(document.createElement("div"), { className: "touch-mark" });
+  mark.style.left = `${x}px`;
+  mark.style.top = `${y}px`;
+  document.body.append(mark);
+  window.setTimeout(() => mark.remove(), 1400);
+}
+function beginTouch(x: number, y: number, earth = false): void {
+  if (sanct.building || !canTouch()) return;
+  // a tree, a stone, a crystal under the finger: laying hands; open ground: building (the T key
+  // still kneels to the earth)
+  if (!touch.pick(x, y, camera, earth ? groundPoint(x, y) : null)) {
+    if (!earth) beginBuild(x, y);
+    return;
+  }
   // a small ring where the finger rests: the press was heard
   const mark = Object.assign(document.createElement("div"), { className: "touch-mark" });
   mark.style.left = `${x}px`;
@@ -1707,7 +1763,7 @@ addEventListener("keydown", (e) => {
   // T: lay hands on what is just ahead
   if (e.key.toLowerCase() !== "t" || e.repeat || (e.target as HTMLElement)?.closest?.("input, #menu")) return;
   if (touch.active) touch.stop();
-  else beginTouch(innerWidth / 2, innerHeight * 0.6);
+  else beginTouch(innerWidth / 2, innerHeight * 0.6, true);
 });
 player.onLand = () => {
   if (!player.swimming) wanderer.land();
@@ -1822,6 +1878,10 @@ function places(): Place[] {
   return [
     { numeral: "", label: "The shore", group: "Shore", x: SPAWN.x, z: SPAWN.z, narration: "J01", start: { x: SPAWN.x, z: SPAWN.z, heading: SPAWN.heading } },
     { numeral: "", label: "The temple", group: "Shore", order: 1, x: temple.gateAt.x, z: temple.gateAt.z, narration: "J01", start: { ...temple.outside(), heading: temple.gateHeading } },
+    (() => {
+      const c = sanct.centre;
+      return { numeral: "", label: "Your sanctuary", group: "Shore" as const, order: 1.5, x: c.x, z: c.z, narration: "J01", start: { x: c.x + Math.sin(c.face) * 13, z: c.z + Math.cos(c.face) * 13, heading: c.face } };
+    })(),
     { numeral: "", label: "The vision of creation", group: "Shore" as const, order: 0, x: vision.group.position.x, z: vision.group.position.z, narration: "J01", start: { x: vision.group.position.x + 11, z: vision.group.position.z + 11, heading: Math.atan2(11, 11) } },
     (() => {
       const [x, z] = nanMadolAt(0, -30);
@@ -2699,7 +2759,7 @@ function contemplationFrame(dt: number): void {
   const idle = performance.now() - lastTouch > INWARD_AFTER && Math.hypot(input.move.x, input.move.y) < 0.05 && !input.hold;
   const want = inwardOn && idle && S.mode === "play" && !startMap.isOpen && $("#menu").hidden && !oracle.isOpen && player.speed < 0.3 &&
     !player.flying && !player.diving && !follow.underwater && !autofly.active && !autorun.active && !crossing &&
-    (sitting.phase === "none" || lessonSeated()) && !document.body.classList.contains("touring");
+    (sitting.phase === "none" || lessonSeated()) && !document.body.classList.contains("touring") && !sanct.building && !sanct.formingNow;
   inwardK += ((want ? 1 : 0) - inwardK) * Math.min(1, dt * (want ? 0.35 : 3));
   if (inwardK < 0.002 && !want) inwardK = 0;
   follow.inward = inwardK;
@@ -4991,6 +5051,7 @@ function update(dt: number): void {
     flowers.update(life);
     blooms.update(life);
     wilds.update(life);
+    sanct.update(dt, wt, dpr, sanct.distance(player.pos) < 360, camera);
     lanterns.update(life);
   }
   if (world) forest.update(player.pos);
@@ -5016,6 +5077,8 @@ function update(dt: number): void {
     const letGo = Math.hypot(input.move.x, input.move.y) > 0.2 || input.hold || (touch.phase === "touching" && !!player.target) ||
       startMap.isOpen || apart() || autofly.active || sitting.phase !== "none";
     touch.update(dt, dpr, letGo, S.reduced);
+    // building rests when you leave the ground or the sanctuary, or go somewhere apart
+    if (sanct.building && (apart() || player.flying || player.swimming || startMap.isOpen || (sanct.home && sanct.distance(player.pos) > 26))) sanct.close();
     // a stone or crystal in the hands vibrates with light, as it does before stillness
     if (touch.vibe > 0.01 && touch.target) {
       vibeUniforms.uVibePos.value.copy(touch.target.contact);
@@ -5082,6 +5145,11 @@ function update(dt: number): void {
   skyUniforms.uT.value = wtSafe;
   if (!apart() || moodForce.w) {
     moods.update(player.pos, dt);
+    // building: the world hushes a little (Ōkami's canvas), the more while the brush is down
+    if (sanct.hush > 0.002) {
+      gradeUniforms.sat.value *= 1 - 0.3 * sanct.hush;
+      gradeUniforms.contrast.value *= 1 - 0.06 * sanct.hush;
+    }
     worldLit.hemi = hemi.intensity;
     worldLit.star = star.intensity;
   }
@@ -5157,7 +5225,8 @@ let last = performance.now();
 import { devMode } from "./debug/devflag";
 import { watchKeyboard } from "./core/keyboard";
 import { ARCHETYPES } from "./world/beings";
-import { getShot, runShot } from "./debug/shot"; // dev-only: ?shot=<scene>&t=<sec> renders one still frame
+import { getShot, runShot } from "./debug/shot";
+import { Sanctuary } from "./world/sanctuary"; // dev-only: ?shot=<scene>&t=<sec> renders one still frame
 const shot = getShot();
 
 let realDt = 0;
@@ -5314,6 +5383,68 @@ renderer
     (window as unknown as { __readingAt?: (id: string) => THREE.Vector3 | null }).__readingAt = (id) => {
       readables.update(0, player.pos, false);
       return readables.at(id);
+    };
+    /* the sanctuary's stills: `?shot=sanctuary-stroke` (a finger mid-stroke, its trail of light),
+       `sanctuary-rise` (a wall half risen), `sanctuary-dusk` (a small sanctuary at dusk, stone and
+       gold), `sanctuary-form` (a stone gathering out of a rock; &warm=10) */
+    (window as unknown as { __sanctuaryShot?: (id: string) => { base: [number, number, number]; view: { eye: [number, number, number]; look: [number, number, number] } } | null }).__sanctuaryShot = (id) => {
+      const c = sanct.centre, f = c.face, fx = Math.sin(f), fz = Math.cos(f), rx = Math.cos(f), rz = -Math.sin(f);
+      // a point of the sanctuary's own frame (local x right, z toward the temple) in the shot's
+      const L = (x: number, y: number, z: number): [number, number, number] => [x * rx + z * fx, y, x * rz + z * fz];
+      const stand = (lx: number, lz: number, toward = 0) => {
+        const [wx, , wz] = L(lx, 0, lz);
+        player.pos.set(c.x + wx, c.y, c.z + wz);
+        player.heading = f + toward;
+      };
+      if (id === "sanctuary-form") {
+        // the rock nearest the sanctuary standing on its own, on dry ground
+        creation["restream"](c.x, c.z);
+        let best: ReturnType<typeof creation.touchables>[number] | null = null, bd = Infinity;
+        const all = creation.touchables();
+        for (const t of all) {
+          if (t.kind !== "rock" || t.y < WATER_Y + 0.6 || t.r < 0.95 || t.r > 1.8) continue;
+          if (all.some((o) => o !== t && Math.hypot(o.x - t.x, o.z - t.z) < 7)) continue;
+          const d = Math.hypot(t.x - c.x, t.z - c.z);
+          if (d < bd) (bd = d), (best = t);
+        }
+        if (!best) return null;
+        const a = Math.atan2(c.x - best.x, c.z - best.z);
+        const sx = best.x + Math.sin(a) * (best.r + 1.2), sz = best.z + Math.cos(a) * (best.r + 1.2);
+        player.pos.set(sx, heightAt(sx, sz), sz);
+        touch.touchThing("rock", new THREE.Vector3(best.x, best.y, best.z), best.r, best.r * 0.8);
+        const st = touch.target!.stand, ct = touch.target!.contact;
+        const gy = heightAt(st.x, st.y);
+        const across = Math.atan2(best.x - st.x, best.z - st.y);
+        const mx = (st.x + best.x) / 2, mz = (st.y + best.z) / 2;
+        const ex = mx + Math.sin(across + Math.PI / 2) * 4.2 - Math.sin(across) * 0.8, ez = mz + Math.cos(across + Math.PI / 2) * 4.2 - Math.cos(across) * 0.8;
+        return { base: [st.x, gy, st.y], view: { eye: [ex - st.x, 1.3, ez - st.y], look: [mx - st.x, ct.y - gy + 0.15, mz - st.y] } };
+      }
+      if (id === "sanctuary-stroke") {
+        // building, a circle being drawn on the earth, three-quarters round; the wanderer at the edge
+        sanct.open(true);
+        sanct.shotForms([{ kind: "wall", ink: "stone", path: [-1.6, 0, -0.5, 0.25, 0.5, 0.25, 1.6, 0], x: 0, z: -4.2, y: 0, rot: 0, cost: 0.3 }]);
+        const pts: [number, number][] = [];
+        for (let i = 0; i <= 70; i++) {
+          const a = -0.4 + (i / 70) * Math.PI * 1.55;
+          const r = 2.1 + Math.sin(i * 0.31) * 0.06;
+          pts.push([Math.cos(a) * r + 0.3, Math.sin(a) * r * 0.97 + 0.4]);
+        }
+        sanct.shotTrail(pts);
+        stand(-1.2, 5.6, 0);
+        (window as unknown as { __strokeTip?: [number, number] }).__strokeTip = pts[pts.length - 1];
+        return { base: [c.x, c.y, c.z], view: { eye: L(0.6, 5.2, 8.6), look: L(0.2, 0, 0.2) } };
+      }
+      if (id === "sanctuary-rise") {
+        // a wall drawn along a gentle curve, half risen out of the earth
+        sanct.shotForms([{ kind: "wall", ink: "stone", path: [-3, 0.4, -1.6, -0.2, 0, -0.45, 1.6, -0.2, 3, 0.4], x: 0, z: -0.8, y: 0, rot: 0, cost: 0.5 }], 0.5);
+        stand(3.4, 3.2, 0.4);
+        return { base: [c.x, c.y, c.z], view: { eye: L(-3.2, 2.4, 6.8), look: L(0.2, 0.35, -0.8) } };
+      }
+      // a small sanctuary at dusk
+      moodForce.w = MOOD_NAMES.map((n) => (n === "dusk" ? 1 : 0));
+      sanct.shotForms(Sanctuary.shotLayout());
+      stand(-4.2, 6.4, 0.5);
+      return { base: [c.x, c.y, c.z], view: { eye: L(4.2, 3.0, 14.5), look: L(-0.4, 1.9, -0.6) } };
     };
     if (shot)
       runShot({
@@ -5896,5 +6027,5 @@ addX(document.getElementById("next-up"), () => nextUp.hide(), "Stay here");
   new MutationObserver(sync).observe($("#map-close"), { attributes: true, attributeFilter: ["hidden"] });
   sync();
 }
-Object.assign(window, { __ij: { solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, myHeart, oracle, oracleVision, stepFrames: (n: number, dt = 1 / 60) => { realDt = dt; for (let i = 0; i < n; i++) update(dt); post.render(); }, heartFrame, maze: () => maze } });
+Object.assign(window, { __ij: { sanct, canTouch, beginBuild, groundPoint, solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, myHeart, oracle, oracleVision, stepFrames: (n: number, dt = 1 / 60) => { realDt = dt; for (let i = 0; i < n; i++) update(dt); post.render(); }, heartFrame, maze: () => maze } });
 Object.assign((window as unknown as { __ij: object }).__ij, { whispers, hearWhisper, rapaNui });

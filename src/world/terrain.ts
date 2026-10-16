@@ -608,6 +608,55 @@ export const CAVE_SITES: { x: number; z: number; y: number; face: number }[] = (
   }
   return out;
 })();
+/** Your sanctuary (world/sanctuary.ts): a quiet terrace of your own, built stone by stone from
+    what you gather. It stands within sight of the great temple's pylon (found here as the pylon
+    finds its ground, near the shore), a little above and apart from it, on even dry ground, away
+    from every home and monument. Declared after every other site, so adding it moved none of
+    them, and far enough from the pylon that the pylon's own search can't be turned by it. */
+export const SANCTUARY = (() => {
+  // the pylon's ground (the same search the temple makes for it)
+  let g = { x: SPAWN.x, z: SPAWN.z - 70, score: -Infinity };
+  for (let r = 50; r <= 320; r += 15)
+    for (let k = 0; k < 32; k++) {
+      const a = (k / 32) * Math.PI * 2, x = SPAWN.x + Math.sin(a) * r, z = SPAWN.z + Math.cos(a) * r;
+      const h = heightAt(x, z);
+      if (h < WATER_Y + 1.2) continue;
+      let rough = 0;
+      for (const [dx, dz] of [[8, 0], [-8, 0], [0, 8], [0, -8], [8, 8], [-8, -8]]) rough = Math.max(rough, Math.abs(heightAt(x + dx, z + dz) - h));
+      const clear = Math.min(...LANDMARK_SITES.map(([lx, lz]) => Math.hypot(lx - x, lz - z)));
+      if (clear < 30 || keptClear(x, z, 25)) continue;
+      const score = -rough * 3 - r * 0.03;
+      if (score > g.score) g = { x, z, score };
+    }
+  const gy = heightAt(g.x, g.z);
+  let best = { x: g.x + 70, z: g.z, h: gy + 2 }, bestScore = -Infinity;
+  for (let r = 55; r <= 130; r += 6)
+    for (let k = 0; k < 36; k++) {
+      const a = (k / 36) * Math.PI * 2, x = g.x + Math.sin(a) * r, z = g.z + Math.cos(a) * r;
+      const h = rawHeight(x, z);
+      if (h < WATER_Y + 1.5 || h > 24) continue;
+      if (LANDMARK_SITES.some(([lx, lz]) => Math.hypot(lx - x, lz - z) < 45)) continue;
+      if (keptClear(x, z, 16)) continue;
+      let rough = 0;
+      for (let j = 0; j < 8; j++) {
+        const b = (j / 8) * Math.PI * 2;
+        for (const rr of [5, 10]) rough = Math.max(rough, Math.abs(rawHeight(x + Math.cos(b) * rr, z + Math.sin(b) * rr) - h));
+      }
+      // a terrace: level, a little raised above the pylon's ground, farther from the shore
+      const lift = Math.min(6, h - gy);
+      const score = -rough * 3 + lift * 0.5 + Math.hypot(x - SPAWN.x, z - SPAWN.z) * 0.006 - Math.abs(r - 85) * 0.02;
+      if (score > bestScore) {
+        bestScore = score;
+        best = { x, z, h };
+      }
+    }
+  const y = Math.max(WATER_Y + 1.5, best.h);
+  PADS.push({ x: best.x, z: best.z, h: y, inner: 10, outer: 17 });
+  KEEP_CLEAR.push({ x: best.x, z: best.z, r: 14 });
+  coarse.clear();
+  // it faces the pylon
+  return { x: best.x, z: best.z, y, face: Math.atan2(g.x - best.x, g.z - best.z), gate: { x: g.x, z: g.z } };
+})();
 
 /** Which kind of ground this is, 0–1 each: meadow (for grass and flowers), sand, stone. */
 export function groundKind(x: number, z: number, h = heightAt(x, z)): { meadow: number; sand: number; stone: number } {
