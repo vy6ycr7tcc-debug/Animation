@@ -1220,3 +1220,11 @@ body:has(#menu:not([hidden])) :is(#heart-mini, #oracle-offer), body:has(#howto:n
   #heart-mini { top: 34%; }
   #oracle-offer { top: calc(34% + 52px); }
 }
+/* the voice for written words: the device's voices, a sample, and where to find better ones */
+#voice-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+#voice-row .pick { flex: 1 1 100%; }
+#voice-try {
+  min-height: 36px; padding: 4px 14px; border-radius: 18px; font: italic 14px Georgia, serif;
+  color: var(--gold); background: transparent; border: 1px solid var(--line, rgba(226, 191, 126, 0.28));
+}
+#voice-row .voice-tip { flex: 1 1 100%; margin: 4px 0 6px; font-size: 12.5px; line-height: 1.4; opacity: 0.62; }

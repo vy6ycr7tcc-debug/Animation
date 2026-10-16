@@ -235,6 +235,13 @@
       <input id="vol" type="range" min="0" max="1" step="0.05" value="0.8">
       <label class="check"><input id="voice" type="checkbox" checked> Narration</label>
       <label class="check"><input id="readaloud" type="checkbox"> Read words aloud (the phone's own voice)</label>
+      <div id="voice-row">
+        <label class="pick" for="voice">Voice for written words
+          <select id="voice"><option value="">The best on this device</option></select>
+        </label>
+        <button id="voice-try" type="button">Hear it</button>
+        <p class="voice-tip">For a better voice on an iPhone: Settings → Accessibility → Spoken Content → Voices → English, and download a Premium or Enhanced voice (Ava, Zoe, Evan, Nathan…). Then come back here. Siri's voices can't be used by websites.</p>
+      </div>
     </div>
     <div class="menu-sec">
       <label class="check"><input id="freefly" type="checkbox"> Free flight: fly where you look</label>

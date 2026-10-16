@@ -56,7 +56,7 @@ import { Reader } from "./ui/reader";
 import { Heart } from "./ui/heart";
 import { Oracle } from "./ui/oracle";
 import { OracleVision } from "./world/oracleVision";
-import { onSpeechFail, readAloud, sayAloud, setReadAloud, wakeSpeech } from "./ui/speak";
+import { chosenVoice, listVoices, onSpeechFail, readAloud, sayAloud, setReadAloud, setVoice, speak, speechButton, tierOf, wakeSpeech } from "./ui/speak";
 import { Vessels } from "./world/vessels";
 import { TranscriptPlayer } from "./ui/transcriptPlayer";
 import { tourBar, type TourBarOwner } from "./ui/tourBar";
@@ -4234,6 +4234,21 @@ $("#guide-open").addEventListener("click", openGuide);
   ra.checked = readAloud();
   ra.addEventListener("change", () => setReadAloud(ra.checked));
   if (!("speechSynthesis" in window)) ra.closest("label")!.hidden = true;
+  // the voice for written words: the device's own, best first (novelty and robotic voices left out)
+  const vs = $<HTMLSelectElement>("#voice");
+  const tierName = { premium: "Premium", enhanced: "Enhanced", natural: "Natural", standard: "Standard" };
+  const fill = () => {
+    const list = listVoices();
+    vs.replaceChildren(new Option("The best on this device", ""), ...list.map((v) => new Option(`${v.name} · ${tierName[tierOf(v)]}`, v.voiceURI)));
+    vs.value = list.some((v) => v.voiceURI === chosenVoice()) ? chosenVoice() : "";
+  };
+  if ("speechSynthesis" in window) {
+    fill();
+    speechSynthesis.addEventListener?.("voiceschanged", fill);
+    $("#menu").addEventListener("pointerenter", fill); // iOS may list newly downloaded voices only later
+    vs.addEventListener("change", () => setVoice(vs.value));
+    speechButton($("#voice-try"), () => speak("From the stillness of the heart, the soul seeks to rediscover itself."));
+  } else $("#voice-row").hidden = true;
 }
 $("#oracle-open").addEventListener("click", () => {
   setMenu(false);
