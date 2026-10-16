@@ -1077,7 +1077,7 @@ body.oracling :is(#whisper, #tp, #tp-mini, #menu-btn, #keys, #hear-again, #nprog
 .heart-panel textarea:focus { border-color: rgba(226, 191, 126, 0.75); box-shadow: 0 0 14px rgba(226, 191, 126, 0.18); }
 .heart-panel textarea::placeholder { color: rgba(241, 232, 216, 0.38); font-style: italic; }
 .heart-panel .note { margin: 8px 0 0; font: italic 13px var(--serif); color: var(--pearl); opacity: 0.6; }
-.heart-panel .foot { display: flex; align-items: center; justify-content: center; gap: 22px; min-height: 44px; margin-top: 10px; }
+.heart-panel .foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 22px; min-height: 44px; margin-top: 10px; }
 .heart-panel .foot:has(> [hidden]:only-child) { display: none; }
 .heart-panel .word { min-height: 40px; padding: 4px 6px; border: 0; background: none; color: var(--gold); font: italic 16px var(--serif); letter-spacing: 0.06em; border-bottom: 1px solid rgba(226, 191, 126, 0.35); border-radius: 0; }
 .heart-panel .word[hidden] { display: none; }

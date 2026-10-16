@@ -90,6 +90,48 @@ export function memoriesIn(text: string): string[] {
     .slice(0, 200);
 }
 
+/** The separator before each note in an exported file: "——— 2026-10-15 14:02 · The temple". */
+const SEP = /^\u2014{3} (\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})(?: \u00b7 (.*))?\s*$/;
+const pad = (n: number) => String(n).padStart(2, "0");
+function stamp(t: number): string {
+  const d = new Date(t);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** Every note as one plain text file, oldest first, readable anywhere and brought back whole by
+    Bring my heart (each note keeps its date and where it was written). */
+export function heartExport(notes: HeartNote[]): string {
+  const old = [...notes].sort((a, b) => a.createdAt - b.createdAt);
+  const head = `INLAND \u00b7 MY HEART\nExported ${when(Date.now())} \u00b7 ${old.length} ${old.length === 1 ? "note" : "notes"}\nThis file is yours. To bring it back: \u22ee \u2192 My Heart \u2192 Bring my heart \u2192 Open a file.`;
+  const body = old.map((n) => `\u2014\u2014\u2014 ${stamp(n.createdAt)}${n.scene ? ` \u00b7 ${n.scene.replace(/\n/g, " ")}` : ""}\n${n.text.trim()}`);
+  return [head, ...body].join("\n\n") + "\n";
+}
+
+/** The notes in an exported file, with their dates and places; null if it isn't one. */
+export function exportedNotes(text: string): HeartNote[] | null {
+  const lines = text.replace(/\r/g, "").split("\n");
+  const out: HeartNote[] = [];
+  let cur: HeartNote | null = null;
+  let buf: string[] = [];
+  const end = () => {
+    if (cur) {
+      cur.text = buf.join("\n").trim();
+      if (cur.text) out.push(cur);
+    }
+    buf = [];
+  };
+  for (const l of lines) {
+    const m = SEP.exec(l);
+    if (m) {
+      end();
+      const t = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime();
+      cur = { text: "", createdAt: Number.isFinite(t) ? t : Date.now(), scene: (m[6] ?? "").trim() };
+    } else if (cur) buf.push(l);
+  }
+  end();
+  return out.length ? out.slice(0, 2000) : null;
+}
+
 const ORN = `<div class="orn" aria-hidden="true"><i></i><b></b><i></i></div>`;
 
 function when(t: number): string {
@@ -156,7 +198,7 @@ export class Heart {
       <h2 class="title">My heart</h2>
       <div class="notes" tabindex="0"></div>
       <p class="privacy">Your notes live only on this device, in this browser's own storage; nothing is sent anywhere. Only when you choose "share my heart" for a question to the oracle do they go, with names and details taken out, to the oracle for that one answer, and they are not kept there.</p>
-      <div class="foot"><button class="word add" type="button">A new note</button><button class="word bring-open" type="button">Bring my heart</button><button class="word share-open" type="button">Share my heart</button></div>`;
+      <div class="foot"><button class="word add" type="button">A new note</button><button class="word bring-open" type="button">Bring my heart</button><button class="word share-open" type="button">Share my heart</button><button class="word export" type="button">Export my memory</button></div>`;
     document.body.appendChild(list);
     keepToItself(list);
     this.list = list;
@@ -168,6 +210,7 @@ export class Heart {
     });
     tapButton(list.querySelector(".share-open")!, () => this.openBring());
     tapButton(list.querySelector(".bring-open")!, () => this.openImport());
+    clickButton(list.querySelector(".export")!, () => void this.exportAll());
 
     // Bring my heart: memories brought in from elsewhere (another AI that knows you, a journal),
     // pasted here and kept as notes on this device. A prompt to ask that AI for them is offered.
@@ -181,8 +224,8 @@ export class Heart {
       <button class="x" type="button" aria-label="Close">✕</button>
       ${ORN}
       <h2 class="title">Bring my heart</h2>
-      <p class="lead">Bring your memories here from another AI that knows you, or from a journal. Copy the prompt below, ask it there, and paste what it answers. Each paragraph becomes a memory in your heart, kept on this device only.</p>
-      <div class="foot ask"><button class="word ask-copy" type="button">Copy the prompt to ask</button></div>
+      <p class="lead">Bring your memories here from another AI that knows you, or from a journal, or open a memory you exported. Copy the prompt below, ask it there, and paste what it answers. Each paragraph becomes a memory in your heart, kept on this device only.</p>
+      <div class="foot ask"><button class="word ask-copy" type="button">Copy the prompt to ask</button><button class="word file-open" type="button">Open a file</button><input class="file" type="file" accept=".txt,text/plain" hidden></div>
       <textarea class="prompt paste" spellcheck="false" placeholder="Paste your memories here" aria-label="Your memories"></textarea>
       <p class="info" aria-live="polite"></p>
       <div class="foot"><button class="word back" type="button">Back</button><button class="word keep" type="button" disabled>Keep these memories</button></div>`;
@@ -201,6 +244,20 @@ export class Heart {
     clickButton(this.impAsk, () => void this.copyAsk());
     tapButton(this.impKeep, () => this.keepImport());
     this.impText.addEventListener("input", () => this.previewImport());
+    const file = imp.querySelector<HTMLInputElement>(".file")!;
+    clickButton(imp.querySelector(".file-open")!, () => file.click());
+    file.addEventListener("change", () => {
+      const f = file.files?.[0];
+      file.value = "";
+      if (!f) return;
+      f.text().then(
+        (t) => {
+          this.impText.value = t.slice(0, 2_000_000);
+          this.previewImport();
+        },
+        () => (this.impInfo.textContent = "That file couldn't be read."),
+      );
+    });
 
     // Share my heart: the notes as an anonymised prompt to paste into any other AI, for an
     // overview of the journey. Made here, shown and editable, and only copied or shared by you.
@@ -347,6 +404,9 @@ export class Heart {
     }
     // sharing needs notes to share; bringing memories in is always there
     (this.list.querySelector(".share-open") as HTMLElement).hidden = !notes.length;
+    const ex = this.list.querySelector(".export") as HTMLElement;
+    ex.hidden = !notes.length;
+    ex.textContent = "Export my memory";
     this.list.hidden = false;
     this.mark();
   }
@@ -428,19 +488,32 @@ export class Heart {
   }
 
   private previewImport(): void {
+    const whole = exportedNotes(this.impText.value);
+    if (whole) {
+      this.impKeep.disabled = false;
+      this.impInfo.textContent = `An exported memory: ${whole.length} ${whole.length === 1 ? "note" : "notes"}, with their dates and places. Notes already here are skipped.`;
+      return;
+    }
     const got = memoriesIn(this.impText.value);
     this.impKeep.disabled = !got.length;
     this.impInfo.textContent = got.length ? `${got.length} ${got.length === 1 ? "memory" : "memories"} found. They'll be kept on this device only.` : "";
   }
 
   private keepImport(): void {
-    const got = memoriesIn(this.impText.value);
-    if (!got.length) return;
     const notes = heartNotes();
-    const have = new Set(notes.map((n) => n.text));
-    const now = Date.now();
-    const fresh = got.filter((t) => !have.has(t)).map((text, i) => ({ text, createdAt: now - i, scene: "Brought from elsewhere" }));
-    if (!saveNotes([...fresh, ...notes])) {
+    const have = new Set(notes.map((n) => n.text.trim()));
+    const whole = exportedNotes(this.impText.value);
+    let fresh: HeartNote[];
+    if (whole) {
+      fresh = whole.filter((n) => !have.has(n.text.trim()));
+    } else {
+      const got = memoriesIn(this.impText.value);
+      if (!got.length) return;
+      const now = Date.now();
+      fresh = got.filter((t) => !have.has(t)).map((text, i) => ({ text, createdAt: now - i, scene: "Brought from elsewhere" }));
+    }
+    const all = [...fresh, ...notes].sort((a, b) => b.createdAt - a.createdAt);
+    if (!saveNotes(all)) {
       this.impInfo.textContent = "This device would not keep them.";
       return;
     }
@@ -448,6 +521,36 @@ export class Heart {
     this.closeImport();
     this.openList();
     this.say(fresh.length ? `${fresh.length} ${fresh.length === 1 ? "memory" : "memories"} brought into your heart.` : "Those memories were already here.");
+  }
+
+  /** Export my memory: every note as a text file, shared (a phone's sheet: Files, Notes, Mail…)
+      or saved. On the click, as iOS needs for sharing. */
+  private async exportAll(): Promise<void> {
+    const notes = heartNotes();
+    if (!notes.length) return;
+    const btn = this.list.querySelector<HTMLButtonElement>(".export")!;
+    const d = new Date();
+    const name = `inland-my-heart-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.txt`;
+    const text = heartExport(notes);
+    try {
+      const file = new File([text], name, { type: "text/plain" });
+      if (typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: "My heart" });
+        btn.textContent = "Exported ✓";
+        return;
+      }
+    } catch (e) {
+      if ((e as Error)?.name === "AbortError") return; // closed the share sheet
+    }
+    const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    btn.textContent = "Saved ✓";
   }
 
   closeList(): void {
