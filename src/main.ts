@@ -56,7 +56,7 @@ import { Reader } from "./ui/reader";
 import { Heart } from "./ui/heart";
 import { Oracle } from "./ui/oracle";
 import { OracleVision } from "./world/oracleVision";
-import { allVoices, chosenVoice, onSpeechFail, readAloud, sayAloud, setReadAloud, setVoice, speak, speechButton, tierOf, wakeSpeech } from "./ui/speak";
+import { allVoices, chosenVoice, onSpeechFail, onSpeechStart, readAloud, sayAloud, setReadAloud, setVoice, speak, speechButton, tierOf, wakeSpeech } from "./ui/speak";
 import { Vessels } from "./world/vessels";
 import { TranscriptPlayer } from "./ui/transcriptPlayer";
 import { tourBar, type TourBarOwner } from "./ui/tourBar";
@@ -4256,7 +4256,15 @@ $("#guide-open").addEventListener("click", openGuide);
     speechSynthesis.addEventListener?.("voiceschanged", fill);
     $("#menu").addEventListener("pointerenter", fill); // iOS may list newly downloaded voices only later
     vs.addEventListener("change", () => setVoice(vs.value));
-    speechButton($("#voice-try"), () => speak("From the stillness of the heart, the soul seeks to rediscover itself."));
+    const note = $("#voice-note");
+    speechButton($("#voice-try"), () => {
+      note.textContent = "Loading the voice…";
+      speak("From the stillness of the heart, the soul seeks to rediscover itself.");
+    });
+    // say which voice actually began, so a chosen voice the phone won't use is not a mystery
+    onSpeechStart((how, name) => {
+      note.textContent = how === "chosen" ? `Speaking as ${name || "the phone's default"}` : "Your chosen voice wouldn't start, so the phone's default spoke. Try another.";
+    });
   } else $("#voice-row").hidden = true;
 }
 $("#oracle-open").addEventListener("click", () => {
