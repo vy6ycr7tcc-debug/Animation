@@ -54,7 +54,7 @@ import { SpiritCritters } from "./world/spiritCritters";
 import { Readables, type Reading } from "./world/readables";
 import { Reader } from "./ui/reader";
 import { Heart } from "./ui/heart";
-import { Oracle } from "./ui/oracle";
+import { Oracle, type Lens } from "./ui/oracle";
 import { OracleVision } from "./world/oracleVision";
 import { allVoices, chosenVoice, onSpeechFail, onSpeechStart, readAloud, sayAloud, setReadAloud, setVoice, speak, speechButton, tierOf, wakeSpeech } from "./ui/speak";
 import { Vessels } from "./world/vessels";
@@ -1915,11 +1915,12 @@ function sitDown(): void {
   box.replaceChildren();
   let group = "";
   for (const p of promptsFor(b.spec.numeral)) {
+    if (p.kind === "feeling") continue; // feelings go to the oracle, through this archetype (below)
     if (p.kind !== group) {
       group = p.kind;
       const g = document.createElement("p");
       g.className = "group";
-      g.textContent = p.kind === "feeling" ? "Share a feeling" : "Ask";
+      g.textContent = "Ask";
       box.append(g);
     }
     const btn = document.createElement("button");
@@ -1936,10 +1937,57 @@ function sitDown(): void {
     });
     box.append(btn);
   }
+  // Share a feeling: the oracle answers it through this archetype's lens (and it is kept in My Heart)
+  const g = document.createElement("p");
+  g.className = "group";
+  g.textContent = "Share a feeling";
+  box.append(g);
+  const lens = archetypeLens(b.spec.numeral, b.spec.name);
+  const from = `${b.spec.numeral} · ${b.spec.name}`;
+  for (const f of FEELINGS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "feel";
+    btn.textContent = f ? `I feel ${f}` : "In my own words…";
+    // the click wakes the phone's voice, so the answer can be read aloud when it comes
+    speechButton(btn, () => {
+      wakeSpeech();
+      btn.classList.add("heard");
+      sitting.asked = true;
+      stillness(false);
+      b.greet();
+      if (tp.active) tp.close();
+      if (narration.current?.startsWith("A-")) narration.stop(1.5);
+      oracle.show(from, lens, f ? `I feel ${f}.` : "");
+    });
+    box.append(btn);
+  }
   heart.reset();
   sitPanel.hidden = false;
   (box.querySelector("button") as HTMLButtonElement | null)?.focus({ preventScroll: true });
   say(`You sit with ${b.spec.name}.`);
+}
+/* The feelings offered at every archetype; the oracle meets each through that archetype. "" is
+   the person's own words. */
+const FEELINGS = ["lost", "afraid", "sad", "angry", "alone", "tired", "restless", "grateful", "hopeful", "at peace", ""];
+/** An archetype as the oracle's point of origin: its place among the seven (the worker's station
+    ids, which tint what it draws on) and a short hidden line naming it (the worker's `origin`). */
+const SEVEN = [
+  ["matrix", "the Matrix", "what reaches out: attention, will, conscious focus"],
+  ["potentiator", "the Potentiator", "the deep: what is felt before it is known"],
+  ["catalyst", "the Catalyst", "difficulty as a teacher"],
+  ["experience", "the Experience", "what life has written in you: memory, habit"],
+  ["significator", "the Significator", "the core self and what it truly wants"],
+  ["transformation", "the Transformation", "the turning: letting go, crossing a threshold"],
+  ["great-way", "the Great Way", "the long road, how a life is walked"],
+] as const;
+function archetypeLens(numeral: string, name: string): Lens {
+  const i = ARCHETYPES.findIndex((a) => a.numeral === numeral);
+  if (i < 0 || i > 20)
+    return { origin: `The person sits with ${name} (${numeral}), the Choice: how to love, toward others or toward self. They share how they feel.` };
+  const [station, pos, theme] = SEVEN[i % 7];
+  const realm = ["Mind", "Body", "Spirit"][Math.floor(i / 7)];
+  return { station, origin: `The person sits with ${name} (${numeral}), ${pos} of the ${realm}: ${theme}. They share how they feel; let this archetype's light meet it.` };
 }
 function standUp(): void {
   if (sitting.phase === "none") return;
@@ -5193,7 +5241,18 @@ renderer
                 if (shot.id === "horses") spiritHorses.summon(player.pos, inland);
                 else spiritCritters.summon(player.pos, { x: player.pos.x + 1, z: player.pos.z }, new URLSearchParams(location.search).has("hop"));
               }
-            : glyphsLoaded,
+            : async () => {
+                await glyphsLoaded();
+                // `&sit=<numeral>`: seated with that archetype (its panel open); `&feel=<word>` shares that feeling
+                const q = new URLSearchParams(location.search), n = q.get("sit");
+                const i = n ? beings.list.findIndex((b) => b.spec.numeral === n) : -1;
+                if (i < 0) return;
+                const seat = beings.seatFor(i);
+                Object.assign(sitting, { being: i, x: seat.x, z: seat.z, heading: seat.heading });
+                sitDown();
+                const f = q.get("feel");
+                if (f) [...document.querySelectorAll<HTMLButtonElement>("#sit-prompts button.feel")].find((b) => b.textContent === `I feel ${f}`)?.click();
+              },
         update,
         veil: async (n) => {
           if (n === 1) {
