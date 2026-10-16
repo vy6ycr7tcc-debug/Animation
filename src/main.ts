@@ -1589,6 +1589,7 @@ input.onHold = (x, y) => beginTouch(x, y);
    the maze's still centre. */
 const myHeart = new Heart();
 const oracle = new Oracle();
+watchKeyboard();
 myHeart.place = () => {
   // the place in the game's own words (no ids, no metres)
   const h = inHall();
@@ -2052,7 +2053,7 @@ function deeperField(
   wrap.className = "deeper-wrap";
   const deep = document.createElement("div");
   deep.className = "deeper";
-  deep.innerHTML = `<textarea rows="1" maxlength="600" aria-label="Ask the oracle, through this archetype"></textarea><button type="button" class="d-go" aria-label="Ask the oracle">✧</button>`;
+  deep.innerHTML = `<textarea rows="1" maxlength="600" enterkeyhint="send" aria-label="Ask the oracle, through this archetype"></textarea><button type="button" class="d-go" aria-label="Ask the oracle">✧</button>`;
   const opts = document.createElement("div");
   opts.className = "d-opts";
   opts.innerHTML = `<button type="button" class="d-heart" aria-pressed="false">♥ share my heart</button><p class="d-consent">Nothing is stored in the cloud. What you send always goes anonymously.</p>`;
@@ -5154,6 +5155,7 @@ const shadowAt = new THREE.Vector3();
 
 let last = performance.now();
 import { devMode } from "./debug/devflag";
+import { watchKeyboard } from "./core/keyboard";
 import { ARCHETYPES } from "./world/beings";
 import { getShot, runShot } from "./debug/shot"; // dev-only: ?shot=<scene>&t=<sec> renders one still frame
 const shot = getShot();

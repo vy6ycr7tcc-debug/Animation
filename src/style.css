@@ -1104,7 +1104,7 @@ body.oracling :is(#whisper, #tp, #tp-mini, #menu-btn, #keys, #hear-again, #nprog
    keyboard), and once it has answered its words in a lower third over a soft dark */
 #oracle {
   position: fixed; inset: 0; z-index: 27; box-sizing: border-box; height: var(--fh, 100vh);
-  padding: calc(env(safe-area-inset-top, 0px) + 16px) 14px calc(max(env(safe-area-inset-bottom, 0px), var(--kb, 0px)) + 12px);
+  padding: calc(env(safe-area-inset-top, 0px) + 16px) 14px calc(env(safe-area-inset-bottom, 0px) + 12px);
   display: flex; flex-direction: column; align-items: center; justify-content: space-between; text-align: center;
   background: linear-gradient(rgba(4, 3, 10, 0.5), rgba(4, 3, 10, 0) 16%, rgba(4, 3, 10, 0) 58%, rgba(4, 3, 10, 0.55));
   animation: reader-in 0.9s cubic-bezier(0.2, 0.7, 0.2, 1);
@@ -1345,3 +1345,12 @@ body.introing :is(#joy, #act, #ctx, #auto, #menu-btn, #tp-mini, #whisper, #keys,
 #next-up > .px, #shrine > .px { top: 2px; right: 2px; }
 #menu > .px { top: 2px; right: 2px; }
 #menu > .menu-scroll { padding-top: 34px; }
+
+/* the phone's keyboard is up (core/keyboard.ts): what is being typed stays in view, above it */
+body.typing #oracle { top: var(--vvt, 0px); bottom: auto; height: var(--vvh, 100vh); padding-bottom: 10px; padding-top: 12px; }
+body.typing #oracle .o-from { display: none; }
+body.typing :is(#with, #sit-panel):focus-within {
+  top: calc(var(--vvt, 0px) + var(--vvh, 100vh) - 8px); bottom: auto; transform: translate(-50%, -100%);
+  max-height: calc(var(--vvh, 100vh) - 16px); overflow-y: auto; animation: none;
+}
+body.typing #heart-mini { display: none; }
