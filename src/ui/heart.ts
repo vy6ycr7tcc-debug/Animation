@@ -74,6 +74,22 @@ function clickButton(b: HTMLElement, f: () => void): void {
   });
 }
 
+/** What to ask another AI, so its answer can be brought here as memories. */
+const ASK_MEMORIES = `Please write down what you know and remember about me from our conversations, as a set of memories I can keep in a private journal: what matters to me, my values, what I am working through, my hopes and fears, the questions I keep returning to, and moments that shaped me. Write each memory as one short paragraph in the first person ("I…"), with a blank line between them. No headings, no numbering, no lists. Leave out other people's names, addresses, contact details and anything I would not want written down.`;
+
+/** The memories in what was pasted: paragraphs (or lines, if there are no blank lines), list
+    marks taken off, each kept whole. */
+export function memoriesIn(text: string): string[] {
+  const t = text.replace(/\r/g, "").trim();
+  if (!t) return [];
+  const parts = /\n\s*\n/.test(t) ? t.split(/\n\s*\n/) : t.split(/\n/);
+  return parts
+    .map((p) => p.replace(/^\s*(?:[-*•–·]|\d{1,3}[.)])\s+/, "").replace(/\s*\n\s*/g, " ").trim())
+    .filter((p) => p.length > 3 && !/^#+\s/.test(p))
+    .map((p) => p.slice(0, 4000))
+    .slice(0, 200);
+}
+
 const ORN = `<div class="orn" aria-hidden="true"><i></i><b></b><i></i></div>`;
 
 function when(t: number): string {
@@ -94,6 +110,11 @@ export class Heart {
   private bringText: HTMLTextAreaElement;
   private bringInfo: HTMLElement;
   private bringCopy: HTMLButtonElement;
+  private imp: HTMLElement;
+  private impText: HTMLTextAreaElement;
+  private impInfo: HTMLElement;
+  private impKeep: HTMLButtonElement;
+  private impAsk: HTMLButtonElement;
   private miniOn = false;
   private miniDismissed = false;
   /** Where the note is being written (asked when the composer opens). */
@@ -134,8 +155,8 @@ export class Heart {
       ${ORN}
       <h2 class="title">My heart</h2>
       <div class="notes" tabindex="0"></div>
-      <p class="privacy">Your notes live only on this device, in this browser's own storage; nothing is sent anywhere. Only when you choose "with my heart" for a question do they go, with names and details taken out, to the oracle for that one answer, and they are not kept there.</p>
-      <div class="foot"><button class="word add" type="button">A new note</button><button class="word bring-open" type="button">Bring my heart</button></div>`;
+      <p class="privacy">Your notes live only on this device, in this browser's own storage; nothing is sent anywhere. Only when you choose "share my heart" for a question to the oracle do they go, with names and details taken out, to the oracle for that one answer, and they are not kept there.</p>
+      <div class="foot"><button class="word add" type="button">A new note</button><button class="word bring-open" type="button">Bring my heart</button><button class="word share-open" type="button">Share my heart</button></div>`;
     document.body.appendChild(list);
     keepToItself(list);
     this.list = list;
@@ -145,20 +166,54 @@ export class Heart {
       this.closeList();
       this.openCompose();
     });
-    tapButton(list.querySelector(".bring-open")!, () => this.openBring());
+    tapButton(list.querySelector(".share-open")!, () => this.openBring());
+    tapButton(list.querySelector(".bring-open")!, () => this.openImport());
 
-    // Bring my heart: the notes as an anonymised prompt to paste into any other AI, for an
+    // Bring my heart: memories brought in from elsewhere (another AI that knows you, a journal),
+    // pasted here and kept as notes on this device. A prompt to ask that AI for them is offered.
+    const imp = document.createElement("div");
+    imp.id = "heart-import";
+    imp.className = "heart-panel";
+    imp.hidden = true;
+    imp.setAttribute("role", "dialog");
+    imp.setAttribute("aria-label", "Bring my heart");
+    imp.innerHTML = `
+      <button class="x" type="button" aria-label="Close">✕</button>
+      ${ORN}
+      <h2 class="title">Bring my heart</h2>
+      <p class="lead">Bring your memories here from another AI that knows you, or from a journal. Copy the prompt below, ask it there, and paste what it answers. Each paragraph becomes a memory in your heart, kept on this device only.</p>
+      <div class="foot ask"><button class="word ask-copy" type="button">Copy the prompt to ask</button></div>
+      <textarea class="prompt paste" spellcheck="false" placeholder="Paste your memories here" aria-label="Your memories"></textarea>
+      <p class="info" aria-live="polite"></p>
+      <div class="foot"><button class="word back" type="button">Back</button><button class="word keep" type="button" disabled>Keep these memories</button></div>`;
+    document.body.appendChild(imp);
+    keepToItself(imp);
+    this.imp = imp;
+    this.impText = imp.querySelector(".paste")!;
+    this.impInfo = imp.querySelector(".info")!;
+    this.impKeep = imp.querySelector(".keep")!;
+    this.impAsk = imp.querySelector(".ask-copy")!;
+    tapButton(imp.querySelector(".x")!, () => this.closeImport());
+    tapButton(imp.querySelector(".back")!, () => {
+      this.closeImport();
+      this.openList();
+    });
+    clickButton(this.impAsk, () => void this.copyAsk());
+    tapButton(this.impKeep, () => this.keepImport());
+    this.impText.addEventListener("input", () => this.previewImport());
+
+    // Share my heart: the notes as an anonymised prompt to paste into any other AI, for an
     // overview of the journey. Made here, shown and editable, and only copied or shared by you.
     const bring = document.createElement("div");
     bring.id = "heart-bring";
     bring.className = "heart-panel";
     bring.hidden = true;
     bring.setAttribute("role", "dialog");
-    bring.setAttribute("aria-label", "Bring my heart");
+    bring.setAttribute("aria-label", "Share my heart");
     bring.innerHTML = `
       <button class="x" type="button" aria-label="Close">✕</button>
       ${ORN}
-      <h2 class="title">Bring my heart</h2>
+      <h2 class="title">Share my heart</h2>
       <p class="lead">Your notes, made into a prompt for any AI you trust, to see an overview of your journey. Names, places, contact details, numbers and dates are taken out first. Read it, change anything, then copy it and paste it there. Nothing is sent from here.</p>
       <textarea class="prompt" spellcheck="false" aria-label="The prompt"></textarea>
       <p class="info" aria-live="polite"></p>
@@ -199,11 +254,12 @@ export class Heart {
       if (!compose.hidden) this.closeCompose();
       else if (!list.hidden) this.closeList();
       else if (!this.bring.hidden) this.closeBring();
+      else if (!this.imp.hidden) this.closeImport();
     });
   }
 
   get open(): boolean {
-    return !this.compose.hidden || !this.list.hidden || !this.bring.hidden;
+    return !this.compose.hidden || !this.list.hidden || !this.bring.hidden || !this.imp.hidden;
   }
 
   private mark(): void {
@@ -289,7 +345,8 @@ export class Heart {
       row.append(item, del);
       this.listBody.append(row);
     }
-    (this.list.querySelector(".bring-open") as HTMLElement).hidden = !notes.length;
+    // sharing needs notes to share; bringing memories in is always there
+    (this.list.querySelector(".share-open") as HTMLElement).hidden = !notes.length;
     this.list.hidden = false;
     this.mark();
   }
@@ -340,6 +397,57 @@ export class Heart {
       this.bringText.blur();
     }
     this.bringCopy.textContent = ok ? "Copied ✓" : "Select it and copy";
+  }
+
+  openImport(): void {
+    this.list.hidden = true;
+    this.compose.hidden = true;
+    this.bring.hidden = true;
+    this.impText.value = "";
+    this.impAsk.textContent = "Copy the prompt to ask";
+    this.previewImport();
+    this.imp.hidden = false;
+    this.mark();
+  }
+
+  closeImport(): void {
+    this.imp.hidden = true;
+    this.impText.blur();
+    this.mark();
+  }
+
+  private async copyAsk(): Promise<void> {
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(ASK_MEMORIES);
+      ok = true;
+    } catch {
+      ok = false;
+    }
+    this.impAsk.textContent = ok ? "Copied ✓ Now ask it there" : "Couldn't copy";
+  }
+
+  private previewImport(): void {
+    const got = memoriesIn(this.impText.value);
+    this.impKeep.disabled = !got.length;
+    this.impInfo.textContent = got.length ? `${got.length} ${got.length === 1 ? "memory" : "memories"} found. They'll be kept on this device only.` : "";
+  }
+
+  private keepImport(): void {
+    const got = memoriesIn(this.impText.value);
+    if (!got.length) return;
+    const notes = heartNotes();
+    const have = new Set(notes.map((n) => n.text));
+    const now = Date.now();
+    const fresh = got.filter((t) => !have.has(t)).map((text, i) => ({ text, createdAt: now - i, scene: "Brought from elsewhere" }));
+    if (!saveNotes([...fresh, ...notes])) {
+      this.impInfo.textContent = "This device would not keep them.";
+      return;
+    }
+    this.onSaved();
+    this.closeImport();
+    this.openList();
+    this.say(fresh.length ? `${fresh.length} ${fresh.length === 1 ? "memory" : "memories"} brought into your heart.` : "Those memories were already here.");
   }
 
   closeList(): void {
