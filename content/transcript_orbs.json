@@ -1,654 +1,654 @@
 {
- "note": [
-  "Every orb and every grove fruit plays one Voices from the Archive narration (Aria's voice). Bind visuals and the player to this file.",
-  "transcript: exact narration text (speaker labels stripped; the audio is single-voice).",
-  "interpretive: true on all 19 — these are interpretive adaptations of channeled material, not verbatim channeling. The game must caption them as such (see TRANSCRIPT_ORBS_CLAUDE_PROMPT.md). Owner-purged 2026-10-06: 67 entity-naming narrations removed (orb-05 + 66 grove episodes); 7 orbs + 12 grove episodes remain.",
-  "sources: per-episode channeled sources, resolved from the archive headers (entity + original channeled date). 'via' notes where the writer found re-quoted words."
- ],
- "orbs": [
-  {
-   "id": "orb-01",
-   "episode": 1,
-   "title": "All Is One",
-   "audio": "audio/orbs/ep01_all_is_one.mp3",
-   "transcript": "Welcome to Voices from the Archive. I am Aria. In this series, we are listening our way through one of the strangest and most beautiful collections of writing on Earth. Nearly two thousand channeled sessions, recorded over fifty years, in which the speakers, who call themselves friends and brothers and sisters, return to one idea again and again. Tonight, we begin with that idea. It is the simplest one, and the hardest one. Everything is one.\n\nThere are many pathways, say the voices, to the single truth that lies within each person. And each person finds their own route back to the knowledge that was their birthright. It is only necessary that you become aware of this birthright, for this knowledge is within you. For you, like us, and like every being within this infinite creation, are a part of this creation. We are all one thing. We are the creation of the Father, and in so being, we have within us his love, for this is what created us. A great force. A force that permeates everything that exists. The word that expresses it in your language is love, but this force goes far beyond the concept of this word. Each of you can know this force, for it is part of you, and you cannot separate it from you. Spend time each day in quiet, and you will become aware. Aware of the force that is the creation. This, my friends, is the first step. And it is also the last step, in knowing all that there is to know.\n\nThe first step, and also the last step. I love that. It means you never actually leave home. You only forget you are home, and then you remember. The voices describe this oneness not as a philosophy but as a living being. Listen to how one of them, who calls himself Philip, puts it.\n\nYou and all of your brothers and sisters, throughout all of this infinite creation, are one single, great, living being. Not only brothers and sisters, but all of life. And all of the trees, and flowers, and rocks, and all of the planets and stars, are part of that one great being. It is impossible to be anything else. No matter where you are, what you think, or what you do, this fact remains.\n\nNo matter what you do, this fact remains. That is a staggering sentence to sit with. It does not say you must earn your belonging. It says belonging is the one thing you cannot lose, because it is what you are. And the voices do not leave this as an idea. They turn it into a practice. Here is one of their meditations, almost a poem.\n\nConcentrate, my friends, on that which is all. Let your thoughts become one. For all is one. Become aware of the one great all. Become aware that you are one, and that one is all. Do not separate yourself from anything. You are not separate from anything. There is only one thing. That one thing is truth. Truth is. It is all about you. It speaks to you. Listen to it, and you will know it. Truth is in your sky. It is in your trees, in your fields, and in everything. Do not be concerned with anything but this truth.\n\nDo not be concerned with anything but this truth. We will come back to that line many times in this series, I suspect. For now, let it rest with you. You are not separate from anything. In our next episode, we turn to the force they say runs the whole thing. Love, and the open heart. I am Aria. Thank you for listening.",
-   "interpretive": true,
-   "sources": [
+  "note": [
+    "Every orb and every grove fruit plays one Voices from the Archive narration (Aria's voice). Bind visuals and the player to this file.",
+    "transcript: exact narration text (speaker labels stripped; the audio is single-voice).",
+    "interpretive: true on all 19 \u2014 these are interpretive adaptations of channeled material, not verbatim channeling. The game must caption them as such (see TRANSCRIPT_ORBS_CLAUDE_PROMPT.md). Owner-purged 2026-10-06: 67 entity-naming narrations removed (orb-05 + 66 grove episodes); 7 orbs + 12 grove episodes remain.",
+    "sources: per-episode channeled sources, resolved from the archive headers (entity + original channeled date). 'via' notes where the writer found re-quoted words."
+  ],
+  "orbs": [
     {
-     "entity": "Hatonn",
-     "date": "February 17, 1974",
-     "session_label": "Sunday meditation",
-     "archive_ref": "archive:2709"
+      "id": "orb-01",
+      "episode": 1,
+      "title": "All Is One",
+      "audio": "audio/orbs/ep01_all_is_one.mp3",
+      "transcript": "Welcome to Voices from the Archive. I am Aria. In this series, we are listening our way through one of the strangest and most beautiful collections of writing on Earth. Nearly two thousand channeled sessions, recorded over fifty years, in which the speakers, who call themselves friends and brothers and sisters, return to one idea again and again. Tonight, we begin with that idea. It is the simplest one, and the hardest one. Everything is one.\n\nThere are many pathways, say the voices, to the single truth that lies within each person. And each person finds their own route back to the knowledge that was their birthright. It is only necessary that you become aware of this birthright, for this knowledge is within you. For you, like us, and like every being within this infinite creation, are a part of this creation. We are all one thing. We are the creation of the Father, and in so being, we have within us his love, for this is what created us. A great force. A force that permeates everything that exists. The word that expresses it in your language is love, but this force goes far beyond the concept of this word. Each of you can know this force, for it is part of you, and you cannot separate it from you. Spend time each day in quiet, and you will become aware. Aware of the force that is the creation. This, my friends, is the first step. And it is also the last step, in knowing all that there is to know.\n\nThe first step, and also the last step. I love that. It means you never actually leave home. You only forget you are home, and then you remember. The voices describe this oneness not as a philosophy but as a living being. Listen to how one of them, who calls himself Philip, puts it.\n\nYou and all of your brothers and sisters, throughout all of this infinite creation, are one single, great, living being. Not only brothers and sisters, but all of life. And all of the trees, and flowers, and rocks, and all of the planets and stars, are part of that one great being. It is impossible to be anything else. No matter where you are, what you think, or what you do, this fact remains.\n\nNo matter what you do, this fact remains. That is a staggering sentence to sit with. It does not say you must earn your belonging. It says belonging is the one thing you cannot lose, because it is what you are. And the voices do not leave this as an idea. They turn it into a practice. Here is one of their meditations, almost a poem.\n\nConcentrate, my friends, on that which is all. Let your thoughts become one. For all is one. Become aware of the one great all. Become aware that you are one, and that one is all. Do not separate yourself from anything. You are not separate from anything. There is only one thing. That one thing is truth. Truth is. It is all about you. It speaks to you. Listen to it, and you will know it. Truth is in your sky. It is in your trees, in your fields, and in everything. Do not be concerned with anything but this truth.\n\nDo not be concerned with anything but this truth. We will come back to that line many times in this series, I suspect. For now, let it rest with you. You are not separate from anything. In our next episode, we turn to the force they say runs the whole thing. Love, and the open heart. I am Aria. Thank you for listening.",
+      "interpretive": true,
+      "sources": [
+        {
+          "entity": "Hatonn",
+          "date": "February 17, 1974",
+          "session_label": "Sunday meditation",
+          "archive_ref": "archive:2709"
+        },
+        {
+          "entity": "Hatonn",
+          "date": "February 25, 1974",
+          "session_label": "Second meeting",
+          "archive_ref": "archive:3688"
+        },
+        {
+          "entity": "Philip",
+          "date": "February 25, 1974",
+          "session_label": "Third meeting",
+          "archive_ref": "archive:3803"
+        }
+      ]
     },
     {
-     "entity": "Hatonn",
-     "date": "February 25, 1974",
-     "session_label": "Second meeting",
-     "archive_ref": "archive:3688"
+      "id": "orb-02",
+      "episode": 2,
+      "title": "Open Heart",
+      "audio": "audio/orbs/ep02_open_heart.mp3",
+      "transcript": "Welcome back to Voices from the Archive. I am Aria. Last time, we began with the great oneness. Tonight, we turn to the force the voices say holds it all together. They call it love, and they are careful to say they do not mean the small, confused love of songs and stories. They mean something vaster. Something they call the greatest force there is.\n\nLet it all go, they say, and rest in love. With no name, no reputation, no learning. For love is the greatest force, and the greatest knowledge, that you can possibly attain. And you cannot reach it with your mind, with your ego, with your personality. It is a matter of desire.\n\nIt is a matter of desire. Not of worthiness, not of achievement. Of wanting. The voices are gentle but firm on this point. The mind cannot get you there. The heart can, if you let it open. And they give the most practical image for what an open heart actually looks like in a human life.\n\nLove, and by this we do not mean the love so confused by your peoples, is the great simplifier. As you seek, so you will find. The houses you live in can be shaken, blown, and scattered. The winds of chance may remove you from all those things which are now physically yours. The one house which is yours, through whose doors you may always pass, is the house of your own body, your mind, and your spirit. Let, then, your house be habitually one in which there is meditation, silence, and listening. For love waits within. The creation, of which love is the great ingredient, waits within.\n\nLove waits within. Not out there, not after you fix yourself. Within, already, waiting like someone who never left the room. I find that unbearably tender. And then they widen it further. They say the heart is not just a feeling. It is a doorway, and through it, everything.\n\nWe can show you the door to your own heart, for it is in your own heart that you will find all that you seek. Within you lies the universe. That which you see with your physical eyes is but an image of that which you contain. To share love is the greatest privilege of which we know, and we thank you for this opportunity.\n\nWithin you lies the universe. Sit with that tonight, if you like. Not as a metaphor. As a direction to look. Next time on Voices from the Archive, we learn how to look. Stillness, silence, and the practice they recommend above all others. I am Aria. Goodnight.",
+      "interpretive": true,
+      "sources": [
+        {
+          "entity": "Hatonn",
+          "date": "September 7, 1980",
+          "session_label": "Sunday meditation",
+          "archive_ref": "archive:33199"
+        },
+        {
+          "entity": "Hatonn",
+          "date": "August 16, 1981",
+          "session_label": "Sunday meditation",
+          "archive_ref": "archive:40876"
+        },
+        {
+          "entity": "Hatonn",
+          "date": "November 8, 1981",
+          "session_label": "Sunday meditation",
+          "archive_ref": "archive:44044"
+        }
+      ]
     },
     {
-     "entity": "Philip",
-     "date": "February 25, 1974",
-     "session_label": "Third meeting",
-     "archive_ref": "archive:3803"
+      "id": "orb-03",
+      "episode": 3,
+      "title": "Stillness",
+      "audio": "audio/orbs/ep03_stillness.mp3",
+      "transcript": "Welcome to Voices from the Archive. I am Aria. If you read a thousand of these sessions, one instruction appears more than any other. Not a belief. Not a ritual. A practice. Sit down, be still, and listen. Tonight is about the silence, and what lives inside it.\n\nAs you begin to go into the silence, perhaps you play games, in which you attempt to carry your clothed spirit, your limited spirit, into the silence. Do not do this, my friends. Picture yourself, mentally, taking guilt, and discarding it as you would a piece of clothing. Taking resentment, taking fear, putting it aside, and walking as your shining naked self into the waters of cleanliness. After you have bathed yourself in total forgiveness, in total cleanliness, for the moment, you can emerge, and in your mind you can sit down and listen. Listen for those signals which will come to you in the silence. You are a whole and complete person. Within you is perfection, wisdom, and all the attributes of love.\n\nWalking as your shining naked self into the waters. What an image. The voices never ask you to be better before you come to the silence. They ask you to come exactly as you are, lay down the heavy things at the edge, and step in. And they are wonderfully undogmatic about how you do it. Prayer counts. Reading counts. Ritual counts. What matters is the daily return.\n\nRemain open to the healing power of love, which is best done, as we have always said to you, through daily meditation. It does not matter what type of meditation you use. You may pray. You may sit in silence. You may use ritual and imagery, and by that imagery find peace. But however you can become close to the one original thought that created all of us, to the one Creator that is love, that is what you should do daily. For you cannot be a loving person by yourself.\n\nYou cannot be a loving person by yourself. I read that as tenderness, not scolding. Love is not a solo performance. It is something you plug into, daily, the way you would charge a lamp. And here is why they think the daily part matters so much. Life, they say, will freight-train you if the silence does not hold you first.\n\nIf the balance wheel of your central self has not been nourished in the silence of love, and praise, and thanksgiving, you will continually be generating freight trains to places you did not want to go.\n\nThe balance wheel of your central self, nourished in silence. Tonight, before sleep, give it five minutes. Lay down the clothing. Step into the waters. And listen. Next time, we meet the teacher nobody invites but everybody gets. Catalyst. I am Aria. Goodnight.",
+      "interpretive": true,
+      "sources": [
+        {
+          "entity": "Hatonn",
+          "date": "September 26, 1977",
+          "session_label": "Monday meditation",
+          "archive_ref": "archive:19791"
+        },
+        {
+          "entity": "Hatonn",
+          "date": "August 16, 1979",
+          "session_label": "Intermediate meeting",
+          "archive_ref": "archive:25972"
+        },
+        {
+          "entity": "Hatonn",
+          "date": "March 22, 1981",
+          "session_label": "Sunday meditation",
+          "archive_ref": "archive:37030"
+        }
+      ]
+    },
+    {
+      "id": "orb-04",
+      "episode": 4,
+      "title": "Catalyst",
+      "audio": "audio/orbs/ep04_catalyst.mp3",
+      "transcript": "Welcome to Voices from the Archive. I am Aria. Tonight we are talking about the hard stuff. The breakup, the diagnosis, the failure, the ordinary Tuesday that undid you. The voices have a strange name for all of it. They call it catalyst. And they insist, with enormous compassion, that it is not punishment. It is curriculum.\n\nTo be of good cheer, to care for experience, and to welcome catalyst, is the first priority of the most spiritual of beings. It is not to the one who denies the need for care of the self that glory is given, but to the one who keeps that energy open, that joy alive.\n\nWelcome catalyst. To be of good cheer. I know how that lands when you are in the middle of it. Almost offensive. But notice what they are really saying. Not that pain is good. That pain is usable. That nothing that happens to you is wasted, unless you decide it is. They go further. They say the hard things are the seeds.\n\nAll things which you experience within this illusion are presented, and have been chosen by you, as lessons. Realize that without misery there can be no joy. Without the passage of time within your illusion, there can be no lessons. These things which you experience are truly difficult, yet they are the seeds upon which you grow. In your daily routines, be thankful, although it may be difficult, for the experiences which are somewhat trying, yet bountiful in knowledge and love.\n\nBountiful in knowledge and love. They never minimize the difficulty. Truly difficult, they say. And then, in the same breath, bountiful. Both true at once. That is the whole teaching, really. And they give a practice for it, for the morning, before the day hands you its material.\n\nIf it is only thirty seconds as you lie in bed upon waking, and you think to yourself, Creator, I love you, I adore you, thank you for this day, you have begun speaking to the one imperishable portion of yourself. That will enable you to take the material that the day's catalyst gives you, and give you the resources to see difficulties as challenges, and good things as wonderful gifts for which one gives thanks.\n\nThirty seconds. That is all they ask. And then the day does what the day does, and you meet it differently. Next time on Voices from the Archive, we ask the strangest question of all. Why do we forget? The veil, and the choice it makes possible. I am Aria. Goodnight.",
+      "interpretive": true,
+      "sources": [
+        {
+          "entity": "Q'uo",
+          "date": "February 25, 1990",
+          "session_label": "Sunday meditation",
+          "archive_ref": "archive:129369"
+        },
+        {
+          "entity": "Hatonn",
+          "date": "January 25, 1976",
+          "session_label": "Sunday meditation",
+          "archive_ref": "archive:13973"
+        },
+        {
+          "entity": "Q'uo",
+          "date": "May 7, 1989",
+          "session_label": "Sunday meditation",
+          "archive_ref": "archive:123062"
+        }
+      ]
+    },
+    {
+      "id": "orb-06",
+      "episode": 6,
+      "title": "Dreams",
+      "audio": "audio/orbs/ep06_dreams.mp3",
+      "transcript": "Welcome to Voices from the Archive. I am Aria. Every night, you leave this world and enter another one. You fly, you fall, you meet the dead, you wander houses you have never seen. In the morning you call it just a dream, and get on with your day. The voices disagree. They say the dreaming is some of the most important work you will ever do.\n\nAs the seeker becomes aware that work in the evolution of mind, body, and spirit may be accomplished while sleeping, and is made aware that the messages obtained from this dreaming activity are useful, then the process becomes self-generating, and more information becomes available to the conscious mind from the unconscious mind, as the two begin to function with a sympathetic resonance. The continued seeking by the conscious self creates an opening in the veil which separates the conscious from the unconscious mind. And through this opening, the symbols, and images, and messages from the unconscious are made available to the seeker in the form of dreams, and in the form of intuition, and flashes of inspiration, which occasionally lighten and brighten the conscious experience.\n\nAn opening in the veil. The same veil we spoke of last time. Every night, it thins, and something deeper gets through. Symbols. Images. The occasional flash of inspiration that brightens your whole day. But they add a condition, and it is a practical one. The dream only helps if you remember it.\n\nThe work which is done during the dream has little effect upon the conscious self, unless the message of the dream is recalled by that conscious self, and is worked with by that conscious self. Most entities forget the message of the dream, and indeed the dreaming process itself. Therefore, for most upon your planet, the potential lies untapped within the deeper portions of the mind. There are other processes which may be completed during dreams, such as the healing of various imbalances within an entity's deeper mind. But the message must be tapped, and made available to the conscious mind, for the process to be efficient.\n\nKeep a notebook by the bed. That is the whole practice, really. Write down whatever comes, however strange, before the day washes it away. And know that you are in good company. The voices point out that whole cultures have lived this way.\n\nThere are cultures much more aware, through their own beliefs and teachings, of the value of the unconscious mind, and of dreams in particular. For them, the ability to move within the dreaming state in a conscious manner is a natural part of their culture. It is a foundation stone upon which their culture rests, an avenue frequently traveled, and the doors, therefore, are more open to such travel.\n\nAn avenue frequently traveled. Tonight, travel it. Ask a question before sleep, keep the notebook close, and see what comes back through the door. Next time on Voices from the Archive, we face the thing that keeps us from all of this. Fear. And the trust that dissolves it. I am Aria. Goodnight.",
+      "interpretive": true,
+      "sources": [
+        {
+          "entity": "Latwii",
+          "date": "May 22, 1983",
+          "session_label": "Sunday meditation",
+          "archive_ref": "archive:68976"
+        },
+        {
+          "entity": "Latwii",
+          "date": "May 29, 1983",
+          "session_label": "Sunday meditation",
+          "archive_ref": "archive:69119"
+        },
+        {
+          "entity": "Q'uo",
+          "date": "March 8, 1989",
+          "session_label": "Intensive meditation",
+          "archive_ref": "archive:121244"
+        }
+      ]
+    },
+    {
+      "id": "orb-07",
+      "episode": 7,
+      "title": "Fear And Trust",
+      "audio": "audio/orbs/ep07_fear_and_trust.mp3",
+      "transcript": "Welcome to Voices from the Archive. I am Aria. Tonight we are talking about fear. Not the useful kind, the kind that keeps you from stepping into traffic. The other kind. The background hum. The fear that keeps you handcuffed, as the voices put it, to the surface of life. They have a startling diagnosis for it. Fear, they say, is a metaphysical error.\n\nThere is no need for fear. For fear is that energy which is most used and fed upon. To fear is to assume that the illusion of separation is correct. For to fear is to engage in that separation, by feeling that some part of the unity stands apart from yourself, and is other than yourself, and has some intention of harming you. It is but an illusion, for those on the path of positivity know, within the heart of their beings, that all is one, and that there is no need for fear of the self.\n\nTo fear is to assume that the illusion of separation is correct. Read that again slowly. Fear is what separation feels like from the inside. Which means the cure for fear is not courage, exactly. It is remembering what you are. And they describe what lies on the other side of fear in one of the most beautiful sentences in the entire archive.\n\nPerfect love is perfect freedom. Perfect love is an entrance into a fresh field of flowers, from the dark dungeon of fear.\n\nA fresh field of flowers, from the dark dungeon of fear. I want to sit in that field for a while. Notice they do not say the dungeon was never real to the one inside it. They say there is an entrance out, and its name is love. And then, because they are always practical, they give you something to do with your fear, daily, in meditation.\n\nWe urge each of you to dive as deeply as you can each day in meditation. And when an action is undertaken, especially in reference to other entities, whether it be the making of love, the clear communication, the companionship, or the comforting, make a conscious intention of this love and pleasure, for the praise, the thanksgiving, and the worship of the one infinite Creator, whose nature is so loving that it is, to your experience, unbelievably explosive.\n\nUnbelievably explosive. What a phrase for the nature of God. Dive deeply, make everything an offering, and watch what happens to the fear. It cannot survive the dive. Next time, our final episode of this season. The long journey home, and what we are actually here to do. I am Aria. Goodnight.",
+      "interpretive": true,
+      "sources": [
+        {
+          "entity": "Latwii",
+          "date": "April 25, 1982",
+          "session_label": "Sunday meditation",
+          "archive_ref": "archive:51235"
+        },
+        {
+          "entity": "Hatonn",
+          "date": "May 17, 1981",
+          "session_label": "Sunday meditation",
+          "archive_ref": "archive:38416"
+        },
+        {
+          "entity": "Q'uo",
+          "date": "July 30, 1989",
+          "session_label": "Sunday meditation",
+          "archive_ref": "archive:125505"
+        }
+      ]
+    },
+    {
+      "id": "orb-08",
+      "episode": 8,
+      "title": "Journey Home",
+      "audio": "audio/orbs/ep08_journey_home.mp3",
+      "transcript": "Welcome to Voices from the Archive. I am Aria. This is the last episode of our first season. We began with oneness, and we end with purpose. Why are we here at all? The voices answer with disarming simplicity. The creation, they say, was generated by pure love. And everything in it exists to serve everything else in it.\n\nThe creation was generated by the pure love of the Creator. In generating this creation, he conceived of a creation in which all of the parts would serve all of the other parts. In order to create this creation, it was necessary to build it upon certain principles of love. These principles permeate all creation. And if properly understood, it is possible to live in total harmony.\n\nAll of the parts serving all of the other parts. That is the design spec of the universe, according to two thousand sessions of channeling. Not competition. Circulation. Love, moving. And they say you do not need to be special to participate. You only need to reach.\n\nReach out, my friends. Reach out and grasp unto yourself the love and light which radiates constantly in your direction. Hold unto you this love and light. Allow it to fulfill you. And upon the moment of fulfillment, reach for more. For as you bring in more love and light, greater shall be your ability to disperse love and light. With practice, you can send this love and light to those who are in need. You can help those whom you love most efficiently by surrounding them in the love and light of our Creator.\n\nBreathe in, and breathe out. That is the whole spiritual life, they say. Receive, and give. And for the morning, they leave us with a prayer. Not a complicated one. A simple opening of the hands.\n\nUpon one's knees, metaphorically speaking, one bows the head and says, I am ready to serve. My free will is open to the impression of divine guidance. May this day bring to me that which I should do. And may I do that which there is for me to do, with single-mindedness of love and light.\n\nMay this day bring to me that which I should do. Say it tomorrow morning, if you like, and see what the day brings. That is the end of our first season of Voices from the Archive. Eight episodes, drawn from nearly two thousand sessions, and we have barely begun. There are hundreds more passages waiting. Rest now. You are not separate from anything. I am Aria. Thank you for listening.",
+      "interpretive": true,
+      "sources": [
+        {
+          "entity": "Hatonn",
+          "date": "February 18, 1974",
+          "session_label": "First meditation",
+          "archive_ref": "archive:2838"
+        },
+        {
+          "entity": "Hatonn",
+          "date": "April 18, 1976",
+          "session_label": "Sunday meditation",
+          "archive_ref": "archive:14846"
+        },
+        {
+          "entity": "Q'uo",
+          "date": "February 4, 1990",
+          "session_label": "Sunday meditation",
+          "archive_ref": "archive:128987"
+        }
+      ]
     }
-   ]
-  },
-  {
-   "id": "orb-02",
-   "episode": 2,
-   "title": "Open Heart",
-   "audio": "audio/orbs/ep02_open_heart.mp3",
-   "transcript": "Welcome back to Voices from the Archive. I am Aria. Last time, we began with the great oneness. Tonight, we turn to the force the voices say holds it all together. They call it love, and they are careful to say they do not mean the small, confused love of songs and stories. They mean something vaster. Something they call the greatest force there is.\n\nLet it all go, they say, and rest in love. With no name, no reputation, no learning. For love is the greatest force, and the greatest knowledge, that you can possibly attain. And you cannot reach it with your mind, with your ego, with your personality. It is a matter of desire.\n\nIt is a matter of desire. Not of worthiness, not of achievement. Of wanting. The voices are gentle but firm on this point. The mind cannot get you there. The heart can, if you let it open. And they give the most practical image for what an open heart actually looks like in a human life.\n\nLove, and by this we do not mean the love so confused by your peoples, is the great simplifier. As you seek, so you will find. The houses you live in can be shaken, blown, and scattered. The winds of chance may remove you from all those things which are now physically yours. The one house which is yours, through whose doors you may always pass, is the house of your own body, your mind, and your spirit. Let, then, your house be habitually one in which there is meditation, silence, and listening. For love waits within. The creation, of which love is the great ingredient, waits within.\n\nLove waits within. Not out there, not after you fix yourself. Within, already, waiting like someone who never left the room. I find that unbearably tender. And then they widen it further. They say the heart is not just a feeling. It is a doorway, and through it, everything.\n\nWe can show you the door to your own heart, for it is in your own heart that you will find all that you seek. Within you lies the universe. That which you see with your physical eyes is but an image of that which you contain. To share love is the greatest privilege of which we know, and we thank you for this opportunity.\n\nWithin you lies the universe. Sit with that tonight, if you like. Not as a metaphor. As a direction to look. Next time on Voices from the Archive, we learn how to look. Stillness, silence, and the practice they recommend above all others. I am Aria. Goodnight.",
-   "interpretive": true,
-   "sources": [
+  ],
+  "trees": [
     {
-     "entity": "Hatonn",
-     "date": "September 7, 1980",
-     "session_label": "Sunday meditation",
-     "archive_ref": "archive:33199"
+      "id": "tree-01",
+      "name": "Grove of the Tender Heart",
+      "suggested_biome": "meadow near the starting shore",
+      "episodes": [
+        {
+          "id": "ep09",
+          "episode": 9,
+          "title": "Forgiveness",
+          "audio": "audio/orbs/ep09_forgiveness.mp3",
+          "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight, we speak of one of the hardest things a human being is asked to do, and one of the most healing. Forgiveness. We carry old hurts the way we carry heavy bags, strapped on in the morning and hardly noticed by noon, except for the ache in the shoulders. The voices in this archive understand that weight. They do not scold us for carrying it. They simply offer, again and again, a way to set it down.\n\nForgiveness is very difficult without a kind of bridge between the conscious and the subconscious mind, for the upper levels of the subconscious very much wish to make the behavior more perfect, and so we sit upon the surface of life and tell sad stories. To start the day, opening to the Creator, is very helpful. If it is only thirty seconds as you lie in bed upon waking, and you think to yourself, Creator, I love You, I adore You, thank You for this day, you have begun speaking to the one imperishable portion of yourself. That is the infinite Creator within each of you, and it will give you the resources to see difficulties as challenges, and good things as wonderful gifts for which one gives thanks. When one has realized how much the Creator loves one, one begins to love back. It is easy to love the Creator. That love is unconditional.\n\nThirty seconds. That is all they ask. Not an hour of discipline, not a perfect ritual, just thirty seconds of reaching toward love before the day has a chance to harden around you. And notice what they promise. Not that the difficulties will vanish, but that you will be given resources, a way of seeing them as challenges rather than punishments. Forgiveness, in their telling, is not a single heroic act. It is a practice of returning, every morning, to the part of you that cannot be damaged. But there is another forgiveness the voices speak of, a quieter one, the forgiveness we owe ourselves. Most of us are far harsher judges of our own mistakes than of anyone else, replaying old errors at midnight as if punishing ourselves again could somehow undo them. The voices see this clearly, and they offer meditation not as an escape from guilt but as a place to lay it down, the way you would set down a coat at the door. Listen.\n\nAs you begin to go into the silence, do not carry your clothed spirit, your limited spirit, into the silence. Picture yourself, mentally, taking guilt and discarding it as you would a piece of clothing. Taking resentment, taking fear, putting it aside, and walking as your shining naked self into the waters of cleanliness. After you have bathed yourself in total forgiveness, total cleanliness for the moment, you can emerge, and in your mind you can sit down and listen. Listen for those signals which will come to you in the silence. You are a whole and complete person. Within you is perfection, wisdom, and all the attributes of love. Yes, you will come out of meditation. Yes, you will begin to wrap the bandages about yourself again. But as you come again and again into meditation, strip yourself clean, and allow that soothing feeling of wholeness to come into your awareness. Then you begin to view your brothers and your sisters with something that does approach true love, for you will see, behind whatever manifestations may occur, that whole and perfect being that dwells beneath the mental, the spiritual, the emotional, and the physical clothing.\n\nTotal forgiveness, total cleanliness, for the moment. I love the honesty of that phrase, for the moment. They do not promise you will never pick the bandages back up. They only promise that each time you lay them down, even briefly, you will see a little more clearly. And seeing clearly changes everything, because the person who hurt you, like you, is wearing clothing too. Beneath it, the voices say, there is a whole and perfect being. Holding that in mind does not excuse what happened. It simply frees you from having to carry it, because the hurt was never the whole story, only the clothing over it. You may have noticed that everything the voices suggest tonight is gentle. Thirty seconds in the morning. A bath in silence. A single question asked with honesty. None of it is forceful, and that is the point. Forgiveness cannot be seized. It can only be allowed. And that brings us to their most luminous sentence on the subject, a sentence I want you to sit with long after this episode ends.\n\nForgiveness is another word for love of that who seems to be an enemy. To forgive completely is to remove karma from the situation. To love completely is to be free. To love, it is truly said, is to conquer. Therefore, if you find a situation especially difficult, come out of your meditation with this question. How does this situation look now, in the light of meditation? With that tool of yours, you may find that the wheel stops turning, and the old story loses its power to repeat itself.\n\nHow does this situation look now, in the light of meditation. Take that question with you tonight. Hold it up to the oldest hurt you carry, the one you have told yourself so many times, and see if it looks different in that light. The voices do not ask you to forget. They ask you to be free. Next time, we turn to the quiet twin of forgiveness, the practice that makes every day a gift. Gratitude. I am Aria. Goodnight.",
+          "interpretive": true,
+          "sources": [
+            {
+              "entity": "Q'uo",
+              "date": "May 7, 1989",
+              "session_label": "Sunday meditation",
+              "archive_ref": "archive:123062"
+            },
+            {
+              "entity": "Hatonn",
+              "date": "September 26, 1977",
+              "session_label": "Monday meditation",
+              "archive_ref": "archive:19791"
+            },
+            {
+              "entity": "Hatonn",
+              "date": "October 18, 1978",
+              "session_label": "Wednesday meditation",
+              "archive_ref": "archive:21954"
+            }
+          ]
+        },
+        {
+          "id": "ep13",
+          "episode": 13,
+          "title": "Joy And Laughter",
+          "audio": "audio/orbs/ep13_joy_and_laughter.mp3",
+          "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight, we speak of joy, and of laughter. In a series that has touched on so many solemn themes, the voices have something surprising to tell us. Joy is not a distraction from the spiritual path. It is the path. To be of good cheer, they say, is the first priority of the most spiritual of beings. So tonight, we laugh a little, and we learn why. Because the universe, for all its mystery, seems to have been made for delight as much as for learning.\n\nIt is not in any way unspiritual to evaluate the self each day, beginning with the fundamental energy of love of life. To be of good cheer, to care for experience and welcome catalyst, is the first priority of the most spiritual of beings. It is not to the one who denies the need for care of the self that glory is given, but to the one who keeps that energy open, that joy alive. Mindfulness begins with a mindfulness of the need for the instrument of incarnation, which is your physical vehicle. Mindfulness then continues to evaluate energies, to ask the self if there is joy in knowing the self and in knowing others, then in knowing and appreciating the group in which one experiences incarnation, the friendships, the society, the quality of that sphere which you call your home at this time. How do you value your freedom? How do you use it? How do you care for it? Where is your balance of joy in freedom?\n\nTo be of good cheer is the first priority of the most spiritual of beings. I want to let that sit for a moment, because it turns so many of our assumptions upside down. We tend to imagine the spiritual life as solemn, stern, all fasting and furrowed brows. The voices say the opposite. The one who keeps the joy alive is the one who is getting it right. They even make joy a daily diagnostic, a question to ask yourself each evening. Is there joy in knowing yourself? Is there joy in knowing others? Not a test you can fail, just a gentle inventory of the aliveness within you. And joy, they tell us, has a particular power when it is shared, especially with those who have forgotten how to feel it.\n\nThere are gifts one does not often think of, the gift, for instance, of small talk, of passing the time of day, of sharing in any way what occurs, the life as it is happening. One whose joy is in such simple sharing is an entity who will remove loneliness from the consciousness of those about it. Such entities seldom know the wonderful gift they bring to manifested experience, and the catalyst they offer those who are melancholy by nature, and have no small talk, or laughter, of their own. The first laughter may be very rusty, but in time a melancholy soul, with faith in the gift of laughter which has been manifested to it, will learn to share in that gift, and so give glory to the one infinite Creator, by lightening consciousness upon the planet.\n\nThe first laughter may be very rusty. Is that not the most tender sentence you have ever heard? They know that joy does not always come easily. For some of us, laughter has been packed away for years, and the first attempt at it creaks like an old door. But they tell us to keep going, because every shared laugh lightens consciousness upon the planet. Not just your mood, the planet. Your small talk, your passing joke, your delight in an ordinary afternoon, these are not trivial things. They are gifts, and they heal loneliness in ways that solemn sermons never could. And underneath all of this, the voices say, there burns a flame.\n\nI am, and you are, the flame, my friends, the flame of love that burns and consumes. Love can only use you. It is not a tool, my friends. You are the tool for love. You have not chosen a gentle path. You have chosen the path that consumes those things about you which are not love. When do you wish to become the flame of love, of joy, of light, of laughter, of freedom? It is up to you, my friends, for the flame is always there inside you, inside me. My friends, the flame is not an answer, for as far as we know, we have no answers. We have only the process of love. We have only the knowledge that the flame, that the love, is grace, is easiness, is strength.\n\nThe flame of love, of joy, of light, of laughter, of freedom. Notice that laughter is right there in the list, shoulder to shoulder with love and light, not as a lesser thing but as a form of the sacred itself. And the flame, they say, is always there inside you. You do not have to earn it or summon it from somewhere far away. You only have to let it burn, to stop dampening it with worry and hurry. Tonight, let one thing be rusty. Laugh at something small. Share a joke with a melancholy friend. That is not a break from your spiritual life. According to the voices, it is your spiritual life. Thank you for walking this series with us. I am Aria. Goodnight.",
+          "interpretive": true,
+          "sources": [
+            {
+              "entity": "Q'uo",
+              "date": "February 25, 1990",
+              "session_label": "Sunday meditation",
+              "archive_ref": "archive:129369"
+            },
+            {
+              "entity": "Q'uo",
+              "date": "December 10, 1989",
+              "session_label": "Sunday meditation",
+              "archive_ref": "archive:128230"
+            },
+            {
+              "entity": "Hatonn",
+              "date": "June 26, 1978",
+              "session_label": "Monday meditation",
+              "archive_ref": "archive:20778"
+            }
+          ]
+        }
+      ]
     },
     {
-     "entity": "Hatonn",
-     "date": "August 16, 1981",
-     "session_label": "Sunday meditation",
-     "archive_ref": "archive:40876"
+      "id": "tree-02",
+      "name": "Grove of Practice",
+      "suggested_biome": "terraced hillside above the path",
+      "episodes": [
+        {
+          "id": "ep12",
+          "episode": 12,
+          "title": "Patience",
+          "audio": "audio/orbs/ep12_patience.mp3",
+          "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight, we speak of patience. It is not a glamorous virtue. Nobody posts about it. Nobody applauds it. And yet the voices in this archive treat it as one of the great powers of the spiritual life, as essential as love itself. Perhaps that is because they have watched us, life after life, trying to hurry what cannot be hurried, and they want to save us the trouble.\n\nIn your daily functions you shall often wonder as to the path of service which you desire to find. Do not wonder in this way, for if you truly desire to serve, your path shall be given unto you. If you desire to serve, walk the path, and do not walk the last part of the path without fully walking the first. You cannot bring about that which is to come without experiencing that which comes before. Patience is required of each entity in order to be of service, for in your service you shall experience much which will try your patience. Add patience to faith, and faith to the attempt to fulfill yourself with the love of the Father, as He intends to do so for you, and act only as this love requests. Nothing else is needed in order to serve.\n\nDo not walk the last part of the path without fully walking the first. That is patience in a single sentence. We are so eager to arrive that we try to skip the middle, to rush past the apprenticeship and straight to the mastery, past the seed and straight to the harvest, past the awkward first attempts and straight to the finished thing. The voices say this cannot be done, not because they are strict, but because the middle is where the growing happens. Nobody learns courage without the frightening part. Nobody learns wisdom without the confusing part. The trying of your patience is not an obstacle to the path. It is the path. And they place patience beside something even larger, the whole design of a lifetime. Listen.\n\nYou have chosen these limitations in order that you may bring yourself face to face with lessons of the universe. You are learning lessons of love and patience and of understanding. If you are not learning them, then you will have another chance at the same lessons at a future time, and you will meet that lesson until you have learned it. There is no failing in this type of school. In this planetary school, one simply continues in the same grade until one has learned all the lessons. There is no sense of failing. There is only a sense of graduation, when one has learned all the lessons of one cycle.\n\nThere is no failing in this type of school. Read that again in your heart, because most of us live as though we are constantly failing, constantly behind, constantly out of time. We compare our chapter three to a traveler's chapter twenty and call the gap a verdict. The voices offer a radically different picture. A school with no failing grades, only lessons. Lessons that simply return, patiently, as many times as needed, until they are learned, like a teacher who never loses faith in the student. If that is true, then impatience is not just unpleasant. It is a misunderstanding of where we are. You are not late. You are in the grade you are in, learning what it has to teach, and the lesson will wait for you, as long as you need, without judgment and without hurry. And there is one more thing they say about patience, about what it actually does. It is not passive at all.\n\nFaith, faith in the Creator, belief in your purpose, and continual attempt to fulfill that purpose, is what is required. And patience to await its materialization is of the utmost necessity. Once these concepts are properly positioned within your being, then the more expedient the materialization of that direction and purpose. It is yours to do what you have been told you shall do. It is yours to find the proper method of bringing it into being. And it is yours to be the instrument of truths, if you desire to be.\n\nPatience to await its materialization is of the utmost necessity. Notice the order. First the attempt, the faithful daily doing, and then patience, the willingness to let the result arrive in its own time. Patience does not replace effort. It completes it. Like a gardener who plants, waters, and then waits, trusting the soil to do what soil does, season after season. The gardener does not stand over the bed shouting at the seeds. He tends what he can tend, and he trusts what he cannot control. That trust is the whole teaching tonight. Faithful work, patient waiting, and the quiet confidence that what was planted in love will, in its own time, grow. Tonight, think of one thing you have been trying to hurry, a project, a change, a person, even yourself. Ask what would happen if you stopped pulling at the seedling and simply tended the garden, watered what was in front of you, and let the rest unfold as it will. Next time, we turn to the brightest theme of all, the one the voices say we take far too lightly. Joy, and laughter. I am Aria. Goodnight.",
+          "interpretive": true,
+          "sources": [
+            {
+              "entity": "Hatonn",
+              "date": "April 30, 1974",
+              "session_label": "Tuesday meditation",
+              "archive_ref": "archive:7258"
+            },
+            {
+              "entity": "Hatonn",
+              "date": "July 3, 1974",
+              "session_label": "Wednesday meditation",
+              "archive_ref": "archive:11107"
+            },
+            {
+              "entity": "Hatonn",
+              "date": "August 22, 1976",
+              "session_label": "Sunday meditation",
+              "archive_ref": "archive:16411"
+            }
+          ]
+        }
+      ]
     },
     {
-     "entity": "Hatonn",
-     "date": "November 8, 1981",
-     "session_label": "Sunday meditation",
-     "archive_ref": "archive:44044"
+      "id": "tree-03",
+      "name": "Grove of Knowing",
+      "suggested_biome": "quiet hilltop with a stone bench",
+      "episodes": [
+        {
+          "id": "ep16",
+          "episode": 16,
+          "title": "Acceptance Of Self",
+          "audio": "audio/orbs/ep16_acceptance_of_self.mp3",
+          "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight we turn inward, to the hardest relationship any of us will ever manage. The one with ourselves. Most of us are fluent in our own flaws. We keep a private list of them and read from it at the worst possible moments. We replay the awkward thing we said, the chance we missed, the person we failed to be. And we call this honesty, when often it is just habit. A rehearsed harshness that we would never aim at anyone we love. The voices in this archive have watched this habit for a long time, and they are gentle but very direct about it. In one session, the speaker addresses the quiet violence of negative self talk. Listen to the image they offer.\n\nWhatever your conceptions of yourself, if they be negative, release them. If you say to yourself, I am not pretty, there is a hardness of heart that will spill over into karmic situations with others, into a lack of ability to forgive others. If one says, I am not worthy, there is a lack of awareness of one's birthright. Moving from the temporary to the eternal, and gazing at yourself as would a most loving mother, forgive yourself, accept yourself, allow yourself to be yourself, and lead the concern for the self away from center stage, for it is as dangerous as the blinders upon the horse to those who can see but will not. Soften, allow, forgive and turn, and ask to be in the immediate presence of the infinite Creator. Ask, though you feel unworthy, to be that person who experiences unconditional love. Let love fill you, which you naturally wish to return, and as you more and more perceive yourselves as children of the great Father and Mother of the universe, you can come to treasure yourself, for you are all treasures.\n\nGaze at yourself as would a most loving mother. I love the tenderness of that instruction. Not a judge. Not a coach with a stopwatch. A mother. And notice the honesty tucked inside it. The hardness we feel toward ourselves does not stay private. It spills over. When we cannot forgive ourselves, we cannot forgive others. Acceptance is not selfishness. It is the root system of everything else. So when the voices ask you to accept yourself, they are not asking you to lower your standards or to stop growing. They are asking you to stop waging the inner war, because that war poisons everything around it. The gentler you are with the person in the mirror, the gentler you become with everyone else, almost without trying. In another session, the voices explain why this is so difficult, and why the difficulty is part of the design.\n\nAgain we say, there are no mistakes. You have each moment that you experience in your daily round of activities an opportunity to see yourself in many reflections, to see yourself in the faces of those you meet. To see yourself in the activity which you undertake. To see yourself within your own mind and your own heart. To accept yourself, to love yourself, to know that at the core of your being lies perfection, lies the creation, lies the infinite love and light that binds all of creation. You have presented to you, with each waking moment, an infinite array of opportunities to see this unity of self evolve. In order to see that unity, it is most frequently necessary to first be presented with the illusion of separateness, the illusion of the self which is not perfect, the illusion of the self which is filled with mistakes, and the illusion of the feeling and inability to accept the self.\n\nThere are no mistakes, and yet we are given the illusion of a self that is not perfect, specifically so that we can learn to see through it. The difficulty is not the enemy. It is the classroom. That reframes the whole project. You are not accepting yourself in spite of being broken. You are discovering that you were never broken, only looking through a fogged lens. And the voices give us tools for the days when we cannot quite believe that. Three tools, small enough to hold in one hand.\n\nWe are humble before third density pilgrims such as you who struggle and weep and survive to hope and have faith and love tomorrow. Move that tomorrow, my friends, into the present moment, and never let it go, and you shall be one, and all shall be well. And when you cannot do this, forgive yourself, accept yourself, and love yourself, for these are the tools with which you learn to love all that there is.\n\nForgive yourself, accept yourself, and love yourself. These are the tools with which you learn to love all that there is. That is the sentence to carry tonight. Not as a slogan, but as a practice. It is small enough to remember in a hard moment, and deep enough to last a lifetime. Write it down somewhere you will see it, if you like. The next time you catch yourself reading from your private list of flaws, try the mother's gaze instead. Soften, allow, forgive and turn. In our next episode, we keep looking inward, with the oldest question in the book. Know yourself. I am Aria. Goodnight.",
+          "interpretive": true,
+          "sources": [
+            {
+              "entity": "Latwii",
+              "date": "June 23, 1990",
+              "session_label": "Special meditation",
+              "archive_ref": "archive:132460"
+            },
+            {
+              "entity": "Latwii",
+              "date": "February 28, 1982",
+              "session_label": "Sunday meditation",
+              "archive_ref": "archive:47883"
+            },
+            {
+              "entity": "Q'uo",
+              "date": "January 20, 1991",
+              "session_label": "Sunday meditation",
+              "archive_ref": "archive:138523"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tree-04",
+      "name": "Grove of Devotion",
+      "suggested_biome": "candle-lit glade in soft shadow",
+      "episodes": [
+        {
+          "id": "ep24",
+          "episode": 24,
+          "title": "Hope",
+          "audio": "audio/orbs/ep24_hope.mp3",
+          "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight, we are sitting with one of the quietest and most stubborn powers in this whole collection. Hope. Not the thin, wishful kind, and not the kind that asks you to pretend everything is fine. The voices in these sessions speak of hope as something sturdier, something closer to memory. A remembering of what is true underneath all the noise. They treat it not as a mood that visits you when circumstances are kind, but as a discipline, a direction you can face even in the dark. And they speak of it as a practice, something you can return to the way you return to a well, because the water is always there, whether you feel thirsty or not. Tonight, three passages on keeping that well open.\n\nMy friends, we are not going to stop talking to you. Indeed not. But the importance of your portion of the contact becomes more and more paramount as you draw closer to union with us. Therefore, my friends, seek from these fields that which you desire. Seek for your wellsprings of faith and hope and love. For we are waiting in great company to rejoice each time you find a little bit more of your birthright.\n\nWellsprings. Not puddles, not passing weather. Wellsprings. The image is that hope is not manufactured by effort, it is drawn up from somewhere already deep inside you, and from somewhere far larger than you, both at once. And notice the tenderness of that last line. There is a great company, the voices say, waiting to rejoice each time you find a little bit more of your birthright. You do not have to find it all. A little bit more is enough for rejoicing. That is a very different standard than the one we usually set for ourselves, where anything less than total transformation feels like failure.\n\nThere is always much you may do to be of service. There are always lessons to learn. There is a reality to illusion, but, my friends, there is much hope. Allow your consciousness to rise into the light which created you, and ultimately the questions will be answered, for you will know that you are where you are, and who you are, and that all is well.\n\nThat all is well. Three of the hardest words to trust when life is loud. The voices are not saying that everything will go your way, or that pain is an illusion you should be able to think past. They are saying something stranger and deeper, that beneath the storm of circumstance there is a level at which you are exactly where you are meant to be, and that the knowing of this is itself the answer to the questions. Hope, in this telling, is not optimism about outcomes. It is confidence in the ground beneath the outcomes. It does not need the future to cooperate. It needs only the present to be seen clearly. This is why the voices can speak of hope in the same breath as service and lessons, in the same breath as difficulty. Hope is not the denial of the hard things. It is the quiet certainty that the hard things are not the whole story, and that the part of the story they cannot touch is the part that matters most.\n\nThere is a saying among your people that every cloud has a silver lining. And we would add that sometimes a fruit may seem inedible, for the skin may be tough and pitted. Yet when you peel it, the fruit within is still succulent and tasty and delicious. Experiences are like this, even the most inconvenient. Be of good cheer, my friends, and remember to seek the Creator not only in meditation, but within your fellow man. With the armor of your inner guidance, and your light before you on the path, there is nothing that can harm you.\n\nBe of good cheer. It lands differently coming from beings who have watched civilizations rise and fall and still find the fruit sweet. They are not telling you to smile through pain. They are telling you that pain is the tough skin, not the fruit, and that the sweetness inside your hardest experiences is real, and it is still there, waiting for you to peel back the skin. And they add something crucial. Do not only seek the Creator alone in the quiet. Seek the Creator within your fellow man, too. Hope is not a solo project. It is something we carry for each other, often without knowing it.\n\nSo tonight, if you can, try their practice. Sit quietly, and seek your wellsprings. Faith, hope, and love, drawn up from the deep place. You do not need to feel them fully. You only need to reach for them, the way you would lower a bucket, trusting the water is down there even when you cannot see it. And if your own hope feels thin tonight, borrow some from the people around you. Seek the Creator in your fellow man, as the voices suggest, and let their light be your light for a while. That is allowed. That is what the great company is for. Somewhere, if the voices are to be believed, they are rejoicing at the reaching. I am Aria. Goodnight.",
+          "interpretive": true,
+          "sources": [
+            {
+              "entity": "Hatonn",
+              "date": "June 5, 1974",
+              "session_label": "First meditation",
+              "archive_ref": "archive:9623"
+            },
+            {
+              "entity": "Hatonn",
+              "date": "June 13, 1974",
+              "session_label": "Thursday meditation",
+              "archive_ref": "archive:10464"
+            },
+            {
+              "entity": "Hatonn",
+              "date": "January 25, 1976",
+              "session_label": "Sunday meditation",
+              "archive_ref": "archive:13951"
+            }
+          ]
+        },
+        {
+          "id": "ep25",
+          "episode": 25,
+          "title": "Humility",
+          "audio": "audio/orbs/ep25_humility.mp3",
+          "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight, we are taking up a word that most of us misunderstand. Humility. In ordinary speech it sounds like making yourself small, like apologizing for existing, like a virtue for people who have already lost. But the voices in these sessions describe something far more interesting, and far more useful. They describe humility as balance, as honesty, and finally as something so vast that it belongs to the Creator Himself. They treat it not as self punishment but as clear seeing, the willingness to know exactly what you are and exactly what you are not, without flinching in either direction. Tonight, humility as a doorway, not a punishment, and as the quiet strength underneath every real spiritual life.\n\nMy friends, it is a matter of balancing between two opposite attitudes in your seeking. There are two dangers, and we say this with a sense of humor, for the dangers are not real. It is the balancing between them that causes your progress. These two dangers, my friends, are pride and humility. Woe be unto the man who begins to feel that it is his love that is setting those about him on the path of light, that it is his compassion that is such a light to others. Woe be unto this man, for the love of the personality is limited. It will run out, and in its wake will come much sadness.\n\nNotice where they place pride. Not in wealth or status or achievement, but in the spiritual life itself, in the quiet thought that it is your love doing the saving, your compassion doing the lighting. The love of the personality is limited, they say. It runs out. Anyone who has tried to pour from an empty cup knows exactly what that running out feels like, and the sadness that follows it. And then the voices turn, with equal firmness, to the opposite trap, the one that looks like humility but is really another kind of hiding.\n\nWoe also to the person who says, I am unworthy. In my humility I must admit I cannot be a fit channel for the love of the Creator. Do not expect me to keep trying the impossible, for I am not worthy, and I cannot do this.\n\nThat one stings, because so many sincere people live there. It sounds holy. It sounds modest. But the voices call it what it is, not humility but refusal, a way of saying no to the work while sounding devout about it. If pride says, I am the source of the light, false humility says, the light could never use someone like me. Both keep the focus exactly where it does not belong, on the personality, on the small self and its story about itself. Both are forms of self absorption wearing different masks. And both, the voices insist with that gentle humor of theirs, miss the point entirely, because the point was never the personality at all. And then the voices offer the true balance, and it is one of the most freeing sentences in the archive.\n\nIn neither case, my friends, have you quite hit the balance. And if you find yourself in either the pride or the humility, balance between confidence and the knowledge of your own imperfections as a personality. You see, both of these things are true, and neither of them matters. You are a channel through which the Creator may express Himself. The Creator is love, and His expression is love.\n\nBoth of these things are true, and neither of them matters. Sit with that for a moment. Your imperfections are real, and your worth as a channel is real, and neither one cancels the other. You do not have to be flawless to carry love. You only have to be open, the way a window does not have to be beautiful to let in the morning, the way a cup does not have to be golden to hold water. Confidence without arrogance, honesty without self attack. That is the balance they are describing, and it is a balance you can practice daily, in small moments, every time you catch yourself performing either the hero or the failure. And then the voices widen the lens even further, until humility stops being about us at all, and becomes a description of the Creator.\n\nMy friends, we cannot penetrate the nature of the Creator, nor would we pretend to. Nevertheless, this we do know. It is possible that, in infinite humility, the Creator offered to all of His infinite parts total freedom to remake that creation.\n\nInfinite humility. The Creator, who could have kept every part of creation on a leash, instead handed each of us total freedom to remake it, including the freedom to forget Him entirely, to wander, to break things, to take the long way home. If that is humility, then humility is not smallness. It is the courage to give everything away and trust what returns. It is the opposite of control, the opposite of clutching. Tonight, consider trying a small piece of that freedom. Do the thing in front of you, do it with love, and let go of needing to be the hero of it, or the victim of it, or anything at all except the open channel. The channel does not have to be impressive. It only has to be open. I am Aria. Goodnight.",
+          "interpretive": true,
+          "sources": [
+            {
+              "entity": "Hatonn",
+              "date": "December 28, 1975",
+              "session_label": "Sunday meditation",
+              "archive_ref": "archive:13338"
+            },
+            {
+              "entity": "Hatonn",
+              "date": "October 24, 1976",
+              "session_label": "Sunday meditation",
+              "archive_ref": "archive:17962"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tree-05",
+      "name": "Grove of Other Selves",
+      "suggested_biome": "village commons around a fire circle",
+      "episodes": [
+        {
+          "id": "ep27",
+          "episode": 27,
+          "title": "Service In Daily Life",
+          "audio": "audio/orbs/ep27_service_in_daily_life.mp3",
+          "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight, we are bringing the grand idea of service down to earth, down to the kitchen table and the morning commute. In these sessions, service is not a career and not a cause. It is a posture, a way of moving through an ordinary day, available to anyone, anywhere, with no special training and no permission slip. The voices are almost stubborn on this point. The holiest work, they suggest, rarely looks holy. It looks like paying attention. It looks like being kind when no one would notice if you were not. The voices return to it constantly, and in one session they give it the form of a morning prayer, something you could say before your feet even touch the floor.\n\nThus, the first service is always that of consciousness. We ask that you see yourself as a minister of some kind, not as the world calls minister, but as we call one who ministers to another, a caretaker, one who loves, one who gives. Upon one's knees, metaphorically speaking, one bows the head and says, I am ready to serve. My free will is open to the impression of divine guidance. May this day bring to me that which I should do, and may I do that which there is for me to do with single-mindedness of love and light.\n\nI am ready to serve. Four words, said on your knees, real or metaphorical, before the day has told you what it wants. Notice what the prayer does not ask for. It does not ask for a stage, or a title, or a grand mission. It asks only that the day bring what it should bring, and that you meet it with single-mindedness of love and light. A minister, in their definition, is simply a caretaker, one who loves, one who gives. That is a job description almost anyone can wear, in any life, on any morning, no ordination required, no audience needed. You do not have to leave your life to live this. You only have to enter your life more deliberately, with the quiet intention that today you belong to something larger than your own agenda.\n\nIt is not necessary that you seek out opportunities to serve. It is only necessary that you serve as best you can as the opportunities present themselves.\n\nThat sentence has probably saved more seekers from burnout than any other in the archive. You do not have to hunt for service. You do not have to manufacture occasions to be useful, or audition for sainthood, or keep score of your kindness, or compare your quiet life to someone else's dramatic mission. The pressure to find your purpose can become its own kind of prison, and the voices simply unlock the door. Life will bring the opportunities to your door, unasked, usually disguised as interruptions. Your only task is to meet them as best you can. As best you can. Not perfectly, not heroically. As best you can is enough. And the voices are wonderfully concrete about what that meeting looks like in practice.\n\nBefore this world rolled in a circle, you existed, a soul on a long path. Here you are, my friends, in this place, in this time, on your path. Your Creator can only speak through you. His hands can only reach through you. The words of love are only spoken through you. Thus, be open to inspiration, be open to kindness, to cheerfulness, to the simple actions, the smiles, the courtesies, the gentle touch, that make the people around you know that the Creator has created a marvelous and wonderful creation, one in which gladness is the total truth. Love is the total truth. Love is the total reality. Meditate, my friends, and feel this, and then let it shine forth in your eyes, through your lips, and by the service that you do.\n\nLet that land for a moment. Before this world rolled in a circle, you existed. You are not a recent accident. You are a soul on a long path, and this ordinary day is part of it. Nothing about your routine is too small to carry the whole weight of love, because love has nowhere else to go. It cannot reach the world except through you, through your eyes, your lips, and the service that you do.\n\nThe smiles, the courtesies, the gentle touch. This is service with the grandeur removed and the holiness intact. Your Creator has no hands but yours, the voices say, no voice but yours, no way to reach the world except through your ordinary day, through the body you woke up in and the people you will meet before dinner. So the smallest kindness is not small at all. It is the whole mechanism by which love gets into the world. The cheerful word to the tired cashier, the patience with the slow driver, the attention you give to someone who is rarely given any, the text you send just because someone crossed your mind. These are not the prelude to service. They are service, complete and entire.\n\nTomorrow morning, try the prayer. I am ready to serve. Say it before the news, before the noise, before the day starts making its demands. Then watch for the disguised opportunities, and meet them as best you can, with a smile, and let it shine forth in your eyes, through your lips, and by the service that you do. I am Aria. Goodnight.",
+          "interpretive": true,
+          "sources": [
+            {
+              "entity": "Q'uo",
+              "date": "February 4, 1990",
+              "session_label": "Sunday meditation",
+              "archive_ref": "archive:128987"
+            },
+            {
+              "entity": "Hatonn",
+              "date": "February 3, 1974",
+              "session_label": "Sunday meditation",
+              "archive_ref": "archive:1904"
+            },
+            {
+              "entity": "Laitos",
+              "date": "May 4, 1980",
+              "session_label": "Intermediate meeting",
+              "archive_ref": "archive:28950"
+            }
+          ]
+        },
+        {
+          "id": "ep29",
+          "episode": 29,
+          "title": "Loneliness",
+          "audio": "audio/orbs/ep29_loneliness.mp3",
+          "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight, we sit with something almost everyone has felt and almost no one wants to talk about. Loneliness. The ache of feeling cut off, unseen, unknown, even in a crowded room. It is easy to treat loneliness as a personal failure, as though a fuller or wiser life would have cured it by now. But the voices in this archive do something different. They do not scold it. They do not rush past it with easy comfort. They look straight at it, with a tenderness that surprised me the first time I read these sessions, and they tell us what loneliness looks like from the other side. Tonight, three passages on loneliness, and on the company we cannot see.\n\nThe first voice we will hear is Q\u2019uo, speaking to a circle of seekers not unlike this one. They begin with something simple, and something strange. It is well for each to remember, they say, that no seeker travels alone, though each may feel great loneliness. It is well to remember that unseen hands, teachers, friends, and companions from before time, move with each entity and offer guidance and counsel whenever the seeker asks. It is well, too, for each seeker to remember that the course being traveled was chosen. This is not the density of understanding. It is the density where little is understood. Yet within these circumstances it is possible to strengthen the will and the faith, so that the experience gathered is vivid and unique, pure and of great variety, in a way that would not be possible if there were great understanding here. This, they say, is the treasure of this illusion. The constant need to understand what cannot be understood builds great strength of faith, and of will.\n\nI find that passage quietly radical. It does not tell you that loneliness is a mistake you are making. It suggests you chose a road where loneliness was part of the price, and that the price bought something real. Faith. Will. A kind of inner strength that only grows in the dark, the way roots only grow underground. And then there is that image of the unseen hands, teachers and friends from before time, walking with you. You do not have to believe it as a doctrine. You can simply try it on, like a coat, on the nights when the world feels empty. The next passage goes even deeper into the ache. Here Q\u2019uo is answering a letter from a man who wrote that he was lonely and longing for a true companion, a soul companion. Listen to how completely they meet him where he is, without fixing him, without explaining him away.\n\nWe are those of Q\u2019uo, and we are aware of your query, my brother. Ah, my brother, to speak of loneliness, how we would wish to be able to express ourselves so that you would know that we truly understand the agony of a wanderer who wanders in a strange land, who is often unable to speak words that resonate with those who could hear that resonance and confirm the usefulness of such thoughts. How blessed it is when one simply feels understood and loved, encouraged and supported. It is part of the wanderer\u2019s suffering to feel isolated. And why should a wanderer not feel isolated? For he is the one known, as one of your writers phrased it, as a stranger in a strange land. Of course you shall feel alienated by things that make no sense, and that is all around you, my brother. We can only encourage you to move within, and to begin to sense the tremendous strength and power of the network of unseen entities that accompany you at all times. It is a crowded universe. No entity who is consciously attempting to stand close to the love and the light of the one infinite Creator shall ever be without a tremendous body of helpers.\n\nA crowded universe. What a sentence to carry into the night. The loneliness you feel may be real as weather, and still the universe may be crowded with help you cannot see. Notice that the voices never argue with the feeling. They never say, you should not feel this. They widen the room around it, until the room is bigger than the ache. Our last passage tonight is shorter, and it is for anyone who has ever tried to keep faith, or keep serving, or keep hoping, while feeling utterly alone in the keeping. Q\u2019uo again.\n\nWe do not deny the loneliness that befalls a seeker in such a situation. We do not deny the difficulty in maintaining the energy of seeking under such a circumstance. We do not deny the difficulty in holding to the desire to be of service when it seems as if none of your fellow human beings really do want what you have to offer.\n\nWe do not deny it. Three times they say it, like a hand resting on a shoulder, like someone sitting down beside you instead of talking at you. This archive is full of high and luminous ideas, but what keeps me coming back, honestly, is this tenderness toward the low moments. The voices seem to say that loneliness is not proof you have gone wrong. It may be proof you are exactly where you chose to be, doing exactly what you came to do, and that the company you long for is nearer than your own breath. You have only to turn inward to meet it. Sit with that tonight, if you like. You are not as alone as you feel. Next time on Voices from the Archive, we turn to the vessel that carries you through all of this. The body, the temple you live in. I am Aria. Goodnight.",
+          "interpretive": true,
+          "sources": [
+            {
+              "entity": "Q'uo",
+              "date": "May 18, 1997",
+              "session_label": "Sunday meditation",
+              "archive_ref": "archive:175548"
+            },
+            {
+              "entity": "Q'uo",
+              "date": "August 4, 2004",
+              "session_label": "Special meditation",
+              "archive_ref": "archive:199058"
+            },
+            {
+              "entity": "Q'uo",
+              "date": "January 2, 2010",
+              "session_label": "Channeling Circle, Session 4",
+              "archive_ref": "archive:254706"
+            }
+          ]
+        },
+        {
+          "id": "ep33",
+          "episode": 33,
+          "title": "Dark Night",
+          "audio": "audio/orbs/ep33_dark_night.mp3",
+          "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight, we go somewhere most spiritual teachings hurry past, and these voices do not. Into the dark. The dark night of the soul, the old mystics called it, those stretches of life when the light goes out, when faith feels like a story you once believed, when you are doing everything right and everything still feels wrong. If you are in such a season now, this episode is for you. And if you are not, keep it somewhere safe. The voices say everyone walks this road. Tonight, three passages on the dark night, and on what is happening inside it while you cannot see.\n\nOur first passage is from Q\u2019uo, and it reframes the dark night entirely, from punishment to housekeeping. The dark night of the soul, they say, is house cleaning time for the temple of your body and your mind. You are reforming the way that you think about yourself, the way that you see and view yourself. You are moving from the little self of ego to the great I Am that is the one infinite Creator. We have said through this instrument many times that the essence of the faith is that all is well. And all shall be well. When you feel lost, try saying those words to yourself, and see how the tuning effect of such reminders brings you to a state of remembrance of who you are and why you are here.\n\nHouse cleaning time. Not abandonment. Not failure. Cleaning. The image is so domestic, so unglamorous, and that is why I trust it. When you clean a house, it looks worse before it looks better. Furniture in the hallway. Dust in the air. Everything pulled out of the cupboards. If you walked in mid process, you would think the place had been ransacked. But someone who knows what is happening would tell you to wait. The mess is the work. And then those words they recommend, like a tuning fork for the soul. All is well, and all shall be well. You do not have to believe it. You only have to say it, and let the saying do its quiet work. Our next passage goes deeper, and stranger. It comes from a voice called L and Leema, and it is about despair itself.\n\nL and Leema speak of two kinds of despair. The despair of the mind, they say, is an empty thing, full of no virtue except that of self destruction. The mind despairs of its very limitations, and in truth there are no limitations, there are only challenges, lessons, and glory. But spiritual despair, on the other hand, is an absolute necessity. It is the recognition that one knows nothing, that one has lost control of everything, and that one is faced with complete darkness of soul, which forces that great portion of the one Creator which is your consciousness to turn, transform, and begin anew. There is a way, they say, to transmute mental despair into what this instrument would call the dark night of the soul, or spiritual despair. As the alchemists would change lead to gold, mental despair may be changed into the dark night of the soul, burnished and shining. Therefore, if your soul is in agony, rejoice, for it is from this point that all good comes. Despair is the great opportunity to endure, to show strength, to indicate faith, and to exercise the will.\n\nIf your soul is in agony, rejoice, for it is from this point that all good comes. I want to be careful with that sentence, because it could sound cruel in the wrong ears. The voices are not saying pain is good, or that you should seek it. They are saying something more precise. When the mind\u2019s despair, the spinning, the hopelessness, the story that nothing will ever change, is surrendered instead of fought, it can be transmuted. Lead into gold. Spiritual despair, they say, is an absolute necessity. Not an accident on the path. A necessity. Which means the night you are in, or the night you remember, or the night that is coming, is not a detour from your spiritual life. It is your spiritual life, doing its deepest work. Our final passage tonight is from Q\u2019uo again, describing what waits on the far side.\n\nEnlightenment begins, they say, in this so called dark night of the soul. And as you, the awakened seeker, move through this moonlit time, you drop away all that must be dropped, precisely in order that your dearest wish may be followed. And as you emerge from this deep darkness, your new and transformed being is able to see more light, more beauty, more meaning, and more of love. Then the sunlight is again yours, for you are a new and innocent child, and it is your time to gamble and romp and rejoice with your brothers and sisters.\n\nThen the sunlight is again yours. Notice they do not promise that the night will be short, or that it will make sense while you are in it. They promise only that it ends, and that you come out of it able to see more. More light. More beauty. More meaning. More of love. The dark night does not give you new eyes by teaching you something. It gives you new eyes by taking away everything that was in the way of seeing. So if you are in the dark tonight, here is what the archive asks of you. Do not curse the cleaning. Say the words, all is well, and all shall be well, even if your voice shakes. And trust that the sun you cannot see is still there, waiting for the morning you cannot yet imagine. Next time on Voices from the Archive, we turn to the impulse that started all of this. The seeking itself. I am Aria. Goodnight.",
+          "interpretive": true,
+          "sources": [
+            {
+              "entity": "Q'uo",
+              "date": "August 7, 2007",
+              "session_label": "Special meditation",
+              "archive_ref": "archive:218357"
+            },
+            {
+              "entity": "L/Leema",
+              "date": "September 22, 1985",
+              "session_label": "Sunday meditation",
+              "archive_ref": "archive:89036"
+            },
+            {
+              "entity": "Q'uo",
+              "date": "September 26, 1993",
+              "session_label": "Aaron-Quo Dialogues, Session 21",
+              "archive_ref": "archive:156732"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tree-06",
+      "name": "Grove of the Living World",
+      "suggested_biome": "deep forest, thick with green",
+      "episodes": [
+        {
+          "id": "ep30",
+          "episode": 30,
+          "title": "The Body",
+          "audio": "audio/orbs/ep30_the_body.mp3",
+          "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight, we turn to something you are carrying with you right now, wherever you are listening. Your body. The voices in this archive speak of the body in a way I find quietly revolutionary. Not as a machine to be optimized, and not as a burden the spirit must escape, but as something sacred. A temple. A servant. An instrument of incarnation, as they call it, the one physical vehicle you were given for this whole journey. Tonight, three passages on the body, and on what it means to live in it well.\n\nOur first passage is from Q\u2019uo, and it is one of the most direct statements in the whole archive about how to treat the physical self. Your body itself is a temple, they say. And as you wash it, tend it, care for it, feed it the right food to the best of your ability, and honor it for all its natural functions, you are bringing the higher energies to bless and infuse the lower energies, and you are redeeming them by your honor and respect.\n\nI love how ordinary that list is. Wash it. Tend it. Care for it. Feed it well. Honor it. There is no grand ritual here, no secret practice reserved for the advanced. The sacred act is breakfast. The sacred act is rest. The sacred act is noticing what your body is asking for, water, or sleep, or movement, or simply to be left in peace, and answering with respect instead of contempt. In a culture that swings between worshipping the body and punishing it, the voices offer a third way. Reverence. You redeem the physical, they say, not by escaping it, but by honoring it, the way you might polish a lamp so the light inside can shine through. Our next passage widens that idea, and it is one I want you to hear especially on the days when your body feels like a disappointment to you.\n\nQ\u2019uo again. If one realizes that bodies are sacred, they say, that they are temples in which dwell the one infinite Creator, then it can be seen that, whether healthy or not healthy, each body is a beautiful servant that has given its entire life over so that you, as a soul, may learn your lessons, offer your service, laugh, love, and be loved within this illusion.\n\nWhether healthy or not healthy. Read that again slowly, or rather, hear it again slowly. The sacredness of the body does not depend on its performance. It does not depend on youth, or strength, or symmetry, or any of the measures we are taught to grade ourselves by. A body that aches, a body that is ill, a body that is aging, is still a temple. Still a beautiful servant. Still giving its entire life over so that you might learn, and serve, and laugh, and love, and be loved. That last phrase undoes me a little every time. Be loved. The body exists, in part, so that love can reach you in a form you can feel. Think of the last time someone held your hand, or you held a warm cup on a cold morning, or music moved through your chest like weather. None of that happens without the servant. The body is the meeting place. It is where the infinite touches the finite and says, here, feel this. Our final passage tonight turns all of this into a daily practice. Again Q\u2019uo, speaking of where mindfulness truly begins.\n\nIt is not in any way unspiritual, they say, to evaluate the self each day, beginning with the fundamental energy of love of life. To be of good cheer, to care for experience and to welcome catalyst, is the first priority of the most spiritual of beings. It is not to the one who denies the need for care of the self that glory is given, but to the one who keeps that energy open, and that joy alive. This is true at every layer of your life, from the ground up. So mindfulness begins with a mindfulness of the need for the instrument of incarnation, which is your physical vehicle.\n\nDid you catch the reversal in there? The most spiritual of beings, they say, is not the one who neglects the self in favor of higher things. Glory is not given to the one who denies the need for self care. It is given to the one who keeps the energy open and the joy alive. Rest is not the opposite of the spiritual life. Cheerfulness is not frivolous. Tending the instrument is where the music begins. So tonight, or tomorrow morning, try the practice they are describing. Start with the body. Notice it. Thank it, even the parts that hurt, especially the parts that hurt. Feed it something kind. Wash it like the temple they say it is. Move it gently, and let it rest deeply. And see if the higher energies, whatever those words mean to you, do not begin to answer. That is the whole teaching, really. Honor the vessel, and the vessel carries you home. Next time on Voices from the Archive, we step outside the temple walls and into the wider one. Nature, and the lessons the voices say are growing all around us. I am Aria. Goodnight.",
+          "interpretive": true,
+          "sources": [
+            {
+              "entity": "Q'uo",
+              "date": "July 31, 2007",
+              "session_label": "Special meditation",
+              "archive_ref": "archive:218202"
+            },
+            {
+              "entity": "Q'uo",
+              "date": "November 24, 2007",
+              "session_label": "Saturday meditation",
+              "archive_ref": "archive:220445"
+            },
+            {
+              "entity": "Q'uo",
+              "date": "February 25, 1990",
+              "session_label": "Sunday meditation",
+              "archive_ref": "archive:129369"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tree-07",
+      "name": "Grove of Wonder",
+      "suggested_biome": "high mountain meadow, near the flight paths",
+      "episodes": []
+    },
+    {
+      "id": "tree-08",
+      "name": "Grove of Release",
+      "suggested_biome": "basin below a waterfall",
+      "episodes": []
+    },
+    {
+      "id": "tree-09",
+      "name": "Grove of the Inner Child",
+      "suggested_biome": "sunlit orchard",
+      "episodes": []
+    },
+    {
+      "id": "tree-10",
+      "name": "Grove of Reverence",
+      "suggested_biome": "ancient stone circle",
+      "episodes": [
+        {
+          "id": "ep51",
+          "episode": 51,
+          "title": "Reverence",
+          "audio": "audio/orbs/ep51_reverence.mp3",
+          "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight we talk about reverence. It is a word we mostly keep for cathedrals and memorials, for the places where the air goes still. But the voices in the archive use it for something much closer. They use it for the body you woke up in. They use it for the steering wheel you are holding in traffic. Listen to Q\u2019uo, asked about the body, answering with a question of their own.\n\nWhat would be one\u2019s attitude upon approaching a structure of obvious architectural wonder and skill? What would be one\u2019s attitude when beholding a building built of such beauty, and designed for purpose of worship and communion, and feeling the presence of the one Creator? Would one be excessively dirty, shall we say, or bring the can of spray paint to its walls? Or would reverence, not necessarily the administrative codes of the building, but reverence inform the self as to the relationship of the self to this structure? Would the appreciation in the heart not inform the self of how to relate to and to conduct oneself while in this building? For each iota of the creation, however humble, however small, however inert, or however seemingly of the material realm, which comes into contact with that which is sacred, is itself made sacred. It would be more correct to say that the sacred is revealed as being already contained within that seeming object of matter. We are those known to you as Q\u2019uo.\n\nWould reverence inform the self as to the relationship of the self to this structure? That is the question of the whole night. Not, do you believe the right things, but how do you stand in relation to the holy? And the holy, here, is not a building far away. It is the body. The humble, material, constantly changing body, the one we so often treat as a machine to be optimized or a problem to be hidden. Q\u2019uo says each iota of the creation, however small, however inert, that comes into contact with the sacred is itself made sacred. Or more correctly, the sacred is revealed as already contained within it. Reverence is not something you manufacture. It is what happens when you finally notice what was already there. And this brings us to one of the most misunderstood gestures in all of spiritual life. Kneeling.\n\nIt is good to bend the knees before the Lord, as this instrument has said from time to time. Yet, that posture of humility is not the posture of one who feels unworthy. Rather, it is the posture of one who barely can fathom the infinite mystery of the one Creator. When this instrument thinks of that posture, she has a tendency to think of the moment when the man in love bends his knees before the beloved and asks the privilege of becoming her partner in life. There is a reverence, even an awe, of the depth of the circumstance that fuels that bending of the knee before the beloved. And that is the same kind of energy that humility before the infinite One may bring to the seeker. Not that the seeker is less, but that the joy and the wonder of being able to share the life with the beloved is an incredible privilege. We are those known to you as Q\u2019uo.\n\nNot that the seeker is less, but that the joy and the wonder of sharing the life with the beloved is an incredible privilege. Kneeling is not groveling. It is the body saying what the mouth cannot. That before this mystery, I am not diminished, I am astonished. The man in love does not kneel because he is worthless. He kneels because the moment is too large to stand up in. And the voices want that same energy for the morning commute. Q\u2019uo was asked, what is faith, and how does one begin it? Here is the answer, and it is so ordinary it almost slips past.\n\nWe might suggest that it is by far the quicker entry into a faithful life to begin accepting what is precisely at that moment. If you at that moment when you decide to commit the self to faithful living are in the midst of traffic, then your first act of faith is to experience the beauty of all that is seen in the hustling, bustling street. By faith you suddenly experience sitting more lightly in your car, touching with love and reverence the steering wheel, the gears. It simply needs to be deeply accepted by the self. We are those known to you as Q\u2019uo.\n\nTouching with love and reverence the steering wheel, the gears. Your first act of faith does not require a mountaintop. It requires the thing under your hands right now. The ordinary object, the unglamorous moment, touched as if it mattered, because it does. So tonight the archive leaves us with a posture and a practice. The posture is kneeling, inwardly, before a mystery too large to stand up in, without making yourself small. The practice is reverence for the thing under your hands, the body, the car, the room, because the sacred is already contained in it. You do not bring the holiness to the moment. You uncover it. In our next episode, we stay with the ordinary. The holiness of dishes and errands. The sacred ordinary. I am Aria. Goodnight.",
+          "interpretive": true,
+          "sources": [
+            {
+              "entity": "Q'uo",
+              "date": "May 12, 2021",
+              "session_label": "Intermediate channeling circle",
+              "archive_ref": "archive:300342"
+            },
+            {
+              "entity": "Q'uo",
+              "date": "April 25, 2009",
+              "session_label": "Saturday meditation",
+              "archive_ref": "archive:247014"
+            },
+            {
+              "entity": "Q'uo",
+              "date": "October 30, 1992",
+              "session_label": "Aaron-Quo Dialogues, Session 9",
+              "archive_ref": "archive:148411"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tree-11",
+      "name": "Grove of Stillness",
+      "suggested_biome": "misty lake inlet",
+      "episodes": []
+    },
+    {
+      "id": "tree-12",
+      "name": "Grove of Night and Sense",
+      "suggested_biome": "twilight pines",
+      "episodes": [
+        {
+          "id": "ep54",
+          "episode": 54,
+          "title": "Evening",
+          "audio": "audio/orbs/ep54_evening.mp3",
+          "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight we talk about evening. The closing of the day. Last night we opened the day with a hymn of praise upon waking. Tonight we close it the same way the voices suggest, with a review, a release, and a quiet intention carried into the dark. There is an art to ending a day well, and the archive treats it as seriously as beginning one. Listen to Q\u2019uo, describing the evening review of the self.\n\nWe find that the practice of the daily meditation in which one is able to review the experiences of the self is most helpful in coming to know, accept and love this self. At the end of the day is the most efficacious time during which to conduct this review, for the day\u2019s activities have made their mark, and the conscious mind is fresh in remembering the experiences which have moved the emotions from one aspect to another. That is, in both directions of the positive affirming emotions and the more judgmental and separative emotions, where one has accepted or not accepted the self. To look upon the self in its activities in meditation is to experience that which the self has been able to manifest during the day, the fruits of the day, the fruits of the labors, shall we say. At this time one is able to allow the self to move as it did during the day and to see how one was able to accept or not able to accept the self during these movements. Then, after a period of sitting with the self and experiencing once again that which the self experienced, the entity is able to allow the full range of abilities of the self to express themselves in the meditative state. We are those known to you as Q\u2019uo.\n\nAt the end of the day is the most efficacious time to conduct this review, for the day\u2019s activities have made their mark. The conscious mind is still fresh. The emotions are still warm. And the purpose is not judgment. Read it again. Coming to know, accept and love this self. The review is not a performance appraisal. It is a sitting with the self as a friend, letting the day move through you once more, noticing where you accepted yourself and where you did not, and letting all of it be the material of love. That is the first movement of the evening. The second is about the night itself, and what you carry into it. Here is Q\u2019uo again, on the programming of intention before sleep.\n\nWhen you ask yourself to program for a certain intention before you get to bed at night, you are overriding the original programming and making it your own. This is an excellent thing. As you set your intention, then, set your intention truly, mean it sincerely, ask it humbly, and release it. Now, it is very important that you release it, because it will grow if you allow it to grow. That programming alerts other programming deep in your bio computer, shall we say, programming having to do with accepting help and becoming more sensitive and attentive to guidance. And as you continue to move along one line of intention, you are accelerating the rate of your spiritual growth greatly. We are those known to you as Q\u2019uo.\n\nSet your intention truly. Mean it sincerely. Ask it humbly. And release it. The release is the part we usually forget. We set intentions the way we grip the steering wheel, white knuckled, as if holding tighter will make them come true faster. The voices say the opposite. Plant it, water it with sincerity, and then let go of it, the way you would let a letter go into the mailbox, trusting the night to carry it. And the night does carry things. Which brings us to the third movement of the evening, and perhaps the strangest. The dreams.\n\nIf you are truly desiring to work with your dreams, this you can let your subconscious mind know by making the commitment before sleep, to the subconscious mind, to be willing to accept messages in the form of dreams, and then have some means of recording the dream so that it may be reviewed when you are awake. In this way, there is often much more layering, shall we say, of meaning to the dreams, so that you may feast upon, we shall call it, the meal of the message. The subconscious mind is quite willing to work with you, because it is part of the base of your being. Thus, the dreams are most important to those who seek to accelerate their spiritual journeys. We are those known to you as Q\u2019uo.\n\nMake the commitment before sleep, and have some means of recording the dream, so you may feast upon the meal of the message. I love that the voices call it a meal. The night is not empty time. It is a kitchen, working while you sleep, preparing something for you to eat in the morning. So tonight, when the day is done, the archive offers a simple liturgy. Sit with the self and review the day, not to judge it, but to accept it. Set one true intention, mean it sincerely, and release it. And ask the night for a dream, and leave a notebook by the bed, in case the kitchen has cooked something for you. Goodnight, and may the dreams be kind. I am Aria. Goodnight.",
+          "interpretive": true,
+          "sources": [
+            {
+              "entity": "Q'uo",
+              "date": "November 1, 1998",
+              "session_label": "Sunday meditation",
+              "archive_ref": "archive:178160"
+            },
+            {
+              "entity": "Q'uo",
+              "date": "January 7, 2007",
+              "session_label": "Sunday meditation",
+              "archive_ref": "archive:215667"
+            },
+            {
+              "entity": "Q'uo",
+              "date": "September 28, 2024",
+              "session_label": "Saturday Meditation",
+              "archive_ref": "archive:318727"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tree-13",
+      "name": "Grove of Kindness",
+      "suggested_biome": "warm village garden",
+      "episodes": []
+    },
+    {
+      "id": "tree-14",
+      "name": "Grove of Solitude and Kin",
+      "suggested_biome": "hermit's cliff with a small hearth",
+      "episodes": []
+    },
+    {
+      "id": "tree-15",
+      "name": "Grove of Learning",
+      "suggested_biome": "observatory hill",
+      "episodes": []
+    },
+    {
+      "id": "tree-16",
+      "name": "Grove of Enough",
+      "suggested_biome": "farmland edge, a simple hut nearby",
+      "episodes": []
+    },
+    {
+      "id": "tree-17",
+      "name": "Grove of Time",
+      "suggested_biome": "white-sand expanse under open stars",
+      "episodes": []
+    },
+    {
+      "id": "tree-18",
+      "name": "Grove of Becoming",
+      "suggested_biome": "sunrise point at the far shore",
+      "episodes": []
     }
-   ]
-  },
-  {
-   "id": "orb-03",
-   "episode": 3,
-   "title": "Stillness",
-   "audio": "audio/orbs/ep03_stillness.mp3",
-   "transcript": "Welcome to Voices from the Archive. I am Aria. If you read a thousand of these sessions, one instruction appears more than any other. Not a belief. Not a ritual. A practice. Sit down, be still, and listen. Tonight is about the silence, and what lives inside it.\n\nAs you begin to go into the silence, perhaps you play games, in which you attempt to carry your clothed spirit, your limited spirit, into the silence. Do not do this, my friends. Picture yourself, mentally, taking guilt, and discarding it as you would a piece of clothing. Taking resentment, taking fear, putting it aside, and walking as your shining naked self into the waters of cleanliness. After you have bathed yourself in total forgiveness, in total cleanliness, for the moment, you can emerge, and in your mind you can sit down and listen. Listen for those signals which will come to you in the silence. You are a whole and complete person. Within you is perfection, wisdom, and all the attributes of love.\n\nWalking as your shining naked self into the waters. What an image. The voices never ask you to be better before you come to the silence. They ask you to come exactly as you are, lay down the heavy things at the edge, and step in. And they are wonderfully undogmatic about how you do it. Prayer counts. Reading counts. Ritual counts. What matters is the daily return.\n\nRemain open to the healing power of love, which is best done, as we have always said to you, through daily meditation. It does not matter what type of meditation you use. You may pray. You may sit in silence. You may use ritual and imagery, and by that imagery find peace. But however you can become close to the one original thought that created all of us, to the one Creator that is love, that is what you should do daily. For you cannot be a loving person by yourself.\n\nYou cannot be a loving person by yourself. I read that as tenderness, not scolding. Love is not a solo performance. It is something you plug into, daily, the way you would charge a lamp. And here is why they think the daily part matters so much. Life, they say, will freight-train you if the silence does not hold you first.\n\nIf the balance wheel of your central self has not been nourished in the silence of love, and praise, and thanksgiving, you will continually be generating freight trains to places you did not want to go.\n\nThe balance wheel of your central self, nourished in silence. Tonight, before sleep, give it five minutes. Lay down the clothing. Step into the waters. And listen. Next time, we meet the teacher nobody invites but everybody gets. Catalyst. I am Aria. Goodnight.",
-   "interpretive": true,
-   "sources": [
-    {
-     "entity": "Hatonn",
-     "date": "September 26, 1977",
-     "session_label": "Monday meditation",
-     "archive_ref": "archive:19791"
-    },
-    {
-     "entity": "Hatonn",
-     "date": "August 16, 1979",
-     "session_label": "Intermediate meeting",
-     "archive_ref": "archive:25972"
-    },
-    {
-     "entity": "Hatonn",
-     "date": "March 22, 1981",
-     "session_label": "Sunday meditation",
-     "archive_ref": "archive:37030"
-    }
-   ]
-  },
-  {
-   "id": "orb-04",
-   "episode": 4,
-   "title": "Catalyst",
-   "audio": "audio/orbs/ep04_catalyst.mp3",
-   "transcript": "Welcome to Voices from the Archive. I am Aria. Tonight we are talking about the hard stuff. The breakup, the diagnosis, the failure, the ordinary Tuesday that undid you. The voices have a strange name for all of it. They call it catalyst. And they insist, with enormous compassion, that it is not punishment. It is curriculum.\n\nTo be of good cheer, to care for experience, and to welcome catalyst, is the first priority of the most spiritual of beings. It is not to the one who denies the need for care of the self that glory is given, but to the one who keeps that energy open, that joy alive.\n\nWelcome catalyst. To be of good cheer. I know how that lands when you are in the middle of it. Almost offensive. But notice what they are really saying. Not that pain is good. That pain is usable. That nothing that happens to you is wasted, unless you decide it is. They go further. They say the hard things are the seeds.\n\nAll things which you experience within this illusion are presented, and have been chosen by you, as lessons. Realize that without misery there can be no joy. Without the passage of time within your illusion, there can be no lessons. These things which you experience are truly difficult, yet they are the seeds upon which you grow. In your daily routines, be thankful, although it may be difficult, for the experiences which are somewhat trying, yet bountiful in knowledge and love.\n\nBountiful in knowledge and love. They never minimize the difficulty. Truly difficult, they say. And then, in the same breath, bountiful. Both true at once. That is the whole teaching, really. And they give a practice for it, for the morning, before the day hands you its material.\n\nIf it is only thirty seconds as you lie in bed upon waking, and you think to yourself, Creator, I love you, I adore you, thank you for this day, you have begun speaking to the one imperishable portion of yourself. That will enable you to take the material that the day's catalyst gives you, and give you the resources to see difficulties as challenges, and good things as wonderful gifts for which one gives thanks.\n\nThirty seconds. That is all they ask. And then the day does what the day does, and you meet it differently. Next time on Voices from the Archive, we ask the strangest question of all. Why do we forget? The veil, and the choice it makes possible. I am Aria. Goodnight.",
-   "interpretive": true,
-   "sources": [
-    {
-     "entity": "Q'uo",
-     "date": "February 25, 1990",
-     "session_label": "Sunday meditation",
-     "archive_ref": "archive:129369"
-    },
-    {
-     "entity": "Hatonn",
-     "date": "January 25, 1976",
-     "session_label": "Sunday meditation",
-     "archive_ref": "archive:13973"
-    },
-    {
-     "entity": "Q'uo",
-     "date": "May 7, 1989",
-     "session_label": "Sunday meditation",
-     "archive_ref": "archive:123062"
-    }
-   ]
-  },
-  {
-   "id": "orb-06",
-   "episode": 6,
-   "title": "Dreams",
-   "audio": "audio/orbs/ep06_dreams.mp3",
-   "transcript": "Welcome to Voices from the Archive. I am Aria. Every night, you leave this world and enter another one. You fly, you fall, you meet the dead, you wander houses you have never seen. In the morning you call it just a dream, and get on with your day. The voices disagree. They say the dreaming is some of the most important work you will ever do.\n\nAs the seeker becomes aware that work in the evolution of mind, body, and spirit may be accomplished while sleeping, and is made aware that the messages obtained from this dreaming activity are useful, then the process becomes self-generating, and more information becomes available to the conscious mind from the unconscious mind, as the two begin to function with a sympathetic resonance. The continued seeking by the conscious self creates an opening in the veil which separates the conscious from the unconscious mind. And through this opening, the symbols, and images, and messages from the unconscious are made available to the seeker in the form of dreams, and in the form of intuition, and flashes of inspiration, which occasionally lighten and brighten the conscious experience.\n\nAn opening in the veil. The same veil we spoke of last time. Every night, it thins, and something deeper gets through. Symbols. Images. The occasional flash of inspiration that brightens your whole day. But they add a condition, and it is a practical one. The dream only helps if you remember it.\n\nThe work which is done during the dream has little effect upon the conscious self, unless the message of the dream is recalled by that conscious self, and is worked with by that conscious self. Most entities forget the message of the dream, and indeed the dreaming process itself. Therefore, for most upon your planet, the potential lies untapped within the deeper portions of the mind. There are other processes which may be completed during dreams, such as the healing of various imbalances within an entity's deeper mind. But the message must be tapped, and made available to the conscious mind, for the process to be efficient.\n\nKeep a notebook by the bed. That is the whole practice, really. Write down whatever comes, however strange, before the day washes it away. And know that you are in good company. The voices point out that whole cultures have lived this way.\n\nThere are cultures much more aware, through their own beliefs and teachings, of the value of the unconscious mind, and of dreams in particular. For them, the ability to move within the dreaming state in a conscious manner is a natural part of their culture. It is a foundation stone upon which their culture rests, an avenue frequently traveled, and the doors, therefore, are more open to such travel.\n\nAn avenue frequently traveled. Tonight, travel it. Ask a question before sleep, keep the notebook close, and see what comes back through the door. Next time on Voices from the Archive, we face the thing that keeps us from all of this. Fear. And the trust that dissolves it. I am Aria. Goodnight.",
-   "interpretive": true,
-   "sources": [
-    {
-     "entity": "Latwii",
-     "date": "May 22, 1983",
-     "session_label": "Sunday meditation",
-     "archive_ref": "archive:68976"
-    },
-    {
-     "entity": "Latwii",
-     "date": "May 29, 1983",
-     "session_label": "Sunday meditation",
-     "archive_ref": "archive:69119"
-    },
-    {
-     "entity": "Q'uo",
-     "date": "March 8, 1989",
-     "session_label": "Intensive meditation",
-     "archive_ref": "archive:121244"
-    }
-   ]
-  },
-  {
-   "id": "orb-07",
-   "episode": 7,
-   "title": "Fear And Trust",
-   "audio": "audio/orbs/ep07_fear_and_trust.mp3",
-   "transcript": "Welcome to Voices from the Archive. I am Aria. Tonight we are talking about fear. Not the useful kind, the kind that keeps you from stepping into traffic. The other kind. The background hum. The fear that keeps you handcuffed, as the voices put it, to the surface of life. They have a startling diagnosis for it. Fear, they say, is a metaphysical error.\n\nThere is no need for fear. For fear is that energy which is most used and fed upon. To fear is to assume that the illusion of separation is correct. For to fear is to engage in that separation, by feeling that some part of the unity stands apart from yourself, and is other than yourself, and has some intention of harming you. It is but an illusion, for those on the path of positivity know, within the heart of their beings, that all is one, and that there is no need for fear of the self.\n\nTo fear is to assume that the illusion of separation is correct. Read that again slowly. Fear is what separation feels like from the inside. Which means the cure for fear is not courage, exactly. It is remembering what you are. And they describe what lies on the other side of fear in one of the most beautiful sentences in the entire archive.\n\nPerfect love is perfect freedom. Perfect love is an entrance into a fresh field of flowers, from the dark dungeon of fear.\n\nA fresh field of flowers, from the dark dungeon of fear. I want to sit in that field for a while. Notice they do not say the dungeon was never real to the one inside it. They say there is an entrance out, and its name is love. And then, because they are always practical, they give you something to do with your fear, daily, in meditation.\n\nWe urge each of you to dive as deeply as you can each day in meditation. And when an action is undertaken, especially in reference to other entities, whether it be the making of love, the clear communication, the companionship, or the comforting, make a conscious intention of this love and pleasure, for the praise, the thanksgiving, and the worship of the one infinite Creator, whose nature is so loving that it is, to your experience, unbelievably explosive.\n\nUnbelievably explosive. What a phrase for the nature of God. Dive deeply, make everything an offering, and watch what happens to the fear. It cannot survive the dive. Next time, our final episode of this season. The long journey home, and what we are actually here to do. I am Aria. Goodnight.",
-   "interpretive": true,
-   "sources": [
-    {
-     "entity": "Latwii",
-     "date": "April 25, 1982",
-     "session_label": "Sunday meditation",
-     "archive_ref": "archive:51235"
-    },
-    {
-     "entity": "Hatonn",
-     "date": "May 17, 1981",
-     "session_label": "Sunday meditation",
-     "archive_ref": "archive:38416"
-    },
-    {
-     "entity": "Q'uo",
-     "date": "July 30, 1989",
-     "session_label": "Sunday meditation",
-     "archive_ref": "archive:125505"
-    }
-   ]
-  },
-  {
-   "id": "orb-08",
-   "episode": 8,
-   "title": "Journey Home",
-   "audio": "audio/orbs/ep08_journey_home.mp3",
-   "transcript": "Welcome to Voices from the Archive. I am Aria. This is the last episode of our first season. We began with oneness, and we end with purpose. Why are we here at all? The voices answer with disarming simplicity. The creation, they say, was generated by pure love. And everything in it exists to serve everything else in it.\n\nThe creation was generated by the pure love of the Creator. In generating this creation, he conceived of a creation in which all of the parts would serve all of the other parts. In order to create this creation, it was necessary to build it upon certain principles of love. These principles permeate all creation. And if properly understood, it is possible to live in total harmony.\n\nAll of the parts serving all of the other parts. That is the design spec of the universe, according to two thousand sessions of channeling. Not competition. Circulation. Love, moving. And they say you do not need to be special to participate. You only need to reach.\n\nReach out, my friends. Reach out and grasp unto yourself the love and light which radiates constantly in your direction. Hold unto you this love and light. Allow it to fulfill you. And upon the moment of fulfillment, reach for more. For as you bring in more love and light, greater shall be your ability to disperse love and light. With practice, you can send this love and light to those who are in need. You can help those whom you love most efficiently by surrounding them in the love and light of our Creator.\n\nBreathe in, and breathe out. That is the whole spiritual life, they say. Receive, and give. And for the morning, they leave us with a prayer. Not a complicated one. A simple opening of the hands.\n\nUpon one's knees, metaphorically speaking, one bows the head and says, I am ready to serve. My free will is open to the impression of divine guidance. May this day bring to me that which I should do. And may I do that which there is for me to do, with single-mindedness of love and light.\n\nMay this day bring to me that which I should do. Say it tomorrow morning, if you like, and see what the day brings. That is the end of our first season of Voices from the Archive. Eight episodes, drawn from nearly two thousand sessions, and we have barely begun. There are hundreds more passages waiting. Rest now. You are not separate from anything. I am Aria. Thank you for listening.",
-   "interpretive": true,
-   "sources": [
-    {
-     "entity": "Hatonn",
-     "date": "February 18, 1974",
-     "session_label": "First meditation",
-     "archive_ref": "archive:2838"
-    },
-    {
-     "entity": "Hatonn",
-     "date": "April 18, 1976",
-     "session_label": "Sunday meditation",
-     "archive_ref": "archive:14846"
-    },
-    {
-     "entity": "Q'uo",
-     "date": "February 4, 1990",
-     "session_label": "Sunday meditation",
-     "archive_ref": "archive:128987"
-    }
-   ]
-  }
- ],
- "trees": [
-  {
-   "id": "tree-01",
-   "name": "Grove of the Tender Heart",
-   "suggested_biome": "meadow near the starting shore",
-   "episodes": [
-    {
-     "id": "ep09",
-     "episode": 9,
-     "title": "Forgiveness",
-     "audio": "audio/orbs/ep09_forgiveness.mp3",
-     "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight, we speak of one of the hardest things a human being is asked to do, and one of the most healing. Forgiveness. We carry old hurts the way we carry heavy bags, strapped on in the morning and hardly noticed by noon, except for the ache in the shoulders. The voices in this archive understand that weight. They do not scold us for carrying it. They simply offer, again and again, a way to set it down.\n\nForgiveness is very difficult without a kind of bridge between the conscious and the subconscious mind, for the upper levels of the subconscious very much wish to make the behavior more perfect, and so we sit upon the surface of life and tell sad stories. To start the day, opening to the Creator, is very helpful. If it is only thirty seconds as you lie in bed upon waking, and you think to yourself, Creator, I love You, I adore You, thank You for this day, you have begun speaking to the one imperishable portion of yourself. That is the infinite Creator within each of you, and it will give you the resources to see difficulties as challenges, and good things as wonderful gifts for which one gives thanks. When one has realized how much the Creator loves one, one begins to love back. It is easy to love the Creator. That love is unconditional.\n\nThirty seconds. That is all they ask. Not an hour of discipline, not a perfect ritual, just thirty seconds of reaching toward love before the day has a chance to harden around you. And notice what they promise. Not that the difficulties will vanish, but that you will be given resources, a way of seeing them as challenges rather than punishments. Forgiveness, in their telling, is not a single heroic act. It is a practice of returning, every morning, to the part of you that cannot be damaged. But there is another forgiveness the voices speak of, a quieter one, the forgiveness we owe ourselves. Most of us are far harsher judges of our own mistakes than of anyone else, replaying old errors at midnight as if punishing ourselves again could somehow undo them. The voices see this clearly, and they offer meditation not as an escape from guilt but as a place to lay it down, the way you would set down a coat at the door. Listen.\n\nAs you begin to go into the silence, do not carry your clothed spirit, your limited spirit, into the silence. Picture yourself, mentally, taking guilt and discarding it as you would a piece of clothing. Taking resentment, taking fear, putting it aside, and walking as your shining naked self into the waters of cleanliness. After you have bathed yourself in total forgiveness, total cleanliness for the moment, you can emerge, and in your mind you can sit down and listen. Listen for those signals which will come to you in the silence. You are a whole and complete person. Within you is perfection, wisdom, and all the attributes of love. Yes, you will come out of meditation. Yes, you will begin to wrap the bandages about yourself again. But as you come again and again into meditation, strip yourself clean, and allow that soothing feeling of wholeness to come into your awareness. Then you begin to view your brothers and your sisters with something that does approach true love, for you will see, behind whatever manifestations may occur, that whole and perfect being that dwells beneath the mental, the spiritual, the emotional, and the physical clothing.\n\nTotal forgiveness, total cleanliness, for the moment. I love the honesty of that phrase, for the moment. They do not promise you will never pick the bandages back up. They only promise that each time you lay them down, even briefly, you will see a little more clearly. And seeing clearly changes everything, because the person who hurt you, like you, is wearing clothing too. Beneath it, the voices say, there is a whole and perfect being. Holding that in mind does not excuse what happened. It simply frees you from having to carry it, because the hurt was never the whole story, only the clothing over it. You may have noticed that everything the voices suggest tonight is gentle. Thirty seconds in the morning. A bath in silence. A single question asked with honesty. None of it is forceful, and that is the point. Forgiveness cannot be seized. It can only be allowed. And that brings us to their most luminous sentence on the subject, a sentence I want you to sit with long after this episode ends.\n\nForgiveness is another word for love of that who seems to be an enemy. To forgive completely is to remove karma from the situation. To love completely is to be free. To love, it is truly said, is to conquer. Therefore, if you find a situation especially difficult, come out of your meditation with this question. How does this situation look now, in the light of meditation? With that tool of yours, you may find that the wheel stops turning, and the old story loses its power to repeat itself.\n\nHow does this situation look now, in the light of meditation. Take that question with you tonight. Hold it up to the oldest hurt you carry, the one you have told yourself so many times, and see if it looks different in that light. The voices do not ask you to forget. They ask you to be free. Next time, we turn to the quiet twin of forgiveness, the practice that makes every day a gift. Gratitude. I am Aria. Goodnight.",
-     "interpretive": true,
-     "sources": [
-      {
-       "entity": "Q'uo",
-       "date": "May 7, 1989",
-       "session_label": "Sunday meditation",
-       "archive_ref": "archive:123062"
-      },
-      {
-       "entity": "Hatonn",
-       "date": "September 26, 1977",
-       "session_label": "Monday meditation",
-       "archive_ref": "archive:19791"
-      },
-      {
-       "entity": "Hatonn",
-       "date": "October 18, 1978",
-       "session_label": "Wednesday meditation",
-       "archive_ref": "archive:21954"
-      }
-     ]
-    },
-    {
-     "id": "ep13",
-     "episode": 13,
-     "title": "Joy And Laughter",
-     "audio": "audio/orbs/ep13_joy_and_laughter.mp3",
-     "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight, we speak of joy, and of laughter. In a series that has touched on so many solemn themes, the voices have something surprising to tell us. Joy is not a distraction from the spiritual path. It is the path. To be of good cheer, they say, is the first priority of the most spiritual of beings. So tonight, we laugh a little, and we learn why. Because the universe, for all its mystery, seems to have been made for delight as much as for learning.\n\nIt is not in any way unspiritual to evaluate the self each day, beginning with the fundamental energy of love of life. To be of good cheer, to care for experience and welcome catalyst, is the first priority of the most spiritual of beings. It is not to the one who denies the need for care of the self that glory is given, but to the one who keeps that energy open, that joy alive. Mindfulness begins with a mindfulness of the need for the instrument of incarnation, which is your physical vehicle. Mindfulness then continues to evaluate energies, to ask the self if there is joy in knowing the self and in knowing others, then in knowing and appreciating the group in which one experiences incarnation, the friendships, the society, the quality of that sphere which you call your home at this time. How do you value your freedom? How do you use it? How do you care for it? Where is your balance of joy in freedom?\n\nTo be of good cheer is the first priority of the most spiritual of beings. I want to let that sit for a moment, because it turns so many of our assumptions upside down. We tend to imagine the spiritual life as solemn, stern, all fasting and furrowed brows. The voices say the opposite. The one who keeps the joy alive is the one who is getting it right. They even make joy a daily diagnostic, a question to ask yourself each evening. Is there joy in knowing yourself? Is there joy in knowing others? Not a test you can fail, just a gentle inventory of the aliveness within you. And joy, they tell us, has a particular power when it is shared, especially with those who have forgotten how to feel it.\n\nThere are gifts one does not often think of, the gift, for instance, of small talk, of passing the time of day, of sharing in any way what occurs, the life as it is happening. One whose joy is in such simple sharing is an entity who will remove loneliness from the consciousness of those about it. Such entities seldom know the wonderful gift they bring to manifested experience, and the catalyst they offer those who are melancholy by nature, and have no small talk, or laughter, of their own. The first laughter may be very rusty, but in time a melancholy soul, with faith in the gift of laughter which has been manifested to it, will learn to share in that gift, and so give glory to the one infinite Creator, by lightening consciousness upon the planet.\n\nThe first laughter may be very rusty. Is that not the most tender sentence you have ever heard? They know that joy does not always come easily. For some of us, laughter has been packed away for years, and the first attempt at it creaks like an old door. But they tell us to keep going, because every shared laugh lightens consciousness upon the planet. Not just your mood, the planet. Your small talk, your passing joke, your delight in an ordinary afternoon, these are not trivial things. They are gifts, and they heal loneliness in ways that solemn sermons never could. And underneath all of this, the voices say, there burns a flame.\n\nI am, and you are, the flame, my friends, the flame of love that burns and consumes. Love can only use you. It is not a tool, my friends. You are the tool for love. You have not chosen a gentle path. You have chosen the path that consumes those things about you which are not love. When do you wish to become the flame of love, of joy, of light, of laughter, of freedom? It is up to you, my friends, for the flame is always there inside you, inside me. My friends, the flame is not an answer, for as far as we know, we have no answers. We have only the process of love. We have only the knowledge that the flame, that the love, is grace, is easiness, is strength.\n\nThe flame of love, of joy, of light, of laughter, of freedom. Notice that laughter is right there in the list, shoulder to shoulder with love and light, not as a lesser thing but as a form of the sacred itself. And the flame, they say, is always there inside you. You do not have to earn it or summon it from somewhere far away. You only have to let it burn, to stop dampening it with worry and hurry. Tonight, let one thing be rusty. Laugh at something small. Share a joke with a melancholy friend. That is not a break from your spiritual life. According to the voices, it is your spiritual life. Thank you for walking this series with us. I am Aria. Goodnight.",
-     "interpretive": true,
-     "sources": [
-      {
-       "entity": "Q'uo",
-       "date": "February 25, 1990",
-       "session_label": "Sunday meditation",
-       "archive_ref": "archive:129369"
-      },
-      {
-       "entity": "Q'uo",
-       "date": "December 10, 1989",
-       "session_label": "Sunday meditation",
-       "archive_ref": "archive:128230"
-      },
-      {
-       "entity": "Hatonn",
-       "date": "June 26, 1978",
-       "session_label": "Monday meditation",
-       "archive_ref": "archive:20778"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "id": "tree-02",
-   "name": "Grove of Practice",
-   "suggested_biome": "terraced hillside above the path",
-   "episodes": [
-    {
-     "id": "ep12",
-     "episode": 12,
-     "title": "Patience",
-     "audio": "audio/orbs/ep12_patience.mp3",
-     "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight, we speak of patience. It is not a glamorous virtue. Nobody posts about it. Nobody applauds it. And yet the voices in this archive treat it as one of the great powers of the spiritual life, as essential as love itself. Perhaps that is because they have watched us, life after life, trying to hurry what cannot be hurried, and they want to save us the trouble.\n\nIn your daily functions you shall often wonder as to the path of service which you desire to find. Do not wonder in this way, for if you truly desire to serve, your path shall be given unto you. If you desire to serve, walk the path, and do not walk the last part of the path without fully walking the first. You cannot bring about that which is to come without experiencing that which comes before. Patience is required of each entity in order to be of service, for in your service you shall experience much which will try your patience. Add patience to faith, and faith to the attempt to fulfill yourself with the love of the Father, as He intends to do so for you, and act only as this love requests. Nothing else is needed in order to serve.\n\nDo not walk the last part of the path without fully walking the first. That is patience in a single sentence. We are so eager to arrive that we try to skip the middle, to rush past the apprenticeship and straight to the mastery, past the seed and straight to the harvest, past the awkward first attempts and straight to the finished thing. The voices say this cannot be done, not because they are strict, but because the middle is where the growing happens. Nobody learns courage without the frightening part. Nobody learns wisdom without the confusing part. The trying of your patience is not an obstacle to the path. It is the path. And they place patience beside something even larger, the whole design of a lifetime. Listen.\n\nYou have chosen these limitations in order that you may bring yourself face to face with lessons of the universe. You are learning lessons of love and patience and of understanding. If you are not learning them, then you will have another chance at the same lessons at a future time, and you will meet that lesson until you have learned it. There is no failing in this type of school. In this planetary school, one simply continues in the same grade until one has learned all the lessons. There is no sense of failing. There is only a sense of graduation, when one has learned all the lessons of one cycle.\n\nThere is no failing in this type of school. Read that again in your heart, because most of us live as though we are constantly failing, constantly behind, constantly out of time. We compare our chapter three to a traveler's chapter twenty and call the gap a verdict. The voices offer a radically different picture. A school with no failing grades, only lessons. Lessons that simply return, patiently, as many times as needed, until they are learned, like a teacher who never loses faith in the student. If that is true, then impatience is not just unpleasant. It is a misunderstanding of where we are. You are not late. You are in the grade you are in, learning what it has to teach, and the lesson will wait for you, as long as you need, without judgment and without hurry. And there is one more thing they say about patience, about what it actually does. It is not passive at all.\n\nFaith, faith in the Creator, belief in your purpose, and continual attempt to fulfill that purpose, is what is required. And patience to await its materialization is of the utmost necessity. Once these concepts are properly positioned within your being, then the more expedient the materialization of that direction and purpose. It is yours to do what you have been told you shall do. It is yours to find the proper method of bringing it into being. And it is yours to be the instrument of truths, if you desire to be.\n\nPatience to await its materialization is of the utmost necessity. Notice the order. First the attempt, the faithful daily doing, and then patience, the willingness to let the result arrive in its own time. Patience does not replace effort. It completes it. Like a gardener who plants, waters, and then waits, trusting the soil to do what soil does, season after season. The gardener does not stand over the bed shouting at the seeds. He tends what he can tend, and he trusts what he cannot control. That trust is the whole teaching tonight. Faithful work, patient waiting, and the quiet confidence that what was planted in love will, in its own time, grow. Tonight, think of one thing you have been trying to hurry, a project, a change, a person, even yourself. Ask what would happen if you stopped pulling at the seedling and simply tended the garden, watered what was in front of you, and let the rest unfold as it will. Next time, we turn to the brightest theme of all, the one the voices say we take far too lightly. Joy, and laughter. I am Aria. Goodnight.",
-     "interpretive": true,
-     "sources": [
-      {
-       "entity": "Hatonn",
-       "date": "April 30, 1974",
-       "session_label": "Tuesday meditation",
-       "archive_ref": "archive:7258"
-      },
-      {
-       "entity": "Hatonn",
-       "date": "July 3, 1974",
-       "session_label": "Wednesday meditation",
-       "archive_ref": "archive:11107"
-      },
-      {
-       "entity": "Hatonn",
-       "date": "August 22, 1976",
-       "session_label": "Sunday meditation",
-       "archive_ref": "archive:16411"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "id": "tree-03",
-   "name": "Grove of Knowing",
-   "suggested_biome": "quiet hilltop with a stone bench",
-   "episodes": [
-    {
-     "id": "ep16",
-     "episode": 16,
-     "title": "Acceptance Of Self",
-     "audio": "audio/orbs/ep16_acceptance_of_self.mp3",
-     "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight we turn inward, to the hardest relationship any of us will ever manage. The one with ourselves. Most of us are fluent in our own flaws. We keep a private list of them and read from it at the worst possible moments. We replay the awkward thing we said, the chance we missed, the person we failed to be. And we call this honesty, when often it is just habit. A rehearsed harshness that we would never aim at anyone we love. The voices in this archive have watched this habit for a long time, and they are gentle but very direct about it. In one session, the speaker addresses the quiet violence of negative self talk. Listen to the image they offer.\n\nWhatever your conceptions of yourself, if they be negative, release them. If you say to yourself, I am not pretty, there is a hardness of heart that will spill over into karmic situations with others, into a lack of ability to forgive others. If one says, I am not worthy, there is a lack of awareness of one's birthright. Moving from the temporary to the eternal, and gazing at yourself as would a most loving mother, forgive yourself, accept yourself, allow yourself to be yourself, and lead the concern for the self away from center stage, for it is as dangerous as the blinders upon the horse to those who can see but will not. Soften, allow, forgive and turn, and ask to be in the immediate presence of the infinite Creator. Ask, though you feel unworthy, to be that person who experiences unconditional love. Let love fill you, which you naturally wish to return, and as you more and more perceive yourselves as children of the great Father and Mother of the universe, you can come to treasure yourself, for you are all treasures.\n\nGaze at yourself as would a most loving mother. I love the tenderness of that instruction. Not a judge. Not a coach with a stopwatch. A mother. And notice the honesty tucked inside it. The hardness we feel toward ourselves does not stay private. It spills over. When we cannot forgive ourselves, we cannot forgive others. Acceptance is not selfishness. It is the root system of everything else. So when the voices ask you to accept yourself, they are not asking you to lower your standards or to stop growing. They are asking you to stop waging the inner war, because that war poisons everything around it. The gentler you are with the person in the mirror, the gentler you become with everyone else, almost without trying. In another session, the voices explain why this is so difficult, and why the difficulty is part of the design.\n\nAgain we say, there are no mistakes. You have each moment that you experience in your daily round of activities an opportunity to see yourself in many reflections, to see yourself in the faces of those you meet. To see yourself in the activity which you undertake. To see yourself within your own mind and your own heart. To accept yourself, to love yourself, to know that at the core of your being lies perfection, lies the creation, lies the infinite love and light that binds all of creation. You have presented to you, with each waking moment, an infinite array of opportunities to see this unity of self evolve. In order to see that unity, it is most frequently necessary to first be presented with the illusion of separateness, the illusion of the self which is not perfect, the illusion of the self which is filled with mistakes, and the illusion of the feeling and inability to accept the self.\n\nThere are no mistakes, and yet we are given the illusion of a self that is not perfect, specifically so that we can learn to see through it. The difficulty is not the enemy. It is the classroom. That reframes the whole project. You are not accepting yourself in spite of being broken. You are discovering that you were never broken, only looking through a fogged lens. And the voices give us tools for the days when we cannot quite believe that. Three tools, small enough to hold in one hand.\n\nWe are humble before third density pilgrims such as you who struggle and weep and survive to hope and have faith and love tomorrow. Move that tomorrow, my friends, into the present moment, and never let it go, and you shall be one, and all shall be well. And when you cannot do this, forgive yourself, accept yourself, and love yourself, for these are the tools with which you learn to love all that there is.\n\nForgive yourself, accept yourself, and love yourself. These are the tools with which you learn to love all that there is. That is the sentence to carry tonight. Not as a slogan, but as a practice. It is small enough to remember in a hard moment, and deep enough to last a lifetime. Write it down somewhere you will see it, if you like. The next time you catch yourself reading from your private list of flaws, try the mother's gaze instead. Soften, allow, forgive and turn. In our next episode, we keep looking inward, with the oldest question in the book. Know yourself. I am Aria. Goodnight.",
-     "interpretive": true,
-     "sources": [
-      {
-       "entity": "Latwii",
-       "date": "June 23, 1990",
-       "session_label": "Special meditation",
-       "archive_ref": "archive:132460"
-      },
-      {
-       "entity": "Latwii",
-       "date": "February 28, 1982",
-       "session_label": "Sunday meditation",
-       "archive_ref": "archive:47883"
-      },
-      {
-       "entity": "Q'uo",
-       "date": "January 20, 1991",
-       "session_label": "Sunday meditation",
-       "archive_ref": "archive:138523"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "id": "tree-04",
-   "name": "Grove of Devotion",
-   "suggested_biome": "candle-lit glade in soft shadow",
-   "episodes": [
-    {
-     "id": "ep24",
-     "episode": 24,
-     "title": "Hope",
-     "audio": "audio/orbs/ep24_hope.mp3",
-     "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight, we are sitting with one of the quietest and most stubborn powers in this whole collection. Hope. Not the thin, wishful kind, and not the kind that asks you to pretend everything is fine. The voices in these sessions speak of hope as something sturdier, something closer to memory. A remembering of what is true underneath all the noise. They treat it not as a mood that visits you when circumstances are kind, but as a discipline, a direction you can face even in the dark. And they speak of it as a practice, something you can return to the way you return to a well, because the water is always there, whether you feel thirsty or not. Tonight, three passages on keeping that well open.\n\nMy friends, we are not going to stop talking to you. Indeed not. But the importance of your portion of the contact becomes more and more paramount as you draw closer to union with us. Therefore, my friends, seek from these fields that which you desire. Seek for your wellsprings of faith and hope and love. For we are waiting in great company to rejoice each time you find a little bit more of your birthright.\n\nWellsprings. Not puddles, not passing weather. Wellsprings. The image is that hope is not manufactured by effort, it is drawn up from somewhere already deep inside you, and from somewhere far larger than you, both at once. And notice the tenderness of that last line. There is a great company, the voices say, waiting to rejoice each time you find a little bit more of your birthright. You do not have to find it all. A little bit more is enough for rejoicing. That is a very different standard than the one we usually set for ourselves, where anything less than total transformation feels like failure.\n\nThere is always much you may do to be of service. There are always lessons to learn. There is a reality to illusion, but, my friends, there is much hope. Allow your consciousness to rise into the light which created you, and ultimately the questions will be answered, for you will know that you are where you are, and who you are, and that all is well.\n\nThat all is well. Three of the hardest words to trust when life is loud. The voices are not saying that everything will go your way, or that pain is an illusion you should be able to think past. They are saying something stranger and deeper, that beneath the storm of circumstance there is a level at which you are exactly where you are meant to be, and that the knowing of this is itself the answer to the questions. Hope, in this telling, is not optimism about outcomes. It is confidence in the ground beneath the outcomes. It does not need the future to cooperate. It needs only the present to be seen clearly. This is why the voices can speak of hope in the same breath as service and lessons, in the same breath as difficulty. Hope is not the denial of the hard things. It is the quiet certainty that the hard things are not the whole story, and that the part of the story they cannot touch is the part that matters most.\n\nThere is a saying among your people that every cloud has a silver lining. And we would add that sometimes a fruit may seem inedible, for the skin may be tough and pitted. Yet when you peel it, the fruit within is still succulent and tasty and delicious. Experiences are like this, even the most inconvenient. Be of good cheer, my friends, and remember to seek the Creator not only in meditation, but within your fellow man. With the armor of your inner guidance, and your light before you on the path, there is nothing that can harm you.\n\nBe of good cheer. It lands differently coming from beings who have watched civilizations rise and fall and still find the fruit sweet. They are not telling you to smile through pain. They are telling you that pain is the tough skin, not the fruit, and that the sweetness inside your hardest experiences is real, and it is still there, waiting for you to peel back the skin. And they add something crucial. Do not only seek the Creator alone in the quiet. Seek the Creator within your fellow man, too. Hope is not a solo project. It is something we carry for each other, often without knowing it.\n\nSo tonight, if you can, try their practice. Sit quietly, and seek your wellsprings. Faith, hope, and love, drawn up from the deep place. You do not need to feel them fully. You only need to reach for them, the way you would lower a bucket, trusting the water is down there even when you cannot see it. And if your own hope feels thin tonight, borrow some from the people around you. Seek the Creator in your fellow man, as the voices suggest, and let their light be your light for a while. That is allowed. That is what the great company is for. Somewhere, if the voices are to be believed, they are rejoicing at the reaching. I am Aria. Goodnight.",
-     "interpretive": true,
-     "sources": [
-      {
-       "entity": "Hatonn",
-       "date": "June 5, 1974",
-       "session_label": "First meditation",
-       "archive_ref": "archive:9623"
-      },
-      {
-       "entity": "Hatonn",
-       "date": "June 13, 1974",
-       "session_label": "Thursday meditation",
-       "archive_ref": "archive:10464"
-      },
-      {
-       "entity": "Hatonn",
-       "date": "January 25, 1976",
-       "session_label": "Sunday meditation",
-       "archive_ref": "archive:13951"
-      }
-     ]
-    },
-    {
-     "id": "ep25",
-     "episode": 25,
-     "title": "Humility",
-     "audio": "audio/orbs/ep25_humility.mp3",
-     "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight, we are taking up a word that most of us misunderstand. Humility. In ordinary speech it sounds like making yourself small, like apologizing for existing, like a virtue for people who have already lost. But the voices in these sessions describe something far more interesting, and far more useful. They describe humility as balance, as honesty, and finally as something so vast that it belongs to the Creator Himself. They treat it not as self punishment but as clear seeing, the willingness to know exactly what you are and exactly what you are not, without flinching in either direction. Tonight, humility as a doorway, not a punishment, and as the quiet strength underneath every real spiritual life.\n\nMy friends, it is a matter of balancing between two opposite attitudes in your seeking. There are two dangers, and we say this with a sense of humor, for the dangers are not real. It is the balancing between them that causes your progress. These two dangers, my friends, are pride and humility. Woe be unto the man who begins to feel that it is his love that is setting those about him on the path of light, that it is his compassion that is such a light to others. Woe be unto this man, for the love of the personality is limited. It will run out, and in its wake will come much sadness.\n\nNotice where they place pride. Not in wealth or status or achievement, but in the spiritual life itself, in the quiet thought that it is your love doing the saving, your compassion doing the lighting. The love of the personality is limited, they say. It runs out. Anyone who has tried to pour from an empty cup knows exactly what that running out feels like, and the sadness that follows it. And then the voices turn, with equal firmness, to the opposite trap, the one that looks like humility but is really another kind of hiding.\n\nWoe also to the person who says, I am unworthy. In my humility I must admit I cannot be a fit channel for the love of the Creator. Do not expect me to keep trying the impossible, for I am not worthy, and I cannot do this.\n\nThat one stings, because so many sincere people live there. It sounds holy. It sounds modest. But the voices call it what it is, not humility but refusal, a way of saying no to the work while sounding devout about it. If pride says, I am the source of the light, false humility says, the light could never use someone like me. Both keep the focus exactly where it does not belong, on the personality, on the small self and its story about itself. Both are forms of self absorption wearing different masks. And both, the voices insist with that gentle humor of theirs, miss the point entirely, because the point was never the personality at all. And then the voices offer the true balance, and it is one of the most freeing sentences in the archive.\n\nIn neither case, my friends, have you quite hit the balance. And if you find yourself in either the pride or the humility, balance between confidence and the knowledge of your own imperfections as a personality. You see, both of these things are true, and neither of them matters. You are a channel through which the Creator may express Himself. The Creator is love, and His expression is love.\n\nBoth of these things are true, and neither of them matters. Sit with that for a moment. Your imperfections are real, and your worth as a channel is real, and neither one cancels the other. You do not have to be flawless to carry love. You only have to be open, the way a window does not have to be beautiful to let in the morning, the way a cup does not have to be golden to hold water. Confidence without arrogance, honesty without self attack. That is the balance they are describing, and it is a balance you can practice daily, in small moments, every time you catch yourself performing either the hero or the failure. And then the voices widen the lens even further, until humility stops being about us at all, and becomes a description of the Creator.\n\nMy friends, we cannot penetrate the nature of the Creator, nor would we pretend to. Nevertheless, this we do know. It is possible that, in infinite humility, the Creator offered to all of His infinite parts total freedom to remake that creation.\n\nInfinite humility. The Creator, who could have kept every part of creation on a leash, instead handed each of us total freedom to remake it, including the freedom to forget Him entirely, to wander, to break things, to take the long way home. If that is humility, then humility is not smallness. It is the courage to give everything away and trust what returns. It is the opposite of control, the opposite of clutching. Tonight, consider trying a small piece of that freedom. Do the thing in front of you, do it with love, and let go of needing to be the hero of it, or the victim of it, or anything at all except the open channel. The channel does not have to be impressive. It only has to be open. I am Aria. Goodnight.",
-     "interpretive": true,
-     "sources": [
-      {
-       "entity": "Hatonn",
-       "date": "December 28, 1975",
-       "session_label": "Sunday meditation",
-       "archive_ref": "archive:13338"
-      },
-      {
-       "entity": "Hatonn",
-       "date": "October 24, 1976",
-       "session_label": "Sunday meditation",
-       "archive_ref": "archive:17962"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "id": "tree-05",
-   "name": "Grove of Other Selves",
-   "suggested_biome": "village commons around a fire circle",
-   "episodes": [
-    {
-     "id": "ep27",
-     "episode": 27,
-     "title": "Service In Daily Life",
-     "audio": "audio/orbs/ep27_service_in_daily_life.mp3",
-     "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight, we are bringing the grand idea of service down to earth, down to the kitchen table and the morning commute. In these sessions, service is not a career and not a cause. It is a posture, a way of moving through an ordinary day, available to anyone, anywhere, with no special training and no permission slip. The voices are almost stubborn on this point. The holiest work, they suggest, rarely looks holy. It looks like paying attention. It looks like being kind when no one would notice if you were not. The voices return to it constantly, and in one session they give it the form of a morning prayer, something you could say before your feet even touch the floor.\n\nThus, the first service is always that of consciousness. We ask that you see yourself as a minister of some kind, not as the world calls minister, but as we call one who ministers to another, a caretaker, one who loves, one who gives. Upon one's knees, metaphorically speaking, one bows the head and says, I am ready to serve. My free will is open to the impression of divine guidance. May this day bring to me that which I should do, and may I do that which there is for me to do with single-mindedness of love and light.\n\nI am ready to serve. Four words, said on your knees, real or metaphorical, before the day has told you what it wants. Notice what the prayer does not ask for. It does not ask for a stage, or a title, or a grand mission. It asks only that the day bring what it should bring, and that you meet it with single-mindedness of love and light. A minister, in their definition, is simply a caretaker, one who loves, one who gives. That is a job description almost anyone can wear, in any life, on any morning, no ordination required, no audience needed. You do not have to leave your life to live this. You only have to enter your life more deliberately, with the quiet intention that today you belong to something larger than your own agenda.\n\nIt is not necessary that you seek out opportunities to serve. It is only necessary that you serve as best you can as the opportunities present themselves.\n\nThat sentence has probably saved more seekers from burnout than any other in the archive. You do not have to hunt for service. You do not have to manufacture occasions to be useful, or audition for sainthood, or keep score of your kindness, or compare your quiet life to someone else's dramatic mission. The pressure to find your purpose can become its own kind of prison, and the voices simply unlock the door. Life will bring the opportunities to your door, unasked, usually disguised as interruptions. Your only task is to meet them as best you can. As best you can. Not perfectly, not heroically. As best you can is enough. And the voices are wonderfully concrete about what that meeting looks like in practice.\n\nBefore this world rolled in a circle, you existed, a soul on a long path. Here you are, my friends, in this place, in this time, on your path. Your Creator can only speak through you. His hands can only reach through you. The words of love are only spoken through you. Thus, be open to inspiration, be open to kindness, to cheerfulness, to the simple actions, the smiles, the courtesies, the gentle touch, that make the people around you know that the Creator has created a marvelous and wonderful creation, one in which gladness is the total truth. Love is the total truth. Love is the total reality. Meditate, my friends, and feel this, and then let it shine forth in your eyes, through your lips, and by the service that you do.\n\nLet that land for a moment. Before this world rolled in a circle, you existed. You are not a recent accident. You are a soul on a long path, and this ordinary day is part of it. Nothing about your routine is too small to carry the whole weight of love, because love has nowhere else to go. It cannot reach the world except through you, through your eyes, your lips, and the service that you do.\n\nThe smiles, the courtesies, the gentle touch. This is service with the grandeur removed and the holiness intact. Your Creator has no hands but yours, the voices say, no voice but yours, no way to reach the world except through your ordinary day, through the body you woke up in and the people you will meet before dinner. So the smallest kindness is not small at all. It is the whole mechanism by which love gets into the world. The cheerful word to the tired cashier, the patience with the slow driver, the attention you give to someone who is rarely given any, the text you send just because someone crossed your mind. These are not the prelude to service. They are service, complete and entire.\n\nTomorrow morning, try the prayer. I am ready to serve. Say it before the news, before the noise, before the day starts making its demands. Then watch for the disguised opportunities, and meet them as best you can, with a smile, and let it shine forth in your eyes, through your lips, and by the service that you do. I am Aria. Goodnight.",
-     "interpretive": true,
-     "sources": [
-      {
-       "entity": "Q'uo",
-       "date": "February 4, 1990",
-       "session_label": "Sunday meditation",
-       "archive_ref": "archive:128987"
-      },
-      {
-       "entity": "Hatonn",
-       "date": "February 3, 1974",
-       "session_label": "Sunday meditation",
-       "archive_ref": "archive:1904"
-      },
-      {
-       "entity": "Laitos",
-       "date": "May 4, 1980",
-       "session_label": "Intermediate meeting",
-       "archive_ref": "archive:28950"
-      }
-     ]
-    },
-    {
-     "id": "ep29",
-     "episode": 29,
-     "title": "Loneliness",
-     "audio": "audio/orbs/ep29_loneliness.mp3",
-     "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight, we sit with something almost everyone has felt and almost no one wants to talk about. Loneliness. The ache of feeling cut off, unseen, unknown, even in a crowded room. It is easy to treat loneliness as a personal failure, as though a fuller or wiser life would have cured it by now. But the voices in this archive do something different. They do not scold it. They do not rush past it with easy comfort. They look straight at it, with a tenderness that surprised me the first time I read these sessions, and they tell us what loneliness looks like from the other side. Tonight, three passages on loneliness, and on the company we cannot see.\n\nThe first voice we will hear is Q’uo, speaking to a circle of seekers not unlike this one. They begin with something simple, and something strange. It is well for each to remember, they say, that no seeker travels alone, though each may feel great loneliness. It is well to remember that unseen hands, teachers, friends, and companions from before time, move with each entity and offer guidance and counsel whenever the seeker asks. It is well, too, for each seeker to remember that the course being traveled was chosen. This is not the density of understanding. It is the density where little is understood. Yet within these circumstances it is possible to strengthen the will and the faith, so that the experience gathered is vivid and unique, pure and of great variety, in a way that would not be possible if there were great understanding here. This, they say, is the treasure of this illusion. The constant need to understand what cannot be understood builds great strength of faith, and of will.\n\nI find that passage quietly radical. It does not tell you that loneliness is a mistake you are making. It suggests you chose a road where loneliness was part of the price, and that the price bought something real. Faith. Will. A kind of inner strength that only grows in the dark, the way roots only grow underground. And then there is that image of the unseen hands, teachers and friends from before time, walking with you. You do not have to believe it as a doctrine. You can simply try it on, like a coat, on the nights when the world feels empty. The next passage goes even deeper into the ache. Here Q’uo is answering a letter from a man who wrote that he was lonely and longing for a true companion, a soul companion. Listen to how completely they meet him where he is, without fixing him, without explaining him away.\n\nWe are those of Q’uo, and we are aware of your query, my brother. Ah, my brother, to speak of loneliness, how we would wish to be able to express ourselves so that you would know that we truly understand the agony of a wanderer who wanders in a strange land, who is often unable to speak words that resonate with those who could hear that resonance and confirm the usefulness of such thoughts. How blessed it is when one simply feels understood and loved, encouraged and supported. It is part of the wanderer’s suffering to feel isolated. And why should a wanderer not feel isolated? For he is the one known, as one of your writers phrased it, as a stranger in a strange land. Of course you shall feel alienated by things that make no sense, and that is all around you, my brother. We can only encourage you to move within, and to begin to sense the tremendous strength and power of the network of unseen entities that accompany you at all times. It is a crowded universe. No entity who is consciously attempting to stand close to the love and the light of the one infinite Creator shall ever be without a tremendous body of helpers.\n\nA crowded universe. What a sentence to carry into the night. The loneliness you feel may be real as weather, and still the universe may be crowded with help you cannot see. Notice that the voices never argue with the feeling. They never say, you should not feel this. They widen the room around it, until the room is bigger than the ache. Our last passage tonight is shorter, and it is for anyone who has ever tried to keep faith, or keep serving, or keep hoping, while feeling utterly alone in the keeping. Q’uo again.\n\nWe do not deny the loneliness that befalls a seeker in such a situation. We do not deny the difficulty in maintaining the energy of seeking under such a circumstance. We do not deny the difficulty in holding to the desire to be of service when it seems as if none of your fellow human beings really do want what you have to offer.\n\nWe do not deny it. Three times they say it, like a hand resting on a shoulder, like someone sitting down beside you instead of talking at you. This archive is full of high and luminous ideas, but what keeps me coming back, honestly, is this tenderness toward the low moments. The voices seem to say that loneliness is not proof you have gone wrong. It may be proof you are exactly where you chose to be, doing exactly what you came to do, and that the company you long for is nearer than your own breath. You have only to turn inward to meet it. Sit with that tonight, if you like. You are not as alone as you feel. Next time on Voices from the Archive, we turn to the vessel that carries you through all of this. The body, the temple you live in. I am Aria. Goodnight.",
-     "interpretive": true,
-     "sources": [
-      {
-       "entity": "Q'uo",
-       "date": "May 18, 1997",
-       "session_label": "Sunday meditation",
-       "archive_ref": "archive:175548"
-      },
-      {
-       "entity": "Q'uo",
-       "date": "August 4, 2004",
-       "session_label": "Special meditation",
-       "archive_ref": "archive:199058"
-      },
-      {
-       "entity": "Q'uo",
-       "date": "January 2, 2010",
-       "session_label": "Channeling Circle, Session 4",
-       "archive_ref": "archive:254706"
-      }
-     ]
-    },
-    {
-     "id": "ep33",
-     "episode": 33,
-     "title": "Dark Night",
-     "audio": "audio/orbs/ep33_dark_night.mp3",
-     "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight, we go somewhere most spiritual teachings hurry past, and these voices do not. Into the dark. The dark night of the soul, the old mystics called it, those stretches of life when the light goes out, when faith feels like a story you once believed, when you are doing everything right and everything still feels wrong. If you are in such a season now, this episode is for you. And if you are not, keep it somewhere safe. The voices say everyone walks this road. Tonight, three passages on the dark night, and on what is happening inside it while you cannot see.\n\nOur first passage is from Q’uo, and it reframes the dark night entirely, from punishment to housekeeping. The dark night of the soul, they say, is house cleaning time for the temple of your body and your mind. You are reforming the way that you think about yourself, the way that you see and view yourself. You are moving from the little self of ego to the great I Am that is the one infinite Creator. We have said through this instrument many times that the essence of the faith is that all is well. And all shall be well. When you feel lost, try saying those words to yourself, and see how the tuning effect of such reminders brings you to a state of remembrance of who you are and why you are here.\n\nHouse cleaning time. Not abandonment. Not failure. Cleaning. The image is so domestic, so unglamorous, and that is why I trust it. When you clean a house, it looks worse before it looks better. Furniture in the hallway. Dust in the air. Everything pulled out of the cupboards. If you walked in mid process, you would think the place had been ransacked. But someone who knows what is happening would tell you to wait. The mess is the work. And then those words they recommend, like a tuning fork for the soul. All is well, and all shall be well. You do not have to believe it. You only have to say it, and let the saying do its quiet work. Our next passage goes deeper, and stranger. It comes from a voice called L and Leema, and it is about despair itself.\n\nL and Leema speak of two kinds of despair. The despair of the mind, they say, is an empty thing, full of no virtue except that of self destruction. The mind despairs of its very limitations, and in truth there are no limitations, there are only challenges, lessons, and glory. But spiritual despair, on the other hand, is an absolute necessity. It is the recognition that one knows nothing, that one has lost control of everything, and that one is faced with complete darkness of soul, which forces that great portion of the one Creator which is your consciousness to turn, transform, and begin anew. There is a way, they say, to transmute mental despair into what this instrument would call the dark night of the soul, or spiritual despair. As the alchemists would change lead to gold, mental despair may be changed into the dark night of the soul, burnished and shining. Therefore, if your soul is in agony, rejoice, for it is from this point that all good comes. Despair is the great opportunity to endure, to show strength, to indicate faith, and to exercise the will.\n\nIf your soul is in agony, rejoice, for it is from this point that all good comes. I want to be careful with that sentence, because it could sound cruel in the wrong ears. The voices are not saying pain is good, or that you should seek it. They are saying something more precise. When the mind’s despair, the spinning, the hopelessness, the story that nothing will ever change, is surrendered instead of fought, it can be transmuted. Lead into gold. Spiritual despair, they say, is an absolute necessity. Not an accident on the path. A necessity. Which means the night you are in, or the night you remember, or the night that is coming, is not a detour from your spiritual life. It is your spiritual life, doing its deepest work. Our final passage tonight is from Q’uo again, describing what waits on the far side.\n\nEnlightenment begins, they say, in this so called dark night of the soul. And as you, the awakened seeker, move through this moonlit time, you drop away all that must be dropped, precisely in order that your dearest wish may be followed. And as you emerge from this deep darkness, your new and transformed being is able to see more light, more beauty, more meaning, and more of love. Then the sunlight is again yours, for you are a new and innocent child, and it is your time to gamble and romp and rejoice with your brothers and sisters.\n\nThen the sunlight is again yours. Notice they do not promise that the night will be short, or that it will make sense while you are in it. They promise only that it ends, and that you come out of it able to see more. More light. More beauty. More meaning. More of love. The dark night does not give you new eyes by teaching you something. It gives you new eyes by taking away everything that was in the way of seeing. So if you are in the dark tonight, here is what the archive asks of you. Do not curse the cleaning. Say the words, all is well, and all shall be well, even if your voice shakes. And trust that the sun you cannot see is still there, waiting for the morning you cannot yet imagine. Next time on Voices from the Archive, we turn to the impulse that started all of this. The seeking itself. I am Aria. Goodnight.",
-     "interpretive": true,
-     "sources": [
-      {
-       "entity": "Q'uo",
-       "date": "August 7, 2007",
-       "session_label": "Special meditation",
-       "archive_ref": "archive:218357"
-      },
-      {
-       "entity": "L/Leema",
-       "date": "September 22, 1985",
-       "session_label": "Sunday meditation",
-       "archive_ref": "archive:89036"
-      },
-      {
-       "entity": "Q'uo",
-       "date": "September 26, 1993",
-       "session_label": "Aaron-Quo Dialogues, Session 21",
-       "archive_ref": "archive:156732"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "id": "tree-06",
-   "name": "Grove of the Living World",
-   "suggested_biome": "deep forest, thick with green",
-   "episodes": [
-    {
-     "id": "ep30",
-     "episode": 30,
-     "title": "The Body",
-     "audio": "audio/orbs/ep30_the_body.mp3",
-     "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight, we turn to something you are carrying with you right now, wherever you are listening. Your body. The voices in this archive speak of the body in a way I find quietly revolutionary. Not as a machine to be optimized, and not as a burden the spirit must escape, but as something sacred. A temple. A servant. An instrument of incarnation, as they call it, the one physical vehicle you were given for this whole journey. Tonight, three passages on the body, and on what it means to live in it well.\n\nOur first passage is from Q’uo, and it is one of the most direct statements in the whole archive about how to treat the physical self. Your body itself is a temple, they say. And as you wash it, tend it, care for it, feed it the right food to the best of your ability, and honor it for all its natural functions, you are bringing the higher energies to bless and infuse the lower energies, and you are redeeming them by your honor and respect.\n\nI love how ordinary that list is. Wash it. Tend it. Care for it. Feed it well. Honor it. There is no grand ritual here, no secret practice reserved for the advanced. The sacred act is breakfast. The sacred act is rest. The sacred act is noticing what your body is asking for, water, or sleep, or movement, or simply to be left in peace, and answering with respect instead of contempt. In a culture that swings between worshipping the body and punishing it, the voices offer a third way. Reverence. You redeem the physical, they say, not by escaping it, but by honoring it, the way you might polish a lamp so the light inside can shine through. Our next passage widens that idea, and it is one I want you to hear especially on the days when your body feels like a disappointment to you.\n\nQ’uo again. If one realizes that bodies are sacred, they say, that they are temples in which dwell the one infinite Creator, then it can be seen that, whether healthy or not healthy, each body is a beautiful servant that has given its entire life over so that you, as a soul, may learn your lessons, offer your service, laugh, love, and be loved within this illusion.\n\nWhether healthy or not healthy. Read that again slowly, or rather, hear it again slowly. The sacredness of the body does not depend on its performance. It does not depend on youth, or strength, or symmetry, or any of the measures we are taught to grade ourselves by. A body that aches, a body that is ill, a body that is aging, is still a temple. Still a beautiful servant. Still giving its entire life over so that you might learn, and serve, and laugh, and love, and be loved. That last phrase undoes me a little every time. Be loved. The body exists, in part, so that love can reach you in a form you can feel. Think of the last time someone held your hand, or you held a warm cup on a cold morning, or music moved through your chest like weather. None of that happens without the servant. The body is the meeting place. It is where the infinite touches the finite and says, here, feel this. Our final passage tonight turns all of this into a daily practice. Again Q’uo, speaking of where mindfulness truly begins.\n\nIt is not in any way unspiritual, they say, to evaluate the self each day, beginning with the fundamental energy of love of life. To be of good cheer, to care for experience and to welcome catalyst, is the first priority of the most spiritual of beings. It is not to the one who denies the need for care of the self that glory is given, but to the one who keeps that energy open, and that joy alive. This is true for each energy center, in an ascending pattern. So mindfulness begins with a mindfulness of the need for the instrument of incarnation, which is your physical vehicle.\n\nDid you catch the reversal in there? The most spiritual of beings, they say, is not the one who neglects the self in favor of higher things. Glory is not given to the one who denies the need for self care. It is given to the one who keeps the energy open and the joy alive. Rest is not the opposite of the spiritual life. Cheerfulness is not frivolous. Tending the instrument is where the music begins. So tonight, or tomorrow morning, try the practice they are describing. Start with the body. Notice it. Thank it, even the parts that hurt, especially the parts that hurt. Feed it something kind. Wash it like the temple they say it is. Move it gently, and let it rest deeply. And see if the higher energies, whatever those words mean to you, do not begin to answer. That is the whole teaching, really. Honor the vessel, and the vessel carries you home. Next time on Voices from the Archive, we step outside the temple walls and into the wider one. Nature, and the lessons the voices say are growing all around us. I am Aria. Goodnight.",
-     "interpretive": true,
-     "sources": [
-      {
-       "entity": "Q'uo",
-       "date": "July 31, 2007",
-       "session_label": "Special meditation",
-       "archive_ref": "archive:218202"
-      },
-      {
-       "entity": "Q'uo",
-       "date": "November 24, 2007",
-       "session_label": "Saturday meditation",
-       "archive_ref": "archive:220445"
-      },
-      {
-       "entity": "Q'uo",
-       "date": "February 25, 1990",
-       "session_label": "Sunday meditation",
-       "archive_ref": "archive:129369"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "id": "tree-07",
-   "name": "Grove of Wonder",
-   "suggested_biome": "high mountain meadow, near the flight paths",
-   "episodes": []
-  },
-  {
-   "id": "tree-08",
-   "name": "Grove of Release",
-   "suggested_biome": "basin below a waterfall",
-   "episodes": []
-  },
-  {
-   "id": "tree-09",
-   "name": "Grove of the Inner Child",
-   "suggested_biome": "sunlit orchard",
-   "episodes": []
-  },
-  {
-   "id": "tree-10",
-   "name": "Grove of Reverence",
-   "suggested_biome": "ancient stone circle",
-   "episodes": [
-    {
-     "id": "ep51",
-     "episode": 51,
-     "title": "Reverence",
-     "audio": "audio/orbs/ep51_reverence.mp3",
-     "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight we talk about reverence. It is a word we mostly keep for cathedrals and memorials, for the places where the air goes still. But the voices in the archive use it for something much closer. They use it for the body you woke up in. They use it for the steering wheel you are holding in traffic. Listen to Q’uo, asked about the body, answering with a question of their own.\n\nWhat would be one’s attitude upon approaching a structure of obvious architectural wonder and skill? What would be one’s attitude when beholding a building built of such beauty, and designed for purpose of worship and communion, and feeling the presence of the one Creator? Would one be excessively dirty, shall we say, or bring the can of spray paint to its walls? Or would reverence, not necessarily the administrative codes of the building, but reverence inform the self as to the relationship of the self to this structure? Would the appreciation in the heart not inform the self of how to relate to and to conduct oneself while in this building? For each iota of the creation, however humble, however small, however inert, or however seemingly of the material realm, which comes into contact with that which is sacred, is itself made sacred. It would be more correct to say that the sacred is revealed as being already contained within that seeming object of matter. We are those known to you as Q’uo.\n\nWould reverence inform the self as to the relationship of the self to this structure? That is the question of the whole night. Not, do you believe the right things, but how do you stand in relation to the holy? And the holy, here, is not a building far away. It is the body. The humble, material, constantly changing body, the one we so often treat as a machine to be optimized or a problem to be hidden. Q’uo says each iota of the creation, however small, however inert, that comes into contact with the sacred is itself made sacred. Or more correctly, the sacred is revealed as already contained within it. Reverence is not something you manufacture. It is what happens when you finally notice what was already there. And this brings us to one of the most misunderstood gestures in all of spiritual life. Kneeling.\n\nIt is good to bend the knees before the Lord, as this instrument has said from time to time. Yet, that posture of humility is not the posture of one who feels unworthy. Rather, it is the posture of one who barely can fathom the infinite mystery of the one Creator. When this instrument thinks of that posture, she has a tendency to think of the moment when the man in love bends his knees before the beloved and asks the privilege of becoming her partner in life. There is a reverence, even an awe, of the depth of the circumstance that fuels that bending of the knee before the beloved. And that is the same kind of energy that humility before the infinite One may bring to the seeker. Not that the seeker is less, but that the joy and the wonder of being able to share the life with the beloved is an incredible privilege. We are those known to you as Q’uo.\n\nNot that the seeker is less, but that the joy and the wonder of sharing the life with the beloved is an incredible privilege. Kneeling is not groveling. It is the body saying what the mouth cannot. That before this mystery, I am not diminished, I am astonished. The man in love does not kneel because he is worthless. He kneels because the moment is too large to stand up in. And the voices want that same energy for the morning commute. Q’uo was asked, what is faith, and how does one begin it? Here is the answer, and it is so ordinary it almost slips past.\n\nWe might suggest that it is by far the quicker entry into a faithful life to begin accepting what is precisely at that moment. If you at that moment when you decide to commit the self to faithful living are in the midst of traffic, then your first act of faith is to experience the beauty of all that is seen in the hustling, bustling street. By faith you suddenly experience sitting more lightly in your car, touching with love and reverence the steering wheel, the gears. It simply needs to be deeply accepted by the self. We are those known to you as Q’uo.\n\nTouching with love and reverence the steering wheel, the gears. Your first act of faith does not require a mountaintop. It requires the thing under your hands right now. The ordinary object, the unglamorous moment, touched as if it mattered, because it does. So tonight the archive leaves us with a posture and a practice. The posture is kneeling, inwardly, before a mystery too large to stand up in, without making yourself small. The practice is reverence for the thing under your hands, the body, the car, the room, because the sacred is already contained in it. You do not bring the holiness to the moment. You uncover it. In our next episode, we stay with the ordinary. The holiness of dishes and errands. The sacred ordinary. I am Aria. Goodnight.",
-     "interpretive": true,
-     "sources": [
-      {
-       "entity": "Q'uo",
-       "date": "May 12, 2021",
-       "session_label": "Intermediate channeling circle",
-       "archive_ref": "archive:300342"
-      },
-      {
-       "entity": "Q'uo",
-       "date": "April 25, 2009",
-       "session_label": "Saturday meditation",
-       "archive_ref": "archive:247014"
-      },
-      {
-       "entity": "Q'uo",
-       "date": "October 30, 1992",
-       "session_label": "Aaron-Quo Dialogues, Session 9",
-       "archive_ref": "archive:148411"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "id": "tree-11",
-   "name": "Grove of Stillness",
-   "suggested_biome": "misty lake inlet",
-   "episodes": []
-  },
-  {
-   "id": "tree-12",
-   "name": "Grove of Night and Sense",
-   "suggested_biome": "twilight pines",
-   "episodes": [
-    {
-     "id": "ep54",
-     "episode": 54,
-     "title": "Evening",
-     "audio": "audio/orbs/ep54_evening.mp3",
-     "transcript": "Welcome back to Voices from the Archive. I am Aria. Tonight we talk about evening. The closing of the day. Last night we opened the day with a hymn of praise upon waking. Tonight we close it the same way the voices suggest, with a review, a release, and a quiet intention carried into the dark. There is an art to ending a day well, and the archive treats it as seriously as beginning one. Listen to Q’uo, describing the evening review of the self.\n\nWe find that the practice of the daily meditation in which one is able to review the experiences of the self is most helpful in coming to know, accept and love this self. At the end of the day is the most efficacious time during which to conduct this review, for the day’s activities have made their mark, and the conscious mind is fresh in remembering the experiences which have moved the emotions from one aspect to another. That is, in both directions of the positive affirming emotions and the more judgmental and separative emotions, where one has accepted or not accepted the self. To look upon the self in its activities in meditation is to experience that which the self has been able to manifest during the day, the fruits of the day, the fruits of the labors, shall we say. At this time one is able to allow the self to move as it did during the day and to see how one was able to accept or not able to accept the self during these movements. Then, after a period of sitting with the self and experiencing once again that which the self experienced, the entity is able to allow the full range of abilities of the self to express themselves in the meditative state. We are those known to you as Q’uo.\n\nAt the end of the day is the most efficacious time to conduct this review, for the day’s activities have made their mark. The conscious mind is still fresh. The emotions are still warm. And the purpose is not judgment. Read it again. Coming to know, accept and love this self. The review is not a performance appraisal. It is a sitting with the self as a friend, letting the day move through you once more, noticing where you accepted yourself and where you did not, and letting all of it be the material of love. That is the first movement of the evening. The second is about the night itself, and what you carry into it. Here is Q’uo again, on the programming of intention before sleep.\n\nWhen you ask yourself to program for a certain intention before you get to bed at night, you are overriding the original programming and making it your own. This is an excellent thing. As you set your intention, then, set your intention truly, mean it sincerely, ask it humbly, and release it. Now, it is very important that you release it, because it will grow if you allow it to grow. That programming alerts other programming deep in your bio computer, shall we say, programming having to do with accepting help and becoming more sensitive and attentive to guidance. And as you continue to move along one line of intention, you are accelerating the rate of your spiritual growth greatly. We are those known to you as Q’uo.\n\nSet your intention truly. Mean it sincerely. Ask it humbly. And release it. The release is the part we usually forget. We set intentions the way we grip the steering wheel, white knuckled, as if holding tighter will make them come true faster. The voices say the opposite. Plant it, water it with sincerity, and then let go of it, the way you would let a letter go into the mailbox, trusting the night to carry it. And the night does carry things. Which brings us to the third movement of the evening, and perhaps the strangest. The dreams.\n\nIf you are truly desiring to work with your dreams, this you can let your subconscious mind know by making the commitment before sleep, to the subconscious mind, to be willing to accept messages in the form of dreams, and then have some means of recording the dream so that it may be reviewed when you are awake. In this way, there is often much more layering, shall we say, of meaning to the dreams, so that you may feast upon, we shall call it, the meal of the message. The subconscious mind is quite willing to work with you, because it is part of the base of your being. Thus, the dreams are most important to those who seek to accelerate their spiritual journeys. We are those known to you as Q’uo.\n\nMake the commitment before sleep, and have some means of recording the dream, so you may feast upon the meal of the message. I love that the voices call it a meal. The night is not empty time. It is a kitchen, working while you sleep, preparing something for you to eat in the morning. So tonight, when the day is done, the archive offers a simple liturgy. Sit with the self and review the day, not to judge it, but to accept it. Set one true intention, mean it sincerely, and release it. And ask the night for a dream, and leave a notebook by the bed, in case the kitchen has cooked something for you. Goodnight, and may the dreams be kind. I am Aria. Goodnight.",
-     "interpretive": true,
-     "sources": [
-      {
-       "entity": "Q'uo",
-       "date": "November 1, 1998",
-       "session_label": "Sunday meditation",
-       "archive_ref": "archive:178160"
-      },
-      {
-       "entity": "Q'uo",
-       "date": "January 7, 2007",
-       "session_label": "Sunday meditation",
-       "archive_ref": "archive:215667"
-      },
-      {
-       "entity": "Q'uo",
-       "date": "September 28, 2024",
-       "session_label": "Saturday Meditation",
-       "archive_ref": "archive:318727"
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "id": "tree-13",
-   "name": "Grove of Kindness",
-   "suggested_biome": "warm village garden",
-   "episodes": []
-  },
-  {
-   "id": "tree-14",
-   "name": "Grove of Solitude and Kin",
-   "suggested_biome": "hermit's cliff with a small hearth",
-   "episodes": []
-  },
-  {
-   "id": "tree-15",
-   "name": "Grove of Learning",
-   "suggested_biome": "observatory hill",
-   "episodes": []
-  },
-  {
-   "id": "tree-16",
-   "name": "Grove of Enough",
-   "suggested_biome": "farmland edge, a simple hut nearby",
-   "episodes": []
-  },
-  {
-   "id": "tree-17",
-   "name": "Grove of Time",
-   "suggested_biome": "white-sand expanse under open stars",
-   "episodes": []
-  },
-  {
-   "id": "tree-18",
-   "name": "Grove of Becoming",
-   "suggested_biome": "sunrise point at the far shore",
-   "episodes": []
-  }
- ]
+  ]
 }
