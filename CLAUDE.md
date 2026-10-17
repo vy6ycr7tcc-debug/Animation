@@ -1233,6 +1233,17 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - Growth on the breath (the square breathing's phases, `breathing.json`): a wall rises out of the earth over one exhale (4 s, eased), a ring or pillar blooms over one inhale, an orb kindles over one, a spire climbs on each inhale and exhale and rests through the holds (three climbs, ~20 s); a seam of light runs round its foot while it moves through the earth, brightest mid-way. Forms are solid (the shared stone, and gold, are solid materials); orbs are not.
   - Kept on the device only (`inward-journey:sanctuary`, v2): each form's kind, ink, resampled path (walls) or radius and height, place, lift, turn, cost and note; the geometry is grown again on load. Nothing is sent anywhere.
   - Stills: `?shot=sanctuary-stroke` (a finger mid-stroke: the script adds a fingertip ring at `window.__strokeTip`), `sanctuary-rise` (a wall half risen, its seam lit), `sanctuary-dusk` (a small sanctuary at dusk, stone and gold; `&warm=8`), `sanctuary-form` (a stone gathering out of a rock; `&warm=10`).
+- 2026-10-17: where the sanctuary's forms meet (the owner's references for gestural building: Townscaper's "what happens when things change", the junctions given the most care; the player suggests, the world completes; Sims-soft earth). `world/joints.ts`, from `Sanctuary.jointForms`.
+  - Recomputed only when forms change (a form fully grown, moved or turned and let go, released, the visit's start), never while one is carried.
+  - Two walls (or a wall and a ring) that touch: a post rises where they meet, a moment after them, in their ink.
+  - Stone meeting gold: the post is stone, bound by a collar of warm light, with a small gold cap.
+  - A wall meeting a pillar or spire of the other ink: a collar of light round it at the wall's top.
+  - Each free end of an open wall is finished with a small finial post.
+  - Pieces are instanced, each rising out of the earth on its own delay (0.5–1.6 s), never popping.
+  - Every form has a soft feathered shade where it meets the stone (a dark ribbon along walls and rings, a round one under pillars and spires), so it sits in the earth rather than on it. The shade fades as the form is lifted.
+  - The brush's hush is deeper: while drawing, the world fades back like an old scroll (saturation ×0.62, contrast ×0.92, highlights ×0.88). The trail of light keeps its brightness.
+  - The dusk still's layout now has its walls meeting.
+  - Still: `?shot=sanctuary-joint&warm=8` (stone meets gold, close).
 - 2026-10-17: the meditation sequence (the owner's "meditation sequence" prompt; `world/meditation.ts`, wired in `main.ts`). Holding on a rock, a tree or a crystal (laying hands, `world/touch.ts`, unchanged underneath) is now one slow sequence. Holding on open ground builds (2026-10-16), so it doesn't meditate; T still kneels to the earth and meditates there.
   - The eyes close: the screen fades to black over 3.4 s while the wanderer goes to the thing and lays hands on it.
   - The inner body: in the dark, a person standing at rest drawn in one quiet pale outline. Five threads of light run through it (the central channel crown to root, each arm, each leg), with slow pulses travelling along them: up the centre on the in-breath, down on the out-breath. At its chest the particle lungs (`ui/breathLungs.ts`) breathe the square, 4-4-4-4, the metronome.
