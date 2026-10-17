@@ -1393,3 +1393,21 @@ body.typing #heart-mini { display: none; }
 #let-go[hidden] { display: none; }
 body.building #auto, body.building #keys, body.building #tour-start { opacity: 0; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { #essence { transition: opacity 0.3s; } }
+
+/* ---- the meditation: the dark, the inner body with its lungs (world/meditation.ts) ---- */
+#meditation { position: fixed; left: 0; top: 0; width: 100vw; height: var(--fh, 100vh); z-index: 30; pointer-events: none; }
+#meditation[hidden] { display: none; }
+#meditation .dark { position: absolute; inset: 0; background: #000; opacity: 0; }
+#meditation .inner { position: absolute; left: 50%; top: 50%; height: min(66%, 560px); aspect-ratio: 200 / 440; transform: translate(-50%, -52%); opacity: 0; }
+#meditation canvas.body { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* the lungs at the chest of the drawn body (its frame: the chest ~y 96–176 of 440) */
+#meditation canvas.lungs { position: absolute; left: 50%; top: 21.5%; width: 44%; aspect-ratio: 148 / 140; height: auto; transform: translateX(-50%); }
+/* in the dark, and in the quiet view after, nothing of the controls shows */
+body.meditating :is(#joy, #act, #ctx, #auto, #menu-btn, #tp-mini, #hear-again, #keys, #heart-mini, #essence, #tour-start, #breath-cue, #seat-hint, #whisper),
+body.contemplative :is(#joy, #act, #ctx, #auto, #menu-btn, #tp-mini, #hear-again, #keys, #essence, #tour-start, #breath-cue, #seat-hint) {
+  opacity: 0 !important; transition: opacity 1.6s ease; pointer-events: none;
+}
+/* the heart's invitation: two soft blinks */
+#heart-mini.blink .open { animation: heart-blink 2.6s ease-in-out 0.4s 2 both; }
+@keyframes heart-blink { 0%, 100% { opacity: 0.55; transform: scale(1); } 45% { opacity: 1; transform: scale(1.14); box-shadow: 0 0 18px rgba(255, 190, 170, 0.45); } }
+@media (prefers-reduced-motion: reduce) { #heart-mini.blink .open { animation-duration: 1.8s; } }
