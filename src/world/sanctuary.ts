@@ -33,6 +33,7 @@ import { solid } from "./solidity";
 import { SANCTUARY } from "./terrain";
 import { heartNotes, type HeartNote } from "../ui/heart";
 import { readStroke, type V2 } from "./strokes";
+import { Joints, type JointForm } from "./joints";
 
 const { float, vec3, vec4, abs, max, min, smoothstep, sin, pow, dot, normalize, clamp, fract, length, mix, fwidth } = T;
 
@@ -87,6 +88,13 @@ interface Form {
   /** where a drag is taking it */
   to: THREE.Vector2;
   lift: number;
+  /** its centre line (walls, rings) or centre, in its own frame; half its thickness; its height */
+  line: V2[];
+  half: number;
+  H: number;
+  /** its soft footprint on the earth: it sits into the stone, not on it */
+  shade: THREE.Mesh;
+  shadeK: { value: number } | null;
 }
 
 const ease = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
@@ -214,7 +222,7 @@ class Ribbon {
   readonly k: { value: number };
   private pos: Float32Array;
   private uv: Float32Array;
-  constructor(private max: number, private w: number, color: THREE.Color, tip = false) {
+  constructor(private max: number, private w: number, color: THREE.Color, tip = false, dark = false) {
     this.pos = new Float32Array(max * 2 * 3);
     this.uv = new Float32Array(max * 2 * 2);
     const idx: number[] = [];
@@ -224,12 +232,25 @@ class Ribbon {
     g.setAttribute("uv", new THREE.BufferAttribute(this.uv, 2).setUsage(THREE.DynamicDrawUsage));
     g.setIndex(idx);
     g.setDrawRange(0, 0);
-    const mat = glowShader({ uK: 0 }, (u, uv) => {
-      const across = float(1).sub(abs(uv.y.mul(2).sub(1)));
-      const lead = tip ? float(0.45).add(smoothstep(0.82, 1, uv.x).mul(0.9)) : float(1);
-      return vec3(color.r, color.g, color.b).mul(across.mul(across).mul(lead).mul(u.uK));
-    }, { side: THREE.DoubleSide });
-    this.k = mat.uniforms.uK;
+    let mat: THREE.Material;
+    if (dark) {
+      // a feathered shade (the form settles into the earth): darkness, never light
+      const uK = T.uniform(0);
+      const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+      const across = float(1).sub(abs(T.uv().y.mul(2).sub(1)));
+      m.colorNode = vec4(0, 0, 0.012, 1);
+      m.opacityNode = pow(across, 1.6).mul(uK).mul(0.5);
+      this.k = uK as unknown as { value: number };
+      mat = m;
+    } else {
+      const gm = glowShader({ uK: 0 }, (u, uv) => {
+        const across = float(1).sub(abs(uv.y.mul(2).sub(1)));
+        const lead = tip ? float(0.45).add(smoothstep(0.82, 1, uv.x).mul(0.9)) : float(1);
+        return vec3(color.r, color.g, color.b).mul(across.mul(across).mul(lead).mul(u.uK));
+      }, { side: THREE.DoubleSide });
+      this.k = gm.uniforms.uK;
+      mat = gm;
+    }
     this.mesh = new THREE.Mesh(g, mat);
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 3;
@@ -312,6 +333,8 @@ export class Sanctuary {
   private seamOf: Form | null = null;
   /** a still holds its forms part-grown */
   private held = false;
+  private joints: Joints;
+  private jointsDirty = false;
   private trailFade = 0;
   private selected: Form | null = null;
   private aura: THREE.Mesh | null = null;
@@ -404,10 +427,13 @@ export class Sanctuary {
     this.seam.mesh.visible = false;
     this.root.add(this.page, this.trail.mesh, this.base.mesh, this.seam.mesh);
 
+    this.joints = new Joints(stone, this.mats.gold);
+    this.root.add(this.joints.group);
     this.forming = new Forming(landStone("sandstone_cracks", S.y, 1.6, [0.94, 0.89, 0.83]), hooks);
     this.group.add(this.forming.group);
     [this.ui, this.letGo] = this.buildUi();
     this.load();
+    this.joints.set(this.jointForms(), true);
     this.refreshNotes();
     addEventListener("heart-changed", () => this.refreshNotes());
   }
@@ -685,6 +711,7 @@ export class Sanctuary {
       }
       if (this.second && e.pointerId === this.second.id) {
         this.second = null;
+        this.jointsDirty = true;
         this.save();
         return;
       }
@@ -695,7 +722,10 @@ export class Sanctuary {
         // a tap on a form: the first chooses it; on the chosen one, it is let go
         if (!s.moved) {
           if (s.was) this.release(s.form);
-        } else this.save();
+        } else {
+          this.jointsDirty = true;
+          this.save();
+        }
       }
     },
   };
@@ -773,6 +803,7 @@ export class Sanctuary {
     const group = new THREE.Group();
     let geo: THREE.BufferGeometry;
     let body: THREE.Object3D;
+    let line: V2[] = [[0, 0]], half = 0.3, H = 0;
     if (s.kind === "orb") {
       geo = new THREE.SphereGeometry(0.2, 24, 16);
       const g = new THREE.Group();
@@ -785,26 +816,66 @@ export class Sanctuary {
       if (s.kind === "wall") {
         const p: V2[] = [];
         for (let i = 0; i + 1 < (s.path?.length ?? 0); i += 2) p.push([s.path![i], s.path![i + 1]]);
-        geo = wallGeometry(p.length > 1 ? p : [[0, 0], [0.5, 0]], !!s.closed, WALL_H, 0.24);
+        const path: V2[] = p.length > 1 ? p : [[0, 0], [0.5, 0]];
+        geo = wallGeometry(path, !!s.closed, WALL_H, 0.24);
+        line = smoothPath(path, !!s.closed);
+        half = 0.24;
+        H = WALL_H;
       } else if (s.kind === "ring") {
         const R = s.r ?? 1.5, n = Math.max(18, Math.round(R * 10));
-        geo = wallGeometry(Array.from({ length: n }, (_, i) => [Math.cos((i / n) * Math.PI * 2) * R, Math.sin((i / n) * Math.PI * 2) * R] as V2), true, RING_H, 0.22);
-      } else if (s.kind === "pillar") geo = pillarGeometry(s.r ?? 0.3);
-      else geo = spireGeometry(s.r ?? 0.6, s.h ?? 5);
+        line = Array.from({ length: n }, (_, i) => [Math.cos((i / n) * Math.PI * 2) * R, Math.sin((i / n) * Math.PI * 2) * R] as V2);
+        geo = wallGeometry(line, true, RING_H, 0.22);
+        half = 0.22;
+        H = RING_H;
+      } else if (s.kind === "pillar") {
+        geo = pillarGeometry(s.r ?? 0.3);
+        half = (s.r ?? 0.3) * 1.2;
+        H = 2.6;
+      } else {
+        geo = spireGeometry(s.r ?? 0.6, s.h ?? 5);
+        half = (s.r ?? 0.6) * 1.05;
+        H = s.h ?? 5;
+      }
       const m = new THREE.Mesh(geo, s.ink === "gold" ? this.mats.gold : this.mats.stone);
       m.castShadow = m.receiveShadow = true;
       body = m;
     }
     group.add(body);
+    // its soft footprint: a feathered shade along a wall, a round one under a pillar or spire
+    let shade: THREE.Mesh, shadeK: { value: number } | null = null;
+    if (s.kind === "wall" || s.kind === "ring") {
+      const rb = new Ribbon(line.length + 2, 0.62, new THREE.Color(), false, true);
+      rb.set(line, 0, s.kind === "ring" || !!s.closed);
+      shade = rb.mesh;
+      shadeK = rb.k;
+    } else {
+      shade = contactShade({ r: s.kind === "orb" ? 0.01 : half * 1.05 }, s.kind === "spire" ? 1.1 : 0.8, 0.5);
+      shade.visible = s.kind !== "orb";
+    }
+    shade.position.y = 0.012;
+    group.add(shade);
     group.position.set(s.x, s.y, s.z);
     group.rotation.y = s.rot;
     this.root.add(group);
-    const f: Form = { s, group, body, geo, age: settled ? 999 : 0, grow: settled ? 1 : 0, to: new THREE.Vector2(s.x, s.z), lift: s.y };
+    const f: Form = { s, group, body, geo, age: settled ? 999 : 0, grow: settled ? 1 : 0, to: new THREE.Vector2(s.x, s.z), lift: s.y, line, half, H, shade, shadeK };
     body.userData.form = f;
     this.forms.push(f);
     if (!settled && s.kind !== "orb") this.seamFor(f);
     this.pose(f);
     return f;
+  }
+
+  /** The settled forms on the earth, in the sanctuary's frame, for their meeting places. */
+  private jointForms(): JointForm[] {
+    const out: JointForm[] = [];
+    for (const f of this.forms) {
+      const s = f.s;
+      if (s.kind === "orb" || f.out !== undefined || f.grow < 1 || s.y > 0.35) continue;
+      const c = Math.cos(s.rot), sn = Math.sin(s.rot);
+      const line = f.line.map(([x, z]) => [x * c + z * sn + s.x, -x * sn + z * c + s.z] as V2);
+      out.push({ kind: s.kind, ink: s.ink, line, half: f.half, open: s.kind === "wall" && !s.closed, H: f.H });
+    }
+    return out;
   }
 
   /** How far grown a form is at `age` seconds, on the breath: a wall rises over one exhale, a ring
@@ -828,6 +899,15 @@ export class Sanctuary {
     return Math.min(1, done / 3);
   }
   private pose(f: Form): void {
+    if (f.s.kind !== "orb") {
+      // the shade stays on the earth as the form is lifted, and fades with the height
+      const out0 = f.out !== undefined ? ease(f.out / 2.2) : 0;
+      const kk = f.grow * (1 - out0) * Math.max(0, 1 - f.lift / 0.8);
+      f.shade.position.y = 0.012 - f.lift;
+      f.shade.visible = kk > 0.01;
+      if (f.shadeK) f.shadeK.value = kk;
+      else f.shade.scale.setScalar(Math.max(0.001, kk));
+    }
     const out = f.out !== undefined ? ease(f.out / 2.2) : 0;
     const k = f.grow * (1 - out);
     if (f.s.kind === "orb") f.body.scale.setScalar(Math.max(0.0001, k));
@@ -896,6 +976,7 @@ export class Sanctuary {
   private release(f: Form): void {
     if (f.out !== undefined) return;
     f.out = 0;
+    this.jointsDirty = true;
     if (f.s.kind !== "orb") this.seamFor(f);
     this.select(null);
     this.refund(f.s.ink, f.s.cost);
@@ -967,6 +1048,12 @@ export class Sanctuary {
       if (f && k <= 0.01 && (f.grow >= 1 || (f.out ?? 0) > 2.2)) this.seamOf = null;
     }
     this.forming.update(dt, dpr, camera);
+    // the meeting places, once the forms are still (not while one is being carried)
+    if (this.jointsDirty && !this.shape && !this.second) {
+      this.jointsDirty = false;
+      this.joints.set(this.jointForms());
+    }
+    this.joints.update(dt);
     this.root.visible = near;
     if (!near) return;
     let gone = false;
@@ -978,6 +1065,7 @@ export class Sanctuary {
       } else if (f.grow < 1 && !this.held) {
         f.age += dt;
         f.grow = this.growth(f.s.kind, f.age);
+        if (f.grow >= 1) this.jointsDirty = true; // grown: the world completes what it meets
       }
       if (this.shape?.form === f && this.shape.moved && !this.second) {
         f.s.x += (f.to.x - f.s.x) * k;
@@ -1011,6 +1099,7 @@ export class Sanctuary {
         if (f.out !== undefined && f.out > 2.3) {
           this.root.remove(f.group);
           f.geo.dispose();
+          f.shade.geometry.dispose();
           if (f.s.kind === "orb") (f.body.children[1] as THREE.Mesh).geometry.dispose();
         }
       this.forms = this.forms.filter((f) => !(f.out !== undefined && f.out > 2.3));
@@ -1030,6 +1119,7 @@ export class Sanctuary {
       if (grown < 1 && s.kind !== "orb") this.seamFor(f);
       this.pose(f);
     }
+    this.joints.set(this.jointForms(), true);
   }
   /** Building held open with a stroke mid-draw (the trail of light on the earth). */
   shotTrail(pts: V2[]): void {
@@ -1045,28 +1135,31 @@ export class Sanctuary {
     this.root.localToWorld(this.v).project(camera);
     return [(this.v.x * 0.5 + 0.5) * innerWidth, (-this.v.y * 0.5 + 0.5) * innerHeight];
   }
-  /** A small sanctuary for a still: a ring with a gold spire at its heart, two arcs of wall, two
-      pillars at the way in with gold orbs over them, a gold threshold, a stone orb. */
+  /** A small sanctuary for a still, its walls meeting: a stone ring with a gold spire at its
+      heart; a stone wall and a gold wall running back from it to two stone walls that curve
+      forward (stone meets stone, gold meets stone); two pillars at the way in with gold orbs
+      over them; a gold threshold; a stone orb resting low. */
   static shotLayout(): SavedForm[] {
-    const arc = (r: number, a0: number, a1: number, n: number): number[] => {
-      const out: number[] = [];
-      for (let i = 0; i < n; i++) {
+    const line = (pts: number[][]): number[] => pts.flatMap(([x, z]) => [round(x), round(z)]);
+    const arc = (cx: number, cz: number, r: number, a0: number, a1: number, n: number) =>
+      Array.from({ length: n }, (_, i) => {
         const a = a0 + ((a1 - a0) * i) / (n - 1);
-        out.push(round(Math.cos(a) * r), round(Math.sin(a) * r));
-      }
-      return out;
-    };
+        return [cx + Math.cos(a) * r, cz + Math.sin(a) * r];
+      });
+    const W = (ink: Ink, pts: number[][], note?: number): SavedForm => ({ kind: "wall", ink, path: line(pts), x: 0, z: 0, y: 0, rot: 0, cost: 0.4, ...(note ? { note } : {}) });
     return [
-      { kind: "ring", ink: "stone", r: 2.6, x: 0, z: -1.2, y: 0, rot: 0, cost: 1.3 },
-      { kind: "wall", ink: "stone", path: arc(5.6, Math.PI * 1.08, Math.PI * 1.62, 16), x: 0, z: 0.4, y: 0, rot: 0, cost: 0.4 },
-      { kind: "wall", ink: "stone", path: arc(5.6, Math.PI * 1.88, Math.PI * 2.42, 16), x: 0, z: 0.4, y: 0, rot: 0, cost: 0.4 },
-      { kind: "spire", ink: "gold", r: 0.55, h: 6.2, x: 0, z: -1.2, y: 0, rot: 0, cost: 0.6, note: 1 },
-      { kind: "pillar", ink: "stone", r: 0.32, x: -2.2, z: 3.4, y: 0, rot: 0, cost: 0.25 },
-      { kind: "pillar", ink: "stone", r: 0.32, x: 2.2, z: 3.4, y: 0, rot: 0, cost: 0.25 },
-      { kind: "orb", ink: "gold", x: -2.2, z: 3.4, y: 1.5, rot: 0, cost: 0.05, note: 1 },
-      { kind: "orb", ink: "gold", x: 2.2, z: 3.4, y: 1.5, rot: 0, cost: 0.05, note: 1 },
-      { kind: "orb", ink: "stone", x: 4.6, z: -3.0, y: 0.6, rot: 0, cost: 0.05 },
-      { kind: "wall", ink: "gold", path: [-1.0, 0, -0.35, 0.12, 0.35, 0.12, 1.0, 0], x: 0, z: 5.6, y: 0, rot: 0, cost: 0.2, note: 1 },
+      { kind: "ring", ink: "stone", r: 2.4, x: 0, z: -1.5, y: 0, rot: 0, cost: 1.2 },
+      { kind: "spire", ink: "gold", r: 0.55, h: 6.2, x: 0, z: -1.5, y: 0, rot: 0, cost: 0.6, note: 1 },
+      W("stone", [[-5, -4.6], [-4, -3.9], [-3, -3.1], [-2.15, -2.45]]),
+      W("gold", [[2.15, -2.45], [3, -3.1], [4, -3.9], [5, -4.6]], 1),
+      W("stone", arc(-1.2, -1.0, 4.0, Math.PI * 1.24, Math.PI * 0.86, 9)),
+      W("stone", arc(1.2, -1.0, 4.0, -Math.PI * 0.24, Math.PI * 0.14, 9)),
+      { kind: "pillar", ink: "stone", r: 0.32, x: -2.1, z: 3.6, y: 0, rot: 0, cost: 0.25 },
+      { kind: "pillar", ink: "stone", r: 0.32, x: 2.1, z: 3.6, y: 0, rot: 0, cost: 0.25 },
+      { kind: "orb", ink: "gold", x: -2.1, z: 3.6, y: 1.5, rot: 0, cost: 0.05, note: 1 },
+      { kind: "orb", ink: "gold", x: 2.1, z: 3.6, y: 1.5, rot: 0, cost: 0.05, note: 1 },
+      { kind: "orb", ink: "stone", x: 4.4, z: 1.6, y: 0.6, rot: 0, cost: 0.05 },
+      W("gold", [[-1.0, 5.6], [-0.35, 5.72], [0.35, 5.72], [1.0, 5.6]], 1),
     ];
   }
 }

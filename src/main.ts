@@ -5201,8 +5201,10 @@ function update(dt: number): void {
     // building: the world hushes a little (Ōkami's canvas), the more while the brush is down;
     // after a meditation, for a few breaths, its colour is quieted and its light a little softer
     if (sanct.hush > 0.002) {
-      gradeUniforms.sat.value *= 1 - 0.3 * sanct.hush;
-      gradeUniforms.contrast.value *= 1 - 0.06 * sanct.hush;
+      // Ōkami's canvas: the world fades back like an old scroll while the brush is down
+      gradeUniforms.sat.value *= 1 - 0.38 * sanct.hush;
+      gradeUniforms.contrast.value *= 1 - 0.08 * sanct.hush;
+      gradeUniforms.high.value.multiplyScalar(1 - 0.12 * sanct.hush);
     }
     if (med.hush > 0.002) {
       gradeUniforms.sat.value *= 1 - 0.22 * med.hush;
@@ -5504,6 +5506,13 @@ renderer
         sanct.shotForms([{ kind: "wall", ink: "stone", path: [-3, 0.4, -1.6, -0.2, 0, -0.45, 1.6, -0.2, 3, 0.4], x: 0, z: -0.8, y: 0, rot: 0, cost: 0.5 }], 0.5);
         stand(3.4, 3.2, 0.4);
         return { base: [c.x, c.y, c.z], view: { eye: L(-3.2, 2.4, 6.8), look: L(0.2, 0.35, -0.8) } };
+      }
+      if (id === "sanctuary-joint") {
+        // where gold meets stone, close: the post, its collar of light, its gold cap
+        moodForce.w = MOOD_NAMES.map((n) => (n === "dusk" ? 1 : 0));
+        sanct.shotForms(Sanctuary.shotLayout());
+        stand(7.5, 3.0, 0.6);
+        return { base: [c.x, c.y, c.z], view: { eye: L(6.4, 2.3, 0.6), look: L(3.6, 0.95, -3.6) } };
       }
       // a small sanctuary at dusk
       moodForce.w = MOOD_NAMES.map((n) => (n === "dusk" ? 1 : 0));
