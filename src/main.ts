@@ -1697,7 +1697,7 @@ function tapOnHeart(x: number, y: number): boolean {
     its part has been spoken) and at the maze's still centre. */
 function heartFrame(): void {
   const play = S.mode === "play" && !crossing;
-  myHeart.affordance(play && (sitting.phase === "seated" || touch.active));
+  myHeart.affordance(play && (sitting.phase === "seated" || touch.active || S.t < heartInviteUntil));
   const atChoice = choiceSit.on && choiceSit.after > 0 && S.t - choiceSit.after > 4;
   const atCentre = sitting.phase === "seated" && inHall()?.hall === mazeHall;
   oracle.offerAt(play && !myHeart.open ? (atChoice ? "At the Choice" : atCentre ? "At the still centre" : null) : null);
@@ -1706,14 +1706,61 @@ function heartFrame(): void {
 // Laying hands on the world: hold a finger on a tree, a stone, a crystal or the ground
 // (world/touch.ts). The wanderer goes to it, kneels or embraces it, and they talk in light.
 const touch = new Touch(creation, wanderer, player, {
-  bell: (f, g, d) => audio.bell(f, g, d),
+  // in the meditation's dark, the conversation's notes rest under the guidance
+  bell: (f, g, d) => !med.covered && audio.bell(f, g, d),
   sparks: (at, n, c, spread) => sparks.emit(at, n, c, spread),
 });
 scene.add(touch.points);
-// a whole breath with a rock: a stone gathers out of it and comes to the satchel (once a sitting)
+/* The meditation (world/meditation.ts): holding on a rock, a tree or a crystal, the eyes close
+   into the dark, the inner body breathes the square with one of Aria's guidances, and the world
+   comes back quietly. A rock meditation run to its end gives its stone (stone-essence): it
+   gathers out of the rock once the world is back, and comes to you. */
 const chestAt = new THREE.Vector3();
-touch.onBreath = (kind, contact, n, centre, r) => {
-  if (kind === "rock" && n === 1 && !sanct.formingNow) sanct.formStone(contact, centre, r, () => heartAt(chestAt));
+let medRock: { contact: THREE.Vector3; centre: THREE.Vector3; r: number } | null = null;
+let medStoneAt = 0;
+let heartInviteUntil = 0;
+const med = new Meditation({
+  play: (p) => void narration.play(p),
+  stopVoice: (f) => narration.stop(f),
+  speaking: (p) => narration.current === p,
+  rise: () => touch.stop(),
+  completed: () => {
+    if (medRock) medStoneAt = S.t + 3.2;
+  },
+  invite: () => {
+    // the small heart, twice, softly: if something moved, write it down
+    heartInviteUntil = S.t + 9;
+    const m = document.getElementById("heart-mini");
+    if (m) {
+      m.classList.remove("blink");
+      void m.offsetWidth;
+      m.classList.add("blink");
+    }
+  },
+});
+function medFrame(dt: number): void {
+  // the hold let go another way (the stick, T again, flight): the meditation goes with it
+  if ((med.phase === "closing" || med.phase === "inner" || med.phase === "guiding") && touch.phase === "none") med.release();
+  med.update(dt);
+  // the narrator leaves the silence alone: through the meditation and for a while after it
+  if (med.active) playlist.rest(150);
+  if (medStoneAt && S.t >= medStoneAt && medRock) {
+    medStoneAt = 0;
+    sanct.formStone(medRock.contact, medRock.centre, medRock.r, () => heartAt(chestAt));
+    medRock = null;
+  }
+}
+input.onHoldEnd = () => med.release();
+// a touch during the quiet view after brings the controls back
+addEventListener("pointerdown", () => med.wake(), { capture: true });
+/* stills: `?shot=meditation` (the inner body in the dark, its lungs mid-breath),
+   `meditation-after` (the quiet view just after: the wanderer by its rock, hushed, no controls) */
+(window as unknown as { __medShot?: (id: string) => void }).__medShot = (id) => {
+  if (id === "meditation") med.hold("inner", 2.6);
+  else {
+    touch.stop(); // risen
+    med.hold("quiet");
+  }
 };
 sanct.onHome = () => {
   const c = sanct.centre, d = 13;
@@ -1746,6 +1793,11 @@ function beginTouch(x: number, y: number, earth = false): void {
     if (!earth) beginBuild(x, y);
     return;
   }
+  // the eyes begin to close
+  const tg = touch.target!;
+  medRock = tg.kind === "rock" ? { contact: tg.contact.clone(), centre: tg.centre.clone(), r: tg.r } : null;
+  medStoneAt = 0;
+  med.begin();
   // a small ring where the finger rests: the press was heard
   const mark = Object.assign(document.createElement("div"), { className: "touch-mark" });
   mark.style.left = `${x}px`;
@@ -2759,7 +2811,7 @@ function contemplationFrame(dt: number): void {
   const idle = performance.now() - lastTouch > INWARD_AFTER && Math.hypot(input.move.x, input.move.y) < 0.05 && !input.hold;
   const want = inwardOn && idle && S.mode === "play" && !startMap.isOpen && $("#menu").hidden && !oracle.isOpen && player.speed < 0.3 &&
     !player.flying && !player.diving && !follow.underwater && !autofly.active && !autorun.active && !crossing &&
-    (sitting.phase === "none" || lessonSeated()) && !document.body.classList.contains("touring") && !sanct.building && !sanct.formingNow;
+    (sitting.phase === "none" || lessonSeated()) && !document.body.classList.contains("touring") && !sanct.building && !sanct.formingNow && !med.active;
   inwardK += ((want ? 1 : 0) - inwardK) * Math.min(1, dt * (want ? 0.35 : 3));
   if (inwardK < 0.002 && !want) inwardK = 0;
   follow.inward = inwardK;
@@ -5077,6 +5129,7 @@ function update(dt: number): void {
     const letGo = Math.hypot(input.move.x, input.move.y) > 0.2 || input.hold || (touch.phase === "touching" && !!player.target) ||
       startMap.isOpen || apart() || autofly.active || sitting.phase !== "none";
     touch.update(dt, dpr, letGo, S.reduced);
+    medFrame(dt);
     // building rests when you leave the ground or the sanctuary, or go somewhere apart
     if (sanct.building && (apart() || player.flying || player.swimming || startMap.isOpen || (sanct.home && sanct.distance(player.pos) > 26))) sanct.close();
     // a stone or crystal in the hands vibrates with light, as it does before stillness
@@ -5145,10 +5198,16 @@ function update(dt: number): void {
   skyUniforms.uT.value = wtSafe;
   if (!apart() || moodForce.w) {
     moods.update(player.pos, dt);
-    // building: the world hushes a little (Ōkami's canvas), the more while the brush is down
+    // building: the world hushes a little (Ōkami's canvas), the more while the brush is down;
+    // after a meditation, for a few breaths, its colour is quieted and its light a little softer
     if (sanct.hush > 0.002) {
       gradeUniforms.sat.value *= 1 - 0.3 * sanct.hush;
       gradeUniforms.contrast.value *= 1 - 0.06 * sanct.hush;
+    }
+    if (med.hush > 0.002) {
+      gradeUniforms.sat.value *= 1 - 0.22 * med.hush;
+      gradeUniforms.contrast.value *= 1 - 0.08 * med.hush;
+      gradeUniforms.high.value.multiplyScalar(1 + 0.05 * med.hush);
     }
     worldLit.hemi = hemi.intensity;
     worldLit.star = star.intensity;
@@ -5226,7 +5285,8 @@ import { devMode } from "./debug/devflag";
 import { watchKeyboard } from "./core/keyboard";
 import { ARCHETYPES } from "./world/beings";
 import { getShot, runShot } from "./debug/shot";
-import { Sanctuary } from "./world/sanctuary"; // dev-only: ?shot=<scene>&t=<sec> renders one still frame
+import { Sanctuary } from "./world/sanctuary";
+import { Meditation } from "./world/meditation"; // dev-only: ?shot=<scene>&t=<sec> renders one still frame
 const shot = getShot();
 
 let realDt = 0;
@@ -5396,7 +5456,7 @@ renderer
         player.pos.set(c.x + wx, c.y, c.z + wz);
         player.heading = f + toward;
       };
-      if (id === "sanctuary-form") {
+      if (id === "sanctuary-form" || id === "meditation-after") {
         // the rock nearest the sanctuary standing on its own, on dry ground
         creation["restream"](c.x, c.z);
         let best: ReturnType<typeof creation.touchables>[number] | null = null, bd = Infinity;
@@ -5417,6 +5477,11 @@ renderer
         const across = Math.atan2(best.x - st.x, best.z - st.y);
         const mx = (st.x + best.x) / 2, mz = (st.y + best.z) / 2;
         const ex = mx + Math.sin(across + Math.PI / 2) * 4.2 - Math.sin(across) * 0.8, ez = mz + Math.cos(across + Math.PI / 2) * 4.2 - Math.cos(across) * 0.8;
+        if (id === "meditation-after") {
+          // risen: from behind the wanderer's shoulder, the rock before it and the land beyond
+          const bx = st.x - Math.sin(across) * 3.6 + Math.sin(across + Math.PI / 2) * 0.5, bz = st.y - Math.cos(across) * 3.6 + Math.cos(across + Math.PI / 2) * 0.5;
+          return { base: [st.x, gy, st.y], view: { eye: [bx - st.x, 2.1, bz - st.y], look: [Math.sin(across) * 4, 0.9, Math.cos(across) * 4] } };
+        }
         return { base: [st.x, gy, st.y], view: { eye: [ex - st.x, 1.3, ez - st.y], look: [mx - st.x, ct.y - gy + 0.15, mz - st.y] } };
       }
       if (id === "sanctuary-stroke") {
@@ -6027,5 +6092,5 @@ addX(document.getElementById("next-up"), () => nextUp.hide(), "Stay here");
   new MutationObserver(sync).observe($("#map-close"), { attributes: true, attributeFilter: ["hidden"] });
   sync();
 }
-Object.assign(window, { __ij: { sanct, canTouch, beginBuild, groundPoint, solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, myHeart, oracle, oracleVision, stepFrames: (n: number, dt = 1 / 60) => { realDt = dt; for (let i = 0; i < n; i++) update(dt); post.render(); }, heartFrame, maze: () => maze } });
+Object.assign(window, { __ij: { med, sanct, canTouch, beginBuild, groundPoint, solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, myHeart, oracle, oracleVision, stepFrames: (n: number, dt = 1 / 60) => { realDt = dt; for (let i = 0; i < n; i++) update(dt); post.render(); }, heartFrame, maze: () => maze } });
 Object.assign((window as unknown as { __ij: object }).__ij, { whispers, hearWhisper, rapaNui });
