@@ -34,7 +34,7 @@ import { buildMandala, etchedStone, etchUniforms, vibeUniforms } from "./world/e
 import { Landmarks } from "./world/landmarks";
 import { Flowers, Lanterns, LightGrass, Sparks, type LifeFrame } from "./world/life";
 import { Motes } from "./world/motes";
-import { Creation, creationUniforms, Spirits } from "./world/creation";
+import { Creation, creationUniforms } from "./world/creation";
 import { Beings, type BeingModel } from "./world/beings";
 import { SeaFauna, SeaLife, UnderwaterEffect } from "./world/underwater";
 import { Post } from "./gpu/post";
@@ -376,7 +376,7 @@ scene.add(presences.group);
 const stationGlow = new StationGlow();
 scene.add(stationGlow.points);
 scene.add(sparks.points, grass.mesh, flowers.mesh, blooms.mesh, wilds.group, lanterns.points, sanct.group);
-// The whole creation: trees and their roots, rocks, crystals, spirits, and the light through them.
+// The whole creation: trees and their roots, rocks, crystals, and the light through them.
 creationUniforms.uFogC.value.copy(FOG_COLOR);
 creationUniforms.uFogD.value = FOG.density * 0.9;
 creationUniforms.uStar.value.copy(starDir);
@@ -387,8 +387,8 @@ const creation = new Creation(sparks);
 // the forests beyond, out to half a kilometre
 const forest = new Forest(creation);
 scene.add(forest.mesh);
-const spirits = new Spirits(creation, MOBILE ? 3 : 4); // few, and special (the owner)
-scene.add(creation.group, spirits.group);
+// no flying spirits (the owner, 2026-10-17: "Remove those spirits everywhere")
+scene.add(creation.group);
 const seaLife = new SeaLife();
 scene.add(seaLife.group);
 const fauna = new SeaFauna();
@@ -2346,10 +2346,8 @@ function updateStillness(dt: number, wt: number): void {
     wanderer.gesture === "none" && sitting.phase === "none" && Math.hypot(input.move.x, input.move.y) < 0.05 && !startMap.isOpen;
   stillFor = calm ? stillFor + dt : 0;
   const want = stillFor > 1.6 ? 1 : 0;
-  const was = medK;
   medK += (want - medK) * Math.min(1, dt * (want ? 0.55 : 3.5));
   if (medK < 0.002) medK = 0;
-  if (was < 0.3 && medK >= 0.3) spirits.gather(player.pos);
   wanderer.meditation = medK;
   creationUniforms.uCommune.value = medK;
   heartPos.copy(player.pos).setY(player.pos.y + 1.15);
@@ -5108,7 +5106,6 @@ function update(dt: number): void {
   }
   if (world) forest.update(player.pos);
   if (world) creation.update(life, (innerHeight * dpr) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
-  if (world) spirits.update(life, camera);
   sparks.update(dt, dpr);
   stationGlow.update(dt, dpr);
   if (world) landmarks.update(wt, dt, player.pos, S.mode === "play" ? player.speed : 1, S.reduced);
@@ -6101,5 +6098,5 @@ addX(document.getElementById("next-up"), () => nextUp.hide(), "Stay here");
   new MutationObserver(sync).observe($("#map-close"), { attributes: true, attributeFilter: ["hidden"] });
   sync();
 }
-Object.assign(window, { __ij: { med, sanct, canTouch, beginBuild, groundPoint, solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, spirits, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, myHeart, oracle, oracleVision, stepFrames: (n: number, dt = 1 / 60) => { realDt = dt; for (let i = 0; i < n; i++) update(dt); post.render(); }, heartFrame, maze: () => maze } });
+Object.assign(window, { __ij: { med, sanct, canTouch, beginBuild, groundPoint, solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, myHeart, oracle, oracleVision, stepFrames: (n: number, dt = 1 / 60) => { realDt = dt; for (let i = 0; i < n; i++) update(dt); post.render(); }, heartFrame, maze: () => maze } });
 Object.assign((window as unknown as { __ij: object }).__ij, { whispers, hearWhisper, rapaNui });

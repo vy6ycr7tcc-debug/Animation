@@ -3,8 +3,7 @@
    - Flowers of light bloom as you brush past, each with a note; walking makes a melody.
    - Lanterns kindle silently as you come near and stay lit (remembered on this device).
    - Sparks rise whenever something opens.
-   (The butterflies and the gliders are gone; the few great spirits of light, and their rare
-   passages overhead, are in creation.ts.) */
+   (The butterflies, the gliders and the flying spirits are gone.) */
 import * as THREE from "three/webgpu";
 import type { AudioEngine } from "../core/audio";
 import { softPoints, spriteCloud, T, viewDepth, withFog, type N, type SpriteCloud, softDot, pointR } from "../gpu/tsl";
