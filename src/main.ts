@@ -26,7 +26,6 @@ import { AdaptiveQuality, FrameStats, loadQualityConfig, MOBILE, type Tier } fro
 import { clear, load, save, type SaveData } from "./core/save";
 import { FollowCamera } from "./player/camera";
 import { Controller } from "./player/controller";
-import { Footprints } from "./player/footprints";
 import { GoldSphere, ReachLine } from "./player/goldSphere";
 import { Wanderer } from "./player/wanderer";
 import { Clouds } from "./world/atmosphere";
@@ -319,8 +318,6 @@ wanderer.load("models/wanderer.glb");
 const player = new Controller();
 player.pos.set(SPAWN.x, spawnY + 0.13, SPAWN.z);
 player.heading = SPAWN.heading;
-const footprints = new Footprints();
-scene.add(footprints.mesh);
 const follow = new FollowCamera(camera);
 
 /* ============ AUDIO ============ */
@@ -337,7 +334,7 @@ const sparks = new Sparks();
    strokes grown into walls, rings, pillars, spires and orbs, in stone (from rock meditations) and
    gold (from the heart's notes); kept on this device only. */
 const sanct = new Sanctuary(
-  { sparks: (at, n, c, s) => sparks.emit(at, n, c, s), bowl: (f, g) => audio.bowl(f, g), bell: (f, g, d) => audio.bell(f, g, d), breath: () => breath.phases },
+  { sparks: (at, n, c, s) => sparks.emit(at, n, c, s), bowl: (f, g) => audio.bowl(f, g), bell: (f, g, d) => audio.bell(f, g, d), breath: () => breath.phases, say: (t) => whisper(t, 6500) },
   { persist: !new URLSearchParams(location.search).has("shot") },
 );
 const grass = new LightGrass();
@@ -915,8 +912,9 @@ input.onTap = (x, y, touch) => {
     }
     return;
   }
-  // building: a tap off the sanctuary's earth (its own touches never come here) lets it rest
-  if (sanct.building) {
+  // building out in the world: a tap off lets it rest; at the sanctuary building stays open while
+  // you are there (it opens by itself), so a tap off its earth walks as ever
+  if (sanct.building && !sanct.home) {
     sanct.close();
     return;
   }
@@ -970,7 +968,6 @@ input.onTap = (x, y, touch) => {
   stopAuto();
   courseTo(p.x, p.z);
   if (p.y <= WATER_Y + 0.05) water.ripple(p.x, p.z, 0.6, S.t);
-  else footprints.place(p.x, p.y, p.z, player.heading, S.t);
 };
 // Into the temple and out again. Inside, the open world rests: hidden, and not streamed.
 const fadeEl = $("#fade");
@@ -1763,10 +1760,21 @@ addEventListener("pointerdown", () => med.wake(), { capture: true });
   }
 };
 sanct.onHome = () => {
-  const c = sanct.centre, d = 13;
+  const c = sanct.centre, d = 10;
   arrive({ place: places()[0], x: c.x + Math.sin(c.face) * d, z: c.z + Math.cos(c.face) * d, heading: c.face }, false);
 };
 let toldTouch = false;
+/** The first few times at the sanctuary: what its stone is for. */
+function sanctToldFrame(): void {
+  let n = 0;
+  try {
+    n = Number(localStorage.getItem("inward-journey:sanctuary-told")) || 0;
+    if (n < 3) localStorage.setItem("inward-journey:sanctuary-told", String(n + 1));
+  } catch {
+    /* no storage: say it */
+  }
+  if (n < 3) whisper("Your sanctuary. Draw on its stone with a finger: a line raises a wall, a circle a ring, a spiral a spire, a touch an orb.", 9000);
+}
 function canTouch(): boolean {
   return S.mode === "play" && player.grounded && !player.swimming && !player.flying && !apart() &&
     !autofly.active && sitting.phase === "none" && !startMap.isOpen;
@@ -1819,9 +1827,6 @@ addEventListener("keydown", (e) => {
 });
 player.onLand = () => {
   if (!player.swimming) wanderer.land();
-  const y = Math.max(heightAt(player.pos.x, player.pos.z), WATER_Y);
-  footprints.place(player.pos.x - 0.1, y, player.pos.z, player.heading, S.t);
-  footprints.place(player.pos.x + 0.1, y, player.pos.z, player.heading, S.t);
   if (!apart()) audio.step(false); // inside, no steps: only the place's own sound (Samuel)
 };
 lanterns.onKindle = () => say("Lanterns kindle around you.");
@@ -4953,7 +4958,6 @@ function readings(): string {
 
 /* ============ LOOP ============ */
 let lastPrint = 0;
-let printSide = 1;
 let lastStroke = 0;
 const orbPos = new THREE.Vector3();
 let wasSwimming = false;
@@ -5064,13 +5068,10 @@ function update(dt: number): void {
   wanderer.fx.visible = wanderer.root.visible;
 
   if (S.mode === "play") {
-    // Footprints on the ground, rings on water.
+    // Steps on the ground (no footprints: the owner), rings on water.
     if (player.grounded && player.odometer - lastPrint > 0.7) {
       lastPrint = player.odometer;
-      printSide = -printSide;
-      const ox = Math.cos(player.heading) * 0.11 * printSide, oz = -Math.sin(player.heading) * 0.11 * printSide;
       const gy = heightAt(player.pos.x, player.pos.z);
-      footprints.place(player.pos.x + ox, gy, player.pos.z + oz, player.heading, t);
       if (apart()) {
         // inside the temple and the pyramid there are no steps: only the place's own quiet (Samuel)
       } else {
@@ -5129,6 +5130,12 @@ function update(dt: number): void {
     medFrame(dt);
     // building rests when you leave the ground or the sanctuary, or go somewhere apart
     if (sanct.building && (apart() || player.flying || player.swimming || startMap.isOpen || (sanct.home && sanct.distance(player.pos) > 26))) sanct.close();
+    // at the sanctuary its stone is a page by itself: no hold needed (the owner: "drew around,
+    // absolutely nothing happened")
+    else if (!sanct.building && sanct.distance(player.pos) < 16 && canTouch() && !med.active && !touch.active) {
+      sanct.open(true);
+      sanctToldFrame();
+    }
     // a stone or crystal in the hands vibrates with light, as it does before stillness
     if (touch.vibe > 0.01 && touch.target) {
       vibeUniforms.uVibePos.value.copy(touch.target.contact);
@@ -5256,7 +5263,6 @@ function update(dt: number): void {
   center.set(camera.position.x, 0, camera.position.z);
   motes.update(wt, center, dpr, S.reduced);
   clouds.update(wt, camera.position);
-  footprints.update(t);
 
   // The starlight's shadow follows the wanderer, and stays on the land below them when they fly
   // high (up there its small box hung in the air, and the ground beneath went dark and speckled).

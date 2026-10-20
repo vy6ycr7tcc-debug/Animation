@@ -44,6 +44,9 @@ const WALL_H = 1.3; // walls are low and sheltering, never a fortress
 const RING_H = 1.1;
 const ORB_Y = 1.6; // where an orb rests
 const KEY = "inward-journey:sanctuary";
+const SEED_KEY = "inward-journey:sanctuary-seed";
+/** the first measure of stone: a few walls and a ring */
+const SEED_STONE = 3;
 /** Essence each form takes (one rock meditation, or one heart note, is 1). */
 const COST = { wallPerM: 0.08, pillar: 0.25, orb: 0.05, spireBase: 0.25, spirePerM: 0.06 };
 
@@ -301,6 +304,8 @@ export interface SanctuaryHooks {
   bell(f: number, gain: number, dur: number): void;
   /** the square breathing's phases (seconds): the forms' metronome */
   breath(): readonly { name: string; secs: number }[];
+  /** a quiet line of guidance (a stroke not understood, or not enough essence) */
+  say(text: string): void;
 }
 
 const STONE_LIGHT = new THREE.Color(0.78, 0.84, 1.0);
@@ -441,6 +446,14 @@ export class Sanctuary {
   /* ---------------- keeping ---------------- */
   private load(): void {
     if (!this.persist) return;
+    // a first measure of stone, so the first strokes take form (the owner: "nothing happened")
+    let seed = false;
+    try {
+      seed = !localStorage.getItem(SEED_KEY);
+      if (seed) localStorage.setItem(SEED_KEY, "1");
+    } catch {
+      /* no storage: no seed */
+    }
     try {
       const v = JSON.parse(localStorage.getItem(KEY) ?? "null") as Saved | null;
       if (v && v.v === 2 && Array.isArray(v.forms)) {
@@ -451,6 +464,10 @@ export class Sanctuary {
       }
     } catch {
       /* nothing kept yet, or the device won't keep it */
+    }
+    if (seed) {
+      this.stone += SEED_STONE;
+      this.save();
     }
   }
   private save(): void {
@@ -776,9 +793,13 @@ export class Sanctuary {
       s = { kind: "spire", ink, r: round(Math.min(1.1, Math.max(0.3, r.r * 0.42))), h: round(h), x: r.c[0], z: r.c[1], y: 0, rot: 0, cost: COST.spireBase + h * COST.spirePerM };
     }
     if (!s || s.cost > this.have(ink) + 1e-6) {
-      // not understood, or not enough essence: the stroke sinks back, unforged, without a word
+      // not understood, or not enough essence: the stroke sinks back, unforged, with a quiet word
+      // of what would take form (the owner: "it's not clear")
       this.trailFade = 1.6;
       this.hooks.bell(220, 0.008, 2.2);
+      if (!s) this.hooks.say("Draw one clear shape: a line raises a wall, a circle a ring, a spiral a spire, a touch an orb.");
+      else if (ink === "stone") this.hooks.say(this.have("gold") >= s.cost ? "Not enough stone for that. Tap the gold to build with your heart's notes, or draw smaller." : "Not enough stone for that. Sit with a rock until its meditation ends to gather more, or draw smaller.");
+      else this.hooks.say(this.have("stone") >= s.cost ? "Not enough gold for that. Tap the stone to build with it, or draw smaller." : "Not enough gold for that. Each note you write in your heart gives a little.");
       return;
     }
     if (ink === "gold") {

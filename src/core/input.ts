@@ -191,6 +191,13 @@ export class Input {
         this.joyR = r.width / 2 - 8;
         const near = Math.hypot(e.clientX - home.x, e.clientY - home.y) < r.width * 0.85;
         const zone = e.clientX < innerWidth * 0.45 && e.clientY > innerHeight * 0.4;
+        // away from the stick itself, a touch something else claims (the sanctuary's stone to draw
+        // on) is that thing's, even in the lower left (it took the stick there: "nothing happened")
+        if (!near && zone && this.capture?.down(e)) {
+          this.captured.add(e.pointerId);
+          window.clearTimeout(this.holdTimer);
+          return;
+        }
         if (near || zone) {
           this.joyId = e.pointerId;
           if (near) this.joyCenter = home;
