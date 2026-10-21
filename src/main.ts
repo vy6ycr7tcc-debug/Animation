@@ -5395,7 +5395,7 @@ function update(dt: number): void {
   etchUniforms.uEtchT.value = wt;
   mandala.rotation.y = S.reduced ? 0 : wt * 0.01;
   center.set(camera.position.x, 0, camera.position.z);
-  motes.update(wt, center, dpr, S.reduced);
+  motes.update(wt, center, dpr, S.reduced, dt, heartPos, player.vel, medK);
   clouds.update(wt, camera.position);
 
   // The starlight's shadow follows the wanderer, and stays on the land below them when they fly
