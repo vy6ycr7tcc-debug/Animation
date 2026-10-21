@@ -124,14 +124,14 @@ export function createMaldekScene(scene: THREE.Scene, narration: Narration, whis
             const rim = smoothstep(0.75, 1.0, d).mul(smoothstep(1.35, 1.0, d)).mul(fbmN(q0.mul(2.3)).mul(0.9).add(0.35));
             return bowl.mul(0.9).add(rim.mul(0.5)).mul(on).mul(rad.mul(2));
           };
-          const H = (q: N) => crater(q, 11, 41).mul(1.6).add(crater(q, 3.6, 1)).add(crater(q.mul(1.9).add(5), 3.6, 21).mul(0.5)).add(crater(q.mul(5.3).add(2), 3.6, 61).mul(0.25)).add(fbmN(q.mul(0.9)).sub(0.5).mul(0.25));
+          const H = (q: N) => crater(q, 11, 41).mul(1.6).add(crater(q, 3.6, 1)).add(crater(q.mul(1.9).add(5), 3.6, 21).mul(0.5)).add(crater(q.mul(5.3).add(2), 3.6, 61).mul(0.3)).add(crater(q.mul(11).add(7), 3.6, 83).mul(0.16)).add(crater(q.mul(23).add(3), 3.6, 97).mul(0.08)).add(fbmN(q.mul(0.9)).sub(0.5).mul(0.25)).add(fbmN(q.mul(2.7).add(4)).sub(0.5).mul(0.2));
           const scan = scannedGround("rock", 1.7, { hue: 0, relief: 0.8, bright: 1.25 });
           const e = 0.08;
           const h0 = H(p), hx = H(p.add(vec2(e, 0))), hz = H(p.add(vec2(0, e)));
           const dust = fbmN(p.mul(0.35).add(2)), grit = fbmN(p.mul(6));
-          const base = mix(vec3(0.2, 0.2, 0.23), vec3(0.36, 0.36, 0.4), dust).mul(grit.mul(0.35).add(0.8));
-          fm.colorNode = base.mul(mix(vec3(1), scan.color, 0.3)).mul(h0.mul(0.55).add(1)).mul(smoothstep(-0.05, 0.4, h0.add(0.35)).mul(0.5).add(0.6));
-          const slope = vec3(h0.sub(hx), 0, h0.sub(hz)).mul(5.5 / e * 0.1);
+          const base = mix(vec3(0.17, 0.155, 0.145), vec3(0.34, 0.31, 0.28), dust).mul(grit.mul(0.35).add(0.8));
+          fm.colorNode = base.mul(mix(vec3(1), scan.color, 0.3)).mul(max(h0.mul(0.9).add(1), 0.25)).mul(smoothstep(-0.25, 0.3, h0).mul(0.6).add(0.4));
+          const slope = vec3(h0.sub(hx), 0, h0.sub(hz)).mul(11 / e * 0.1);
           fm.normalNode = T.normalize(T.normalView.add(T.cameraViewMatrix.mul(vec4(slope, 0)).xyz));
           const c1 = abs(fbmN(p.mul(0.55).add(3.1)).sub(0.5)), c2 = abs(fbmN(p.mul(1.4).add(8.7)).sub(0.5));
           const crack = smoothstep(0.03, 0.0, c1).add(smoothstep(0.022, 0.0, c2).mul(0.6));
