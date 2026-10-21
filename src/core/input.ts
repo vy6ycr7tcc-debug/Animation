@@ -50,6 +50,9 @@ export class Input {
       or holds, and its moves and lift go to it alone. */
   capture: { down(e: PointerEvent): boolean; move(e: PointerEvent): void; up(e: PointerEvent): void } | null = null;
   private captured = new Set<number>();
+  /** Every touch, click and key is the capture's (the build mode: a screen of its own); the
+      wanderer stands still. */
+  captureAll = false;
   /** A short tap or click without dragging (`touch` for a finger). */
   onTap: ((x: number, y: number, touch: boolean) => void) | null = null;
   private downAt = new Map<number, { x: number; y: number; t: number }>();
@@ -108,7 +111,7 @@ export class Input {
       ctxBtn.addEventListener("click", (e) => e.detail === 0 && this.enabled && this.onLand?.());
     }
     addEventListener("keydown", (e) => {
-      if (!this.enabled || (e.target as HTMLElement)?.closest?.("#menu")) return;
+      if (!this.enabled || this.captureAll || (e.target as HTMLElement)?.closest?.("#menu")) return;
       const k = e.key.toLowerCase();
       if ([" ", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) e.preventDefault();
       if (k === " " && !e.repeat) this.onAction?.();
@@ -125,7 +128,7 @@ export class Input {
     surface.addEventListener("pointercancel", (e) => this.up(e));
     surface.addEventListener("wheel", (e) => {
       e.preventDefault();
-      this.zoom *= Math.exp(e.deltaY * 0.001);
+      if (!this.captureAll) this.zoom *= Math.exp(e.deltaY * 0.001);
     }, { passive: false });
 
     for (const ev of ["pointerup", "pointercancel", "pointerleave"]) actionBtn.addEventListener(ev, () => (this.actHeld = false));
@@ -155,6 +158,12 @@ export class Input {
       }
     }, 750);
     this.surface.setPointerCapture?.(e.pointerId);
+    if (this.captureAll) {
+      if (e.pointerType === "touch") this.touchUsed = true;
+      if (this.capture?.down(e)) this.captured.add(e.pointerId);
+      window.clearTimeout(this.holdTimer);
+      return;
+    }
     if (this.rollMode) {
       if (e.pointerType === "touch") this.touchUsed = true;
       if (this.rollId === null) {
@@ -363,7 +372,7 @@ export class Input {
       this.run = this.joyRun;
       this.glide = this.joyRun > 0.5;
     }
-    if (!this.enabled) {
+    if (!this.enabled || this.captureAll) {
       this.move = { x: 0, y: 0 };
       this.glide = false;
       this.run = 0;

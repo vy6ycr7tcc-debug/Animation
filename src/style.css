@@ -1355,44 +1355,48 @@ body.typing :is(#with, #sit-panel):focus-within {
 }
 body.typing #heart-mini { display: none; }
 
-/* ---- the sanctuary's two inks: small glyphs that hold their essence as light, never a number
-   (world/sanctuary.ts) ---- */
-#essence {
-  position: fixed; left: 50%; bottom: calc(30px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 10px);
-  display: flex; gap: 16px; align-items: center; padding: 10px 14px;
-  opacity: 0; transition: opacity 0.9s ease, transform 0.9s cubic-bezier(0.22, 1, 0.36, 1); z-index: 12;
-  touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
-}
-#essence[hidden] { display: none; }
-#essence.open, #essence.peek { opacity: 1; transform: translate(-50%, 0); }
-#essence.peek { pointer-events: none; }
-#essence .ink, #essence .home {
-  position: relative; width: 46px; height: 46px; padding: 0; border-radius: 50%; touch-action: none;
-  border: 1px solid rgba(244, 239, 230, 0.14); background: rgba(14, 12, 34, 0.32);
-  transition: border-color 0.6s, box-shadow 0.6s, opacity 0.6s;
-}
-/* the essence itself: a soft light that is fuller the more there is (--f, 0..1) */
-#essence .ink i {
-  position: absolute; inset: 9px; border-radius: 50%;
-  opacity: calc(0.25 + var(--f, 0) * 0.75); transform: scale(calc(0.55 + var(--f, 0) * 0.45));
-  transition: opacity 1.2s ease, transform 1.2s ease;
-}
-#essence .stone i { background: radial-gradient(circle at 40% 35%, #f1ead9, #b9ab92 55%, rgba(140, 128, 108, 0) 72%); }
-#essence .gold i { background: radial-gradient(circle at 40% 35%, #fff1c4, #e5ab4c 52%, rgba(200, 130, 40, 0) 72%); box-shadow: 0 0 calc(var(--f, 0) * 10px) rgba(255, 200, 110, 0.35); }
-#essence .ink.empty { opacity: 0.45; }
-#essence .ink.on { border-color: rgba(255, 220, 160, 0.75); box-shadow: 0 0 12px rgba(255, 210, 140, 0.28); }
-#essence .home { color: rgba(255, 220, 160, 0.85); display: grid; place-items: center; }
-#essence .home svg { width: 22px; height: 22px; }
-#essence .home[hidden] { display: none; }
-/* let a chosen form go: a small open ring by its base */
-#let-go {
-  position: fixed; left: 0; top: 0; width: 34px; height: 34px; padding: 0; margin: -17px 0 0 -17px; z-index: 12;
-  border-radius: 50%; border: 1px dashed rgba(255, 226, 180, 0.7); background: rgba(14, 12, 34, 0.3);
-  touch-action: none; transition: opacity 0.6s;
-}
-#let-go[hidden] { display: none; }
-body.building #auto, body.building #keys, body.building #tour-start { opacity: 0; pointer-events: none; }
-@media (prefers-reduced-motion: reduce) { #essence { transition: opacity 0.3s; } }
+/* ---- the build screen (world/sanctuary.ts): the inks, undo and Done along the top; a legend
+   of the shapes (or, with a form chosen, its tools) along the foot; the rest of the screen is the
+   earth to draw on. Essence shows as light, never a number. ---- */
+#build { position: fixed; left: 0; top: 0; width: 100vw; height: var(--fh, 100vh); z-index: 14; pointer-events: none; color: var(--pearl, #f4efe6); -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+#build[hidden], #build [hidden] { display: none !important; }
+#build button { pointer-events: auto; touch-action: none; font: inherit; color: inherit; cursor: pointer; }
+#build .b-top { position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); left: calc(12px + env(safe-area-inset-left, 0px)); right: calc(12px + env(safe-area-inset-right, 0px)); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+#build .b-inks, #build .b-acts { display: flex; gap: 8px; align-items: center; }
+#build .ink { position: relative; display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px 0 7px; border-radius: 22px; border: 1px solid rgba(244, 239, 230, 0.16); background: rgba(12, 10, 28, 0.6); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); font-size: 14px; transition: border-color 0.4s, box-shadow 0.4s; }
+#build .ink i { width: 30px; height: 30px; border-radius: 50%; opacity: calc(0.3 + var(--f, 0) * 0.7); transform: scale(calc(0.6 + var(--f, 0) * 0.4)); transition: opacity 1s, transform 1s; }
+#build .ink.stone i { background: radial-gradient(circle at 40% 35%, #f1ead9, #b9ab92 55%, rgba(140, 128, 108, 0) 74%); }
+#build .ink.gold i { background: radial-gradient(circle at 40% 35%, #fff1c4, #e5ab4c 52%, rgba(200, 130, 40, 0) 74%); box-shadow: 0 0 calc(var(--f, 0) * 12px) rgba(255, 200, 110, 0.4); }
+#build .ink span { margin-top: -3px; }
+#build .ink b { position: absolute; left: 44px; right: 14px; bottom: 9px; height: 2px; border-radius: 1px; background: rgba(244, 239, 230, 0.12); overflow: hidden; }
+#build .ink b s { display: block; height: 100%; width: calc(var(--f, 0) * 100%); background: #d9cdb4; transition: width 1s; }
+#build .ink.gold b s { background: #f0b44e; }
+#build .ink.on { border-color: rgba(255, 220, 160, 0.85); box-shadow: 0 0 14px rgba(255, 210, 140, 0.3); }
+#build .ink.empty { opacity: 0.6; }
+#build .undo { width: 44px; height: 44px; padding: 10px; border-radius: 50%; border: 1px solid rgba(244, 239, 230, 0.16); background: rgba(12, 10, 28, 0.6); }
+#build .undo:disabled { opacity: 0.32; }
+#build .undo svg { width: 100%; height: 100%; display: block; }
+#build .done { height: 44px; padding: 0 22px; border-radius: 22px; border: none; background: rgba(255, 214, 150, 0.92); color: #1a1428; font-weight: 600; font-size: 15px; letter-spacing: 0.02em; }
+#build .b-hint { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); width: min(92vw, 520px); margin: 0; text-align: center; font-size: 13px; line-height: 1.35; opacity: 0.8; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9); }
+#build.sel .b-hint { bottom: calc(158px + env(safe-area-inset-bottom, 0px)); }
+#build .b-shapes { position: absolute; left: 0; right: 0; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 6px; padding: 0 12px; overflow-x: auto; justify-content: center; pointer-events: auto; scrollbar-width: none; }
+#build .b-shapes::-webkit-scrollbar { display: none; }
+@media (max-width: 520px) { #build .b-shapes { justify-content: flex-start; } }
+#build .chip { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 3px; width: 64px; padding: 8px 2px 7px; border-radius: 14px; border: 1px solid rgba(244, 239, 230, 0.14); background: rgba(12, 10, 28, 0.6); font-size: 12px; line-height: 1.15; }
+#build .chip svg { width: 24px; height: 24px; color: rgba(255, 226, 180, 0.95); }
+#build .chip em { display: block; font-style: normal; font-size: 10px; opacity: 0.6; }
+#build .b-tools { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(10px + env(safe-area-inset-bottom, 0px)); width: min(96vw, 560px); box-sizing: border-box; padding: 9px; border-radius: 18px; border: 1px solid rgba(244, 239, 230, 0.14); background: rgba(12, 10, 28, 0.74); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); pointer-events: auto; display: flex; flex-direction: column; gap: 7px; }
+#build .b-name { text-align: center; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.7; }
+#build .b-row { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+#build .grp { display: flex; align-items: center; border-radius: 20px; border: 1px solid rgba(244, 239, 230, 0.16); }
+#build .grp button { width: 40px; height: 40px; padding: 0; border: none; background: none; font-size: 18px; }
+#build .grp label { font-size: 11px; opacity: 0.7; min-width: 40px; text-align: center; }
+#build .wide { height: 40px; padding: 0 13px; border-radius: 20px; border: 1px solid rgba(244, 239, 230, 0.16); background: rgba(244, 239, 230, 0.05); font-size: 13px; }
+#build .wide.warn { color: #ffb8a2; }
+#build .wide.x { width: 40px; padding: 0; color: #ffd696; }
+#build button:active { background: rgba(255, 214, 150, 0.18); }
+/* the build screen is a screen of its own: nothing of walking shows */
+body.building :is(#joy, #act, #ctx, #auto, #menu-btn, #tp-mini, #hear-again, #keys, #heart-mini, #tour-start, #breath-cue, #seat-hint, #nprog, #labels) { opacity: 0 !important; pointer-events: none !important; }
 
 /* ---- the meditation: the dark, the inner body with its lungs (world/meditation.ts) ---- */
 #meditation { position: fixed; left: 0; top: 0; width: 100vw; height: var(--fh, 100vh); z-index: 30; pointer-events: none; }
@@ -1403,8 +1407,8 @@ body.building #auto, body.building #keys, body.building #tour-start { opacity: 0
 /* the lungs at the chest of the drawn body (its frame: the chest ~y 96–176 of 440) */
 #meditation canvas.lungs { position: absolute; left: 50%; top: 21.5%; width: 44%; aspect-ratio: 148 / 140; height: auto; transform: translateX(-50%); }
 /* in the dark, and in the quiet view after, nothing of the controls shows */
-body.meditating :is(#joy, #act, #ctx, #auto, #menu-btn, #tp-mini, #hear-again, #keys, #heart-mini, #essence, #tour-start, #breath-cue, #seat-hint, #whisper),
-body.contemplative :is(#joy, #act, #ctx, #auto, #menu-btn, #tp-mini, #hear-again, #keys, #essence, #tour-start, #breath-cue, #seat-hint) {
+body.meditating :is(#joy, #act, #ctx, #auto, #menu-btn, #tp-mini, #hear-again, #keys, #heart-mini, #build, #tour-start, #breath-cue, #seat-hint, #whisper),
+body.contemplative :is(#joy, #act, #ctx, #auto, #menu-btn, #tp-mini, #hear-again, #keys, #build, #tour-start, #breath-cue, #seat-hint) {
   opacity: 0 !important; transition: opacity 1.6s ease; pointer-events: none;
 }
 /* the heart's invitation: two soft blinks */

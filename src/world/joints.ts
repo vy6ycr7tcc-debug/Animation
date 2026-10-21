@@ -20,7 +20,7 @@ const { float, vec3, vec4, sin, abs, dot, normalize, pow } = T;
 export interface JointForm {
   kind: "wall" | "ring" | "pillar" | "spire";
   ink: "stone" | "gold";
-  /** the form's centre line (walls, rings) or its centre (pillars, spires), in the sanctuary's frame */
+  /** the form's centre line (walls, rings) or its centre (pillars, spires), on the ground (x, z) */
   line: V2[];
   /** half its thickness (or its radius) */
   half: number;
@@ -36,6 +36,8 @@ interface Piece {
   kind: PieceKind;
   x: number;
   z: number;
+  /** the ground under it */
+  y: number;
   /** post: radius, height; collar: radius, height it sits at; cap: radius, height */
   r: number;
   h: number;
@@ -44,7 +46,7 @@ interface Piece {
   delay: number;
 }
 
-const CAP = 96;
+const CAP = 192;
 const ease = (x: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
 
 /** A small turned post: a flared foot, a shaft, a moulded cap (unit radius 1, height 1). */
@@ -79,7 +81,8 @@ export class Joints {
   private p = new THREE.Vector3();
   private s = new THREE.Vector3();
 
-  constructor(stone: THREE.Material, gold: THREE.Material) {
+  /** `ground`: the height of the earth under a point (forms stand anywhere in the world) */
+  constructor(stone: THREE.Material, gold: THREE.Material, private ground: (x: number, z: number) => number = () => 0) {
     // the collar: a band of warm light, breathing slowly (light where the two meet; contained)
     const inlay = new THREE.MeshBasicNodeMaterial({ fog: false });
     {
@@ -112,7 +115,7 @@ export class Joints {
     const add = (kind: PieceKind, x: number, z: number, r: number, h: number, delay: number) => {
       // one piece to a place: a post already near takes the meeting
       if (kind.startsWith("post") && next.some((q) => q.kind.startsWith("post") && Math.hypot(q.x - x, q.z - z) < 0.55)) return;
-      next.push({ key: `${kind}:${Math.round(x * 4)}:${Math.round(z * 4)}`, kind, x, z, r, h, age: 0, delay });
+      next.push({ key: `${kind}:${Math.round(x * 4)}:${Math.round(z * 4)}`, kind, x, z, y: this.ground(x, z), r, h, age: 0, delay });
     };
     const freeEnds = forms.map((f) => (f.open && f.line.length > 1 ? [true, true] : [false, false]));
     for (let a = 0; a < forms.length; a++)
@@ -189,14 +192,14 @@ export class Joints {
       const g = ease((p.age - p.delay) / 1.8);
       if (p.kind === "post-stone" || p.kind === "post-gold") {
         // rises out of the earth
-        this.p.set(p.x, -p.h * (1 - g), p.z);
+        this.p.set(p.x, p.y - p.h * (1 - g), p.z);
         this.s.set(p.r, p.h, p.r);
       } else if (p.kind === "collar") {
-        this.p.set(p.x, p.h, p.z);
+        this.p.set(p.x, p.y + p.h, p.z);
         const k = Math.max(0.0001, g);
         this.s.set(p.r * (0.6 + 0.4 * k), k, p.r * (0.6 + 0.4 * k));
       } else {
-        this.p.set(p.x, p.h, p.z);
+        this.p.set(p.x, p.y + p.h, p.z);
         this.s.setScalar(Math.max(0.0001, p.r * g));
       }
       this.m4.compose(this.p, this.q, this.s);

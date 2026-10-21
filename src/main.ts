@@ -912,12 +912,6 @@ input.onTap = (x, y, touch) => {
     }
     return;
   }
-  // building out in the world: a tap off lets it rest; at the sanctuary building stays open while
-  // you are there (it opens by itself), so a tap off its earth walks as ever
-  if (sanct.building && !sanct.home) {
-    sanct.close();
-    return;
-  }
   if (tapOnOrb(x, y)) return;
   if (tapOnHeart(x, y)) return;
   // a block of gold in the sanctuary: its note, read again
@@ -1707,7 +1701,7 @@ function heartFrame(): void {
 // (world/touch.ts). The wanderer goes to it, kneels or embraces it, and they talk in light.
 const touch = new Touch(creation, wanderer, player, {
   // in the meditation's dark, the conversation's notes rest under the guidance
-  bell: (f, g, d) => !med.covered && audio.bell(f, g, d),
+  bell: (f, g, d) => !med.covered && !sanct.building && audio.bell(f, g, d),
   sparks: (at, n, c, spread) => sparks.emit(at, n, c, spread),
 });
 scene.add(touch.points);
@@ -1762,34 +1756,45 @@ addEventListener("pointerdown", () => med.wake(), { capture: true });
     med.hold("quiet");
   }
 };
-sanct.onHome = () => {
-  const c = sanct.centre, d = 10;
-  arrive({ place: places()[0], x: c.x + Math.sin(c.face) * d, z: c.z + Math.cos(c.face) * d, heading: c.face }, false);
+/* Building (world/sanctuary.ts): a hold on open ground, and the wanderer goes there and kneels
+   with a palm on the earth; once settled, the build screen opens round that spot (the view rises
+   over it). Done stands the wanderer up again. */
+let buildPending: { since: number } | null = null;
+sanct.onDone = () => {
+  sanct.close();
+  touch.stop();
 };
-let toldTouch = false;
-/** The first few times at the sanctuary: what its stone is for. */
-function sanctToldFrame(): void {
-  let n = 0;
-  try {
-    n = Number(localStorage.getItem("inward-journey:sanctuary-told")) || 0;
-    if (n < 3) localStorage.setItem("inward-journey:sanctuary-told", String(n + 1));
-  } catch {
-    /* no storage: say it */
+function buildFrame(): void {
+  input.captureAll = sanct.building;
+  if (buildPending) {
+    const tg = touch.target;
+    if (!tg || touch.phase === "none" || S.t - buildPending.since > 14) buildPending = null;
+    else if (touch.phase === "touching" && S.t - buildPending.since > 1.2 && player.speed < 0.3) {
+      buildPending = null;
+      sanct.open(tg.contact, { yaw: Math.atan2(camera.position.x - tg.contact.x, camera.position.z - tg.contact.z) });
+    }
   }
-  if (n < 3) whisper("Your sanctuary. Draw on its stone with a finger: a line raises a wall, a circle a ring, a spiral a spire, a touch an orb.", 9000);
+  // building rests when the wanderer is taken elsewhere (the map, a place apart, the water, the air)
+  if (sanct.building && (apart() || player.flying || player.swimming || startMap.isOpen || S.mode !== "play")) {
+    sanct.close();
+    touch.stop();
+  }
 }
+let toldTouch = false;
 function canTouch(): boolean {
   return S.mode === "play" && player.grounded && !player.swimming && !player.flying && !apart() &&
     !autofly.active && sitting.phase === "none" && !startMap.isOpen;
 }
-/** Building begins with a hold on open ground: the satchel, and at the sanctuary its grid. */
+/** Building begins with a hold on open ground: the wanderer kneels there, and the build screen
+    opens round it (buildFrame). */
 function beginBuild(x: number, y: number): void {
   const g = groundPoint(x, y);
-  if (!g || g.y <= WATER_Y + 0.05) return;
-  touch.stop();
+  if (!g || g.y <= WATER_Y + 0.05 || g.distanceTo(player.pos) > 36) return;
   stopAuto();
-  player.target = null;
-  sanct.open(sanct.distance(player.pos) < 22);
+  touch.stop();
+  touch.touchThing("ground", g, 0, 0);
+  buildPending = { since: S.t };
+  audio.bell(330, 0.016, 2.4);
   const mark = Object.assign(document.createElement("div"), { className: "touch-mark" });
   mark.style.left = `${x}px`;
   mark.style.top = `${y}px`;
@@ -5133,7 +5138,7 @@ function update(dt: number): void {
     flowers.update(life);
     blooms.update(life);
     wilds.update(life);
-    sanct.update(dt, wt, dpr, sanct.distance(player.pos) < 360, camera);
+    sanct.update(dt, wt, dpr, player.pos, camera);
     lanterns.update(life);
   }
   if (world) forest.update(player.pos);
@@ -5159,14 +5164,7 @@ function update(dt: number): void {
       startMap.isOpen || apart() || autofly.active || sitting.phase !== "none";
     touch.update(dt, dpr, letGo, S.reduced);
     medFrame(dt);
-    // building rests when you leave the ground or the sanctuary, or go somewhere apart
-    if (sanct.building && (apart() || player.flying || player.swimming || startMap.isOpen || (sanct.home && sanct.distance(player.pos) > 26))) sanct.close();
-    // at the sanctuary its stone is a page by itself: no hold needed (the owner: "drew around,
-    // absolutely nothing happened")
-    else if (!sanct.building && sanct.distance(player.pos) < 16 && canTouch() && !med.active && !touch.active) {
-      sanct.open(true);
-      sanctToldFrame();
-    }
+    buildFrame();
     // a stone or crystal in the hands vibrates with light, as it does before stillness
     if (touch.vibe > 0.01 && touch.target) {
       vibeUniforms.uVibePos.value.copy(touch.target.contact);
@@ -5205,6 +5203,7 @@ function update(dt: number): void {
 
   follow.update(dt, player.pos, player.heading, player.speed > 0.5, t, S.reduced, player.flying);
   cardsCamera(dt);
+  sanct.cameraFrame(camera, dt);
   // high in the air, the camera reaches farther (and keeps its depth precise)
   {
     const alt = Math.max(0, camera.position.y);
@@ -5522,7 +5521,7 @@ renderer
       }
       if (id === "sanctuary-stroke") {
         // building, a circle being drawn on the earth, three-quarters round; the wanderer at the edge
-        sanct.open(true);
+        sanct.open(new THREE.Vector3(c.x, c.y, c.z), { orbit: false });
         sanct.shotForms([{ kind: "wall", ink: "stone", path: [-1.6, 0, -0.5, 0.25, 0.5, 0.25, 1.6, 0], x: 0, z: -4.2, y: 0, rot: 0, cost: 0.3 }]);
         const pts: [number, number][] = [];
         for (let i = 0; i <= 70; i++) {
@@ -5547,6 +5546,15 @@ renderer
         sanct.shotForms(Sanctuary.shotLayout());
         stand(7.5, 3.0, 0.6);
         return { base: [c.x, c.y, c.z], view: { eye: L(6.4, 2.3, 0.6), look: L(3.6, 0.95, -3.6) } };
+      }
+      if (id === "sanctuary-build") {
+        // the build screen over the terrace: the view risen over it, the arch chosen, its tools
+        sanct.open(new THREE.Vector3(c.x, c.y, c.z), { yaw: f + 0.5 });
+        sanct.shotForms(Sanctuary.shotLayout());
+        sanct.shotSelect(6);
+        stand(0.6, 5.2, 0);
+        const o = sanct.shotOrbit();
+        return { base: [c.x, c.y, c.z], view: { eye: [o.eye.x - c.x, o.eye.y - c.y, o.eye.z - c.z], look: [o.aim.x - c.x, o.aim.y - c.y, o.aim.z - c.z] } };
       }
       // a small sanctuary at dusk
       moodForce.w = MOOD_NAMES.map((n) => (n === "dusk" ? 1 : 0));
