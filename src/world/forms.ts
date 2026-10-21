@@ -313,8 +313,8 @@ export function road(n: number, R: Rand): Shape {
 
 /** A tree of the world's own kind (creation.ts), grown from `seedN`. */
 export function tree(n: number, R: Rand, seedN = 0.61, h = FORM_H, kind = 2): Shape {
-  const { limbs, roots } = grow({ ...SHAPES[kind], height: 4, radius: 0.12, limbLen: 1.8, roots: 5 }, seedN);
-  const g = tubes([...limbs, ...roots.slice(0, 5)]);
+  const { limbs } = grow({ ...SHAPES[kind], height: 4, radius: 0.12, limbLen: 1.8, roots: 5 }, seedN);
+  const g = tubes(limbs);
   return fit(onSurface((g.attributes.position as THREE.BufferAttribute).array, g.index ? g.index.array : null, n, R), h);
 }
 

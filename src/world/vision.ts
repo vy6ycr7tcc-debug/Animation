@@ -156,8 +156,8 @@ function molecule(n: number, R: () => number): Shape {
   return out;
 }
 function plant(n: number, R: () => number): Shape {
-  const { limbs, roots } = grow({ ...SHAPES[2], height: 4, radius: 0.12, limbLen: 1.8, roots: 5 }, 0.61);
-  return fit(geoPoints(tubes([...limbs, ...roots.slice(0, 5)]), n, R), H);
+  const { limbs } = grow({ ...SHAPES[2], height: 4, radius: 0.12, limbLen: 1.8, roots: 5 }, 0.61);
+  return fit(geoPoints(tubes(limbs), n, R), H);
 }
 
 /* ---------------------------------------------------------------- the vision */

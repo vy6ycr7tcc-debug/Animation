@@ -108,7 +108,7 @@ export class Garden {
   private add(k: Kept, settled: boolean): Planted {
     const shape = SHAPES[k.kind] ?? SHAPES[0];
     const g = grow(shape, k.seed);
-    const trunk = new THREE.Mesh(tubes([...g.limbs, ...g.roots], -0.2), barkMaterial(new THREE.Color(1, 0.86, 0.6), (k.seed % 997) / 997));
+    const trunk = new THREE.Mesh(tubes(g.limbs), barkMaterial(new THREE.Color(1, 0.86, 0.6), (k.seed % 997) / 997));
     trunk.castShadow = true;
     const group = new THREE.Group();
     const raised = Number.isFinite(k.y);

@@ -55,9 +55,9 @@ export class TreeOfLifeScene implements SceneModule {
     this.seatPos = new THREE.Vector3(sx, heightAt(sx, sz), sz);
 
     // the tree: grown, skinned, placed in the world (the bark reads world positions)
-    const { limbs, roots, tips } = grow({ ...SHAPES[2], height: 4.4, radius: 0.16, limbLen: 2.0, roots: 7 }, 0.37);
+    const { limbs, tips } = grow({ ...SHAPES[2], height: 4.4, radius: 0.16, limbLen: 2.0, roots: 7 }, 0.37);
     const place = new THREE.Matrix4().compose(new THREE.Vector3(tx, gy - 0.25, tz), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), site.heading), new THREE.Vector3().setScalar(TREE_SCALE));
-    const g = tubes([...limbs, ...roots]);
+    const g = tubes(limbs);
     g.applyMatrix4(place);
     g.computeBoundingSphere();
     const bark = new THREE.Mesh(g, barkMaterial(new THREE.Color(1.0, 0.8, 0.5), 0.37));

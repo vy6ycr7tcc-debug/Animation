@@ -158,7 +158,7 @@ export function createDensityRoom2Scene(
     ];
     treeSpots.forEach(([x, z, size, shape], i) => {
       const tree = grow(SHAPES[shape], 800 + i * 17);
-      const geo = tubes([...tree.limbs, ...tree.roots]);
+      const geo = tubes(tree.limbs);
       const obj = new THREE.Group();
       obj.position.set(x, meadowHeight(x, z) - 0.1, z);
       solids.push({ x, z, r: 0.32 * size, h: 6 * size });
@@ -311,7 +311,7 @@ export function createDensityRoom2Scene(
       g.add(door);
       for (const sx of [-1, 1]) {
         const tree = grow(SHAPES[1], sx > 0 ? 911 : 913);
-        const geo = tubes([...tree.limbs, ...tree.roots]);
+        const geo = tubes(tree.limbs);
         const mesh = new THREE.Mesh(geo, bark);
         mesh.position.set(sx * 2.4, 0, 0);
         solids.push({ x: PORTAL.x + sx * 2.4, z: PORTAL.z, r: 0.45, h: 7 });

@@ -11,7 +11,6 @@
    (see ui/transcriptPlayer.ts). Nothing here ever plays by itself. */
 import * as THREE from "three/webgpu";
 import { T, withFog, worldPoints, type N } from "../gpu/tsl";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { barkMaterial, crystalMaterial, grow, prismGeometry, tubes, type TreeShape } from "./creation";
 import { GROVE_SITES, ORB_SITES, type GroveSite, type Narration, type OrbSite } from "./sites";
 import { colliders, heightAt } from "./terrain";
@@ -228,13 +227,13 @@ export class Vessels {
   private buildGrove(site: GroveSite): void {
     const accent = colourFor(site.index * 3 + 1);
     const shape = groveShape(site.index);
-    const { limbs, roots, tips } = grow(shape, 0.31 + site.index * 0.173);
+    const { limbs, tips } = grow(shape, 0.31 + site.index * 0.173);
     const group = new THREE.Group();
     group.position.set(site.x, site.y, site.z);
     group.rotation.y = site.index * 1.7;
     const scale = 1.15;
     group.scale.setScalar(scale);
-    const trunk = new THREE.Mesh(mergeGeometries([tubes(limbs), tubes(roots, -0.2)]), barkMaterial(accent.clone().lerp(new THREE.Color(1, 1, 1), 0.25), (site.index * 0.618) % 1));
+    const trunk = new THREE.Mesh(tubes(limbs), barkMaterial(accent.clone().lerp(new THREE.Color(1, 1, 1), 0.25), (site.index * 0.618) % 1));
     trunk.castShadow = true;
     group.add(trunk);
     // a canopy of soft glints in the grove's own colour

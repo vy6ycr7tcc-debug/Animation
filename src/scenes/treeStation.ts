@@ -74,7 +74,7 @@ function stage(ctx: StageCtx): Stage {
   // its trunk stands solid (stage frame (0, −1), turned with the stage)
   colliders.push({ x: ctx.at.x - Math.sin(ctx.face), z: ctx.at.z - Math.cos(ctx.face), r: 0.75, top: ctx.at.y + 16 });
   g.add(tree);
-  const { limbs, roots, tips } = grow(SHAPES[3], 0.2718);
+  const { limbs, tips } = grow(SHAPES[3], 0.2718);
   // the branch that breaks: the first of the great limbs, with everything growing from it
   const main = limbs.map((l, i) => (!l.curl && Math.abs(l.r0 - SHAPES[3].radius * 0.72) < 1e-6 ? i : -1)).filter((i) => i > 0);
   const b0 = main[0], b1 = main[1] ?? limbs.length;
@@ -82,7 +82,7 @@ function stage(ctx: StageCtx): Stage {
   const bark = barkMaterial(new THREE.Color(1, 0.8, 0.55), 0.37);
   ours.push(bark);
   {
-    const geo = tubes([...whole, ...roots], -0.35);
+    const geo = tubes(whole);
     const mesh = new THREE.Mesh(geo, bark);
     mesh.castShadow = true;
     tree.add(mesh);
