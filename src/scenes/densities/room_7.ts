@@ -22,7 +22,7 @@
 import * as THREE from "three/webgpu";
 import type { Narration } from "../../core/narration";
 import type { SceneModule } from "../lessonKit";
-import { T } from "../../gpu/tsl";
+import { T, flow } from "../../gpu/tsl";
 import { applyAir, damp, keepAlpha, pointCloud, roomClock, seeded, skyDome, touch, type Air } from "./roomKit";
 import { starField } from "../past/kit";
 
@@ -98,8 +98,9 @@ export function createDensity7(
     }
     touch(s.cloud);
     const K = s.cloud.nodes.aK, B = s.cloud.nodes.position;
-    const drift = vec3(sin(t.mul(0.05).add(K.x.mul(40))).mul(1.5), fract(K.y.add(t.mul(0.004).mul(K.z.add(0.5)))).mul(12).sub(6), sin(t.mul(0.04).add(K.w.mul(30))).mul(1.5));
-    s.material.positionNode = B.add(drift);
+    // rising ever so slowly through the light, and turned by its slow currents together (`flow`)
+    const lift = B.add(vec3(0, fract(K.y.add(t.mul(0.004).mul(K.z.add(0.5)))).mul(12).sub(6), 0));
+    s.material.positionNode = lift.add(flow(lift.div(6), t.mul(0.04)).mul(vec3(1.6, 0.6, 1.6)));
     const twinkle = sin(t.mul(float(0.6).add(K.z)).add(K.w.mul(60))).mul(0.35).add(0.65);
     // in so much light, light can't add: the motes are deep gold laid over it
     s.material.blending = THREE.NormalBlending;
@@ -126,7 +127,7 @@ export function createDensity7(
     const at = K.x.mul(0.8).add(0.1);
     const life = uDissolve.sub(at).mul(3).add(0.5).clamp(0, 1);
     const loosen = smoothstep(0.45, 0.95, life);
-    const dir = vec3(sin(K.z.mul(40)), sin(K.w.mul(33)).mul(0.7).add(0.3), T.cos(K.z.mul(40)));
+    const dir = vec3(sin(K.z.mul(40)), K.w.mul(1.4).sub(0.4), T.cos(K.z.mul(40)));
     s.material.positionNode = B.add(dir.mul(loosen.mul(float(1.5).add(K.y.mul(6)))));
     const show = float(1).sub(smoothstep(0.7, 1.0, life));
     // one bright point while gathered (the first of each), a fine cloud as it loosens

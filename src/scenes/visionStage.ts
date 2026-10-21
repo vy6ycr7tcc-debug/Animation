@@ -3,14 +3,15 @@
    thousands of points of light stands on the ground before the seat. Nobody seated: it waits as a
    small glow low on the ground. Seated: on the narration's own clock it gathers into each form of
    the telling (a rope with its knot, a bound figure, a wheel, open hands, a river with its leaf…),
-   holds it alive (a breath, a quiver, a band of brightness rising through it), and when the next
-   moment comes it swirls loose and gathers into the next, every point on its own delay and path.
+   holds it alive (a breath, light flowing through it in slow currents, a band of brightness rising
+   through it), and when the next moment comes it swirls loose and gathers into the next, every
+   point on its own delay and path, the air's eddies sweeping it like smoke on the way (`flow`).
    While seated, what it shows is a pure function of narration seconds, so seeking and replay are
    exact. Standing up, it settles back into its waiting glow.
    Contained: small soft points, no spreading glow (docs/style). */
 import * as THREE from "three/webgpu";
 import { MOBILE } from "../core/quality";
-import { gpuUniforms, softPoints, spriteCloud, T, viewDepth, type SpriteCloud, softDot, pointR } from "../gpu/tsl";
+import { flow, glimmer, gpuUniforms, softPoints, spriteCloud, T, viewDepth, type SpriteCloud, softDot, pointR } from "../gpu/tsl";
 import { bodyForms, FORM_H, rng, seed, type BodyForms, type Rand, type Shape } from "../world/forms";
 
 export type RGB = [number, number, number];
@@ -67,6 +68,9 @@ export class VisionStage {
   private uT = T.uniform(0);
   private uScan = T.uniform(0);
   private uGlow = T.uniform(1);
+  /** the currents through a held form (metres), and the eddies between forms (metres) */
+  private uHeld = T.uniform(0.022);
+  private uMorph = T.uniform(0);
   private keys: Key[];
   private life = 0;
   /** Where its points stood when it was last retargeted (a presence driven live, `retarget`). */
@@ -91,12 +95,20 @@ export class VisionStage {
     for (let i = 0; i < this.n; i++) this.seedA[i] = R();
     (this.cloud.attrs.aSeed.array as Float32Array).set(this.seedA);
     {
-      const { clamp, float, max, sin, smoothstep, exp, vec4 } = T;
+      const { clamp, float, max, sin, smoothstep, exp, vec3, vec4 } = T;
       const { position, aCol, aSeed } = this.cloud.nodes;
-      const worldPos = T.modelWorldMatrix.mul(vec4(position, 1)).xyz;
+      // alive while held: light flowing through the form in slow currents, neighbours together (not
+      // each point quivering on its own); between forms, wider eddies sweep it like smoke
+      const s = FORM_H / 4.6;
+      const moved = position
+        .add(flow(position.mul(2.4 / s), this.uT.mul(0.45)).mul(this.uHeld))
+        .add(flow(position.mul(0.8 / s).add(vec3(3.1, 0, 1.7)), this.uT.mul(0.3)).mul(this.uMorph));
+      mat.positionNode = moved;
+      const worldPos = T.modelWorldMatrix.mul(vec4(moved, 1)).xyz;
       const depth = viewDepth(worldPos);
       mat.sizeNode = clamp(gpuUniforms.px.mul(opts.pointSize ?? 0.042).mul(aSeed.mul(0.8).add(0.6)).div(max(depth, 1.2)), float(1).div(gpuUniforms.dpr), 5);
-      const flick = sin(this.uT.mul(aSeed.mul(9).add(12)).add(aSeed.mul(97))).mul(0.12).add(0.88);
+      // each point's light: a slow, uneven glimmer under a fine sparkle
+      const flick = sin(this.uT.mul(aSeed.mul(9).add(12)).add(aSeed.mul(97))).mul(0.06).add(0.94).mul(glimmer(aSeed, this.uT, 1.4).mul(0.35).add(0.7));
       const dy = position.y.sub(this.uScan);
       const scan = exp(dy.mul(dy).mul(-2.5)).mul(0.7);
       const soft = softDot(pointR()).mul(1.39);
@@ -158,6 +170,8 @@ export class VisionStage {
         C[j + 2] += (IDLE_TINT[2] - C[j + 2]) * k;
       }
       this.uGlow.value = 0.7 + 0.2 * Math.sin(L * 0.7);
+      this.uMorph.value += (0 - this.uMorph.value) * Math.min(1, dt * 2);
+      this.uHeld.value = reduced ? 0 : 0.022;
       this.cloud.attrs.position.needsUpdate = this.cloud.attrs.aCol.needsUpdate = true;
       return;
     }
@@ -179,6 +193,10 @@ export class VisionStage {
     // how the points set off (spread of delays) and how far the vortex carries them
     const calm = !!this.opts.calm;
     const lag = calm ? 0.55 : 0.35, turn = calm ? 0.35 : 1.2, turnS = calm ? 0.3 : 1.1, wide = calm ? 0.06 : 0.2, wideS = calm ? 0.08 : 0.3, lift = calm ? 0.3 : 0.9;
+    // the eddies between forms swell and settle with the change (the GPU moves the points through them)
+    const changing = into && p > 0 && p < 1 ? Math.sin(Math.PI * p) : 0;
+    this.uMorph.value = reduced ? 0 : changing * (calm ? 0.12 : 0.32) * (FORM_H / 4.6);
+    this.uHeld.value = reduced ? 0 : 0.022;
     for (let i = 0; i < n; i++) {
       const s = S[i], j = i * 3;
       // each point sets off a little later than the last, and finds its own way
@@ -205,12 +223,11 @@ export class VisionStage {
         x = nx;
         y += sw * (s - 0.35) * lift;
       }
-      // alive while held: a breath through the form and a quiver in each point
+      // alive while held: a breath through the form (its currents are the GPU's, `flow`)
       const br = reduced ? 1 : 1 + Math.sin(L * 0.8 + y * 0.6) * 0.012;
-      const qv = reduced ? 0 : 0.018;
-      P[j] = x * br + Math.sin(L * 1.7 + s * 40) * qv;
-      P[j + 1] = y + Math.sin(L * 1.3 + s * 60) * qv;
-      P[j + 2] = z * br + Math.cos(L * 1.5 + s * 50) * qv;
+      P[j] = x * br;
+      P[j + 1] = y;
+      P[j + 2] = z * br;
       const a0 = snap ? snap[j] : tA[0], a1 = snap ? snap[j + 1] : tA[1], a2 = snap ? snap[j + 2] : tA[2];
       C[j] = a0 + (tB[0] - a0) * e;
       C[j + 1] = a1 + (tB[1] - a1) * e;

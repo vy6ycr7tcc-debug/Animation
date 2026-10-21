@@ -24,7 +24,7 @@ import type { Solid } from "../journey";
 import * as THREE from "three/webgpu";
 import { LessonScene } from "../lessonKit";
 import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
-import { T, hash2, vnoise } from "../../gpu/tsl";
+import { T, flow, hash2, vnoise } from "../../gpu/tsl";
 import { stoneBlock } from "../../world/stoneworks";
 import { GlassFolk, type FolkSpec } from "../glassFolk";
 import { applyAir, damp, fbmN, keepAlpha, pointCloud, roomClock, roomPos, scannedGround, seeded, skyDome, strands, touch, type Air } from "./roomKit";
@@ -247,7 +247,9 @@ export function createRoom3Scene(
       touch(s.cloud);
       const K = s.cloud.nodes.aK;
       const life = fract(K.x.add(t.mul(float(0.03).add(K.y.mul(0.03)))));
-      s.material.positionNode = s.cloud.nodes.position.add(vec3(sin(t.mul(0.3).add(K.z.mul(20))).mul(0.4), life.mul(7), sin(t.mul(0.25).add(K.w.mul(20))).mul(0.4)));
+      // rising on the warm air, curling together as they go (`flow`)
+      const up = s.cloud.nodes.position.add(vec3(0, life.mul(7), 0));
+      s.material.positionNode = up.add(flow(up.div(1.8), t.mul(0.2)).mul(0.45));
       s.material.colorNode = vec4(vec3(1, 0.7, 0.32).mul(s.round).mul(smoothstep(0, 0.1, life).mul(smoothstep(1, 0.6, life))).mul(uSto).mul(0.7), 1);
       g.add(s.cloud.sprite);
       ours.push(s.material);

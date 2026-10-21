@@ -5,7 +5,7 @@
    to you and speaks the first beat (the choice). Walking through goes white, not dark, and the
    world after the veil begins. It stands on levelled ground `VEIL_HALL`, its face toward home. */
 import * as THREE from "three/webgpu";
-import { T, gpuUniforms } from "../../gpu/tsl";
+import { T, flow, gpuUniforms } from "../../gpu/tsl";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
 import { heightAt, VEIL_HALL } from "../../world/terrain";
 import { landStone, stoneBlock } from "../../world/stoneworks";
@@ -125,7 +125,9 @@ export class VeilDoor implements Hall {
       touch(c.cloud);
       const K = c.cloud.nodes.aK;
       const life = fract(K.x.add(t.mul(float(0.02).add(K.y.mul(0.02)))));
-      c.material.positionNode = c.cloud.nodes.position.add(vec3(sin(t.mul(0.2).add(K.z.mul(30))).mul(0.6), life.mul(1.5), cos(t.mul(0.17).add(K.w.mul(30))).mul(0.6)));
+      // rising slowly, wandering on the air's eddies together (`flow`)
+      const up = c.cloud.nodes.position.add(vec3(0, life.mul(1.5), 0));
+      c.material.positionNode = up.add(flow(up.div(2), t.mul(0.15)).mul(0.6));
       const blink = smoothstep(0.4, 1, sin(t.mul(float(0.5).add(K.w)).add(K.x.mul(50))));
       c.material.colorNode = vec4(vec3(1, 0.8, 0.45).mul(c.round).mul(blink).mul(smoothstep(0, 0.15, life)).mul(float(1).sub(smoothstep(0.75, 1, life))).mul(0.8), 1);
       this.world.add(c.cloud.sprite);

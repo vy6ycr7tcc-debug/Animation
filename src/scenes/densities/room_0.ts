@@ -100,7 +100,7 @@ export function createDensityRoom0Scene(scene: THREE.Scene, narration: LessonCtx
       // within a galaxy, a small spiral about its centre
       // each galaxy flies out as one body, to its own distance, turning about its centre
       const creach = float(1).sub(exp(u.burst.mul(-4))).mul(fract(cl.mul(0.537)).mul(18).add(9));
-      const disk = vec3(cos(K.x.mul(40).add(t.mul(0.12))), sin(K.y.mul(20)).mul(0.18), sin(K.x.mul(40).add(t.mul(0.12)))).mul(pow(K.w, 0.7).mul(3.6).mul(u.burst.min(1)));
+      const disk = vec3(cos(K.x.mul(40).add(t.mul(0.12))), K.y.sub(0.5).mul(0.36), sin(K.x.mul(40).add(t.mul(0.12)))).mul(pow(K.w, 0.7).mul(3.6).mul(u.burst.min(1)));
       let p = pointAt.add(mix(dir.mul(reach), cdir.mul(creach).add(disk), inCluster));
       // scattered like seeds across the dark: drifting wider, each its own way
       p = p.add(dir.mul(u.scatter.mul(K.z.mul(12).add(4))));

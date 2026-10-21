@@ -15,7 +15,7 @@
    floor ≈ −0.95, hips 0, chest 0.41, neck 0.59. */
 import * as THREE from "three/webgpu";
 import { MOBILE } from "../core/quality";
-import { gpuUniforms, softPoints, spriteCloud, T, viewDepth, type SpriteCloud, softDot, pointR } from "../gpu/tsl";
+import { flow, glimmer, gpuUniforms, softPoints, spriteCloud, T, viewDepth, type SpriteCloud, softDot, pointR } from "../gpu/tsl";
 
 type RGB = [number, number, number];
 const key = (s: string) => s.replace(/[\s.:/[\]]/g, "");
@@ -847,8 +847,10 @@ export class Figure {
   private M: Float32Array;
   private pos: Float32Array;
   private uGlow = T.uniform(1);
-  private uT = T.uniform(0);
   private uScan = T.uniform(0);
+  /** the currents through the motes: faint when whole, wider while it stands loose (metres) */
+  private uHeld = T.uniform(0.006);
+  private uLoose = T.uniform(0);
   private tmp = new THREE.Matrix4();
   private rootInv = new THREE.Matrix4();
   private height: number;
@@ -874,9 +876,18 @@ export class Figure {
     {
       const { clamp, float, max, sin, exp, vec4, vec3, mix } = T;
       const { position, aCol, aSeed } = this.cloud.nodes;
-      const worldPos = T.modelWorldMatrix.mul(vec4(position, 1)).xyz;
+      // light flowing over it in slow currents, neighbours together; standing loose, the currents
+      // turn its pillar of motes. On the frame's own clock, so smooth even while a far figure's
+      // skinning (and its `uT`) waits between updates
+      const now = gpuUniforms.time;
+      const moved = position
+        .add(flow(position.mul(3), now.mul(0.5)).mul(this.uHeld))
+        .add(flow(position.mul(1.3).add(vec3(2.3, 0, 4.1)), now.mul(0.32)).mul(this.uLoose));
+      mat.positionNode = moved;
+      const worldPos = T.modelWorldMatrix.mul(vec4(moved, 1)).xyz;
       mat.sizeNode = clamp(gpuUniforms.px.mul(0.022).mul(aSeed.mul(0.8).add(0.6)).div(max(viewDepth(worldPos), 0.4)), float(1).div(gpuUniforms.dpr), 6);
-      const flick = sin(this.uT.mul(17).add(aSeed.mul(97))).mul(0.12).add(0.88);
+      // each mote's light: a slow, uneven glimmer under a fine sparkle (each its own rate)
+      const flick = sin(now.mul(aSeed.mul(8).add(13)).add(aSeed.mul(97))).mul(0.06).add(0.94).mul(glimmer(aSeed, now, 1.5).mul(0.35).add(0.7));
       const scan = exp(position.y.sub(this.uScan).mul(position.y.sub(this.uScan)).mul(-9)).mul(0.6);
       const soft = softDot(pointR()).mul(1.39);
       // the archetype's own colour runs a little through everything it wears
@@ -891,7 +902,8 @@ export class Figure {
   update(dt: number, t: number, near: boolean, glow: number, reduced: boolean): void {
     this.formK += ((near ? 1 : 0) - this.formK) * Math.min(1, dt * (near ? 0.7 : 0.35));
     this.uGlow.value = glow;
-    this.uT.value = t;
+    this.uHeld.value = reduced ? 0 : 0.006;
+    this.uLoose.value = reduced ? 0 : (1 - this.formK) * 0.11;
     this.uScan.value = ((t * 0.55) % (this.height + 1.4)) - 0.7;
     const b = this.bind, P = this.pos, M = this.M, q = b.q, idx = b.idx, w = b.w, seed = b.seed;
     this.rootInv.copy(this.root.matrixWorld).invert();
@@ -933,12 +945,8 @@ export class Figure {
         x = bx;
         y = py + (y - py) * e + sw * (s - 0.4) * 0.5;
         z = bz;
-      } else if (!reduced) {
-        // whole: a faint quiver in each mote
-        x += Math.sin(t * 1.7 + s * 40) * 0.004;
-        y += Math.sin(t * 1.3 + s * 60) * 0.004;
-        z += Math.cos(t * 1.5 + s * 50) * 0.004;
       }
+      // whole, its motes stay where the skin is: the currents over it are the GPU's (`flow`)
       P[j] = x;
       P[j + 1] = y;
       P[j + 2] = z;

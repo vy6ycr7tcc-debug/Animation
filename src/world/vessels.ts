@@ -10,7 +10,7 @@
    Approach shows quiet labels (they fade with distance); tapping one plays its narration
    (see ui/transcriptPlayer.ts). Nothing here ever plays by itself. */
 import * as THREE from "three/webgpu";
-import { T, withFog, worldPoints, type N } from "../gpu/tsl";
+import { glimmerAt, T, withFog, worldPoints, type N } from "../gpu/tsl";
 import { barkMaterial, crystalMaterial, grow, prismGeometry, tubes, type TreeShape } from "./creation";
 import { GROVE_SITES, ORB_SITES, type GroveSite, type Narration, type OrbSite } from "./sites";
 import { colliders, heightAt } from "./terrain";
@@ -363,7 +363,8 @@ export class Vessels {
     }
     for (const st of this.stars) {
       const playing = this.playingId === st.vessel.narration.id ? 1 : 0;
-      const tw = reduced ? 1 : 0.85 + 0.15 * Math.sin(t * 1.7 + st.phase);
+      // a star's slow, uneven scintillation (each its own time), not a steady pulse
+      const tw = reduced ? 1 : 0.8 + 0.24 * (glimmerAt((st.phase * 0.159) % 1, t, 3) - 0.6) / 0.85;
       st.rays.material.rotation = reduced ? 0 : t * 0.03 + st.phase;
       st.rays.material.opacity = (0.45 + playing * 0.3) * tw;
       st.glow.material.opacity = (0.4 + playing * 0.25) * tw;

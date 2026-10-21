@@ -10,7 +10,7 @@ import type { Solid } from "../journey";
 import * as THREE from "three/webgpu";
 import { LessonScene } from "../lessonKit";
 import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
-import { T, spriteCloud, vnoise } from "../../gpu/tsl";
+import { T, flow, spriteCloud, vnoise } from "../../gpu/tsl";
 import { barkMaterial, grow, SHAPES, tubes } from "../../world/creation";
 import { herdOf, type Animal } from "../../world/creatures";
 import { fbm } from "../../world/terrain";
@@ -296,8 +296,9 @@ export function createDensityRoom2Scene(
       touch(s.cloud);
       const K = s.cloud.nodes.aK;
       const life = fract(K.x.add(t.mul(float(0.03).add(K.y.mul(0.03)))));
-      const rise = vec3(sin(t.mul(0.4).add(K.z.mul(30))).mul(0.6), life.mul(9), cos(t.mul(0.3).add(K.w.mul(30))).mul(0.6));
-      s.material.positionNode = s.cloud.nodes.position.add(rise);
+      // rising on the warm air, curling up through its eddies together (`flow`)
+      const up = s.cloud.nodes.position.add(vec3(0, life.mul(9), 0));
+      s.material.positionNode = up.add(flow(up.div(2.5), t.mul(0.2)).mul(0.7));
       const fade = smoothstep(0, 0.15, life).mul(float(1).sub(smoothstep(0.7, 1, life)));
       s.material.colorNode = vec4(vec3(1.0, 0.92, 0.65).mul(s.round).mul(fade).mul(0.5).mul(uLight), 1);
       g.add(s.cloud.sprite);

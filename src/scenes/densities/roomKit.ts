@@ -4,7 +4,7 @@
    `additiveKeepsAlpha` does this at start-up, before any room exists). Rooms 0/3/5/7 are not
    touched by this file. */
 import * as THREE from "three/webgpu";
-import { T, fogUniforms, gpuUniforms, gradeUniforms, nearLens, pointR, softDot, softPoints, spriteCloud, vnoise, type N, type SpriteCloud } from "../../gpu/tsl";
+import { T, fogUniforms, gpuUniforms, gradeUniforms, nearLens, pointGlimmer, pointR, softDot, softPoints, spriteCloud, vnoise, type N, type SpriteCloud } from "../../gpu/tsl";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
 import { fbm } from "../../world/terrain";
@@ -74,8 +74,9 @@ export function pointCloud(n: number, size: number): { cloud: SpriteCloud; mater
   const cloud = spriteCloud(n, { position: 3, aK: 4 }, material);
   const pos = cloud.attrs.position.array as Float32Array, k = cloud.attrs.aK.array as Float32Array;
   material.size = size;
-  // the shared soft point of light (alpha is folded into the colour), near the lens fading away
-  const round = softDot(pointR()).mul(0.99).mul(nearLens());
+  // the shared soft point of light (alpha is folded into the colour), near the lens fading away,
+  // each point on its own slow, gentle glimmer (`pointGlimmer`: under any twinkle of the room's own)
+  const round = softDot(pointR()).mul(0.99).mul(nearLens()).mul(pointGlimmer());
   return { cloud, material, pos, k, round };
 }
 

@@ -12,7 +12,7 @@ import * as THREE from "three/webgpu";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { LessonScene } from "../lessonKit";
 import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
-import { T, hash2, vnoise, type N } from "../../gpu/tsl";
+import { T, flow, hash2, vnoise, type N } from "../../gpu/tsl";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
 import { lightBodyMaterial, tickLightBody } from "../../player/lightBody";
 import { loadBeingModel } from "../../world/beings";
@@ -197,7 +197,9 @@ export function createDensityRoom4Scene(
       }
       touch(s.cloud);
       const K = s.cloud.nodes.aK;
-      s.material.positionNode = s.cloud.nodes.position.add(vec3(sin(t.mul(0.2).add(K.x.mul(30))).mul(1.2), sin(t.mul(0.15).add(K.y.mul(30))).mul(0.8), sin(t.mul(0.17).add(K.z.mul(30))).mul(1.2)));
+      // drifting over the plaza on the dusk air, neighbours together (`flow`)
+      const mp = s.cloud.nodes.position;
+      s.material.positionNode = mp.add(flow(mp.div(3.5), t.mul(0.13)).mul(vec3(1.3, 0.8, 1.3)));
       const hue = mix(vec3(1.0, 0.8, 0.9), vec3(0.7, 0.9, 1.0), K.w);
       s.material.colorNode = vec4(hue.mul(s.round).mul(sin(t.mul(0.9).add(K.w.mul(40))).mul(0.3).add(0.7)).mul(0.35), 1);
       g.add(s.cloud.sprite);

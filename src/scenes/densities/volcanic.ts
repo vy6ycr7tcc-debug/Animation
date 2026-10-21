@@ -4,7 +4,7 @@
    ceiling that lights from within but never breaks, and ash drifting in the air. Each draws from
    the room's own seeded random in the same order as Room 1 always did, so Room 1 is unchanged. */
 import * as THREE from "three/webgpu";
-import { T, vnoise, hash2, type N } from "../../gpu/tsl";
+import { T, flow, vnoise, hash2, type N } from "../../gpu/tsl";
 import { fbm } from "../../world/terrain";
 import { cloudSheet, keepAlpha, pointCloud, touch, roomPos } from "./roomKit";
 
@@ -188,9 +188,11 @@ export function ash(g: THREE.Group, t: N, R: () => number, ours: Owned, c: [numb
     }
     touch(s.cloud);
     const K = s.cloud.nodes.aK, B = s.cloud.nodes.position;
-    const wind = vec3(t.mul(float(0.5).add(K.x.mul(0.4))), sin(t.mul(0.3).add(K.y.mul(30))).mul(0.8), sin(t.mul(0.21).add(K.z.mul(30))).mul(1.2));
-    const q = B.add(wind);
-    s.material.positionNode = vec3(mod(q.x.sub(c[0]).add(30), 60).sub(30).add(c[0]), q.y, q.z);
+    // blown on along the wind, each flake a little faster or slower, and tumbled by its gusts and
+    // eddies (`flow`): neighbours swirl together, as ash does
+    const q = B.add(vec3(t.mul(float(0.5).add(K.x.mul(0.25))), 0, 0));
+    const w0 = vec3(mod(q.x.sub(c[0]).add(30), 60).sub(30).add(c[0]), q.y, q.z);
+    s.material.positionNode = w0.add(flow(w0.div(3.2), t.mul(0.22)).mul(vec3(1.4, 1.0, 1.4)));
     s.material.colorNode = vec4(vec3(0.7, 0.62, 0.62).mul(s.round).mul(0.28).mul(sin(t.mul(0.7).add(K.w.mul(40))).mul(0.3).add(0.7)), 1);
     g.add(s.cloud.sprite);
     ours.push(s.material);

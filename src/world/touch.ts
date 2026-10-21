@@ -12,7 +12,7 @@
    - the receiving (out-breath): its light, in its own colour, flows back into the hands.
    The stick, the button or a tap elsewhere lets go. Nothing is asked, nothing is scored. */
 import * as THREE from "three/webgpu";
-import { softPoints, spriteCloud, T, viewDepth, type SpriteCloud, softDot, pointR } from "../gpu/tsl";
+import { flowAt, softPoints, spriteCloud, T, viewDepth, type SpriteCloud, softDot, pointR } from "../gpu/tsl";
 import { heightAt, WATER_Y } from "./terrain";
 import { creationUniforms, type Creation } from "./creation";
 import type { Controller } from "../player/controller";
@@ -72,6 +72,7 @@ export class Touch {
   private from = new THREE.Vector3();
   private to = new THREE.Vector3();
   private v = new THREE.Vector3();
+  private f = { x: 0, y: 0, z: 0 };
 
   constructor(private creation: Creation, private wanderer: Wanderer, private player: Controller, private hooks: TouchHooks) {
     const mat = softPoints();
@@ -322,13 +323,18 @@ export class Touch {
         } else this.from.copy(t0.contact).add(this.v.set((s2 - 0.5) * t0.r * 1.4, (s3 - 0.3) * t0.r, (s1 - 0.5) * t0.r * 1.4));
         this.to.copy(hand);
       }
-      // a gentle arc with a slow spiral about the line
+      // a gentle arc with a slow spiral about the line, and the air's currents turning the stream
+      // as one (`flowAt`: neighbours together, a living current rather than motes on rails); the
+      // ends stay anchored in the palm and the thing
       const x = this.from.x + (this.to.x - this.from.x) * u, y = this.from.y + (this.to.y - this.from.y) * u, z = this.from.z + (this.to.z - this.from.z) * u;
-      const a = s0 * 6.28 + u * 5 + time * 0.8, sw = Math.sin(u * Math.PI) * (giving ? 0.05 : 0.12);
+      const mid = Math.sin(u * Math.PI);
+      const a = s0 * 6.28 + u * 5 + time * 0.8, sw = mid * (giving ? 0.05 : 0.12);
+      flowAt(x * 1.8, y * 1.8, z * 1.8, time * 0.5, this.f);
+      const cur = mid * (giving ? 0.05 : 0.1);
       const j = i * 3;
-      this.pos[j] = x + Math.cos(a) * sw;
-      this.pos[j + 1] = y + Math.sin(u * Math.PI) * (giving ? 0.04 : 0.15) + Math.sin(a) * sw * 0.5;
-      this.pos[j + 2] = z + Math.sin(a) * sw;
+      this.pos[j] = x + Math.cos(a) * sw + this.f.x * cur;
+      this.pos[j + 1] = y + mid * (giving ? 0.04 : 0.15) + Math.sin(a) * sw * 0.5 + this.f.y * cur;
+      this.pos[j + 2] = z + Math.sin(a) * sw + this.f.z * cur;
       this.alpha[i] = Math.sin(u * Math.PI) * (giving ? giveK : recvK) * (0.5 + s3 * 0.5);
       const col = giving ? GOLD : t0.hue;
       this.tint[j] = col.r;
