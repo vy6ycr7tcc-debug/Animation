@@ -36,7 +36,7 @@ import { landStone, stoneBlock, contactShade } from "./stoneworks";
 import { solid } from "./solidity";
 import { SANCTUARY, heightAt } from "./terrain";
 import { heartNotes, type HeartNote } from "../ui/heart";
-import { readStroke, type V2 } from "./strokes";
+import { readStroke, type Reading, type V2 } from "./strokes";
 import { Joints, type JointForm } from "./joints";
 
 const { float, vec3, vec4, abs, max, min, smoothstep, sin, pow, dot, normalize, clamp, fract, length, mix, fwidth } = T;
@@ -674,6 +674,9 @@ export class Sanctuary {
   ink: Ink = "stone";
   /** a tap on the earth plants a seed (the 🌱 chip) */
   planting = false;
+  /** a shape chosen from the strip: whatever is drawn or tapped next becomes that (null: read the
+      stroke's own shape) */
+  armed: FormKind | null = null;
   /** the stone new forms are laid in (the last chosen) */
   finish: Finish = "cut";
   private finishes = new Map<Finish, THREE.Material>();
@@ -940,7 +943,7 @@ export class Sanctuary {
           <button class="done" type="button">Done</button>
         </div>
       </div>
-      <p class="b-hint">Draw on the ground with one finger. Two fingers turn and tilt the view; pinch to come closer.</p>
+      <p class="b-hint">Choose a shape below, then draw or tap on the ground (or just draw: its shape decides). Two fingers turn and tilt the view; pinch to come closer.</p>
       <div class="b-shapes" aria-label="What each stroke makes">
         <button type="button" class="chip plant" aria-pressed="false" aria-label="Plant trees: a tap on the ground plants a seed"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20 V11"/><path d="M12 13 C12 9 9 7 5.5 7.5 C5.5 11 8 13 12 13 Z"/><path d="M12 11 C12 7.5 14.5 5 18.5 5.5 C18.5 9 16 11 12 11 Z"/><path d="M8 20 H16"/></svg><span><em>Tap</em>Plant</span></button>
         <button type="button" class="chip fin" aria-label="The stone new forms are laid in"><i></i><span><em>Texture</em><b></b></span></button>
@@ -998,6 +1001,7 @@ export class Sanctuary {
     el.querySelector(".chip.plant")!.addEventListener("click", (e) => {
       e.preventDefault();
       this.planting = !this.planting;
+      if (this.planting) this.armed = null;
       this.hooks.bell(this.planting ? 523.25 : 349.23, 0.012, 1.4);
       if (this.planting) this.hooks.say("Planting: a tap on the ground sets a seed. Then hold on the tree to tend it with your hands; it grows a stage each time.");
       this.drawUi();
@@ -1043,8 +1047,17 @@ export class Sanctuary {
         pyramid: "Draw a triangle: a step pyramid you can climb, as wide as you draw it. Height adds or takes away tiers.",
         orb: "Touch the ground: an orb of light. Choose it and raise it to hang it higher.",
       };
-      // a click, not the touch itself: a swipe across the strip scrolls it
-      c.addEventListener("click", (e) => (e.preventDefault(), this.hooks.say(how[k] ?? sh[2])));
+      // a click, not the touch itself: a swipe across the strip scrolls it. A tap chooses the shape
+      // (the owner: "building options still not matching"): drawn or tapped, it becomes that;
+      // a second tap lets the stroke's own shape decide again
+      c.addEventListener("click", (e) => {
+        e.preventDefault();
+        this.armed = this.armed === k ? null : (k as FormKind);
+        this.planting = false;
+        this.hooks.bell(this.armed ? 440 : 349.23, 0.012, 1.4);
+        this.hooks.say(this.armed ? `${sh[2]}: draw or tap on the ground. (${how[k] ?? ""}) Tap ${sh[2]} again to draw any shape.` : "Any shape: what you draw decides.");
+        this.drawUi();
+      });
     }
     for (const b of el.querySelectorAll<HTMLElement>("[data-t]")) tap(b, () => this.tool(b.dataset.t!));
     el.addEventListener("pointerdown", (e) => e.stopPropagation());
@@ -1078,6 +1091,7 @@ export class Sanctuary {
     (this.ui.querySelector(".chip.fin") as HTMLElement).dataset.fin = this.finish;
     const pl = this.ui.querySelector(".chip.plant") as HTMLElement;
     pl.classList.toggle("on", this.planting);
+    for (const c of this.ui.querySelectorAll<HTMLElement>(".b-shapes .chip[data-k]")) c.classList.toggle("on", this.armed === c.dataset.k);
     pl.setAttribute("aria-pressed", String(this.planting));
     const f = this.selected;
     this.ui.classList.toggle("sel", !!f);
@@ -1086,7 +1100,7 @@ export class Sanctuary {
     (this.ui.querySelector(".b-shapes") as HTMLElement).hidden = !!f;
     (this.ui.querySelector(".b-hint") as HTMLElement).textContent = f
       ? "Drag it to move it. A tap on the ground puts it down."
-      : "Draw on the ground with one finger. Two fingers turn and tilt the view; pinch to come closer.";
+      : this.armed ? "Draw or tap on the ground: it becomes the shape chosen. Tap it again to draw any shape." : "Choose a shape below, then draw or tap on the ground (or just draw: its shape decides). Two fingers turn and tilt the view.";
     if (!f) return;
     const names: Record<FormKind, string> = { wall: "Wall", ring: "Ring", pillar: "Pillar", spire: "Spire", orb: "Orb", arch: "Arch", stairs: "Steps", pyramid: "Pyramid" };
     (this.ui.querySelector(".b-name") as HTMLElement).textContent = `${names[f.s.kind]} · ${f.s.ink === "gold" ? "gold" : fn(f.s.fin).toLowerCase()} · drag it to move it`;
@@ -1554,6 +1568,51 @@ export class Sanctuary {
     this.draw = null;
     this.trailFade = 1.6;
   }
+  /** A stroke (or a tap) made into the chosen shape: its place and size from where it was drawn,
+      a sensible size when it was only a tap. */
+  private asArmed(k: FormKind, ground: V2[], screen: number): Reading {
+    const n = ground.length;
+    let cx = 0, cz = 0;
+    for (const [x, z] of ground) (cx += x / n), (cz += z / n);
+    let rad = 0;
+    for (const [x, z] of ground) rad = Math.max(rad, Math.hypot(x - cx, z - cz));
+    const tap = screen < 16 || rad < 0.3;
+    // across the view (for a tap): the camera's right, along the ground
+    const ry = this.orbit.yaw, ux = Math.cos(ry), uz = -Math.sin(ry);
+    const a = ground[0], b = ground[n - 1];
+    const span = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const ends = (half: number): [V2, V2] => (tap || span < 1.2 ? [[cx - ux * half, cz - uz * half], [cx + ux * half, cz + uz * half]] : [a, b]);
+    switch (k) {
+      case "orb":
+        return { kind: "dot" };
+      case "pillar":
+        return { kind: "pillar", c: [cx, cz], r: 0.9 };
+      case "ring":
+        return { kind: "ring", c: [cx, cz], r: tap ? 1.8 : Math.max(1.25, rad * 0.85) };
+      case "spire":
+        return { kind: "spire", c: [cx, cz], r: tap ? 1 : Math.max(0.6, rad) };
+      case "pyramid":
+        return { kind: "pyramid", c: [cx, cz], r: tap ? 2 : Math.max(1.4, rad * 0.8) };
+      case "arch": {
+        const [p, q] = ends(1.5);
+        return { kind: "arch", a: p, b: q };
+      }
+      case "stairs": {
+        const [p, q] = ends(1.6);
+        return { kind: "stairs", a: p, b: q, w: 1.6 };
+      }
+      case "wall": {
+        if (tap || n < 3) {
+          const [p, q] = ends(1.5);
+          return { kind: "wall", path: [p, q], closed: false, length: 3 };
+        }
+        let L = 0;
+        for (let i = 1; i < n; i++) L += Math.hypot(ground[i][0] - ground[i - 1][0], ground[i][1] - ground[i - 1][1]);
+        const every = Math.max(1, Math.ceil(n / 64));
+        return { kind: "wall", path: ground.filter((_, i) => i % every === 0 || i === n - 1), closed: false, length: L };
+      }
+    }
+  }
   /** A stroke let go: read it, and grow what it is, or let it sink back into the earth. */
   private finishStroke(ground: V2[], screen: number, ink: Ink, drawn?: V2[]): void {
     // a tap on the earth while a form is chosen only puts it down
@@ -1562,7 +1621,7 @@ export class Sanctuary {
       this.trail.mesh.visible = false;
       return;
     }
-    const r = readStroke(ground, screen, drawn);
+    const r = this.armed ? this.asArmed(this.armed, ground, screen) : readStroke(ground, screen, drawn);
     if (this.planting && r?.kind === "dot" && this.hooks.plant) {
       // a seed, not an orb
       this.trail.mesh.visible = false;
