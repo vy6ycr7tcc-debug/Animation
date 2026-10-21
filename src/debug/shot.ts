@@ -325,6 +325,23 @@ export function runShot(ctx: ShotCtx): void {
     base = [px, Math.max(gy, 0) + (above ? top - gy + 90 : 40), pz];
     view = above ? { eye: [0, 0, 0], look: [pk.x - px, top - base[1], pk.z - pz] } : { eye: [0, 0, 0], look: [pk.x - px, top * 0.7 - base[1], pk.z - pz] };
     ctx.player.pos.set(base[0], base[1], base[2]);
+  } else if (/^region-\d$/.test(id)) {
+    // a region's country (0 E, 1 NE, 2 N, 3 NW, 4 W, 5 SW, 6 S, 7 SE), from dry ground ~1 km out,
+    // looking on outward over it
+    const a = -Number(id.slice(7)) * (Math.PI / 4);
+    let px = Math.cos(a) * 900, pz = Math.sin(a) * 900;
+    for (let k = 0; k < 40; k++) {
+      const r = 700 + (k % 10) * 70, b = a + (Math.floor(k / 10) - 1.5) * 0.12;
+      const cx = Math.cos(b) * r, cz = Math.sin(b) * r, cy = heightAt(cx, cz);
+      if (cy > 1.5 && cy < 30) {
+        (px = cx), (pz = cz);
+        break;
+      }
+    }
+    const ux = Math.cos(a), uz = Math.sin(a), gy = heightAt(px, pz);
+    base = [px, gy, pz];
+    view = { eye: [-ux * 6, 4.5, -uz * 6], look: [ux * 40, heightAt(px + ux * 40, pz + uz * 40) - gy + 0.5, uz * 40] };
+    ctx.player.pos.set(px, gy, pz);
   } else if ((id === "egypt-gate" || id === "egypt-gate-near") && ctx.gate) {
     // the gateway on the pyramid's plaza, from the plaza (its opening faces ±z)
     const g = ctx.gate;

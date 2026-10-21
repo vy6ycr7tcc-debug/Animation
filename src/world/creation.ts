@@ -23,7 +23,7 @@ import { GROVE_SITES } from "./sites";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { floatAttributes, loadBytes } from "../core/assets";
-import { CAVE_SITES, colliders, fbm, keptClear, groundKind, heightAt, LANDMARK_SITES, SPAWN, smooth, WATER_Y, type Collider } from "./terrain";
+import { CAVE_SITES, colliders, fbm, keptClear, groundKind, heightAt, regionAt, LANDMARK_SITES, SPAWN, smooth, WATER_Y, type Collider } from "./terrain";
 
 /** Shared by every shader here; main.ts copies the scene's fog in. */
 export const creationUniforms = {
@@ -855,7 +855,10 @@ export class Creation {
     const grove = smooth(0.46, 0.64, fbm(x * 0.008 + 71, z * 0.008 - 33));
     // fewer trees than before, in groves with open meadow between (Samuel: "more variety of
     // elements than just so many trees"); the rising flowers and the rest fill the open ground
-    if (cellHash(i, j, 40) < 0.035 + grove * 0.36 && clearOf(x, z, 11, 16)) {
+    // each region its own density: the autumn forest and the mossland thick with trees, the dunes and the ash all but bare
+    const rg = regionAt(x, z);
+    const dense = 1 + (rg.trees - 1) * rg.away, leaf = rg.away > 0.5 ? rg.leaf : -1;
+    if (cellHash(i, j, 40) < (0.035 + grove * 0.36) * dense && clearOf(x, z, 11, 16)) {
       const h = heightAt(x, z);
       const k = groundKind(x, z, h);
       if (h > WATER_Y + 0.7 && h < 28 && k.stone < 0.5) {
@@ -865,7 +868,8 @@ export class Creation {
           kind: elder ? 3 : Math.floor(cellHash(i, j, 44) * 3),
           rot: cellHash(i, j, 45) * Math.PI * 2,
           scale: elder ? 1.1 + cellHash(i, j, 46) * 0.4 : 0.75 + cellHash(i, j, 46) * 0.55,
-          hue: cellHash(i, j, 47),
+          // the region's leaves (gold in the autumn forest, silvered in the frost and the ash), most trees there
+          hue: leaf >= 0 && cellHash(i, j, 48) < 0.8 ? leaf + (cellHash(i, j, 47) - 0.5) * 0.04 : cellHash(i, j, 47),
         };
       }
     }
@@ -913,7 +917,10 @@ export class Creation {
     const k = groundKind(x, z, h);
     // the first cluster, just ahead of where the wanderer wakes
     const first = i === 0 && j === -1;
-    if ((first || cellHash(i, j, 80) < 0.2 + k.stone * 0.45 + k.sand * 0.15) && clearOf(x, z, first ? 8 : 12, 15) && h > WATER_Y + 0.2 && h < 40) {
+    // Crystals are rare: they grow only in a few crystal fields (a slow noise, a few percent of the
+    // land), never scattered like bushes over everything (the owner: "plagued with crystals")
+    const field = smooth(0.7, 0.78, fbm(x * 0.0021 + 311, z * 0.0021 - 157));
+    if ((first || cellHash(i, j, 80) < field * (0.3 + k.stone * 0.3)) && clearOf(x, z, first ? 8 : 12, 15) && h > WATER_Y + 0.2 && h < 40) {
       const great = first || cellHash(i, j, 83) < 0.3;
       const R = rng(cellHash(i, j, 84));
       const prisms: ClusterDef["prisms"] = [];
