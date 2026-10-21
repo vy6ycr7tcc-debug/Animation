@@ -524,7 +524,7 @@ export class Sanctuary {
   private orbit = { yaw: 0, pitch: 0.9, dist: 18, yawT: 0, pitchT: 0.9, distT: 18, k: 0, on: false, use: true };
   private eye = new THREE.Vector3();
   private aim = new THREE.Vector3();
-  private dummy = new THREE.Object3D();
+  private dummy = new THREE.PerspectiveCamera(); // a camera's lookAt faces the aim (an Object3D's turns its back)
   private qA = new THREE.Quaternion();
   private undo: string[] = [];
   private ray = new THREE.Raycaster();
