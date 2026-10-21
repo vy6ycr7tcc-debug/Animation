@@ -15,7 +15,7 @@
    fades out and the wanderer stands; no quiet view, no heart, no stone.
    The dark is drawn on its own animation frames (the game's frame may be capped at 30, and slower
    still while everything is covered), so the breath is smooth. */
-import { LungParticles } from "../ui/breathLungs";
+import { LungParticles, breathCurve } from "../ui/breathLungs";
 
 const FADE_IN = 3.4; // the eyes closing
 const BODY_IN = 2.6;
@@ -273,13 +273,11 @@ export class Meditation {
     this.raf = requestAnimationFrame(step);
   }
 
-  /** The square breath, slow: 0..1 full, and its phase. */
+  /** The square breath, slow: 0..1 full, and its phase (the same breath's curve as the square breathing's). */
   private breath(): { open: number; phase: string } {
     const c = this.bt % (SIDE * 4);
-    if (c < SIDE) return { open: soft(c / SIDE), phase: "in" };
-    if (c < SIDE * 2) return { open: 1, phase: "hold" };
-    if (c < SIDE * 3) return { open: 1 - soft((c - SIDE * 2) / SIDE), phase: "out" };
-    return { open: 0, phase: "rest" };
+    const phase = c < SIDE ? "in" : c < SIDE * 2 ? "hold" : c < SIDE * 3 ? "out" : "rest";
+    return { open: breathCurve(phase, (c % SIDE) / SIDE), phase };
   }
 
   /** The lungs breathing at the centre with the breath's word; in the corner, the small lungs
@@ -289,7 +287,13 @@ export class Meditation {
     const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.lungs.draw(b.open, b.phase, reduced);
     const w = WORDS[b.phase];
-    if (this.word.textContent !== w) this.word.textContent = w;
+    if (this.word.textContent !== w) {
+      // each side's word arrives softly, out of a little blur (style.css)
+      this.word.textContent = w;
+      this.word.classList.remove("arrive");
+      void this.word.offsetWidth;
+      this.word.classList.add("arrive");
+    }
     this.what.style.opacity = String(Math.max(0, Math.min(1, (12 - this.gt) / 3)) * 0.7 * this.body);
     const g = this.progCtx;
     if (!g) return;
@@ -332,9 +336,4 @@ export class Meditation {
 function ease(x: number): number {
   const c = Math.min(1, Math.max(0, x));
   return c < 0.5 ? 4 * c * c * c : 1 - Math.pow(-2 * c + 2, 3) / 2;
-}
-/** A breath's own curve: gentle at both ends, never a snap. */
-function soft(x: number): number {
-  const c = Math.min(1, Math.max(0, x));
-  return 0.5 - 0.5 * Math.cos(Math.PI * c);
 }

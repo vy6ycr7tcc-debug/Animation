@@ -1564,7 +1564,13 @@ function breathCueFrame(): void {
     return;
   }
   const word = CUE_WORDS[breath.phase] ?? "";
-  if (word !== cueWordNow) cueWord.textContent = cueWordNow = word;
+  if (word !== cueWordNow) {
+    // each side's word arrives softly, out of a little blur, as the lungs turn
+    cueWord.textContent = cueWordNow = word;
+    cueWord.classList.remove("arrive");
+    void cueWord.offsetWidth;
+    cueWord.classList.add("arrive");
+  }
   // the first time: what square breathing is, for the first two rounds
   const explain = !breathExplained && breath.cycles <= 2;
   if (explain && !cueExplaining) {
