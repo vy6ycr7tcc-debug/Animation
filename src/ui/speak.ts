@@ -226,7 +226,7 @@ export function sayAloud(text: string, done?: () => void): boolean {
   speak(text, done, done);
   return true;
 }
-/** Inside the first touch of a visit ("Touch the water to begin"): wake the phone's voice, silently,
+/** Inside the first touch of a visit ("Tap to begin"): wake the phone's voice, silently,
     so the game may read aloud later without a touch of its own. */
 export function wakeSpeech(): void {
   if (!readAloud()) return;

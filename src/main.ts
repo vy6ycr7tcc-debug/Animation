@@ -4908,7 +4908,7 @@ function applyReduced(): void {
 }
 applyReduced();
 
-/** Rest: the world waits behind the water screen ("Touch the water to return"), the place kept.
+/** Rest: the world waits behind the water screen ("Tap to return"), the place kept.
     `fromAway`: coming back to the game after a while, the title stands over it as at the start
     (the owner: the game must always open on "touch the water", never on a panel left open). */
 function rest(fromAway = false): void {
@@ -5990,7 +5990,7 @@ renderer
 /* Loading, then the title (the owner: "remove the weird quote… go straight to the main page, also
    add the loading progress so we know it's not stuck"). While the world loads, the seed turns in
    the dark over a thin bar of how far it has come; when it is ready the dark lifts onto the night
-   water and the title, "Touch the water to begin". No words before it. */
+   water and the title, "Tap to begin". No words before it. */
 let loadingEnded = false;
 let opening: "loading" | "done" = "loading";
 if (isTv) {
