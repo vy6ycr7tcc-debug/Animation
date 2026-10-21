@@ -231,7 +231,15 @@ type Lay = (x: number, z: number) => number;
     following the land under each point (`lay`), its open ends rounded off. */
 function wallGeometry(path: V2[], closed: boolean, H: number, w: number, lay: Lay): THREE.BufferGeometry {
   const pts = smoothPath(path, closed);
-  const prof: V2[] = [[-w, -0.9], [-w, 0], [-w * 0.84, H - 0.16], [-w * 0.58, H - 0.04], [0, H], [w * 0.58, H - 0.04], [w * 0.84, H - 0.16], [w, 0], [w, -0.9]];
+  // a finished wall: a plinth at its foot, a face that leans in a little, a capstone with a lip
+  // that throws a thin shadow, its top edge rounded. Corners are doubled so their steps stay crisp
+  // (the normals are averaged per vertex).
+  const ch = Math.min(0.16, H * 0.18); // the capstone's height
+  const half: V2[] = [
+    [-w * 1.1, -0.9], [-w * 1.1, 0.13], [-w * 1.1, 0.13], [-w * 1.02, 0.2], [-w * 1.02, 0.2], [-w * 0.97, H - ch - 0.02],
+    [-w * 0.97, H - ch - 0.02], [-w * 1.2, H - ch], [-w * 1.2, H - ch], [-w * 1.2, H - 0.05], [-w * 1.14, H - 0.012], [-w * 0.9, H],
+  ];
+  const prof: V2[] = [...half, [0, H], ...half.slice().reverse().map(([x, y]) => [-x, y] as V2)];
   const pos: number[] = [];
   const idx: number[] = [];
   const n = pts.length, m = prof.length;
@@ -408,7 +416,10 @@ function maxLay(line: V2[], lay: Lay): number {
 function goldMaterial(): THREE.MeshStandardNodeMaterial {
   const m = new THREE.MeshStandardNodeMaterial({ metalness: 0.85, roughness: 0.26 });
   const ham = T.mx_noise_float(T.positionWorld.mul(9)).mul(0.5).add(0.5);
-  m.colorNode = vec3(1, 0.68, 0.22).mul(float(0.86).add(ham.mul(0.24)));
+  // deeper amber low, paler gold high, fine brushed streaks along the grain, so a slab isn't one tan
+  const brush = T.mx_noise_float(vec3(T.positionWorld.x.add(T.positionWorld.z).mul(2.2), T.positionWorld.y.mul(46), 3.1)).mul(0.5).add(0.5);
+  const grad = mix(vec3(0.92, 0.5, 0.12), vec3(1, 0.78, 0.34), smoothstep(0, 1, T.fract(T.positionWorld.y.mul(0.5))));
+  m.colorNode = grad.mul(float(0.82).add(ham.mul(0.2)).add(brush.mul(0.14)));
   m.roughnessNode = float(0.2).add(ham.mul(0.14));
   const v = normalize(T.cameraPosition.sub(T.positionWorld));
   const r = T.reflect(v.negate(), T.normalWorld);
@@ -1718,6 +1729,20 @@ export class Sanctuary {
       const [x, z] = ground[ground.length - 1];
       s = { kind: "orb", ink, x, z, y: 1.6, rot: 0, cost: 0 };
     } else if (r?.kind === "wall") {
+      // an open wall's ends reach for a wall or ring already standing near them, so lines meet in corners
+      const wp = r.path.map(([x, z]) => [x, z] as V2);
+      if (!r.closed && wp.length > 1) {
+        const lines = this.jointForms().filter((j) => j.kind === "wall" || j.kind === "ring").flatMap((j) => j.line);
+        for (const end of [0, wp.length - 1]) {
+          let best = 0.9 * 0.9, hit: V2 | null = null;
+          for (const p of lines) {
+            const d = (p[0] - wp[end][0]) ** 2 + (p[1] - wp[end][1]) ** 2;
+            if (d < best) { best = d; hit = p; }
+          }
+          if (hit) wp[end] = [hit[0], hit[1]];
+        }
+      }
+      r.path = wp;
       let cx = 0, cz = 0;
       for (const [x, z] of r.path) {
         cx += x / r.path.length;
