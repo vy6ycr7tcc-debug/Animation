@@ -1,5 +1,5 @@
-/* Past choices, the first: Maldek. A round marble terrace high above a sea of dark cloud, open to
-   deep space; a low balustrade, broken in places, two tall columns and one fallen. Ahead, across
+/* Past choices, the first: Maldek. A round plain of cratered moon dust high above a sea of dark
+   cloud, open to deep space; no columns, no paving, only dust, rock and two leaning stones. Ahead, across
    the sky, the river of stone: a broad arch of rubble turning slowly about a far small sun.
 
    The telling, as it goes: the rubble gathers back into the world it was (a planet, seas and
@@ -19,7 +19,7 @@ import { applyAir, boulderGeometry, fbmN, keepAlpha, merge, pointCloud, roomOrig
 import { landStone } from "../../world/stoneworks";
 import type { Narration } from "../../core/narration";
 import type { Room } from "../journey";
-import { Tells, flutedColumn, gold, marble, seatedRoom, starField } from "./kit";
+import { Tells, seatedRoom, starField } from "./kit";
 
 const { abs, exp, float, length, max, mix, normalize, pow, sin, cos, smoothstep, uv, vec2, vec3, vec4 } = T;
 
@@ -105,27 +105,41 @@ export function createMaldekScene(scene: THREE.Scene, narration: Narration, whis
 
       /* ---------------- the terrace: marble flags, a rock beneath, balustrade, columns ---------------- */
       {
-        const parts: THREE.BufferGeometry[] = [];
-        const top = new THREE.CylinderGeometry(TERR_R, TERR_R, 1.1, 72);
-        top.translate(TERR.x, -0.55, TERR.z);
-        const step = new THREE.CylinderGeometry(TERR_R + 1.1, TERR_R + 1.3, 0.9, 72);
-        step.translate(TERR.x, -1.3, TERR.z);
-        parts.push(top, step);
-        const floor = new THREE.Mesh(merge(parts), marble(2.4, { flag: 1.3 }));
-        // the burning that reaches the ground you stand on: cracks lit from the rim nearest the
-        // ghost, spreading toward the seat, then cooling
+        // a plain of moon dust: cratered regolith, no paving, no stone dressed by hand
+        const top = new THREE.CylinderGeometry(TERR_R + 0.5, TERR_R + 1.4, 1.8, 96, 1);
+        top.translate(TERR.x, -0.9, TERR.z);
+        const fm = new THREE.MeshStandardNodeMaterial({ roughness: 1, metalness: 0 });
         {
-          const fm = floor.material as THREE.MeshStandardNodeMaterial;
           const p = roomPos.xz;
+          // craters: bowl and raised rim, two sizes, each cell with its own centre and radius
+          const crater = (q: N, sc: number, seed: number) => {
+            const g = q.div(sc), c = T.floor(g), f = T.fract(g);
+            const j = vec2(hash3(vec3(c, seed)), hash3(vec3(c, seed + 7))).mul(0.5).add(0.25);
+            const rad = hash3(vec3(c, seed + 13)).mul(0.22).add(0.18);
+            const on = T.step(0.45, hash3(vec3(c, seed + 3)));
+            const d = length(f.sub(j)).div(rad);
+            const bowl = smoothstep(1, 0, d).mul(-1);
+            const rim = smoothstep(0.75, 1.0, d).mul(smoothstep(1.35, 1.0, d));
+            return bowl.mul(0.9).add(rim.mul(0.5)).mul(on).mul(rad.mul(2));
+          };
+          const H = (q: N) => crater(q, 3.4, 1).add(crater(q.mul(1.7).add(5), 3.4, 21).mul(0.5)).add(fbmN(q.mul(0.9)).sub(0.5).mul(0.25));
+          const e = 0.08;
+          const h0 = H(p), hx = H(p.add(vec2(e, 0))), hz = H(p.add(vec2(0, e)));
+          const dust = fbmN(p.mul(0.35).add(2)), grit = fbmN(p.mul(6));
+          const base = mix(vec3(0.19, 0.185, 0.2), vec3(0.34, 0.33, 0.34), dust).mul(grit.mul(0.35).add(0.8));
+          fm.colorNode = base.mul(h0.mul(0.55).add(1)).mul(smoothstep(-0.05, 0.4, h0.add(0.35)).mul(0.5).add(0.6));
+          const slope = vec3(h0.sub(hx), 0, h0.sub(hz)).mul(2.2 / e * 0.1);
+          fm.normalNode = T.normalize(T.normalView.add(T.cameraViewMatrix.mul(vec4(slope, 0)).xyz));
           const c1 = abs(fbmN(p.mul(0.55).add(3.1)).sub(0.5)), c2 = abs(fbmN(p.mul(1.4).add(8.7)).sub(0.5));
           const crack = smoothstep(0.03, 0.0, c1).add(smoothstep(0.022, 0.0, c2).mul(0.6));
           const d = length(p.sub(vec2(0, -12.5)));
           const reach = smoothstep(u.front.mul(17), u.front.mul(17).sub(3), d);
           fm.emissiveNode = vec3(1, 0.22, 0.06).mul(crack).mul(reach).mul(u.burn).mul(1.4);
         }
+        const floor = new THREE.Mesh(top, fm);
         floor.receiveShadow = true;
         g.add(floor);
-        ours.push(floor.geometry, floor.material as THREE.Material);
+        ours.push(top, fm);
         // the rock the terrace stands on, falling away into the cloud
         const rock = new THREE.ConeGeometry(TERR_R + 1.6, 34, 28, 10, true);
         rock.rotateX(Math.PI);
@@ -140,55 +154,19 @@ export function createMaldekScene(scene: THREE.Scene, narration: Narration, whis
         const rm = landStone("sandstone_cracks", -40, 3.2, [0.42, 0.4, 0.46]);
         g.add(new THREE.Mesh(rock, rm));
         ours.push(rock, rm);
-        // the balustrade: short fluted posts round the rim, a rail on them, broken in three places
-        const posts: THREE.BufferGeometry[] = [];
-        const gaps = (a: number) => Math.abs(a - Math.PI) < 0.16 || Math.abs(a - 2.1) < 0.3 || Math.abs(a - 4.6) < 0.22 || Math.abs(a - 0.2) < 0.18;
-        const N = 64;
-        for (let k = 0; k < N; k++) {
-          const a = (k / N) * Math.PI * 2;
-          if (gaps(a)) continue;
-          const x = TERR.x + Math.sin(a) * (TERR_R - 0.35), z = TERR.z + Math.cos(a) * (TERR_R - 0.35);
-          const post = flutedColumn(0.11, 0.95, 8);
-          post.translate(x, 0, z);
-          posts.push(post);
-          const next = ((k + 1) / N) * Math.PI * 2;
-          if (gaps(next)) continue;
-          const rail = new THREE.BoxGeometry(0.34, 0.14, 2 * Math.PI * (TERR_R - 0.35) / N + 0.04);
-          rail.rotateY(a + Math.PI / N);
-          rail.translate(TERR.x + Math.sin(a + Math.PI / N) * (TERR_R - 0.35), 1.02, TERR.z + Math.cos(a + Math.PI / N) * (TERR_R - 0.35));
-          posts.push(rail);
+        // the way on: two leaning dark rocks, a faint light standing between them
+        const jambs: THREE.BufferGeometry[] = [];
+        for (const dz of [-1.7, 1.7]) {
+          const j = boulderGeometry(1.3, dz > 0 ? 3 : 4);
+          j.scale(0.8, 1.9, 0.9);
+          j.translate(MALDEK_DOOR.x, 1.5, MALDEK_DOOR.z + dz);
+          jambs.push(j);
         }
-        // two tall columns at the sides, and the drums of a third fallen across the flags
-        for (const [a, h] of [[1.35, 8.2], [-1.35, 8.2]] as const) {
-          const c = flutedColumn(0.55, h, 20);
-          c.translate(TERR.x + Math.sin(a) * (TERR_R - 1.6), 0, TERR.z + Math.cos(a) * (TERR_R - 1.6));
-          posts.push(c);
-        }
-        for (let k = 0; k < 3; k++) {
-          const d = new THREE.CylinderGeometry(0.5, 0.52, 1.5, 24);
-          d.rotateZ(Math.PI / 2 + (k - 1) * 0.12);
-          d.rotateY(0.5 + k * 0.08);
-          d.translate(6.2 + k * 1.3, 0.48, -7.5 + k * 0.9);
-          posts.push(d);
-        }
-        const pm = marble(1.6);
-        const pmesh = new THREE.Mesh(merge(posts), pm);
-        pmesh.castShadow = pmesh.receiveShadow = true;
-        g.add(pmesh);
-        ours.push(pmesh.geometry, pm);
-        // the way on: a gilded frame in the balustrade's gap on the left, light standing in it
-        const frame: THREE.BufferGeometry[] = [];
-        for (const dz of [-1.5, 1.5]) {
-          const j = new THREE.BoxGeometry(0.4, 3.6, 0.4);
-          j.translate(MALDEK_DOOR.x, 1.8, MALDEK_DOOR.z + dz);
-          frame.push(j);
-        }
-        const l = new THREE.BoxGeometry(0.5, 0.4, 3.6);
-        l.translate(MALDEK_DOOR.x, 3.8, MALDEK_DOOR.z);
-        frame.push(l);
-        const gm = gold(0.12);
-        g.add(new THREE.Mesh(merge(frame), gm));
-        ours.push(gm);
+        const jm = landStone("sandstone_cracks", 0, 2, [0.3, 0.29, 0.32]);
+        const jmesh = new THREE.Mesh(merge(jambs), jm);
+        jmesh.castShadow = jmesh.receiveShadow = true;
+        g.add(jmesh);
+        ours.push(jmesh.geometry, jm);
         // a few loose stones on the flags
         const stones: THREE.BufferGeometry[] = [];
         for (let i = 0; i < 9; i++) {
