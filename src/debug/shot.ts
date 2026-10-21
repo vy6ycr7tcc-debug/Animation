@@ -4,7 +4,7 @@
 import { SITES } from "../scenes/sites";
 import { DUAT_ORIGIN } from "../world/pyramid";
 import { AREA_SITES, RUIN_SITES, type AreaId } from "../world/depths";
-import { ADEPT_HALL, DENSITY_HALL, GLADES, GOBEKLI, GOBEKLI_PLAN, gobekliAt, nanMadolAt, RAPA_NUI, rapaNuiAt, LANDMARK_SITES, MONUMENT, PAST_HALL, PEAKS, PYRAMID, SPAWN, heightAt } from "../world/terrain";
+import { ADEPT_HALL, DENSITY_HALL, GLADES, GOBEKLI, GOBEKLI_PLAN, gobekliAt, nanMadolAt, RAPA_NUI, rapaNuiAt, LANDMARK_SITES, MONUMENT, PAST_HALL, PEAKS, PYRAMID, SPAWN, WATERFALLS, heightAt, riverDist } from "../world/terrain";
 import { JOURNEY_ORIGIN } from "../scenes/journey";
 
 export interface Shot {
@@ -325,6 +325,45 @@ export function runShot(ctx: ShotCtx): void {
     base = [px, Math.max(gy, 0) + (above ? top - gy + 90 : 40), pz];
     view = above ? { eye: [0, 0, 0], look: [pk.x - px, top - base[1], pk.z - pz] } : { eye: [0, 0, 0], look: [pk.x - px, top * 0.7 - base[1], pk.z - pz] };
     ctx.player.pos.set(base[0], base[1], base[2]);
+  } else if (/^river-\d$/.test(id)) {
+    // the k-th river crossing found on a spiral out from the shore, seen from its bank, 9 m up,
+    // looking along its valley
+    const k = Number(id.slice(6));
+    let found = 0, px = 0, pz = 0, along = 0;
+    for (let i = 0; i < 20000 && found <= k; i++) {
+      const r = 400 + (i % 400) * 3, a = i * 2.39996;
+      const x = Math.cos(a) * r, z = Math.sin(a) * r;
+      if (riverDist(x, z) > 1.5 || heightAt(x, z) > -0.5) continue;
+      // its way: across the slope of the distance field
+      const gx = riverDist(x + 3, z) - riverDist(x - 3, z), gz = riverDist(x, z + 3) - riverDist(x, z - 3);
+      const g = Math.hypot(gx, gz) || 1;
+      const bx = x + (gx / g) * 30, bz = z + (gz / g) * 30;
+      if (heightAt(bx, bz) < 2.5) continue;
+      if (found++ === k) (px = bx), (pz = bz), (along = Math.atan2(-gz, gx));
+    }
+    const gy = heightAt(px, pz);
+    base = [px, gy, pz];
+    const lx = Math.cos(along) * 60 - (px - 0) * 0, lz = Math.sin(along) * 60;
+    view = { eye: [0, 9, 0], look: [lx, -gy - 2, lz] };
+    ctx.player.pos.set(px, gy, pz);
+  } else if (/^aerial-\d$/.test(id)) {
+    // the land of a region from the air (0 E … 7 SE, as region-k): 140 m up, 500 m out, looking
+    // on outward and down over its rivers, craters and landforms
+    const a = -Number(id.slice(7)) * (Math.PI / 4), ux = Math.cos(a), uz = Math.sin(a);
+    const r = Number(new URLSearchParams(location.search).get("r") ?? 500);
+    const px = ux * r, pz = uz * r;
+    base = [px, 140, pz];
+    view = { eye: [0, 0, 0], look: [ux * 300, heightAt(px + ux * 300, pz + uz * 300) - 140, uz * 300] };
+    ctx.player.pos.set(px, 140, pz);
+  } else if (/^falls-\d$/.test(id)) {
+    // a waterfall from beside its plunge pool, looking up at the curtain and the shelf
+    const f = WATERFALLS[Number(id.slice(6))] ?? WATERFALLS[0];
+    const back = Number(new URLSearchParams(location.search).get("back") ?? 26);
+    const px = f.x + f.dx * back + -f.dz * 7, pz = f.z + f.dz * back + f.dx * 7;
+    const gy = Math.max(heightAt(px, pz), 0.2);
+    base = [px, gy, pz];
+    view = { eye: [f.dx * 3, 2.2, f.dz * 3], look: [f.x - px, f.top * 0.55 - gy, f.z - pz] };
+    ctx.player.pos.set(px, gy, pz);
   } else if (/^region-\d$/.test(id)) {
     // a region's country (0 E, 1 NE, 2 N, 3 NW, 4 W, 5 SW, 6 S, 7 SE), from dry ground ~1 km out,
     // looking on outward over it

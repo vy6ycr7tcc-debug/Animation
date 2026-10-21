@@ -293,6 +293,115 @@ function relief(x: number, z: number, h: number): number {
   return Math.max(d * k, Math.min(0, 1.1 - h));
 }
 
+/* ---------- water on the land: rivers, craters, waterfalls ----------
+   Laid over the land with the regions' relief (after this module's sites are chosen), never in the
+   home meadow by the shore, and levelled again under every site's pad. The world's water is one
+   sheet at WATER_Y, so whatever is carved below it fills by itself:
+   - rivers: an isoline of a slow, warped noise, measured in metres by the noise's own slope, so a
+     channel keeps its width; a flat bed below the water in a valley whose sides open wider the
+     higher the land it cuts (gorges in the uplands, gentle banks in the lowlands);
+   - craters, here and there (one in every few 300 m cells): bowls with raised, torn rims; the deep
+     ones hold a lake;
+   - waterfalls (WATERFALLS, below): a raised shelf of land with a stream along it, breaking off
+     in a cliff into a plunge pool. */
+const RIV_F = 0.0008;
+/** Value noise on the integer hash (cheaper than the sine hash; for the newer fields only, the
+    world's older noise is left as it is so nothing that stands moves). */
+function qnoise(x: number, z: number): number {
+  const xi = Math.floor(x), zi = Math.floor(z);
+  const xf = x - xi, zf = z - zi;
+  const u = xf * xf * (3 - 2 * xf), v = zf * zf * (3 - 2 * zf);
+  const a = ihash(xi, zi, 77), b = ihash(xi + 1, zi, 77), c = ihash(xi, zi + 1, 77), d = ihash(xi + 1, zi + 1, 77);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+// two smooth octaves only (finer ones make the isoline break into many small loops), gently warped
+const riverQ = (x: number, z: number) => {
+  const wx = x * RIV_F + (qnoise(x * 0.004 + 3, z * 0.004) - 0.5) * 0.15, wz = z * RIV_F + (qnoise(x * 0.004, z * 0.004 - 7) - 0.5) * 0.15;
+  return qnoise(wx, wz) * 0.72 + qnoise(wx * 2.03 + 17, wz * 2.03 - 9) * 0.28;
+};
+const RIVER_BED = -1.6;
+const _ww = new Float64Array(8);
+/** How far (m) from the nearest river's middle, or Infinity well away from any. Two families of
+    rivers, each the isoline of its own field (the second the same field shifted far away). */
+export function riverDist(x: number, z: number): number {
+  return Math.min(riverOne(x, z), riverOne(x + 7300, z - 4100));
+}
+function riverOne(x: number, z: number): number {
+  const q = riverQ(x, z) - 0.5;
+  if (Math.abs(q) > 0.07) return Infinity;
+  const g = Math.max(0.0011, Math.hypot(riverQ(x + 1, z) - 0.5 - q, riverQ(x, z + 1) - 0.5 - q));
+  return Math.abs(q) / g;
+}
+function waterways(x: number, z: number, h: number): number {
+  const ds = Math.hypot(x - SPAWN.x, z - SPAWN.z);
+  if (ds < 220 || h < 0.4) return falls(x, z, h);
+  let near = 1;
+  for (const c of CAVE_SITES) {
+    const d = Math.hypot(x - c.x, z - c.z);
+    if (d < 80) near *= smooth(45, 80, d);
+  }
+  let out = h;
+  if (near > 0) {
+    // craters
+    const k = smooth(260, 420, ds) * smooth(1.2, 3, h) * smooth(55, 35, h) * near;
+    if (k > 0) {
+      const c = cellular(x, z, 300, 41);
+      if (c.id < 0.14) {
+        const r = 22 + (c.id / 0.14) * 55, f = c.f1 * 300;
+        const torn = 1 + (qnoise(x * 0.05 + 7, z * 0.05) - 0.5) * 0.25;
+        out += bowl(f * torn, r, r * 0.32, r * 0.1 * (0.6 + qnoise(x * 0.09, z * 0.09 + 5) * 0.8)) * k;
+      }
+    }
+    // rivers
+    // the dunes and the ash stay dry
+    const dry = regionWeights(x, z, _ww) > 0 ? _ww[2] + _ww[4] : 0;
+    const kr = smooth(220, 380, ds) * smooth(50, 32, out) * near * (1 - 0.95 * Math.min(1, dry));
+    if (kr > 0) {
+      const d = riverDist(x, z);
+      if (d < 140) {
+        const cw = 4 + qnoise(x * 0.01 + 31, z * 0.01) * 3.5;
+        const vw = cw + 18 + Math.max(0, out) * 0.8;
+        if (d < vw) {
+          const target = RIVER_BED + (out - RIVER_BED) * Math.pow(smooth(cw * 0.7, vw, d), 1.25);
+          out = out + (Math.min(out, target) - out) * kr;
+        }
+      }
+    }
+  }
+  return falls(x, z, out);
+}
+
+/** The waterfalls: each a shelf of land raised `top` metres high upstream of its lip, a stream
+    along it, a cliff, and a plunge pool below. `dx, dz` points downstream. */
+export interface Fall { x: number; z: number; dx: number; dz: number; top: number; seed: number }
+export let WATERFALLS: Fall[] = [];
+/** A waterfall's frame: s along the stream (0 at the cliff's foot line, + downstream), u across. */
+export const fallLocal = (f: Fall, x: number, z: number) => {
+  const px = x - f.x, pz = z - f.z;
+  return { s: px * f.dx + pz * f.dz, u: -px * f.dz + pz * f.dx };
+};
+export const FALL_LIP = -1.6, FALL_POOL = 10, FALL_STREAM = -42;
+function falls(x: number, z: number, h: number): number {
+  for (const f of WATERFALLS) {
+    if (Math.abs(x - f.x) > 95 || Math.abs(z - f.z) > 95) continue;
+    const { s, u } = fallLocal(f, x, z);
+    // the shelf: an oval behind the lip, its far edges easing down, its front a cliff
+    // (its outline broken by noise, so its sides are crags rather than a smooth mound)
+    const e = ((s + 34) / 44) ** 2 + (u / 32) ** 2 + (qnoise(x * 0.06 + f.seed, z * 0.06) - 0.5) * 0.35;
+    const jag = Math.abs(u) < 7 ? 0 : (qnoise(u * 0.18 + f.seed, f.seed) - 0.5) * 5;
+    const mask = smooth(1.08, 0.9, e) * smooth(2.5, -1.5, s - jag);
+    const top = f.top + (qnoise(x * 0.07, z * 0.07 + f.seed) - 0.5) * 1.6 * smooth(4, 12, -s) - Math.max(0, -s - 30) * 0.05;
+    if (mask > 0) h = Math.max(h, h + (top - h) * mask);
+    // the stream along it, a hand deeper than the shelf's lip, to the spring
+    const ch = smooth(2.8, 1.6, Math.abs(u)) * smooth(FALL_STREAM - 4, FALL_STREAM + 4, s) * smooth(0.5, -1.5, s) * mask;
+    if (ch > 0) h = Math.min(h, h + (f.top - 0.9 - h) * ch);
+    // the plunge pool
+    const dp = Math.hypot(s - FALL_POOL, u * 0.9) * (1 + (qnoise(x * 0.11 + f.seed, z * 0.11) - 0.5) * 0.45);
+    if (dp < 16) h = Math.min(h, h + (-2.8 - h) * smooth(15, 7, dp));
+  }
+  return h;
+}
+
 /** Where each archetype's home should stand, roughly, and on what kind of ground; each
     settles on the nearest place that suits it.
     - land: calm, dry, level ground;   high: a height with a view;
@@ -759,7 +868,10 @@ export function heightCoarse(x: number, z: number): number {
 export function heightAt(x: number, z: number): number {
   if (x > 20000 && floorHook.fn) return floorHook.fn(x, z);
   let h = rawHeight(x, z);
-  if (reliefOn) h += relief(x, z, h);
+  if (reliefOn) {
+    h += relief(x, z, h);
+    h = waterways(x, z, h);
+  }
   for (const p of PADS) {
     if (Math.abs(x - p.x) > p.outer || Math.abs(z - p.z) > p.outer) continue;
     const d = Math.hypot(x - p.x, z - p.z);
@@ -1414,6 +1526,39 @@ export class Terrain {
     g.computeBoundingBox();
   }
 }
+
+// the waterfalls: low land by the water (its plunge pool fills from the lakes' level), with
+// room upstream for the shelf, clear of every site, cave, glade and each other
+WATERFALLS = (() => {
+  const out: Fall[] = [];
+  const GA = Math.PI * (3 - Math.sqrt(5));
+  for (let i = 0; i < 900 && out.length < 6; i++) {
+    const r = 380 + ((i * 0.6180339) % 1) * 1300, a = i * GA;
+    const x = SPAWN.x + Math.cos(a) * r, z = SPAWN.z + Math.sin(a) * r;
+    const h = rawHeight(x, z);
+    if (h < 1.8 || h > 6) continue;
+    if (out.some((f) => Math.hypot(f.x - x, f.z - z) < 450)) continue;
+    if (PADS.some((p) => Math.hypot(p.x - x, p.z - z) < p.outer + 90)) continue;
+    if (keptClear(x, z, 70) || CAVE_SITES.some((c) => Math.hypot(c.x - x, c.z - z) < 110)) continue;
+    if (GLADES.some((g) => Math.hypot(g.x - x, g.z - z) < g.r + 70)) continue;
+    // downstream: toward the lowest land 50 m out, the shelf's ground behind dry
+    let best = -1, bh = Infinity;
+    for (let k = 0; k < 16; k++) {
+      const b = (k / 16) * Math.PI * 2, dx = Math.cos(b), dz = Math.sin(b);
+      const dn = rawHeight(x + dx * 50, z + dz * 50), up = rawHeight(x - dx * 34, z - dz * 34);
+      if (up < 1 || up > 22 || dn < -6) continue;
+      if (dn < bh) (bh = dn), (best = b);
+    }
+    if (best < 0) continue;
+    const seed = ihash(i, out.length, 5) * 100;
+    out.push({ x, z, dx: Math.cos(best), dz: Math.sin(best), top: h + 11 + ihash(i, 1, 9) * 6, seed });
+  }
+  for (const f of out) {
+    const at = (s: number) => ({ x: f.x + f.dx * s, z: f.z + f.dz * s });
+    for (const [s, r] of [[FALL_POOL, 18], [0, 10], [-12, 5], [-26, 5], [-40, 6]] as const) KEEP_CLEAR.push({ ...at(s), r });
+  }
+  return out;
+})();
 
 // the regions' landforms, now that every site of this module has been chosen on the land as it was
 reliefOn = true;
