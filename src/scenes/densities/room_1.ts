@@ -178,9 +178,11 @@ export function createDensityRoom1Scene(
       m.normalNode = normalize(cameraViewMatrix.mul(vec4(n, 0)).xyz);
       // deep, nearly black water; a pale seethe of foam where it meets the sand, riding the swell
       const shoreD = abs(P.x.sub(SHORE_X - 7).sub(h.mul(3.5)));
-      const crest = smoothstep(0.55, 0.95, wave.div(uWaveA.add(0.01))).mul(smoothstep(0.3, 1.5, uWaveA)).mul(smoothstep(-3, 2, cr));
+      // its crest curls white along its top and down its landward face
+      const crest = smoothstep(0.3, 0.85, wave.div(uWaveA.add(0.01))).mul(smoothstep(0.3, 1.5, uWaveA)).mul(smoothstep(-6, 1, cr));
       const foam = smoothstep(mix(float(2.2), float(9), uSurge.div(2.4)), 0.0, shoreD).add(crest).min(1).mul(vnoise(P.xz.mul(0.35).add(vec2(t.mul(0.12), 0))).mul(0.7).add(0.3));
-      m.colorNode = mix(vec3(0.008, 0.016, 0.03), vec3(0.3, 0.3, 0.36), foam.mul(0.6));
+      const churn = vnoise(P.xz.mul(vec2(0.5, 0.18)).add(vec2(0, t.mul(0.8)))).mul(0.6).add(0.55);
+      m.colorNode = mix(mix(vec3(0.008, 0.016, 0.03), vec3(0.3, 0.3, 0.36), foam.mul(0.6)), vec3(0.62, 0.66, 0.72), crest.mul(churn).min(1));
       const mesh = new THREE.Mesh(geo, m);
       mesh.receiveShadow = true;
       g.add(mesh);
@@ -346,7 +348,7 @@ export function createDensityRoom1Scene(
 
     /* ---------------- the ground opening: a rift to the right of the path ---------------- */
     {
-      const pts = [new THREE.Vector3(6.2, 0, -19), new THREE.Vector3(11, 0, -23.5), new THREE.Vector3(16.5, 0, -22.5), new THREE.Vector3(21.5, 0, -26), new THREE.Vector3(27, 0, -25.5), new THREE.Vector3(33, 0, -29)];
+      const pts = [new THREE.Vector3(5.6, 0, -14), new THREE.Vector3(9.5, 0, -19.5), new THREE.Vector3(15.5, 0, -21.5), new THREE.Vector3(21.5, 0, -25.5), new THREE.Vector3(27, 0, -25), new THREE.Vector3(34, 0, -29)];
       const curve = new THREE.CatmullRomCurve3(pts, false, "centripetal");
       const N = 120;
       const cps = curve.getSpacedPoints(N);
@@ -379,9 +381,9 @@ export function createDensityRoom1Scene(
         m.positionNode = vec3(positionLocal.x.add(NN.x.mul(S2).mul(w)), positionLocal.y, positionLocal.z.add(NN.y.mul(S2).mul(w)));
         return { geo, m, A, S2 };
       };
-      const lip = strip(1.9, 0);
+      const lip = strip(3.4, 0);
       lip.m.colorNode = vec4(0.006, 0.005, 0.008, 1);
-      const core = strip(1.0, 1);
+      const core = strip(2.0, 1);
       {
         const flow = vnoise(vec2(core.A.mul(30).sub(t.mul(0.35)), core.S2.mul(2).add(t.mul(0.2))));
         const hot = vec3(1.0, 0.42, 0.08).mul(flow.mul(0.8).add(0.6)).add(vec3(1, 0.85, 0.5).mul(smoothstep(0.7, 1, flow).mul(0.8)));
@@ -396,6 +398,29 @@ export function createDensityRoom1Scene(
         mesh.frustumCulled = false;
         g.add(mesh);
         ours.push(st.geo, st.m);
+      }
+      // the rift's light rising from it like heat: a soft standing veil along its length, so it
+      // reads from where you stand (a crack on the ground is thin at a low angle)
+      {
+        const pos: number[] = [], uvs: number[] = [], idx: number[] = [];
+        for (let i = 0; i <= N; i++) {
+          const q = cps[i], y = sandHeight(q.x, q.z);
+          pos.push(q.x, y, q.z, q.x, y + 3.2, q.z);
+          uvs.push(i / N, 0, i / N, 1);
+          if (i < N) idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2);
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+        geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+        geo.setIndex(idx);
+        const m = keepAlpha(new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
+        const U = uv();
+        const wav = vnoise(vec2(U.x.mul(26), U.y.mul(2).sub(t.mul(0.6)))).mul(0.6).add(0.5);
+        m.colorNode = vec4(vec3(1, 0.45, 0.12).mul(exp(U.y.mul(-3.2))).mul(sin(U.x.mul(Math.PI)).pow(0.7)).mul(wav).mul(uHeat).mul(uOpen).mul(0.42), 1);
+        const mesh = new THREE.Mesh(geo, m);
+        mesh.frustumCulled = false;
+        g.add(mesh);
+        ours.push(geo, m);
       }
       // embers rising out of it while it is hot
       const n = 500;
