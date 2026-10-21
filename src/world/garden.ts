@@ -29,9 +29,13 @@ interface Kept {
   seed: number;
   kind: number;
   stage: number;
+  /** set on top of something built (its height); absent: on the ground */
+  y?: number;
 }
-interface Planted extends Kept {
+interface Planted extends Omit<Kept, "y"> {
   y: number;
+  /** on something built (kept as such) */
+  raised: boolean;
   group: THREE.Group;
   trunk: THREE.Mesh;
   tips: THREE.Vector3[];
@@ -85,18 +89,19 @@ export class Garden {
   private save(): void {
     if (!this.persist) return;
     try {
-      localStorage.setItem(KEY, JSON.stringify(this.trees.map((t) => ({ x: Math.round(t.x * 100) / 100, z: Math.round(t.z * 100) / 100, seed: t.seed, kind: t.kind, stage: t.stage }))));
+      localStorage.setItem(KEY, JSON.stringify(this.trees.map((t) => ({ x: Math.round(t.x * 100) / 100, z: Math.round(t.z * 100) / 100, seed: t.seed, kind: t.kind, stage: t.stage, ...(t.raised ? { y: Math.round(t.y * 100) / 100 } : {}) }))));
     } catch {
       /* full: they still grow this visit */
     }
   }
 
-  /** Plant a seed where a tap fell (not in the water, not on another tree). */
-  plant(x: number, z: number): boolean {
-    if (heightAt(x, z) < 0.15) return false;
-    if (this.trees.some((t) => Math.hypot(t.x - x, t.z - z) < 1.6)) return false;
+  /** Plant a seed where a tap fell (not in the water, not on another tree); `y`: on top of
+      something built. */
+  plant(x: number, z: number, y?: number): boolean {
+    if ((y ?? heightAt(x, z)) < 0.15) return false;
+    if (this.trees.some((t) => Math.hypot(t.x - x, t.z - z) < 1.6 && Math.abs(t.y - (y ?? heightAt(x, z))) < 2)) return false;
     const kind = [0, 1, 2][Math.floor(Math.random() * 3)];
-    this.add({ x, z, seed: Math.floor(Math.random() * 1e6), kind, stage: 0 }, false);
+    this.add({ x, z, seed: Math.floor(Math.random() * 1e6), kind, stage: 0, ...(y !== undefined ? { y: Math.round(y * 100) / 100 } : {}) }, false);
     this.save();
     return true;
   }
@@ -106,11 +111,12 @@ export class Garden {
     const trunk = new THREE.Mesh(tubes([...g.limbs, ...g.roots], -0.2), barkMaterial(new THREE.Color(1, 0.86, 0.6), (k.seed % 997) / 997));
     trunk.castShadow = true;
     const group = new THREE.Group();
-    const y = heightAt(k.x, k.z);
+    const raised = Number.isFinite(k.y);
+    const y = raised ? (k.y as number) : heightAt(k.x, k.z);
     group.position.set(k.x, y, k.z);
     group.add(trunk);
     this.group.add(group);
-    const t: Planted = { ...k, stage: Math.min(4, Math.max(0, k.stage | 0)), y, group, trunk, tips: g.tips, canopy: null, scale: settled ? STAGE[Math.min(4, k.stage | 0)] : 0.001, collider: null };
+    const t: Planted = { x: k.x, z: k.z, seed: k.seed, kind: k.kind, y, raised, stage: Math.min(4, Math.max(0, k.stage | 0)), group, trunk, tips: g.tips, canopy: null, scale: settled ? STAGE[Math.min(4, k.stage | 0)] : 0.001, collider: null };
     trunk.scale.setScalar(Math.max(0.001, t.scale));
     this.trees.push(t);
     if (settled) this.leaves(t);

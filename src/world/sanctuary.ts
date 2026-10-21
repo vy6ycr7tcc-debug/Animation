@@ -634,7 +634,8 @@ export interface SanctuaryHooks {
   /** a quiet line of guidance (a stroke not understood, or not enough essence) */
   say(text: string): void;
   /** plant a seed (world/garden.ts); false where nothing can grow */
-  plant?(x: number, z: number): boolean;
+  /** a seed where a tap fell (`y`: on top of a form, else the ground) */
+  plant?(x: number, z: number, y?: number): boolean;
 }
 
 const STONE_LIGHT = new THREE.Color(0.78, 0.84, 1.0);
@@ -704,7 +705,7 @@ export class Sanctuary {
   private selected: Form | null = null;
   private auras: THREE.Mesh[] = [];
   // the touch drawing, or carrying a form, or two fingers moving the view
-  private draw: { id: number; ground: V2[]; drawn: V2[]; sx: number; sy: number; screen: number; ink: Ink } | null = null;
+  private draw: { id: number; ground: V2[]; drawn: V2[]; sx: number; sy: number; screen: number; ink: Ink; onTop?: number } | null = null;
   private shape: { id: number; form: Form; was: boolean; moved: boolean; sx: number; sy: number; off: V2; snap: boolean } | null = null;
   private fingers = new Map<number, { x: number; y: number }>();
   private view: { a: number; b: number; d0: number; ang0: number; my0: number; mx0: number; yaw0: number; pitch0: number; dist0: number } | null = null;
@@ -1269,10 +1270,17 @@ export class Sanctuary {
       if (o) {
         best = o.userData.form as Form;
         bd = h.distance;
+        this.hitAt.copy(h.point);
       }
     }
     return best;
   }
+  /** The title's view is kept clear of what was built (the forms rest hidden while it shows). */
+  titleClear(on: boolean): void {
+    this.world.visible = !on;
+  }
+  /** where the last `formAt` touched its form */
+  private hitAt = new THREE.Vector3();
 
   /** For Input.capture (with `captureAll` while the screen is open): every touch is building's. */
   readonly capture = {
@@ -1294,6 +1302,17 @@ export class Sanctuary {
         return true;
       }
       const f = this.formAt(e.clientX, e.clientY);
+      if (f && (this.planting || this.armed) && f.s.kind !== "orb") {
+        // a shape chosen (or a seed): it goes on top of what was touched, not choosing it
+        const h = this.hitAt, p: V2 = [h.x, h.z];
+        this.draw = { id: e.pointerId, ground: [p], drawn: [[e.clientX, e.clientY]], sx: e.clientX, sy: e.clientY, screen: 0, ink: this.ink, onTop: Math.max(0, h.y - groundAt(h.x, h.z)) };
+        this.trailFade = 0;
+        this.trail.k.value = 0.9;
+        this.trail.mesh.visible = true;
+        const top = h.y + 0.07;
+        this.trail.set([p], 0, false, () => top);
+        return true;
+      }
       if (f) {
         const was = this.selected === f;
         this.select(f);
@@ -1346,11 +1365,14 @@ export class Sanctuary {
         d.sx = e.clientX;
         d.sy = e.clientY;
         if (d.drawn.length < 500) d.drawn.push([e.clientX, e.clientY]);
-        const p = this.pageAt(e.clientX, e.clientY, true);
+        // on top of a form: along its surface where the finger still touches it
+        const onForm = d.onTop !== undefined && this.formAt(e.clientX, e.clientY) ? ([this.hitAt.x, this.hitAt.z] as V2) : null;
+        const p = onForm ?? this.pageAt(e.clientX, e.clientY, true);
         const last = d.ground[d.ground.length - 1];
         if (p && Math.hypot(p[0] - last[0], p[1] - last[1]) > 0.06 && d.ground.length < 500) {
           d.ground.push(p);
-          this.trail.set(d.ground, 0, false, (x, z) => groundAt(x, z) + 0.07);
+          const up = d.onTop ?? 0;
+          this.trail.set(d.ground, 0, false, (x, z) => groundAt(x, z) + up + 0.07);
         }
         return;
       }
@@ -1379,7 +1401,7 @@ export class Sanctuary {
       if (this.draw && e.pointerId === this.draw.id) {
         const d = this.draw;
         this.draw = null;
-        this.finishStroke(d.ground, d.screen, d.ink, d.drawn);
+        this.finishStroke(d.ground, d.screen, d.ink, d.drawn, d.onTop);
         return;
       }
       if (this.shape && e.pointerId === this.shape.id) {
@@ -1614,7 +1636,7 @@ export class Sanctuary {
     }
   }
   /** A stroke let go: read it, and grow what it is, or let it sink back into the earth. */
-  private finishStroke(ground: V2[], screen: number, ink: Ink, drawn?: V2[]): void {
+  private finishStroke(ground: V2[], screen: number, ink: Ink, drawn?: V2[], onTop = 0): void {
     // a tap on the earth while a form is chosen only puts it down
     if (screen < 16 && this.selected) {
       this.select(null);
@@ -1626,7 +1648,7 @@ export class Sanctuary {
       // a seed, not an orb
       this.trail.mesh.visible = false;
       const [x, z] = ground[ground.length - 1];
-      if (this.hooks.plant(x, z)) {
+      if (this.hooks.plant(x, z, onTop > 0.05 ? groundAt(x, z) + onTop : undefined)) {
         this.hooks.bell(392, 0.018, 3);
         this.hooks.sparks(this.v.set(x, groundAt(x, z) + 0.2, z), 10, new THREE.Color(0.7, 1, 0.6), 0.4);
       } else this.hooks.say("Nothing can grow just there (water, or another tree too near).");
@@ -1664,6 +1686,12 @@ export class Sanctuary {
       const [ax, az] = r.a, [bx, bz] = r.b;
       const l = clampN(Math.hypot(bx - ax, bz - az), 1.2, 9);
       s = { kind: "stairs", ink, l: round(l), w: round(clampN(r.w, 1, 3.2)), h: round(clampN(l * 0.5, 0.6, 3)), x: (ax + bx) / 2, z: (az + bz) / 2, y: 0, rot: Math.atan2(bx - ax, bz - az), cost: 0 };
+    }
+    if (s && onTop > 0.05) {
+      // set on top of what was touched (an orb hangs a little over it)
+      s.y = round(s.kind === "orb" ? onTop + 1 : onTop);
+      s.x = round(s.x);
+      s.z = round(s.z);
     }
     if (s) {
       s.cost = round(Math.max(0.02, costOf(s)));

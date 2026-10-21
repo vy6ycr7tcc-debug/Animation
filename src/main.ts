@@ -340,7 +340,7 @@ const sanct = new Sanctuary(
 /* Trees you plant and grow with your own energy (world/garden.ts): planted from the build screen,
    tended with a hold. */
 const garden = new Garden({ persist: !new URLSearchParams(location.search).has("shot") });
-sanct["hooks"].plant = (x: number, z: number) => garden.plant(x, z);
+sanct["hooks"].plant = (x: number, z: number, y?: number) => garden.plant(x, z, y);
 const grass = new LightGrass();
 const flowers = new Flowers(sparks, audio);
 const lanterns = new Lanterns(sparks);
@@ -5092,6 +5092,11 @@ if (isTv) {
 }
 
 function update(dt: number): void {
+  // the title over the water is kept clear: what you built and planted rests out of its view
+  // (it stands again as the journey begins)
+  const titleView = S.mode === "intro" || S.mode === "rest";
+  sanct.titleClear(titleView);
+  garden.group.visible = !titleView;
   S.t += dt;
   const t = S.t;
   input.poll();
