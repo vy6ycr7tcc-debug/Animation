@@ -753,6 +753,52 @@ export class AudioEngine {
     this.surfBus.gain.setTargetAtTime(k * 0.07, c.currentTime, 0.8);
   }
 
+  private windBus: GainNode | null = null;
+  /** A soothing wind (0–1), for the meditation's dark: breathy noise in two bands, gusting slowly
+      (two slow waves that never line up), its colour drifting; a faint high sigh over it. Kept
+      above the phone's lost low end. */
+  wind(k: number): void {
+    if (!this.ctx) return;
+    const c = this.ctx;
+    if (!this.windBus) {
+      if (k < 0.01) return;
+      this.windBus = c.createGain();
+      this.windBus.gain.value = 0;
+      this.windBus.connect(this.bed);
+      const lfo = (hz: number, depth: number, to: AudioParam) => {
+        const o = c.createOscillator(), g = c.createGain();
+        o.frequency.value = hz;
+        g.gain.value = depth;
+        o.connect(g).connect(to);
+        o.start();
+      };
+      const layer = (f: number, q: number, level: number, gust: [number, number], drift: number) => {
+        const s = c.createBufferSource();
+        s.buffer = this.noise;
+        s.loop = true;
+        s.playbackRate.value = 0.9 + Math.random() * 0.2;
+        const hp = c.createBiquadFilter();
+        hp.type = "highpass";
+        hp.frequency.value = 210;
+        const bp = c.createBiquadFilter();
+        bp.type = "bandpass";
+        bp.frequency.value = f;
+        bp.Q.value = q;
+        const g = c.createGain();
+        g.gain.value = level;
+        lfo(gust[0], level * 0.55, g.gain);
+        lfo(gust[1], level * 0.3, g.gain);
+        lfo(gust[0] * 0.7, drift, bp.frequency);
+        s.connect(hp).connect(bp).connect(g).connect(this.windBus!);
+        s.start(c.currentTime, Math.random() * 2);
+      };
+      layer(520, 0.6, 0.5, [0.071, 0.029], 220); // the body of it
+      layer(1150, 1.4, 0.16, [0.053, 0.019], 360); // its breath through leaves
+      layer(1700, 7, 0.035, [0.043, 0.023], 260); // a faint high sigh
+    }
+    this.windBus.gain.setTargetAtTime(k * 0.11, c.currentTime, k > 0 ? 1.6 : 1.1);
+  }
+
   /** A footstep on stone: the soft slap of a bare sole and the hall answering. */
   stepStone(): void {
     if (!this.ctx) return;
