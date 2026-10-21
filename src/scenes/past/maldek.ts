@@ -105,42 +105,79 @@ export function createMaldekScene(scene: THREE.Scene, narration: Narration, whis
 
       /* ---------------- the terrace: marble flags, a rock beneath, balustrade, columns ---------------- */
       {
-        // a plain of moon dust: cratered regolith, no paving, no stone dressed by hand
-        const top = new THREE.CylinderGeometry(TERR_R + 0.5, TERR_R + 1.4, 1.8, 96, 1);
-        top.translate(TERR.x, -0.9, TERR.z);
+        // a plain of moon dust, the real thing: Poly Haven's scanned lunar regolith (moon_01) for
+        // its grain, light and relief, laid over craters cut into the mesh itself, so their rims
+        // stand up into the light and throw shadows, and the near edge breaks the skyline.
+        const RINGS = 96, SEGS = 220, RR = TERR_R + 0.5;
+        const craters: [number, number, number][] = [];
+        for (let i = 0; i < 70; i++) {
+          // sizes as on the moon: many small, few large (a power law)
+          const r = 0.18 + Math.pow(R(), 3.2) * 2.6;
+          const a = R() * Math.PI * 2, d = Math.sqrt(R()) * (RR - 0.6);
+          craters.push([TERR.x + Math.sin(a) * d, TERR.z + Math.cos(a) * d, r]);
+        }
+        const height = (x: number, z: number) => {
+          let h = (vnoiseJs(x * 0.35, z * 0.35) - 0.5) * 0.22 + (vnoiseJs(x * 1.3 + 7, z * 1.3) - 0.5) * 0.06;
+          for (const [cx, cz, r] of craters) {
+            const q = Math.hypot(x - cx, z - cz) / r;
+            if (q > 1.6) continue;
+            const wob = 1 + (vnoiseJs(x * 2.1 + cx, z * 2.1 + cz) - 0.5) * 0.3;
+            if (q < 1) h -= r * 0.24 * (1 - q * q) * wob; // the bowl
+            const rim = Math.max(0, 1 - Math.abs(q - 1.02) / 0.42);
+            h += r * 0.09 * rim * rim * wob; // the raised rim, thrown-out stone
+          }
+          // the seat and the way to the door stay walkable
+          const seat = Math.hypot(x, z), door = Math.hypot(x - MALDEK_DOOR.x, z - MALDEK_DOOR.z);
+          return h * Math.min(1, Math.max(0, (seat - 1.4) / 2.2)) * Math.min(1, Math.max(0, (door - 1.6) / 2.4));
+        };
+        const pos: number[] = [], idx: number[] = [];
+        pos.push(TERR.x, height(TERR.x, TERR.z), TERR.z);
+        for (let ri = 1; ri <= RINGS; ri++) {
+          const rr = (ri / RINGS) * RR;
+          for (let si = 0; si < SEGS; si++) {
+            const a = (si / SEGS) * Math.PI * 2;
+            const x = TERR.x + Math.sin(a) * rr, z = TERR.z + Math.cos(a) * rr;
+            const edge = Math.max(0, (rr - (RR - 0.9)) / 0.9); // the lip rounds over into the rock
+            pos.push(x, height(x, z) - edge * edge * 0.5, z);
+          }
+        }
+        for (let si = 0; si < SEGS; si++) idx.push(0, 1 + si, 1 + ((si + 1) % SEGS));
+        for (let ri = 1; ri < RINGS; ri++) {
+          const o = 1 + (ri - 1) * SEGS, n2 = o + SEGS;
+          for (let si = 0; si < SEGS; si++) {
+            const a0 = o + si, a1 = o + ((si + 1) % SEGS), b0 = n2 + si, b1 = n2 + ((si + 1) % SEGS);
+            idx.push(a0, b0, b1, a0, b1, a1);
+          }
+        }
+        const top = new THREE.BufferGeometry();
+        top.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+        top.setIndex(idx);
+        top.computeVertexNormals();
+        // the lip down to the rock beneath
+        const side = new THREE.CylinderGeometry(RR, TERR_R + 1.4, 1.4, SEGS, 1, true);
+        side.translate(TERR.x, -1.2, TERR.z);
         const fm = new THREE.MeshStandardNodeMaterial({ roughness: 1, metalness: 0 });
         {
           const p = roomPos.xz;
-          // craters: bowl and raised rim, two sizes, each cell with its own centre and radius
-          const crater = (q0: N, sc: number, seed: number) => {
-            // the edge is torn by noise so no bowl is a true circle, and the rim breaks into lumps
-            const q = q0.add(vec2(fbmN(q0.mul(0.9).add(seed)), fbmN(q0.mul(0.9).add(seed + 9))).sub(0.5).mul(sc * 0.55));
-            const g = q.div(sc), c = T.floor(g), f = T.fract(g);
-            const j = vec2(hash3(vec3(c, seed)), hash3(vec3(c, seed + 7))).mul(0.5).add(0.25);
-            const rad = hash3(vec3(c, seed + 13)).mul(0.22).add(0.18);
-            const on = T.step(0.45, hash3(vec3(c, seed + 3)));
-            const d = length(f.sub(j)).div(rad);
-            const bowl = smoothstep(1, 0, d).mul(-1);
-            const rim = smoothstep(0.75, 1.0, d).mul(smoothstep(1.35, 1.0, d)).mul(fbmN(q0.mul(2.3)).mul(0.9).add(0.35));
-            return bowl.mul(0.9).add(rim.mul(0.5)).mul(on).mul(rad.mul(2));
-          };
-          const H = (q: N) => crater(q, 11, 41).mul(1.6).add(crater(q, 3.6, 1)).add(crater(q.mul(1.9).add(5), 3.6, 21).mul(0.5)).add(crater(q.mul(5.3).add(2), 3.6, 61).mul(0.3)).add(crater(q.mul(11).add(7), 3.6, 83).mul(0.16)).add(crater(q.mul(23).add(3), 3.6, 97).mul(0.08)).add(fbmN(q.mul(0.9)).sub(0.5).mul(0.25)).add(fbmN(q.mul(2.7).add(4)).sub(0.5).mul(0.2));
-          const scan = scannedGround("rock", 1.7, { hue: 0, relief: 0.8, bright: 1.25 });
-          const e = 0.08;
-          const h0 = H(p), hx = H(p.add(vec2(e, 0))), hz = H(p.add(vec2(0, e)));
-          const dust = fbmN(p.mul(0.35).add(2)), grit = fbmN(p.mul(6));
-          const base = mix(vec3(0.17, 0.155, 0.145), vec3(0.34, 0.31, 0.28), dust).mul(grit.mul(0.35).add(0.8));
-          fm.colorNode = base.mul(mix(vec3(1), scan.color, 0.3)).mul(max(h0.mul(0.9).add(1), 0.25)).mul(smoothstep(-0.25, 0.3, h0).mul(0.6).add(0.4));
-          const slope = vec3(h0.sub(hx), 0, h0.sub(hz)).mul(11 / e * 0.1);
-          fm.normalNode = T.normalize(T.normalView.add(T.cameraViewMatrix.mul(vec4(slope, 0)).xyz));
+          const scan = scannedGround("moon", 3.1, { hue: 0.15, relief: 1.6, bright: 1.15 });
+          // the tone: a darker grey dust with paler ejecta patches, and the crater floors in shade
+          const dust = fbmN(p.mul(0.22).add(2)), fleck = fbmN(p.mul(1.7).add(9));
+          const base = mix(vec3(0.22, 0.22, 0.23), vec3(0.38, 0.375, 0.38), smoothstep(0.3, 0.75, dust)).mul(fleck.mul(0.25).add(0.88));
+          const sink = smoothstep(0.02, -0.35, T.positionGeometry.y); // deeper in a bowl, darker
+          fm.colorNode = base.mul(scan.color).mul(float(1).sub(sink.mul(0.35)));
+          fm.normalNode = scan.normal;
           const c1 = abs(fbmN(p.mul(0.55).add(3.1)).sub(0.5)), c2 = abs(fbmN(p.mul(1.4).add(8.7)).sub(0.5));
           const crack = smoothstep(0.03, 0.0, c1).add(smoothstep(0.022, 0.0, c2).mul(0.6));
           const d = length(p.sub(vec2(0, -12.5)));
           const reach = smoothstep(u.front.mul(17), u.front.mul(17).sub(3), d);
           fm.emissiveNode = vec3(1, 0.22, 0.06).mul(crack).mul(reach).mul(u.burn).mul(1.4);
         }
+        const sideMesh = new THREE.Mesh(side, fm);
+        sideMesh.receiveShadow = true;
+        g.add(sideMesh);
+        ours.push(side);
         const floor = new THREE.Mesh(top, fm);
-        floor.receiveShadow = true;
+        floor.receiveShadow = floor.castShadow = true;
         g.add(floor);
         ours.push(top, fm);
         // the rock the terrace stands on, falling away into the cloud
@@ -172,15 +209,21 @@ export function createMaldekScene(scene: THREE.Scene, narration: Narration, whis
         ours.push(jmesh.geometry, jm);
         // a few loose stones on the flags
         const stones: THREE.BufferGeometry[] = [];
-        for (let i = 0; i < 9; i++) {
-          const a = R() * Math.PI * 2, r = 4 + R() * 5;
-          const b = boulderGeometry(0.12 + R() * 0.2, i);
-          b.translate(TERR.x + Math.sin(a) * r, 0.05, TERR.z + Math.cos(a) * r);
+        // ejecta: stones thrown out by the impacts, half sunk in the dust, most near the rims
+        for (let i = 0; i < 34; i++) {
+          const c = craters[Math.floor(R() * craters.length)];
+          const a = R() * Math.PI * 2, r = c[2] * (1 + R() * 1.4);
+          const x = c[0] + Math.sin(a) * r, z = c[1] + Math.cos(a) * r;
+          if (Math.hypot(x, z) < 2.2 || Math.hypot(x - TERR.x, z - TERR.z) > RR - 0.8) continue;
+          const sz = 0.06 + Math.pow(R(), 2.5) * 0.45;
+          const b = boulderGeometry(sz, i);
+          b.translate(x, height(x, z) - sz * 0.35, z);
           stones.push(b);
         }
-        const sm = landStone("sandstone_cracks", 0, 0.8, [0.6, 0.58, 0.62]);
-        g.add(new THREE.Mesh(merge(stones), sm));
-        ours.push(sm);
+        const sMesh = new THREE.Mesh(merge(stones), fm); // the same regolith, so they belong to it
+        sMesh.castShadow = sMesh.receiveShadow = true;
+        g.add(sMesh);
+        ours.push(sMesh.geometry);
         // the far sun's light on the terrace, and a low cold fill
         const sun = new THREE.DirectionalLight(0xffe0c0, 1.4);
         sun.position.copy(SUN).multiplyScalar(60);
