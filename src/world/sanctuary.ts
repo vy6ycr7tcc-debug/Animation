@@ -106,8 +106,11 @@ export interface SavedForm {
   /** built on the water or in the air: the height it stands at (its own level, not the land's);
       it lies flat there and keeps that height wherever it is carried */
   ab?: number;
-  /** a foundation's shape: a flat disc, or a sphere with a flat top */
+  /** a foundation's shape: a flat disc, or a whole planet */
   sh?: "sphere";
+  /** built on a planet: the way up there (a unit direction from its centre), the planet's centre
+      and its radius, [nx, ny, nz, cx, cy, cz, R]; the form stands on that point, upright to it */
+  pl?: number[];
 }
 interface Saved {
   v: 3;
@@ -151,6 +154,47 @@ const clampN = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
     brought in (the owner: "gold is not recorded when saving memories or importing"). */
 function forges(n: HeartNote): boolean {
   return !!n;
+}
+
+
+/* ---------------- a planet: building across a sphere ---------------- */
+const Y_UP = new THREE.Vector3(0, 1, 0);
+/** The tangent axes at a direction n on a planet: local x along e1, up along n, z along e2. */
+function tangentBasis(n: THREE.Vector3, e1: THREE.Vector3, e2: THREE.Vector3): void {
+  if (Math.abs(n.y) > 0.999) e1.set(1, 0, 0);
+  else e1.crossVectors(Y_UP, n).normalize();
+  e2.crossVectors(e1, n);
+}
+/** Where direction d lies on the tangent plane at n (arc length from n along the surface). */
+function tangentOf(n: THREE.Vector3, d: THREE.Vector3, R: number): V2 {
+  const e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
+  tangentBasis(n, e1, e2);
+  const c = clampN(n.dot(d), -1, 1), th = Math.acos(c);
+  if (th < 1e-6) return [0, 0];
+  const dir = new THREE.Vector3().copy(d).addScaledVector(n, -c).normalize();
+  return [dir.dot(e1) * th * R, dir.dot(e2) * th * R];
+}
+/** The direction reached by going (x, z) of arc length from n over the surface. */
+function fromTangent(n: THREE.Vector3, x: number, z: number, R: number): THREE.Vector3 {
+  const e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
+  tangentBasis(n, e1, e2);
+  const dd = Math.hypot(x, z);
+  if (dd < 1e-6) return n.clone();
+  const th = Math.min(Math.PI, dd / R), dir = e1.multiplyScalar(x / dd).addScaledVector(e2, z / dd);
+  return n.clone().multiplyScalar(Math.cos(th)).addScaledVector(dir, Math.sin(th)).normalize();
+}
+/** How far the planet's surface falls away from the tangent plane at a point (x, z) from it. */
+function sphereDrop(R: number, x: number, z: number): number {
+  return R * (Math.cos(Math.min(Math.PI, Math.hypot(x, z) / R)) - 1);
+}
+/** Where a ray first meets a sphere; or, missing it, the point of the sphere nearest the ray. */
+function rayOnSphere(o: THREE.Vector3, d: THREE.Vector3, C: THREE.Vector3, R: number, out: THREE.Vector3): boolean {
+  const mx = o.x - C.x, my = o.y - C.y, mz = o.z - C.z;
+  const b = mx * d.x + my * d.y + mz * d.z, c = mx * mx + my * my + mz * mz - R * R, disc = b * b - c;
+  const hit = disc >= 0 && -b - Math.sqrt(disc) > 0;
+  const t = hit ? -b - Math.sqrt(disc) : Math.max(0, -b);
+  out.set(o.x + d.x * t - C.x, o.y + d.y * t - C.y, o.z + d.z * t - C.z).normalize();
+  return hit;
 }
 
 /** The earth a form stands on. */
@@ -723,7 +767,7 @@ export class Sanctuary {
   private selected: Form | null = null;
   private auras: THREE.Mesh[] = [];
   // the touch drawing, or carrying a form, or two fingers moving the view
-  private draw: { id: number; ground: V2[]; drawn: V2[]; sx: number; sy: number; screen: number; ink: Ink; onTop?: number } | null = null;
+  private draw: { id: number; ground: V2[]; drawn: V2[]; sx: number; sy: number; screen: number; ink: Ink; onTop?: number; pl?: { C: THREE.Vector3; R: number; n0: THREE.Vector3; dirs: THREE.Vector3[] } } | null = null;
   private shape: { id: number; form: Form; was: boolean; moved: boolean; sx: number; sy: number; off: V2; snap: boolean } | null = null;
   private fingers = new Map<number, { x: number; y: number }>();
   private view: { a: number; b: number; d0: number; ang0: number; my0: number; mx0: number; yaw0: number; pitch0: number; dist0: number } | null = null;
@@ -740,6 +784,9 @@ export class Sanctuary {
   private q = new THREE.Quaternion();
   private v = new THREE.Vector3();
   private hits: THREE.Intersection[] = [];
+  private pe1 = new THREE.Vector3();
+  private pe2 = new THREE.Vector3();
+  private pm = new THREE.Matrix4();
   private ui: HTMLElement;
   private forming: Forming;
   private camera: THREE.Camera | null = null;
@@ -1108,7 +1155,7 @@ export class Sanctuary {
       const fc = this.ui.querySelector(".chip.found") as HTMLElement, fh = this.foundationHere();
       fc.hidden = !fh;
       const sphere = fh?.s.sh === "sphere";
-      (fc.querySelector("b") as HTMLElement).textContent = sphere ? "Sphere" : "Disc";
+      (fc.querySelector("b") as HTMLElement).textContent = sphere ? "Planet" : "Disc";
       fc.classList.toggle("sphere", sphere);
     }
     for (const c of this.ui.querySelectorAll<HTMLElement>(".b-shapes .chip[data-k]")) c.classList.toggle("on", this.armed === c.dataset.k);
@@ -1310,6 +1357,26 @@ export class Sanctuary {
     if (lv === null) return null;
     return this.live().find((f) => f.s.kind === "base" && Math.hypot(f.s.x - this.plot.x, f.s.z - this.plot.z) < PLOT_R && Math.abs((f.s.ab ?? 0) + f.s.y - lv) < 1.5) ?? null;
   }
+  /** The planet under the page, if the foundation here is one: its centre and radius. */
+  private planetHere(): { C: THREE.Vector3; R: number } | null {
+    const f = this.foundationHere();
+    if (!f || f.s.sh !== "sphere") return null;
+    const R = (f.s.r ?? 5.6) * (f.s.sc ?? 1) * 1.6;
+    return { C: new THREE.Vector3(f.s.x, (f.s.ab ?? 0) + f.s.y - R, f.s.z), R };
+  }
+  /** A stroke's trail over a planet stands in the tangent frame where it began; over the land, none. */
+  private trailFrame(at: { C: THREE.Vector3; R: number; n: THREE.Vector3 } | null): void {
+    const m = this.trail.mesh;
+    if (!at) {
+      m.position.set(0, 0, 0);
+      m.quaternion.identity();
+      return;
+    }
+    const e1 = new THREE.Vector3(), e2 = new THREE.Vector3(), mx = new THREE.Matrix4();
+    tangentBasis(at.n, e1, e2);
+    m.position.copy(at.C).addScaledVector(at.n, at.R);
+    m.quaternion.setFromRotationMatrix(mx.makeBasis(e1, at.n, e2));
+  }
   private foundation(): void {
     if (this.foundationHere()) return;
     const s: SavedForm = { kind: "base", ink: "stone", r: 5.6, x: round(this.plot.x), z: round(this.plot.z), y: 0, ab: round(this.level!), rot: 0, cost: 0 };
@@ -1323,7 +1390,13 @@ export class Sanctuary {
     if (!f) return;
     this.remember();
     f.s.sh = f.s.sh === "sphere" ? undefined : "sphere";
+    // forms built on the planet are left standing where they were; turning it back to a disc takes them
+    if (!f.s.sh) for (const o of this.live()) if (o.s.pl && Math.hypot(o.s.pl[3] - f.s.x, o.s.pl[5] - f.s.z) < 1) this.release(o);
     this.rebuild(f);
+    if (f.s.sh) {
+      this.orbit.distT = Math.max(this.orbit.distT, (f.s.r ?? 5.6) * (f.s.sc ?? 1) * 1.6 * 2.7);
+      this.hooks.say("A planet: draw on it anywhere round its curve. Two fingers turn it to see the other side.");
+    }
     this.hooks.bell(f.s.sh ? 523.25 : 392, 0.016, 2);
     this.save();
     this.drawUi();
@@ -1355,9 +1428,25 @@ export class Sanctuary {
         return true;
       }
       const f = this.formAt(e.clientX, e.clientY);
+      const planet = this.planetHere();
+      if (planet && (!f || this.planting || this.armed)) {
+        // a planet under the page: a stroke begins where the finger meets the ball (or, past its
+        // edge, nothing: the touch is the view's)
+        this.rayAt(e.clientX, e.clientY);
+        const n0 = new THREE.Vector3();
+        if (!rayOnSphere(this.ray.ray.origin, this.ray.ray.direction, planet.C, planet.R, n0)) return true;
+        this.draw = { id: e.pointerId, ground: [[0, 0]], drawn: [[e.clientX, e.clientY]], sx: e.clientX, sy: e.clientY, screen: 0, ink: this.ink, pl: { C: planet.C, R: planet.R, n0, dirs: [n0.clone()] } };
+        this.trailFade = 0;
+        this.trail.k.value = 0.9;
+        this.trail.mesh.visible = true;
+        this.trailFrame({ C: planet.C, R: planet.R, n: n0 });
+        this.trail.set([[0, 0]], 0, false, () => 0.07);
+        return true;
+      }
       if (f && (this.planting || this.armed) && f.s.kind !== "orb") {
         // a shape chosen (or a seed): it goes on top of what was touched, not choosing it
         const h = this.hitAt, p: V2 = [h.x, h.z];
+        this.trailFrame(null);
         this.draw = { id: e.pointerId, ground: [p], drawn: [[e.clientX, e.clientY]], sx: e.clientX, sy: e.clientY, screen: 0, ink: this.ink, onTop: Math.max(0, h.y - groundAt(h.x, h.z)) };
         this.trailFade = 0;
         this.trail.k.value = 0.9;
@@ -1376,6 +1465,7 @@ export class Sanctuary {
       const p = this.pageAt(e.clientX, e.clientY);
       if (!p) return true; // off the page: nothing (it is still building's touch)
       // a touch on the earth: the brush
+      this.trailFrame(null);
       this.draw = { id: e.pointerId, ground: [p], drawn: [[e.clientX, e.clientY]], sx: e.clientX, sy: e.clientY, screen: 0, ink: this.ink };
       this.trailFade = 0;
       this.trail.k.value = 0.9;
@@ -1418,6 +1508,20 @@ export class Sanctuary {
         d.sx = e.clientX;
         d.sy = e.clientY;
         if (d.drawn.length < 500) d.drawn.push([e.clientX, e.clientY]);
+        if (d.pl) {
+          // over the planet: the finger's point on the ball, as arc length from where it began
+          this.rayAt(e.clientX, e.clientY);
+          const dir = new THREE.Vector3();
+          rayOnSphere(this.ray.ray.origin, this.ray.ray.direction, d.pl.C, d.pl.R, dir);
+          const q = tangentOf(d.pl.n0, dir, d.pl.R), last = d.ground[d.ground.length - 1];
+          if (Math.hypot(q[0] - last[0], q[1] - last[1]) > 0.06 && d.ground.length < 500) {
+            d.ground.push(q);
+            d.pl.dirs.push(dir);
+            const R = d.pl.R;
+            this.trail.set(d.ground, 0, false, (x, z) => sphereDrop(R, x, z) + 0.07);
+          }
+          return;
+        }
         // on top of a form: along its surface where the finger still touches it
         const onForm = d.onTop !== undefined && this.formAt(e.clientX, e.clientY) ? ([this.hitAt.x, this.hitAt.z] as V2) : null;
         const p = onForm ?? this.pageAt(e.clientX, e.clientY, true);
@@ -1430,7 +1534,7 @@ export class Sanctuary {
         return;
       }
       if (this.shape && e.pointerId === this.shape.id) {
-        if (Math.hypot(e.clientX - this.shape.sx, e.clientY - this.shape.sy) > 9) this.shape.moved = true;
+        if (Math.hypot(e.clientX - this.shape.sx, e.clientY - this.shape.sy) > 9 && !this.shape.form.s.pl) this.shape.moved = true; // (forms on a planet stay where they were drawn)
         if (!this.shape.moved) return;
         if (!this.shape.snap) {
           this.shape.snap = true;
@@ -1454,7 +1558,8 @@ export class Sanctuary {
       if (this.draw && e.pointerId === this.draw.id) {
         const d = this.draw;
         this.draw = null;
-        this.finishStroke(d.ground, d.screen, d.ink, d.drawn, d.onTop);
+        if (d.pl) this.finishPlanetStroke(d);
+        else this.finishStroke(d.ground, d.screen, d.ink, d.drawn, d.onTop);
         return;
       }
       if (this.shape && e.pointerId === this.shape.id) {
@@ -1539,8 +1644,18 @@ export class Sanctuary {
     if (t === "copy") {
       const c: SavedForm = JSON.parse(JSON.stringify(s));
       const off = 1.4 + (s.kind === "ring" ? (s.r ?? 1.5) * (s.sc ?? 1) * 2 : s.kind === "arch" || s.kind === "pyramid" ? (s.w ?? 2) * (s.sc ?? 1) : 0.6);
-      c.x += Math.cos(s.rot) * off;
-      c.z -= Math.sin(s.rot) * off;
+      if (s.pl) {
+        // on a planet: along the surface, the way the form faces
+        const R = s.pl[6], n = fromTangent(new THREE.Vector3(s.pl[0], s.pl[1], s.pl[2]), Math.cos(s.rot) * off, -Math.sin(s.rot) * off, R);
+        const P = new THREE.Vector3(s.pl[3], s.pl[4], s.pl[5]).addScaledVector(n, R);
+        c.pl = [round(n.x), round(n.y), round(n.z), s.pl[3], s.pl[4], s.pl[5], R];
+        c.x = round(P.x);
+        c.z = round(P.z);
+        c.ab = round(P.y);
+      } else {
+        c.x += Math.cos(s.rot) * off;
+        c.z -= Math.sin(s.rot) * off;
+      }
       c.cost = round(costOf(c));
       if (c.cost > this.have(s.ink) + 1e-6) return this.notEnough(s.ink, "for a copy");
       this.remember();
@@ -1691,7 +1806,18 @@ export class Sanctuary {
     }
   }
   /** A stroke let go: read it, and grow what it is, or let it sink back into the earth. */
-  private finishStroke(ground: V2[], screen: number, ink: Ink, drawn?: V2[], onTop = 0): void {
+  /** A stroke drawn over a planet: read in the tangent plane at its own middle, and the form
+      stood there upright to the ball. */
+  private finishPlanetStroke(d: NonNullable<Sanctuary["draw"]>): void {
+    const pl = d.pl!;
+    const n = new THREE.Vector3();
+    for (const v of pl.dirs) n.add(v);
+    if (n.lengthSq() < 1e-6) n.copy(pl.n0);
+    n.normalize();
+    const ground = pl.dirs.map((v) => tangentOf(n, v, pl.R));
+    this.finishStroke(ground, d.screen, d.ink, d.drawn, 0, { C: pl.C, R: pl.R, n });
+  }
+  private finishStroke(ground: V2[], screen: number, ink: Ink, drawn?: V2[], onTop = 0, pl?: { C: THREE.Vector3; R: number; n: THREE.Vector3 }): void {
     // a tap on the earth while a form is chosen only puts it down
     if (screen < 16 && this.selected) {
       this.select(null);
@@ -1703,6 +1829,11 @@ export class Sanctuary {
     if (!this.armed && r?.kind === "wall") {
       this.trail.mesh.visible = false;
       this.hooks.say("Choose Wall below to build one. A stray line builds nothing.");
+      return;
+    }
+    if (pl && this.planting) {
+      this.trail.mesh.visible = false;
+      this.hooks.say("Seeds grow in the earth, not in a planet's stone.");
       return;
     }
     if (this.planting && r?.kind === "dot" && this.hooks.plant) {
@@ -1762,7 +1893,16 @@ export class Sanctuary {
       const l = clampN(Math.hypot(bx - ax, bz - az), 1.2, 9);
       s = { kind: "stairs", ink, l: round(l), w: round(clampN(r.w, 1, 3.2)), h: round(clampN(l * 0.5, 0.6, 3)), x: (ax + bx) / 2, z: (az + bz) / 2, y: 0, rot: Math.atan2(bx - ax, bz - az), cost: 0 };
     }
-    if (s && this.level !== null) {
+    if (s && pl) {
+      // on the planet: anchored where the form's own middle falls on the ball, upright to it
+      const n2 = fromTangent(pl.n, s.x, s.z, pl.R);
+      const P = pl.C.clone().addScaledVector(n2, pl.R);
+      s.pl = [round(n2.x), round(n2.y), round(n2.z), round(pl.C.x), round(pl.C.y), round(pl.C.z), round(pl.R)];
+      s.x = round(P.x);
+      s.z = round(P.z);
+      s.ab = round(P.y);
+      s.y = s.kind === "orb" ? 1.6 : 0;
+    } else if (s && this.level !== null) {
       // on the page's own level (the foundation's top), or on top of a form standing there
       const [hx, hz] = ground[ground.length - 1];
       const up = onTop > 0.05 ? Math.max(0, groundAt(hx, hz) + onTop - this.level) : 0;
@@ -1799,7 +1939,7 @@ export class Sanctuary {
     const f = this.addForm(s, false);
     this.select(null);
     this.hooks.bell(s.kind === "orb" ? 659.25 : ink === "gold" ? 523.25 : 293.66, 0.02, 3.4);
-    this.v.set(f.s.x, f.base + 0.3, f.s.z);
+    this.v.set(f.s.x, (f.s.ab ?? f.base) + 0.3, f.s.z);
     this.hooks.sparks(this.v, 8, ink === "gold" ? GOLD_LIGHT : STONE_LIGHT, 0.8);
     this.save();
     this.drawUi();
@@ -1807,6 +1947,10 @@ export class Sanctuary {
 
   /** The height of the land under a point of a form's own frame, over the earth at its origin. */
   private layOf(s: SavedForm, base: number): Lay {
+    if (s.pl) {
+      const R = s.pl[6]; // on a planet: the surface falls away round the form's own foot
+      return (lx, lz) => sphereDrop(R, lx, lz);
+    }
     if (s.ab !== undefined) return () => 0; // on its own level: flat
     const c = Math.cos(s.rot), sn = Math.sin(s.rot);
     return (lx, lz) => groundAt(s.x + lx * c + lz * sn, s.z - lx * sn + lz * c) - base;
@@ -1884,11 +2028,15 @@ export class Sanctuary {
       // the ground to build on over the water or in the air: its top at the form's own level
       const R = (s.r ?? 5.6) * sc;
       if (s.sh === "sphere") {
-        const Rs = R * 1.12, c = 0.42, cut = Math.acos(c);
-        const ball = new THREE.SphereGeometry(Rs, 56, 36, 0, Math.PI * 2, cut, Math.PI - cut).translate(0, -Rs * c, 0);
-        const top = new THREE.CircleGeometry(Rs * Math.sqrt(1 - c * c), 56).rotateX(-Math.PI / 2);
-        mesh(ball, mat);
-        mesh(top, paving);
+        // a planet: a whole ball, its top at the form's level, built on all the way round
+        const Rs = R * 1.6;
+        mesh(new THREE.SphereGeometry(Rs, 72, 48).translate(0, -Rs, 0), mat);
+        half = Rs;
+        H = 0;
+        f.line = [[0, 0]];
+        f.half = half;
+        f.H = H;
+        return;
       } else {
         mesh(new THREE.CylinderGeometry(R, R * 0.86, 0.8, 64).translate(0, -0.4, 0), paving);
         // beneath, a rough taper of stone: a floating island
@@ -2185,7 +2333,9 @@ export class Sanctuary {
     o.yaw += dy * e;
     o.pitch += (o.pitchT - o.pitch) * e;
     o.dist += (o.distT - o.dist) * e;
-    this.aim.set(this.plot.x, this.plot.y + 0.8, this.plot.z);
+    const pn = this.level !== null && o.on ? this.planetHere() : null;
+    if (pn) this.aim.copy(pn.C).y += pn.R * 0.8;
+    else this.aim.set(this.plot.x, this.plot.y + 0.8, this.plot.z);
     const cp = Math.cos(o.pitch);
     this.eye.set(this.aim.x + Math.sin(o.yaw) * cp * o.dist, this.aim.y + Math.sin(o.pitch) * o.dist, this.aim.z + Math.cos(o.yaw) * cp * o.dist);
     // never under the land
@@ -2210,7 +2360,7 @@ export class Sanctuary {
     const pu = this.page.material.uniforms;
     pu.uK.value += ((this.building ? 1 : 0) - pu.uK.value) * Math.min(1, dt * 1.2);
     pu.uT.value = t;
-    this.page.visible = pu.uK.value > 0.004;
+    this.page.visible = pu.uK.value > 0.004 && !(this.level !== null && this.foundationHere()?.s.sh === "sphere");
     this.mats.orbHalo.stone.uniforms.uT.value = t;
     this.mats.orbHalo.gold.uniforms.uT.value = t;
     // a stroke not taken sinks back into the earth
@@ -2221,7 +2371,7 @@ export class Sanctuary {
     }
     this.baseK += ((this.selected ? 1 : 0) - this.baseK) * Math.min(1, dt * 3);
     this.base.k.value = this.baseK * (0.5 + 0.12 * Math.sin(t * 1.6));
-    this.base.mesh.visible = this.baseK > 0.01;
+    this.base.mesh.visible = this.baseK > 0.01 && !this.selected?.s.pl;
     // the seam glows while its form moves through the earth, most at the middle of the way
     {
       const f = this.seamOf;
@@ -2262,8 +2412,20 @@ export class Sanctuary {
         f.base += ((f.s.ab ?? groundAt(px, pz)) - f.base) * k;
       }
       f.lift += (f.s.y - f.lift) * k;
+      if (f.s.pl) {
+        // on a planet: at its point on the ball, upright to it
+        const [nx, ny, nz, cx, cy, cz, R] = f.s.pl;
+        this.v.set(nx, ny, nz);
+        const e1 = this.pe1, e2 = this.pe2;
+        tangentBasis(this.v, e1, e2);
+        const lift = f.lift + (f.s.kind === "orb" ? Math.sin(t * 0.6 + nx * 3) * 0.06 : 0);
+        f.group.position.set(cx + nx * (R + lift), cy + ny * (R + lift), cz + nz * (R + lift));
+        f.group.quaternion.setFromRotationMatrix(this.pm.makeBasis(e1, this.v, e2));
+        f.body.rotation.y += (f.s.rot - f.body.rotation.y) * k;
+      } else {
       f.group.position.set(px, f.base + f.lift + (f.s.kind === "orb" ? Math.sin(t * 0.6 + f.s.x * 3) * 0.06 : 0), pz);
       f.group.rotation.y += (f.s.rot - f.group.rotation.y) * k;
+      }
       if (f.s.kind === "orb") {
         // the halo turned to the view
         f.group.updateMatrixWorld();
