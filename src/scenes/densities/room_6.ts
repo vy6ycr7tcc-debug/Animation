@@ -263,7 +263,7 @@ export function createDensityRoom6Scene(
       // in the ring's plane (tilted like it), sinking a little as they near
       const x = cos(a).mul(r), z = sin(a).mul(r);
       const tilt = 0.28;
-      const pos = vec3(x, z.mul(-Math.sin(tilt)).add(sin(K.z.mul(40)).mul(float(1).sub(life)).mul(2)), z.mul(Math.cos(tilt)));
+      const pos = vec3(x, z.mul(-Math.sin(tilt)).add(K.z.sub(0.5).mul(4).mul(float(1).sub(life))), z.mul(Math.cos(tilt)));
       s.material.positionNode = c.add(pos);
       // and as they near the horizon they redden and dim: the last light of each before it is one
       const near = smoothstep(0.62, 0.97, life0);

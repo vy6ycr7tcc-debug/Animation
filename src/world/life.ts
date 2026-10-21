@@ -6,7 +6,7 @@
    (The butterflies, the gliders and the flying spirits are gone.) */
 import * as THREE from "three/webgpu";
 import type { AudioEngine } from "../core/audio";
-import { softPoints, spriteCloud, T, viewDepth, withFog, type N, type SpriteCloud, softDot, pointR } from "../gpu/tsl";
+import { flow, flowAt, glimmer, gpuUniforms, instanceSeed, lifeEnv, softPoints, spriteCloud, T, viewDepth, withFog, type N, type SpriteCloud, softDot, pointR } from "../gpu/tsl";
 import { fbm, gladeAt, groundKind, heightAt, LANDMARK_SITES, WATER_Y } from "./terrain";
 
 export interface LifeFrame {
@@ -32,7 +32,10 @@ function cellHash(i: number, j: number, salt: number): number {
   return s - Math.floor(s);
 }
 
-/* ---------------------------------------------------------------- sparks */
+/* ---------------------------------------------------------------- sparks
+   Each spark is born in a quick white-hot bloom, cools into its own colour as it rises, and
+   fades softly to nothing (`lifeEnv`); the air's currents (`flowAt`) turn it as it goes, so a
+   burst swirls up together like sparks off a fire rather than flying out on fixed arcs. */
 export class Sparks {
   points: THREE.Sprite;
   private n = 260;
@@ -43,6 +46,8 @@ export class Sparks {
   private next = 0;
   private cloud: SpriteCloud;
   private uDpr = uniform(1);
+  private clock = 0;
+  private f = { x: 0, y: 0, z: 0 };
   constructor() {
     const mat = softPoints();
     this.cloud = spriteCloud(this.n, { position: 3, aLife: 1, aTint: 3 }, mat);
@@ -51,8 +56,12 @@ export class Sparks {
     this.life = this.cloud.attrs.aLife.array as Float32Array;
     this.tint = this.cloud.attrs.aTint.array as Float32Array;
     this.vel = new Float32Array(this.n * 3);
-    mat.sizeNode = clamp(aLife.add(0.4).mul(30).div(max(viewDepth(position), 0.5)), float(1).div(this.uDpr), 9);
-    mat.colorNode = vec4(aTint.mul(softDot(pointR()).mul(1.22)).mul(aLife).mul(1.8), 1);
+    const age = float(1).sub(aLife);
+    // a little larger in its first bloom, shrinking as it cools
+    mat.sizeNode = clamp(aLife.mul(0.9).add(0.35).add(float(1).sub(smoothstep(0, 0.12, age)).mul(0.5)).mul(30).div(max(viewDepth(position), 0.5)), float(1).div(this.uDpr), 9);
+    const hot = float(1).sub(smoothstep(0.02, 0.3, age)).mul(0.75);
+    const col = mix(aTint, vec3(1.0, 0.97, 0.9), hot);
+    mat.colorNode = vec4(col.mul(softDot(pointR()).mul(1.22)).mul(lifeEnv(age, 0.05, 0.35)).mul(1.4), 1); // about the light of the old linear fade over a life
     this.points = this.cloud.sprite;
   }
   emit(at: THREE.Vector3, count: number, color: THREE.Color, spread = 1): void {
@@ -70,13 +79,20 @@ export class Sparks {
   private wasAlive = true;
   update(dt: number, dpr: number): void {
     this.uDpr.value = dpr;
+    this.clock += dt;
     let alive = 0;
+    const f = this.f;
     for (let i = 0; i < this.n; i++) {
       if (this.life[i] <= 0) continue;
       alive++;
       this.life[i] = Math.max(0, this.life[i] - dt * 0.7);
       const j = i * 3;
-      this.vel[j + 1] -= dt * 0.35;
+      // turned by the air's eddies (about a metre across), more as it slows
+      flowAt(this.pos[j] * 0.9, this.pos[j + 1] * 0.9, this.pos[j + 2] * 0.9, this.clock * 0.7, f);
+      const swirl = dt * 1.3;
+      this.vel[j] += f.x * swirl;
+      this.vel[j + 1] += f.y * swirl * 0.6 - dt * 0.35;
+      this.vel[j + 2] += f.z * swirl;
       this.vel[j] *= 1 - dt * 0.9;
       this.vel[j + 2] *= 1 - dt * 0.9;
       this.pos[j] += this.vel[j] * dt;
@@ -444,10 +460,19 @@ export class Lanterns {
     this.pos = this.cloud.attrs.position.array as Float32Array;
     this.glow = this.cloud.attrs.aGlow.array as Float32Array;
     const { position, aGlow } = this.cloud.nodes;
+    // each orb hovers a little on the air (`flow`) and breathes like a flame: its halo swelling and
+    // settling on its own slow time, its core flickering faintly (seeded by its index)
+    const seed = instanceSeed();
+    const now = gpuUniforms.time;
+    const hover = position.add(flow(position.mul(0.5), now.mul(0.3)).mul(0.035));
+    mat.positionNode = hover;
     // a bright core in a small, contained halo (never a spreading glare)
-    mat.sizeNode = clamp(aGlow.mul(50).add(22).div(max(viewDepth(position), 0.5)).mul(6), float(3).div(this.uDpr), 90);
+    mat.sizeNode = clamp(aGlow.mul(50).add(22).div(max(viewDepth(hover), 0.5)).mul(6), float(3).div(this.uDpr), 90);
     const r = length(pointUV.sub(0.5)).mul(2);
-    const core = smoothstep(0.2, 0, r), halo = exp(r.mul(r).mul(-9)).mul(0.22);
+    // worked out once a lantern (vertex stage), not for every pixel of its halo
+    const breath = T.varying(glimmer(seed, now, 2.4).sub(0.6).mul(0.3).add(0.88));
+    const flicker = T.varying(sin(now.mul(seed.mul(3).add(7.5)).add(seed.mul(40))).mul(sin(now.mul(seed.mul(2).add(4.3)))).mul(0.05).add(1));
+    const core = smoothstep(0.2, 0, r).mul(flicker), halo = exp(r.mul(r).mul(-9)).mul(0.22).mul(breath);
     mat.colorNode = vec4(vec3(1.0, 0.78, 0.48).mul(core.mul(aGlow.mul(2.4).add(0.4)).add(halo.mul(aGlow.mul(1.3).add(0.12)))), 1);
     this.points = this.cloud.sprite;
     this.cloud.setCount(0);

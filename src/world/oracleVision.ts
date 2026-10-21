@@ -17,7 +17,7 @@
    Contained (docs/style): soft small points, additive, no spreading glow; it fades near the lens. */
 import * as THREE from "three/webgpu";
 import { MOBILE } from "../core/quality";
-import { gpuUniforms, hash2b, softDot, softPoints, pointR, spriteCloud, T, viewDepth, vnoise, type SpriteCloud } from "../gpu/tsl";
+import { flow, gpuUniforms, hash2b, softDot, softPoints, pointR, spriteCloud, T, viewDepth, vnoise, type SpriteCloud } from "../gpu/tsl";
 
 export type PresenceState = "quiet" | "thinking" | "speaking";
 
@@ -111,8 +111,10 @@ export class OracleVision {
     const reach = float(1.7).add(U.speak.mul(0.5)).add(U.flare.mul(1.2)).sub(U.think.mul(0.9));
     const cr = Rk.mul(float(1.02).add(life.mul(reach)));
     const wind = life.mul(float(0.5).add(U.think.mul(3.2)));
-    const corona = dirAt(phi.add(wind)).mul(cr)
-      .add(vec3(sin(t.mul(0.7).add(s2.mul(40))), cos(t.mul(0.6).add(s0.mul(30))), sin(t.mul(0.5).add(s1.mul(20)))).mul(life.mul(0.12)));
+    // streamers: the corona's points curl together on the plasma's currents (`flow`), more the
+    // further out they have streamed, so it reads as twisting filaments, not loose sparks
+    const cDir = dirAt(phi.add(wind));
+    const corona = cDir.mul(cr).add(flow(cDir.mul(1.7).add(dir.mul(life.mul(2))), t.mul(0.35)).mul(life.mul(Rk).mul(0.22)));
     const coronaCol = mix(vec3(1.0, 0.92, 0.78), vec3(0.78, 0.76, 1.0), U.think);
     const coronaA = float(1).sub(life).mul(smoothstep(0, 0.08, life)).mul(0.55).mul(float(1).add(U.flare.mul(1.2)));
 

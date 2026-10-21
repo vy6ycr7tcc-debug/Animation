@@ -189,6 +189,83 @@ export const pointR = (): N => length(T.pointUV.sub(0.5)).mul(2);
     for effects): gone within 0.35 m, whole from 1.6 m. Reads the point's own centre. */
 export const nearLens = (): N => smoothstep(0.35, 1.6, T.positionView.z.negate());
 
+/* ---------------------------------------------------------------- how particles move
+   One vocabulary for every particle system (the owner: "improve all particle animations"):
+   - `flow`: the air's currents. Motes carried by it drift together in slow eddies, neighbours
+     alike, instead of each bobbing on a little loop of its own; being a curl field it never
+     gathers them into clumps or thins them into holes.
+   - `glimmer`: a light's own slow, uneven brightening, every point on its own time, instead of
+     a uniform twinkle.
+   - `lifeEnv`: born softly and quickly, fading out to nothing: never a pop at either end.
+   Each has a JavaScript twin (`flowAt`, `glimmerAt`, `lifeAt`) for particles moved on the CPU. */
+
+/** Six plane shear waves c·cos(k·p + w·t + φ), each c ⟂ k, so their sum is divergence-free; two
+    scales, the finer one smaller. Normalised: about 1 on average (RMS), at most about 2.3. */
+const FLOW: [number[], number[], number, number][] = [
+  [[0.7998, 0.2999, 0.5199], [-0.4101, 0, 0.6309], 0.53, 0],
+  [[-0.4811, 0.7697, 0.5666], [0, 0.4461, -0.606], -0.41, 1.7],
+  [[0.2625, -0.5157, 0.7408], [-0.7195, -0.1763, 0.1322], 0.37, 4.1],
+  [[1.8441, 0.9879, -0.6806], [0.1492, -0.2786, 0], 0.89, 2.6],
+  [[-1.2218, -0.7049, 1.8796], [-0.2194, 0.2194, -0.0603], -0.77, 5.3],
+  [[0.4512, 1.8047, 0.8613], [0.0847, 0.1136, -0.2825], 0.67, 3.4],
+];
+
+/** The air's current at `p` and time `t`, both in the currents' own units: divide metres by the
+    eddies' size, multiply seconds by how quickly they change. Add `flow(p, t) * amplitude` to a
+    particle's place. */
+export const flow = (p: N, t: N): N => {
+  let v: N = vec3(0);
+  for (const [k, c, w, ph] of FLOW) v = v.add(vec3(c[0], c[1], c[2]).mul(cos(dot(p, vec3(k[0], k[1], k[2])).add(T.float(t).mul(w)).add(ph))));
+  return v;
+};
+/** `flow` in JavaScript, for particles moved on the CPU: writes the current into `out`. */
+export function flowAt(x: number, y: number, z: number, t: number, out: { x: number; y: number; z: number }): void {
+  let vx = 0, vy = 0, vz = 0;
+  for (const [k, c, w, ph] of FLOW) {
+    const a = Math.cos(k[0] * x + k[1] * y + k[2] * z + w * t + ph);
+    vx += c[0] * a;
+    vy += c[1] * a;
+    vz += c[2] * a;
+  }
+  out.x = vx;
+  out.y = vy;
+  out.z = vz;
+}
+
+/** A light's slow, uneven glimmer for `seed` in 0..1: about 0.6–1.45 (mean ~0.87). Two
+    incommensurate swells, squared, so it rests a while and now and then brightens; at `rate` 1 a
+    swell comes every ~8–20 s. */
+export const glimmer = (seed: N, t: N, rate: N | number = 1): N => {
+  const w = seed.mul(0.42).add(0.32).mul(rate);
+  const s = sin(T.float(t).mul(w).add(seed.mul(37.1))).add(sin(T.float(t).mul(w).mul(1.618).add(seed.mul(91.7))).mul(0.6)).div(1.6);
+  const x = s.mul(0.5).add(0.5);
+  return x.mul(x).mul(0.85).add(0.6);
+};
+export function glimmerAt(seed: number, t: number, rate = 1): number {
+  const w = (0.32 + seed * 0.42) * rate;
+  const x = 0.5 + 0.5 * ((Math.sin(t * w + seed * 37.1) + 0.6 * Math.sin(t * w * 1.618 + seed * 91.7)) / 1.6);
+  return 0.6 + 0.85 * x * x;
+}
+
+/** A random 0..1 for each point of a sprite cloud, from its index: stable, whatever the cloud's own
+    data holds. `instanceSeed` is for the vertex stage (positions, sizes, or inside a `varying`);
+    `indexSeed` carries it on to the fragment. */
+export const instanceSeed = (): N => fract(sin(float(T.instanceIndex).mul(12.9898)).mul(43758.5453));
+export const indexSeed = (): N => T.varying(instanceSeed());
+/** A gentle glimmer for every point of a cloud, averaging 1 (`k` 0.3: about 0.9–1.2), each on its
+    own time: under whatever twinkle a scene adds of its own. Worked out once a point (vertex stage). */
+export const pointGlimmer = (k = 0.3): N => T.varying(mix(float(1), glimmer(instanceSeed(), gpuUniforms.time).div(0.87), k));
+
+/** A particle's life at age `a` (0 born .. 1 gone): in by `birth`, fading from `fade` to its end. */
+export const lifeEnv = (a: N, birth = 0.1, fade = 0.45): N => smoothstep(0, birth, a).mul(float(1).sub(smoothstep(fade, 1, a)));
+export function lifeAt(a: number, birth = 0.1, fade = 0.45): number {
+  const s = (e0: number, e1: number, x: number) => {
+    const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
+    return t * t * (3 - 2 * t);
+  };
+  return s(0, birth, a) * (1 - s(fade, 1, a));
+}
+
 /** A points material for a sprite cloud: additive, no depth writes, sized in pixels. */
 export function softPoints(): THREE.PointsNodeMaterial {
   const m = new THREE.PointsNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });

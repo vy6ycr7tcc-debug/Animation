@@ -27,7 +27,7 @@
    Nothing here plays while a tour leads or an archive narration speaks; a stillness-found one
    waits while "Only nature" rests the voices (a tap is your own choice, and still speaks). */
 import * as THREE from "three/webgpu";
-import { T, gpuUniforms, outOfTheWay, softDot, pointR, softPoints, spriteCloud, viewDepth, worldPoints } from "../gpu/tsl";
+import { glimmer, T, gpuUniforms, outOfTheWay, softDot, pointR, softPoints, spriteCloud, viewDepth, worldPoints } from "../gpu/tsl";
 import { barkMaterial, crownLeaves, foliageCloud, grow, prismGeometry, tubes, type TreeShape } from "./creation";
 import { GROVE_SITES } from "./sites";
 import { CAVE_SITES, GLADES, KEEP_CLEAR, LANDMARK_SITES, SPAWN, WATER_Y, colliders, heightAt, keptClear } from "./terrain";
@@ -479,7 +479,8 @@ function crownLights(pos: Float32Array, uT: ReturnType<typeof uniform>, uNear: R
   mat.positionNode = p;
   mat.sizeNode = clamp(gpuUniforms.px.mul(0.07).div(max(viewDepth(p), 0.4)), float(1).div(gpuUniforms.dpr), 9);
   const soft = softDot(pointR()).mul(1.59);
-  const tw = sin(uT.mul(1.3).add(K.mul(40))).mul(0.5).add(0.5);
+  // each light on its own slow glimmer (not a uniform twinkle)
+  const tw = glimmer(K, uT, 1.8).sub(0.6).div(0.85);
   mat.colorNode = vec4(vec3(1.0, 0.86, 0.62).mul(soft).mul(tw.mul(0.35).add(0.35).add(out.mul(0.4))).mul(outOfTheWay(p)), 1);
   void worldPoints;
   return c.sprite;

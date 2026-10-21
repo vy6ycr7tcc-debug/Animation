@@ -13,7 +13,7 @@
    holds it up to the light, gold. */
 import * as THREE from "three/webgpu";
 import type { Narration } from "../core/narration";
-import { outOfTheWay, T, vnoise } from "../gpu/tsl";
+import { flow, outOfTheWay, T, vnoise } from "../gpu/tsl";
 import { rng } from "../world/forms";
 import { landStone } from "../world/stoneworks";
 import type { SceneModule } from "./lessonKit";
@@ -137,8 +137,11 @@ function stage(ctx: StageCtx): Stage {
     S.dirty();
     const K = S.c.nodes.aK;
     const life = fract(K.x.add(t.mul(float(0.25).add(K.y.mul(0.35)))));
-    const drift = vec3(sin(K.z.mul(40).add(t.mul(0.7))).mul(life).mul(0.9), life.mul(float(3).add(K.w.mul(4))), T.cos(K.z.mul(33)).mul(life).mul(0.6));
-    S.m.positionNode = coalPos.add(vec3(K.z.sub(0.5).mul(0.9), 0.3, K.w.sub(0.5).mul(0.6))).add(drift);
+    // up on the fire's heat, spreading evenly as they rise (a sine of a random phase would bunch them
+    // at its two extremes, into two curtains), and swirled by the updraft's eddies together (`flow`)
+    const rise = coalPos.add(vec3(K.z.sub(0.5).mul(0.9), 0.3, K.w.sub(0.5).mul(0.6)))
+      .add(vec3(K.y.sub(0.5).mul(life).mul(1.4), life.mul(float(3).add(K.w.mul(4))), K.x.sub(0.5).mul(life).mul(1.0)));
+    S.m.positionNode = rise.add(flow(rise.div(0.9), t.mul(0.6)).mul(life.mul(0.75)));
     const col = mix(vec3(1, 0.45, 0.12), vec3(1, 0.78, 0.4), u.warm);
     S.m.colorNode = vec4(col.mul(S.round).mul(clear).mul(smoothstep(0, 0.08, life)).mul(float(1).sub(life)).mul(u.burn).mul(u.on).mul(0.9), 1);
     g.add(S.c.sprite);
@@ -150,7 +153,9 @@ function stage(ctx: StageCtx): Stage {
     Sm.m.blending = THREE.NormalBlending;
     const SK = Sm.c.nodes.aK;
     const sl = fract(SK.x.add(t.mul(float(0.06).add(SK.y.mul(0.05)))));
-    Sm.m.positionNode = coalPos.add(vec3(sin(SK.z.mul(30).add(t.mul(0.3))).mul(sl).mul(1.8), float(0.6).add(sl.mul(7)), sin(SK.w.mul(30)).mul(sl).mul(1.2)));
+    // smoke rising and curling as smoke does: carried up, widening, turned by the air's eddies (`flow`)
+    const smokeUp = coalPos.add(vec3(SK.z.sub(0.5).mul(sl).mul(1.2), float(0.6).add(sl.mul(7)), SK.w.sub(0.5).mul(sl).mul(1.0)));
+    Sm.m.positionNode = smokeUp.add(flow(smokeUp.div(1.6), t.mul(0.35)).mul(sl.mul(1.5).add(0.1)));
     Sm.m.colorNode = vec4(vec3(0.16, 0.14, 0.15).mul(float(1).add(sl)), Sm.round.mul(clear).mul(smoothstep(0, 0.2, sl)).mul(float(1).sub(sl)).mul(0.22).mul(u.burn.min(1)).mul(float(1).sub(u.warm.mul(0.7))).mul(u.on));
     g.add(Sm.c.sprite);
     ours.push(Sm.m);

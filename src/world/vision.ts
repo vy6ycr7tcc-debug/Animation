@@ -10,7 +10,7 @@ import * as THREE from "three/webgpu";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { floatAttributes, loadBytes } from "../core/assets";
-import { gpuUniforms, softPoints, spriteCloud, T, viewDepth, type SpriteCloud, softDot, pointR } from "../gpu/tsl";
+import { flow, glimmer, gpuUniforms, softPoints, spriteCloud, T, viewDepth, type SpriteCloud, softDot, pointR } from "../gpu/tsl";
 import { grow, prismGeometry, SHAPES, tubes } from "./creation";
 
 const V = THREE.Vector3;
@@ -193,6 +193,9 @@ export class Vision {
   private seed: Float32Array;
   private uScan = T.uniform(0);
   private uT = T.uniform(0);
+  /** the currents through a held form, and the eddies between forms (metres) */
+  private uHeld = T.uniform(0.026);
+  private uMorph = T.uniform(0);
   private t = 0;
   /** The form just gathering (for its name), −1 while none is. */
   phase = -1;
@@ -229,11 +232,19 @@ export class Vision {
     for (let i = 0; i < n; i++) this.seed[i] = R();
     (this.cloud.attrs.aSeed.array as Float32Array).set(this.seed);
     {
-      const { clamp, float, max, sin, exp, vec4 } = T;
+      const { clamp, float, max, sin, exp, vec3, vec4 } = T;
       const { position, aCol, aSeed } = this.cloud.nodes;
-      const worldPos = T.modelWorldMatrix.mul(vec4(position, 1)).xyz;
+      // alive while held: light flowing through the form in slow currents, neighbours together;
+      // between forms, wider eddies sweep the points like smoke (`flow`)
+      const s = H / 4.6;
+      const moved = position
+        .add(flow(position.mul(2.4 / s), this.uT.mul(0.45)).mul(this.uHeld))
+        .add(flow(position.mul(0.8 / s).add(vec3(3.1, 0, 1.7)), this.uT.mul(0.3)).mul(this.uMorph));
+      mat.positionNode = moved;
+      const worldPos = T.modelWorldMatrix.mul(vec4(moved, 1)).xyz;
       mat.sizeNode = clamp(gpuUniforms.px.mul(0.05).mul(aSeed.mul(0.8).add(0.6)).div(max(viewDepth(worldPos), 0.5)), float(1).div(gpuUniforms.dpr), 5);
-      const flick = sin(this.uT.mul(21).add(aSeed.mul(97))).mul(0.12).add(0.88);
+      // each point's light: a slow, uneven glimmer under a fine sparkle (each its own rate)
+      const flick = sin(this.uT.mul(aSeed.mul(9).add(14)).add(aSeed.mul(97))).mul(0.07).add(0.93).mul(glimmer(aSeed, this.uT, 1.4).mul(0.35).add(0.7));
       const scan = exp(position.y.sub(this.uScan).mul(position.y.sub(this.uScan)).mul(-3)).mul(0.9);
       const soft = softDot(pointR()).mul(1.39);
       mat.colorNode = vec4(aCol.mul(soft).mul(flick).mul(scan.add(0.55)).mul(0.62), 1);
@@ -343,6 +354,9 @@ export class Vision {
     }
     const tA = TINT[from.s], tB = TINT[KEYS[next].s];
     const burst = into.s === "atom" && p0 >= 0;
+    // the eddies between forms swell and settle with the change (the GPU moves the points through them)
+    this.uMorph.value = reduced || p0 < 0 || p0 >= 1 ? 0 : Math.sin(Math.PI * p0) * (burst ? 0.18 : 0.38) * (H / 4.6);
+    this.uHeld.value = reduced ? 0 : 0.026;
     const P = this.pos, C = this.col, time = this.uT.value;
     for (let i = 0; i < this.n; i++) {
       const s = this.seed[i];
@@ -361,11 +375,11 @@ export class Vision {
         z = nz;
         y += sw * (s - 0.3) * 1.2;
       }
-      // alive while held: a breath through the form and a quiver in each point
+      // alive while held: a breath through the form (its currents are the GPU's, `flow`)
       const br = 1 + Math.sin(time * 0.8 + y * 0.6) * 0.012;
-      P[j] = x * br + Math.sin(time * 1.7 + s * 40) * 0.02;
-      P[j + 1] = y + Math.sin(time * 1.3 + s * 60) * 0.02;
-      P[j + 2] = z * br + Math.cos(time * 1.5 + s * 50) * 0.02;
+      P[j] = x * br;
+      P[j + 1] = y;
+      P[j + 2] = z * br;
       C[j] = tA[0] + (tB[0] - tA[0]) * e;
       C[j + 1] = tA[1] + (tB[1] - tA[1]) * e;
       C[j + 2] = tA[2] + (tB[2] - tA[2]) * e;

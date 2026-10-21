@@ -14,7 +14,7 @@
    Everything is placed by a hash of its cell, so the world is the same on every visit. Nothing
    here makes a sound. */
 import * as THREE from "three/webgpu";
-import { softPoints, spriteCloud, T, viewDepth, type N, type SpriteCloud } from "../gpu/tsl";
+import { flow, glimmer, softPoints, spriteCloud, T, viewDepth, type N, type SpriteCloud } from "../gpu/tsl";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { LifeFrame, Sparks } from "./life";
 import { etchedStone, vibeUniforms } from "./etching";
@@ -669,19 +669,22 @@ export class Creation {
     // a few glints come loose and drift down: light descending into the world
     const falling = step(k, 0.07).mul(float(1).sub(big));
     const fall = fract(U.uT.mul(0.035).add(k.mul(37)));
-    const p = base.add(vec3(
-      sin(U.uT.mul(0.7).add(k.mul(40))).mul(0.08).add(falling.mul(sin(fall.mul(9).add(k.mul(50)))).mul(0.8)),
-      sin(U.uT.mul(0.9).add(k.mul(23))).mul(0.06).sub(falling.mul(fall).mul(7)),
-      0,
-    ));
+    const drop = falling.mul(fall).mul(7);
+    // the glints sway with their twigs in the breeze, neighbours together (`flow`); a loose one
+    // is carried down on the air's eddies, wider the further it falls
+    const air = flow(base.mul(0.7).sub(vec3(0, drop.mul(0.5), 0)), U.uT.mul(0.35));
+    const p = base.add(air.mul(falling.mul(fall.mul(0.9).add(0.15)).add(0.06))).sub(vec3(0, drop, 0));
     mat.positionNode = p;
     const d = distance(p, cameraPosition);
     const near = smoothstep(14, 3, distance(p.xz, U.uPlayer.xz));
-    const tw = sin(U.uT.mul(k.mul(2.5).add(1.2)).add(k.mul(60))).mul(0.45).add(0.55);
+    // each glint on its own slow glimmer (not a uniform twinkle)
+    const tw = glimmer(k, U.uT, 2.2).mul(0.63);
     // the canopy brightens in slow waves, in step with the light flowing down the trunk
     const wave = sin(U.uT.mul(0.5).sub(p.y.mul(0.4)).add(aHue.mul(6))).mul(0.4).add(0.6);
+    // a loose glint comes away softly (no pop as its fall begins again) and fades as it falls
+    const loose = mix(float(1), smoothstep(0, 0.06, fall).mul(float(1).sub(fall)), falling);
     const vA = mix(tw.mul(wave).mul(near.mul(1.2).add(1)), near.mul(0.2).add(0.22), big)
-      .mul(float(1).sub(falling.mul(fall))).mul(float(1).sub(fogF(d))).mul(float(1).sub(smoothstep(90, 120, d)));
+      .mul(loose).mul(float(1).sub(fogF(d))).mul(float(1).sub(smoothstep(90, 120, d)));
     const vC = mix(mix(vec3(1.0, 0.8, 0.5), vec3(0.7, 0.85, 1.0), step(0.33, aHue)), vec3(1.0, 0.7, 0.88), step(0.72, aHue));
     const size = mix(0.13, 2.4, big);
     mat.sizeNode = clamp(size.mul(U.uPx).div(max(viewDepth(p), 0.5)), 1.5, 90).div(T.screenDPR);

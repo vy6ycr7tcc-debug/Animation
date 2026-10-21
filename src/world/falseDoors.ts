@@ -18,7 +18,7 @@
    the plaza before the north face (on the ground, not on the faces). */
 import * as THREE from "three/webgpu";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { T, outOfTheWay, softPoints, spriteCloud, viewDepth, gpuUniforms, type N, softDot, pointR } from "../gpu/tsl";
+import { flow, T, outOfTheWay, softPoints, spriteCloud, viewDepth, gpuUniforms, type N, softDot, pointR } from "../gpu/tsl";
 import { scan } from "./temple";
 import { colliders, heightAt, PYRAMID } from "./terrain";
 import { solid } from "./solidity";
@@ -595,7 +595,8 @@ function breathMotes(uT: N, uB: N, uN: N, R: () => number, seed: number): THREE.
   const go = smoothstep(0, 1, life);
   const start = vec3(K.y.sub(0.5).mul(0.6), float(0.4).add(K.z.mul(2.2)), -0.18);
   const drift = vec3(K.y.sub(0.5).mul(1.8), K.w.mul(1.2).add(0.2), float(1.8).add(K.z.mul(2.4)));
-  const p = start.add(drift.mul(go)).add(vec3(sin(uT.mul(0.7).add(K.x.mul(30))).mul(0.12), 0, 0));
+  // curling as it goes, on the air's currents (`flow`: neighbours together, like breath in cold air)
+  const p = start.add(drift.mul(go)).add(flow(start.mul(1.4).add(drift.mul(go).mul(0.7)), uT.mul(0.3)).mul(go.mul(0.22).add(0.03)));
   mat.positionNode = p;
   const wp = T.modelWorldMatrix.mul(vec4(p, 1)).xyz;
   mat.sizeNode = clamp(gpuUniforms.px.mul(0.025).div(max(viewDepth(wp), 0.4)), float(1).div(gpuUniforms.dpr), 5);

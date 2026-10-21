@@ -14,7 +14,7 @@
 import * as THREE from "three/webgpu";
 import { LessonScene } from "../lessonKit";
 import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
-import { T, vnoise, hash2 } from "../../gpu/tsl";
+import { T, flow, vnoise, hash2 } from "../../gpu/tsl";
 import { etchedStone } from "../../world/etching";
 import { barkMaterial, grow, SHAPES, tubes } from "../../world/creation";
 import { fbm } from "../../world/terrain";
@@ -433,7 +433,9 @@ export function createDensityRoom1Scene(
       touch(e.cloud);
       const K = e.cloud.nodes.aK;
       const cyc = fract(K.x.add(t.mul(float(0.12).add(K.y.mul(0.12)))));
-      e.material.positionNode = e.cloud.nodes.position.add(vec3(sin(cyc.mul(9).add(K.z.mul(20))).mul(0.6), cyc.mul(float(3).add(K.w.mul(7))), cos(cyc.mul(7).add(K.w.mul(20))).mul(0.6)));
+      // embers thrown up on the rift's heat, swirling in its updraft together (`flow`)
+      const up = e.cloud.nodes.position.add(vec3(0, cyc.mul(float(3).add(K.w.mul(7))), 0));
+      e.material.positionNode = up.add(flow(up.div(1.4), t.mul(0.5)).mul(cyc.mul(0.8).add(0.1)));
       e.material.colorNode = vec4(vec3(1, 0.5, 0.15).mul(e.round).mul(sin(cyc.mul(Math.PI))).mul(uHeat).mul(1.4), 1);
       g.add(e.cloud.sprite);
       ours.push(e.material);

@@ -6,14 +6,17 @@
      window.
    - Sea-ribbons: tall kelp that sways and parts around you, with light pulsing to its tips.
    - Anemones: clusters of soft lights on the floor, breathing.
-   - Marine snow: a slow drift of motes all around, lit by your orb; bubbles from your strokes.
+   - Marine snow: a slow drift of motes all around, sinking, carried by the water's slow
+     currents (`flow`), lit by your orb. Bubbles from your strokes, each its own size: the larger
+     rise faster and wobble wider, spiralling, and all swell as the water's weight lifts off them
+     on the way up; at the surface they burst.
    - Creatures (SeaFauna): schools of fish, mantas, dolphins and a whale, from Quaternius's
      Animated Fish Pack (CC0), drawn in the same glass light as the wanderer. */
 import * as THREE from "three/webgpu";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { loadBytes } from "../core/assets";
-import { gpuUniforms, softPoints, spriteCloud, T, viewDepth, type N, type SpriteCloud } from "../gpu/tsl";
+import { flow, glimmer, gpuUniforms, softPoints, spriteCloud, T, viewDepth, type N, type SpriteCloud } from "../gpu/tsl";
 import { lightBodyMaterial, tickLightBody } from "../player/lightBody";
 import { heightAt, WATER_Y } from "./terrain";
 
@@ -136,7 +139,9 @@ export class SeaLife {
   private glowPts: SpriteCloud;
   private snow: THREE.Sprite;
   private bub: SpriteCloud;
-  private bubState: { p: THREE.Vector3; v: number; life: number; wob: number }[] = [];
+  /** each bubble: where it is, its rise (and the rise it is coming to), its size where it was
+      born and how deep that was, its wobble's phase, rate and width, and whether it lives */
+  private bubState: { p: THREE.Vector3; v: number; vt: number; r0: number; d0: number; wob: number; wr: number; wa: number; life: number }[] = [];
   private bubNext = 0;
   private cx = Infinity;
   private cz = Infinity;
@@ -229,14 +234,19 @@ export class SeaLife {
       const seed = cloud.attrs.aSeed.array as Float32Array;
       for (let i = 0; i < SNOW * 4; i++) seed[i] = Math.random();
       const aSeed = cloud.nodes.aSeed, B = SNOW_BOX;
-      const drift = vec3(sin(U.uT.mul(0.05).add(aSeed.w.mul(6))).mul(0.6), U.uT.mul(-0.06).mul(aSeed.w.add(0.4)), cos(U.uT.mul(0.04).add(aSeed.x.mul(6))).mul(0.6));
-      const p = U.uCam.add(fract(aSeed.xyz.mul(B).add(drift).sub(U.uCam).div(B)).sub(0.5).mul(B));
+      // sinking, each at its own pace, on a slow current; wrapped round the camera
+      const sink = vec3(U.uT.mul(0.025), U.uT.mul(-0.06).mul(aSeed.w.add(0.4)), U.uT.mul(0.012));
+      const w0 = U.uCam.add(fract(aSeed.xyz.mul(B).add(sink).sub(U.uCam).div(B)).sub(0.5).mul(B));
+      // and turned by the water's slow eddies, neighbours together
+      const p = w0.add(flow(w0.div(1.8), U.uT.mul(0.07)).mul(0.45));
       mat.positionNode = p;
       const dCam = distance(p, U.uCam), dOrb = distance(p, U.uOrb);
       const vA = float(1.4).div(dOrb.mul(dOrb).mul(0.35).add(1)).add(0.1).mul(float(1).sub(smoothstep(B * 0.3, B * 0.5, dCam))).mul(step(p.y, -0.2));
       mat.sizeNode = clamp(aSeed.w.mul(0.03).add(0.025).mul(U.uPx).div(max(viewDepth(p), 0.3)), 1, 10).div(dpr);
       const r = length(pointUV.sub(0.5)).mul(2);
-      mat.colorNode = vec4(vec3(0.75, 0.88, 1.0).mul(float(1).sub(smoothstep(0.2, 1, r))).mul(vA).mul(0.5), 1);
+      // a flake catches the light now and then as it turns
+      const turn = glimmer(aSeed.y, U.uT, 2.5).mul(0.55).add(0.52);
+      mat.colorNode = vec4(vec3(0.75, 0.88, 1.0).mul(float(1).sub(smoothstep(0.2, 1, r))).mul(vA).mul(turn).mul(0.5), 1);
       this.snow = cloud.sprite;
     }
 
@@ -248,9 +258,12 @@ export class SeaLife {
       mat.sizeNode = clamp(aSize.mul(U.uPx).div(max(viewDepth(position), 0.3)), 0, 24).div(dpr);
       const r = length(pointUV.sub(0.5)).mul(2);
       const ring = smoothstep(0.55, 0.85, r).mul(float(1).sub(smoothstep(0.85, 1, r)));
-      mat.colorNode = vec4(vec3(0.8, 0.92, 1.0).mul(ring.mul(0.9).add(0.08)).mul(step(0.001, aSize)), 1);
+      // lit from above: the rim brighter toward the top, a small glint high on one side
+      const top = pointUV.y.sub(0.5).mul(1.2).add(0.7);
+      const glint = exp(length(pointUV.sub(vec2(0.38, 0.68))).pow(2).mul(-260)).mul(0.9);
+      mat.colorNode = vec4(vec3(0.8, 0.92, 1.0).mul(ring.mul(0.9).mul(top).add(0.06).add(glint)).mul(step(0.001, aSize)), 1);
     }
-    for (let i = 0; i < BUBBLES; i++) this.bubState.push({ p: new THREE.Vector3(), v: 0, life: 0, wob: Math.random() * 6 });
+    for (let i = 0; i < BUBBLES; i++) this.bubState.push({ p: new THREE.Vector3(), v: 0, vt: 0, r0: 0, d0: 0, wob: Math.random() * 6, wr: 0, wa: 0, life: 0 });
 
     this.group.add(this.ribbons, this.glowPts.sprite, this.snow, this.bub.sprite);
     this.group.visible = false;
@@ -262,7 +275,13 @@ export class SeaLife {
       const b = this.bubState[this.bubNext];
       this.bubNext = (this.bubNext + 1) % BUBBLES;
       b.p.set(at.x + (Math.random() - 0.5) * 0.4, at.y + 1.0 + Math.random() * 0.4, at.z + (Math.random() - 0.5) * 0.4);
-      b.v = 0.5 + Math.random() * 0.6;
+      // mostly small, a few large: the large rise faster and wobble wider
+      b.r0 = 0.025 + Math.pow(Math.random(), 2.2) * 0.07;
+      b.vt = 0.42 + b.r0 * 7;
+      b.v = 0.15;
+      b.d0 = Math.max(0, WATER_Y - b.p.y);
+      b.wr = 5 + Math.random() * 3 - b.r0 * 20;
+      b.wa = 0.03 + b.r0 * 1.1;
       b.life = 1;
     }
   }
@@ -326,16 +345,27 @@ export class SeaLife {
     const bp = this.bub.attrs.position, bs = this.bub.attrs.aSize;
     const pa = bp.array as Float32Array, sa = bs.array as Float32Array;
     this.bubState.forEach((b, i) => {
+      let size = 0;
       if (b.life > 0) {
+        // up to its rise quickly, then a spiralling wobble about its path
+        b.v += (b.vt - b.v) * Math.min(1, dt * 3);
         b.p.y += b.v * dt;
-        b.wob += dt * 6;
-        b.p.x += Math.sin(b.wob) * 0.12 * dt;
-        b.p.z += Math.cos(b.wob * 0.8) * 0.12 * dt;
+        b.wob += dt * b.wr;
+        b.p.x += Math.cos(b.wob) * b.wa * b.wr * dt;
+        b.p.z += Math.sin(b.wob) * b.wa * b.wr * dt * 0.8;
         b.life -= dt * 0.12;
-        if (b.p.y > WATER_Y - 0.05) b.life = 0;
+        // swelling as the water's weight lifts off it (radius as the cube root of the pressure's fall)
+        const d = Math.max(0, WATER_Y - b.p.y);
+        size = b.r0 * Math.cbrt((10.3 + b.d0) / (10.3 + d));
+        // at the surface it bursts: a quick shrink to nothing
+        if (b.p.y > WATER_Y - 0.06) b.life = Math.min(b.life, 0.02);
+        if (b.life <= 0.02) {
+          b.p.y = Math.min(b.p.y, WATER_Y - 0.05);
+          size *= Math.max(0, b.life / 0.02);
+        }
       }
       pa.set([b.p.x, b.p.y, b.p.z], i * 3);
-      sa[i] = b.life > 0 ? 0.05 + 0.03 * Math.sin(i) : 0;
+      sa[i] = size;
     });
     bp.needsUpdate = bs.needsUpdate = true;
   }

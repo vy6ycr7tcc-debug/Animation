@@ -23,7 +23,7 @@
    Frame: the room's own, the start at the origin facing −z. */
 import { keyShadow } from "../../gpu/lightRig";
 import * as THREE from "three/webgpu";
-import { T, gpuUniforms, vnoise, type N } from "../../gpu/tsl";
+import { T, glimmer, flow, gpuUniforms, vnoise, type N } from "../../gpu/tsl";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
 import { applyAir, damp, fbmN, keepAlpha, merge, pointCloud, roomClock, roomPos, scannedGround, seeded, skyDome, touch, type Air } from "../densities/roomKit";
 import { forest, type TreeSpot } from "./forest";
@@ -307,7 +307,9 @@ export function createAfterVeil(scene: THREE.Scene, narration: Narration, whispe
     }
     touch(c.cloud);
     const K = c.cloud.nodes.aK;
-    c.material.positionNode = c.cloud.nodes.position.add(vec3(sin(t.mul(0.05).add(K.y.mul(20))).mul(1.5), 0, cos(t.mul(0.04).add(K.z.mul(20))).mul(1.5)));
+    // the mist's banks drift together on the slow air (`flow`), never each its own way
+    const mp = c.cloud.nodes.position;
+    c.material.positionNode = mp.add(flow(mp.div(12), t.mul(0.03)).mul(vec3(1.6, 0.25, 1.6)));
     // the veil thinning: the mist ahead stays, the mist you reach melts, and all of it thins the
     // farther you have come
     const ahead = smoothstep(-4, 14, K.x.sub(uProg));
@@ -325,7 +327,9 @@ export function createAfterVeil(scene: THREE.Scene, narration: Narration, whispe
     }
     touch(f.cloud);
     const FK = f.cloud.nodes.aK;
-    f.material.positionNode = f.cloud.nodes.position.add(vec3(sin(t.mul(0.3).add(FK.x.mul(40))).mul(0.8), sin(t.mul(0.21).add(FK.y.mul(30))).mul(0.5), cos(t.mul(0.26).add(FK.z.mul(40))).mul(0.8)));
+    // the spores wander on the air's eddies, neighbours together (`flow`)
+    const sp = f.cloud.nodes.position;
+    f.material.positionNode = sp.add(flow(sp.div(2.2), t.mul(0.18)).mul(vec3(0.9, 0.55, 0.9)));
     const blink = smoothstep(0.55, 1, sin(t.mul(float(0.6).add(FK.w)).add(FK.x.mul(60))));
     f.material.colorNode = vec4(vec3(1, 0.78, 0.42).mul(f.round).mul(blink).mul(0.9), 1);
     g.add(f.cloud.sprite);
@@ -345,9 +349,10 @@ export function createAfterVeil(scene: THREE.Scene, narration: Narration, whispe
     }
     touch(c.cloud);
     const K = c.cloud.nodes.aK;
-    const drift = vec3(sin(t.mul(0.07).add(K.x.mul(40))).mul(1.6), sin(t.mul(0.11).add(K.y.mul(30))).mul(0.6).add(fract(t.mul(0.008).add(K.z)).mul(1.2)), cos(t.mul(0.06).add(K.w.mul(40))).mul(1.6));
-    c.material.positionNode = c.cloud.nodes.position.add(drift);
-    const tw = sin(t.mul(float(0.8).add(K.x)).add(K.y.mul(50))).mul(0.3).add(0.7);
+    // drifting everywhere on the warm air, slowly rising, in its slow currents together (`flow`)
+    const lift = c.cloud.nodes.position.add(vec3(0, fract(t.mul(0.008).add(K.z)).mul(1.2), 0));
+    c.material.positionNode = lift.add(flow(lift.div(4), t.mul(0.08)).mul(vec3(1.7, 0.7, 1.7)));
+    const tw = glimmer(K.x, t, 1.8).mul(0.6).add(0.18);
     c.material.colorNode = vec4(vec3(1, 0.86, 0.6).mul(c.round).mul(tw).mul(uLove.mul(0.55).add(0.45)).mul(smoothstep(2.5, 6, length(cameraPosition.sub(positionWorld)))), 1);
     g.add(c.cloud.sprite);
     windows.push([c.cloud.sprite, 70, 300]);

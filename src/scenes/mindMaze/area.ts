@@ -23,7 +23,7 @@
    (world/solidity.ts). Frame: the room's own, its centre at the origin; you start at the south
    (+z) facing the centre (−z). Angles: θ = atan2(x, z), 0 toward the start. */
 import * as THREE from "three/webgpu";
-import { T, gpuUniforms, spectrum, type N } from "../../gpu/tsl";
+import { T, glimmer, flow, gpuUniforms, spectrum, type N } from "../../gpu/tsl";
 import { keyShadow } from "../../gpu/lightRig";
 import { ribbonGeometry, ribbonMaterial } from "../../gpu/ribbons";
 import { landStone, seeThrough, stoneBlock } from "../../world/stoneworks";
@@ -42,7 +42,7 @@ import type { Reading } from "../../world/readables";
 import { buildSun, SUN_AT } from "./sun";
 import { forkRings, Palms, TouchMap, Trail } from "./mechanics";
 
-const { attribute, cameraProjectionMatrix, cos, float, fract, mix, modelViewMatrix, normalize, positionGeometry, pow, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
+const { attribute, cameraProjectionMatrix, float, fract, mix, modelViewMatrix, normalize, positionGeometry, pow, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
 const V3 = THREE.Vector3;
 const TAU = Math.PI * 2;
 
@@ -1473,9 +1473,11 @@ export function createMindMaze(scene: THREE.Scene, _narration: Narration, whispe
     }
     touch(c.cloud);
     const K = c.cloud.nodes.aK;
-    const drift = vec3(sin(t.mul(0.18).add(K.x.mul(12))), sin(t.mul(0.24).add(K.y.mul(7))).mul(0.6), cos(t.mul(0.15).add(K.z.mul(9))));
-    c.material.positionNode = c.cloud.nodes.position.add(drift);
-    const pulse = sin(t.mul(1.3).add(K.w.mul(30))).mul(0.35).add(0.65);
+    // carried down the corridors on the air's slow currents, together (`flow`)
+    const mp = c.cloud.nodes.position;
+    c.material.positionNode = mp.add(flow(mp.div(3), t.mul(0.15)).mul(vec3(1, 0.6, 1)));
+    // each on its own slow glimmer
+    const pulse = glimmer(K.w, t, 2).mul(0.75);
     c.material.colorNode = vec4(vec3(1, 0.86, 0.6).mul(c.round).mul(pulse).mul(float(0.3).add(uCalm.mul(0.3))), 1);
     g.add(c.cloud.sprite);
     ours.push(c.material);

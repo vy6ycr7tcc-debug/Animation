@@ -8,7 +8,7 @@
    - Sitting and reaching gestures are used at the stations. */
 import * as THREE from "three/webgpu";
 import { Rig, type Moment, type Signature } from "./gestures";
-import { softPoints, spriteCloud, T, type SpriteCloud, softDot, pointR } from "../gpu/tsl";
+import { glimmer, gpuUniforms, lifeAt, softPoints, spriteCloud, T, type SpriteCloud, softDot, pointR } from "../gpu/tsl";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { floatAttributes, loadBytes } from "../core/assets";
@@ -126,7 +126,8 @@ class BodyMotes {
       const { clamp, float, max, vec3, vec4 } = T;
       const { position, aAlpha, aSize, aTint } = this.cloud.nodes;
       mat.sizeNode = clamp(aSize.mul(26).div(max(T.cameraViewMatrix.mul(vec4(position, 1)).z.negate(), 0.5)), float(1).div(this.uDpr), 8);
-      const a = softDot(pointR()).mul(1.22).mul(aAlpha).mul(U.uForm);
+      // each mote on its own slow glimmer as it flows over the body
+      const a = softDot(pointR()).mul(1.22).mul(aAlpha).mul(U.uForm).mul(glimmer(aTint, gpuUniforms.time, 1.6).mul(0.6).add(0.48));
       const c = aTint.lessThan(0.65).select(vec3(1.0, 0.88, 0.66), aTint.lessThan(0.9).select(vec3(0.8, 0.93, 1.0), vec3(1.0, 0.7, 0.45)));
       mat.colorNode = vec4(c.mul(a).mul(0.55), 1);
     }
@@ -170,7 +171,8 @@ class BodyMotes {
         p[j + 2] += (this.v.z - p[j + 2]) * f;
       }
       const e = this.u[i];
-      this.alpha[i] = Math.min(1, e * 6) * Math.min(1, (1 - e) * 3) * (this.follow[i] < 5 ? 0.6 : 0.9) * (this.v.y < 0 ? 0.3 : 1);
+      // born and gone softly over its run along the body (no kink at either end)
+      this.alpha[i] = lifeAt(e, 0.17, 0.62) * (this.follow[i] < 5 ? 0.6 : 0.9) * (this.v.y < 0 ? 0.3 : 1);
     }
     this.started = true;
     this.cloud.attrs.position.needsUpdate = this.cloud.attrs.aAlpha.needsUpdate = true;

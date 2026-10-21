@@ -1,9 +1,15 @@
 /* Motes of light drifting above the lake, drawn on the GPU. They follow the viewer
-   in a wrapping volume, so there are always some nearby and never too many. */
+   in a wrapping volume, so there are always some nearby and never too many.
+   They are carried by the air: a slow breeze through the volume and the currents' eddies on
+   top (`flow`), so neighbours drift together, rising and turning as one; each glows on its
+   own slow time (`glimmer`), resting dim a while and now and then brightening. */
 import * as THREE from "three/webgpu";
-import { softPoints, spriteCloud, T, type SpriteCloud, softDot } from "../gpu/tsl";
+import { flow, glimmer, softPoints, spriteCloud, T, type SpriteCloud, softDot } from "../gpu/tsl";
 
-const { cameraViewMatrix, cos, float, length, mix, mod, pointUV, positionView, sin, smoothstep, step, uniform, vec2, vec3, vec4, clamp } = T;
+const { cameraViewMatrix, float, length, mix, mod, pointUV, smoothstep, step, uniform, vec3, vec4, clamp } = T;
+
+/** The breeze through the motes (m/s). */
+const BREEZE = [0.16, 0, 0.09];
 
 export class Motes {
   /** The sprite cloud (named `points` as before, so callers can toggle it). */
@@ -17,19 +23,19 @@ export class Motes {
     this.cloud = spriteCloud(this.max, { base: 3, aK: 1 }, mat);
     const { base, aK } = this.cloud.nodes;
     const U = this.U;
-    const drift = vec3(sin(U.uT.mul(0.11).add(aK.mul(9))), sin(U.uT.mul(0.17).add(aK.mul(4))).mul(0.6), cos(U.uT.mul(0.09).add(aK.mul(7)))).mul(1.6);
-    const p = base.add(drift);
-    // wrap into an 80-unit box around the viewer
-    const xz = U.uCenter.xz.add(mod(p.xz.sub(U.uCenter.xz).add(40), 80)).sub(40);
-    mat.positionNode = vec3(xz.x, p.y, xz.y);
+    // carried on the breeze, wrapped into an 80-unit box around the viewer
+    const blown = base.add(vec3(BREEZE[0], BREEZE[1], BREEZE[2]).mul(U.uT));
+    const xz = U.uCenter.xz.add(mod(blown.xz.sub(U.uCenter.xz).add(40), 80)).sub(40);
+    const w0 = vec3(xz.x, blown.y, xz.y);
+    // and the air's eddies, a few metres across, turning slowly
+    mat.positionNode = w0.add(flow(w0.div(2.6), U.uT.mul(0.12)).mul(vec3(1.1, 0.8, 1.1)));
     const d = cameraViewMatrix.mul(vec4(mat.positionNode, 1)).z.negate();
-    mat.sizeNode = clamp(aK.mul(2.2).add(1).mul(16).div(d), float(1).div(U.uDpr), 6);
-    const a = float(1).sub(smoothstep(20, 40, d)).mul(smoothstep(0.6, 3, d)).mul(aK.mul(0.7).add(0.3)).mul(sin(U.uT.mul(1.4).add(aK.mul(40))).mul(0.4).add(0.6));
+    const g = glimmer(aK, U.uT);
+    mat.sizeNode = clamp(aK.mul(2.2).add(1).mul(16).mul(g.mul(0.18).add(0.84)).div(d), float(1).div(U.uDpr), 6);
+    const a = float(1).sub(smoothstep(20, 40, d)).mul(smoothstep(0.6, 3, d)).mul(aK.mul(0.7).add(0.3)).mul(g.mul(0.92));
     const r = length(pointUV.sub(0.5));
     const col = mix(vec3(1.0, 0.9, 0.78), vec3(1.0, 0.72, 0.5), step(0.75, aK));
     mat.colorNode = vec4(col.mul(softDot(r.mul(2)).mul(1.22)).mul(a).mul(1.4), 1);
-    void positionView;
-    void vec2;
     this.points = this.cloud.sprite;
     this.setCount(count);
   }
