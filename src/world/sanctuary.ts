@@ -88,8 +88,9 @@ export interface SavedForm {
   l?: number;
   /** its size, as drawn = 1 */
   sc?: number;
-  /** a ring's dome or floor; a closed wall's floor */
-  top?: "dome" | "floor";
+  /** a ring's dome, floor or roof; a closed wall's floor, roof or both (a roof is a flat slab on
+      the walls' top that can be walked on: stairs lead up to it) */
+  top?: "dome" | "floor" | "roof" | "both";
   /** where it stands in the world */
   x: number;
   z: number;
@@ -187,11 +188,12 @@ export function costOf(s: SavedForm): number {
   switch (s.kind) {
     case "wall": {
       const p = pathOf(s);
-      return lengthOf(p, s.closed) * COST.wallPerM * k + (s.closed && s.top === "floor" ? areaOf(p) * COST.floorPerM2 : 0);
+      const a = s.closed ? areaOf(p) : 0;
+      return lengthOf(p, s.closed) * COST.wallPerM * k + (s.top === "floor" || s.top === "both" ? a * COST.floorPerM2 : 0) + (s.top === "roof" || s.top === "both" ? a * COST.floorPerM2 * 1.5 : 0);
     }
     case "ring": {
       const R = (s.r ?? 1.5) * sc;
-      return Math.PI * 2 * R * COST.wallPerM * k + (s.top === "dome" ? 2 * Math.PI * R * R * COST.domePerM2 : s.top === "floor" ? Math.PI * R * R * COST.floorPerM2 : 0);
+      return Math.PI * 2 * R * COST.wallPerM * k + (s.top === "dome" ? 2 * Math.PI * R * R * COST.domePerM2 : s.top === "floor" ? Math.PI * R * R * COST.floorPerM2 : s.top === "roof" ? Math.PI * R * R * COST.floorPerM2 * 1.5 : 0);
     }
     case "pillar":
       return COST.pillar * sc * k;
@@ -365,17 +367,33 @@ function domeGeometry(R: number, at: number): THREE.BufferGeometry {
   g.translate(0, at - 0.05, 0);
   return g;
 }
-/** A paved floor filling a closed outline (its own frame), its top just above the earth. */
-function floorGeometry(outline: V2[]): THREE.BufferGeometry {
+/** A paved floor filling a closed outline (its own frame), its top `top` above the earth (just
+    above it for a floor; on the walls' top for a roof), `depth` thick. */
+function floorGeometry(outline: V2[], top = 0.08, depth = 0.7): THREE.BufferGeometry {
   const sh = new THREE.Shape(outline.map(([x, z]) => new THREE.Vector2(x, -z)));
-  const g = new THREE.ExtrudeGeometry(sh, { depth: 0.7, bevelEnabled: false });
+  const g = new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: false });
   g.rotateX(-Math.PI / 2);
-  g.translate(0, -0.62, 0);
+  g.translate(0, top - depth, 0);
   g.deleteAttribute("uv");
   g.computeVertexNormals();
   return g;
 }
 
+/** An outline grown outward by `by` metres from its centre (a roof overhanging its walls). */
+function roofLine(line: V2[], by: number): V2[] {
+  let cx = 0, cz = 0;
+  for (const [x, z] of line) (cx += x / line.length), (cz += z / line.length);
+  return line.map(([x, z]) => {
+    const dx = x - cx, dz = z - cz, l = Math.hypot(dx, dz) || 1;
+    return [x + (dx / l) * by, z + (dz / l) * by] as V2;
+  });
+}
+/** The highest the land rises under a line (a roof rests on the walls' highest top). */
+function maxLay(line: V2[], lay: Lay): number {
+  let m = -Infinity;
+  for (const [x, z] of line) m = Math.max(m, lay(x, z));
+  return Math.max(0, m);
+}
 /** The gold of a memory: warm bright metal in the world's own light, its sheen drawn by hand (the
     game mirrors nothing), hammered, glowing a little from within so it reads as gold even by
     night (it was mistaken for stone), and now and then a slow line of light rising through it. */
@@ -615,6 +633,8 @@ export interface SanctuaryHooks {
   breath(): readonly { name: string; secs: number }[];
   /** a quiet line of guidance (a stroke not understood, or not enough essence) */
   say(text: string): void;
+  /** plant a seed (world/garden.ts); false where nothing can grow */
+  plant?(x: number, z: number): boolean;
 }
 
 const STONE_LIGHT = new THREE.Color(0.78, 0.84, 1.0);
@@ -652,6 +672,8 @@ export class Sanctuary {
   /** 0..1: how hushed the world is (building: a little; the brush down: a little more) */
   hush = 0;
   ink: Ink = "stone";
+  /** a tap on the earth plants a seed (the 🌱 chip) */
+  planting = false;
   /** the stone new forms are laid in (the last chosen) */
   finish: Finish = "cut";
   private finishes = new Map<Finish, THREE.Material>();
@@ -679,7 +701,7 @@ export class Sanctuary {
   private selected: Form | null = null;
   private auras: THREE.Mesh[] = [];
   // the touch drawing, or carrying a form, or two fingers moving the view
-  private draw: { id: number; ground: V2[]; sx: number; sy: number; screen: number; ink: Ink } | null = null;
+  private draw: { id: number; ground: V2[]; drawn: V2[]; sx: number; sy: number; screen: number; ink: Ink } | null = null;
   private shape: { id: number; form: Form; was: boolean; moved: boolean; sx: number; sy: number; off: V2; snap: boolean } | null = null;
   private fingers = new Map<number, { x: number; y: number }>();
   private view: { a: number; b: number; d0: number; ang0: number; my0: number; mx0: number; yaw0: number; pitch0: number; dist0: number } | null = null;
@@ -920,6 +942,7 @@ export class Sanctuary {
       </div>
       <p class="b-hint">Draw on the ground with one finger. Two fingers turn and tilt the view; pinch to come closer.</p>
       <div class="b-shapes" aria-label="What each stroke makes">
+        <button type="button" class="chip plant" aria-pressed="false" aria-label="Plant trees: a tap on the ground plants a seed"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20 V11"/><path d="M12 13 C12 9 9 7 5.5 7.5 C5.5 11 8 13 12 13 Z"/><path d="M12 11 C12 7.5 14.5 5 18.5 5.5 C18.5 9 16 11 12 11 Z"/><path d="M8 20 H16"/></svg><span><em>Tap</em>Plant</span></button>
         <button type="button" class="chip fin" aria-label="The stone new forms are laid in"><i></i><span><em>Texture</em><b></b></span></button>
         ${SHAPES.map(([k, d, n]) => `<button type="button" class="chip" data-k="${k}">${ico(k)}<span><em>${d}</em>${n}</span></button>`).join("")}
       </div>
@@ -971,9 +994,16 @@ export class Sanctuary {
       this.drawUi();
       this.save();
     });
+    el.querySelector(".chip.plant")!.addEventListener("click", (e) => {
+      e.preventDefault();
+      this.planting = !this.planting;
+      this.hooks.bell(this.planting ? 523.25 : 349.23, 0.012, 1.4);
+      if (this.planting) this.hooks.say("Planting: a tap on the ground sets a seed. Then hold on the tree to tend it with your hands; it grows a stage each time.");
+      this.drawUi();
+    });
     tap(el.querySelector(".b-notes .clear")!, () => this.carveNote(null));
     tap(el.querySelector(".b-notes .shut")!, () => ((el.querySelector(".b-notes") as HTMLElement).hidden = true));
-    for (const c of el.querySelectorAll<HTMLElement>(".chip:not(.fin)")) {
+    for (const c of el.querySelectorAll<HTMLElement>(".chip:not(.fin):not(.plant)")) {
       const k = c.dataset.k!, sh = SHAPES.find((x) => x[0] === k)!;
       const how: Record<string, string> = {
         wall: "Draw a line, straight or curving: a wall rises along it. A closed shape with corners walls it round.",
@@ -1018,6 +1048,9 @@ export class Sanctuary {
     const fn = (f?: Finish) => FINISHES.find(([k]) => k === (f ?? "cut"))![1];
     (this.ui.querySelector(".chip.fin b") as HTMLElement).textContent = fn(this.finish);
     (this.ui.querySelector(".chip.fin") as HTMLElement).dataset.fin = this.finish;
+    const pl = this.ui.querySelector(".chip.plant") as HTMLElement;
+    pl.classList.toggle("on", this.planting);
+    pl.setAttribute("aria-pressed", String(this.planting));
     const f = this.selected;
     this.ui.classList.toggle("sel", !!f);
     if (!f) (this.ui.querySelector(".b-notes") as HTMLElement).hidden = true;
@@ -1039,7 +1072,10 @@ export class Sanctuary {
     const top = this.ui.querySelector(".topb") as HTMLElement;
     const canTop = f.s.kind === "ring" || (f.s.kind === "wall" && !!f.s.closed);
     top.hidden = !canTop;
-    top.textContent = f.s.kind === "ring" ? (f.s.top === "dome" ? "A floor instead" : f.s.top === "floor" ? "Leave it open" : "Add a dome") : f.s.top === "floor" ? "No floor" : "Add a floor";
+    top.textContent =
+      f.s.kind === "ring"
+        ? f.s.top === "dome" ? "A floor instead" : f.s.top === "floor" ? "A roof instead" : f.s.top === "roof" ? "Leave it open" : "Add a dome"
+        : f.s.top === "floor" ? "Add a roof" : f.s.top === "both" ? "Roof only" : f.s.top === "roof" ? "Leave it open" : "Add a floor";
     (this.ui.querySelector(".grp.tall") as HTMLElement).hidden = f.s.kind === "orb";
     (this.ui.querySelector(".grp.turn") as HTMLElement).hidden = f.s.kind === "orb";
   }
@@ -1076,6 +1112,7 @@ export class Sanctuary {
   close(): void {
     if (!this.building) return;
     this.building = false;
+    this.planting = false;
     this.orbit.on = false;
     this.select(null);
     if (this.draw) this.cancelStroke();
@@ -1225,7 +1262,7 @@ export class Sanctuary {
       const p = this.pageAt(e.clientX, e.clientY);
       if (!p) return true; // off the page: nothing (it is still building's touch)
       // a touch on the earth: the brush
-      this.draw = { id: e.pointerId, ground: [p], sx: e.clientX, sy: e.clientY, screen: 0, ink: this.ink };
+      this.draw = { id: e.pointerId, ground: [p], drawn: [[e.clientX, e.clientY]], sx: e.clientX, sy: e.clientY, screen: 0, ink: this.ink };
       this.trailFade = 0;
       this.trail.k.value = 0.9;
       this.trail.mesh.visible = true;
@@ -1266,6 +1303,7 @@ export class Sanctuary {
         d.screen += Math.hypot(e.clientX - d.sx, e.clientY - d.sy);
         d.sx = e.clientX;
         d.sy = e.clientY;
+        if (d.drawn.length < 500) d.drawn.push([e.clientX, e.clientY]);
         const p = this.pageAt(e.clientX, e.clientY, true);
         const last = d.ground[d.ground.length - 1];
         if (p && Math.hypot(p[0] - last[0], p[1] - last[1]) > 0.06 && d.ground.length < 500) {
@@ -1299,7 +1337,7 @@ export class Sanctuary {
       if (this.draw && e.pointerId === this.draw.id) {
         const d = this.draw;
         this.draw = null;
-        this.finishStroke(d.ground, d.screen, d.ink);
+        this.finishStroke(d.ground, d.screen, d.ink, d.drawn);
         return;
       }
       if (this.shape && e.pointerId === this.shape.id) {
@@ -1421,8 +1459,8 @@ export class Sanctuary {
     else if (t === "tall-" || t === "tall+") s.h = round(clampN(heightOf(s) * (t === "tall-" ? 0.85 : 1 / 0.85), H[1], H[2]));
     else if (t === "lift-" || t === "lift+") s.y = round(clampN(s.y + (t === "lift-" ? -0.3 : 0.3), s.kind === "orb" ? -1.2 : 0, s.kind === "orb" ? 9 : 6));
     else if (t === "top") {
-      if (s.kind === "ring") s.top = s.top === "dome" ? "floor" : s.top === "floor" ? undefined : "dome";
-      else if (s.kind === "wall" && s.closed) s.top = s.top === "floor" ? undefined : "floor";
+      if (s.kind === "ring") s.top = s.top === "dome" ? "floor" : s.top === "floor" ? "roof" : s.top === "roof" ? undefined : "dome";
+      else if (s.kind === "wall" && s.closed) s.top = s.top === "floor" ? "both" : s.top === "both" ? "roof" : s.top === "roof" ? undefined : "floor";
       if (!s.top) delete s.top;
     } else return;
     const d = costOf(s) - costOf(JSON.parse(before) as SavedForm);
@@ -1489,14 +1527,24 @@ export class Sanctuary {
     this.trailFade = 1.6;
   }
   /** A stroke let go: read it, and grow what it is, or let it sink back into the earth. */
-  private finishStroke(ground: V2[], screen: number, ink: Ink): void {
+  private finishStroke(ground: V2[], screen: number, ink: Ink, drawn?: V2[]): void {
     // a tap on the earth while a form is chosen only puts it down
     if (screen < 16 && this.selected) {
       this.select(null);
       this.trail.mesh.visible = false;
       return;
     }
-    const r = readStroke(ground, screen);
+    const r = readStroke(ground, screen, drawn);
+    if (this.planting && r?.kind === "dot" && this.hooks.plant) {
+      // a seed, not an orb
+      this.trail.mesh.visible = false;
+      const [x, z] = ground[ground.length - 1];
+      if (this.hooks.plant(x, z)) {
+        this.hooks.bell(392, 0.018, 3);
+        this.hooks.sparks(this.v.set(x, groundAt(x, z) + 0.2, z), 10, new THREE.Color(0.7, 1, 0.6), 0.4);
+      } else this.hooks.say("Nothing can grow just there (water, or another tree too near).");
+      return;
+    }
     let s: SavedForm | null = null;
     if (r?.kind === "dot") {
       const [x, z] = ground[ground.length - 1];
@@ -1607,7 +1655,8 @@ export class Sanctuary {
       mesh(wallGeometry(path, !!s.closed, H, 0.24, lay), mat);
       line = smoothPath(path, !!s.closed);
       half = 0.24;
-      if (s.closed && s.top === "floor") mesh(floorGeometry(line), paving);
+      if (s.closed && (s.top === "floor" || s.top === "both")) mesh(floorGeometry(line), paving);
+      if (s.closed && (s.top === "roof" || s.top === "both")) mesh(floorGeometry(roofLine(line, 0.3), H + maxLay(line, lay) + 0.02, 0.28), paving);
     } else if (s.kind === "ring") {
       const R = (s.r ?? 1.5) * sc, n = Math.max(18, Math.round(R * 10));
       line = Array.from({ length: n }, (_, i) => [Math.cos((i / n) * Math.PI * 2) * R, Math.sin((i / n) * Math.PI * 2) * R] as V2);
@@ -1615,6 +1664,7 @@ export class Sanctuary {
       half = 0.22;
       if (s.top === "dome") mesh(domeGeometry(R + 0.2, H + Math.max(0, lay(0, 0))), mat);
       else if (s.top === "floor") mesh(floorGeometry(line.map(([x, z]) => [x * 0.96, z * 0.96] as V2)), paving);
+      else if (s.top === "roof") mesh(floorGeometry(roofLine(line, 0.3), H + maxLay(line, lay) + 0.02, 0.28), paving);
     } else if (s.kind === "pillar") {
       mesh(pillarGeometry((s.r ?? 0.3) * sc, H), mat);
       half = (s.r ?? 0.3) * sc * 1.2;
@@ -2026,7 +2076,7 @@ export class Sanctuary {
     this.trail.mesh.visible = true;
     this.trail.k.value = 0.9;
     this.trail.set(w, 0, false, (x, z) => groundAt(x, z) + 0.07);
-    this.draw = { id: -1, ground: w, sx: 0, sy: 0, screen: 999, ink: this.ink };
+    this.draw = { id: -1, ground: w, drawn: [], sx: 0, sy: 0, screen: 999, ink: this.ink };
   }
   /** A point of the terrace's frame, on the screen (for a still's fingertip). */
   screenOf(p: V2, camera: THREE.Camera): [number, number] {

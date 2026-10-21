@@ -45,8 +45,61 @@ export type Reading =
   | { kind: "stairs"; a: V2; b: V2; w: number }
   | null;
 
-/** What a stroke on the earth is (points in metres on the ground; `screen` its length in px). */
-export function readStroke(raw: V2[], screen: number): Reading {
+/** What a stroke is. Read as it was drawn on the screen (`drawn`, px) when given: the earth is seen
+    at a slant and from afar, so a small circle drawn there could come out a few centimetres long
+    and read as a touch, a U squashed into a line (the owner: "arch is wall, column is orb"). Its
+    place and size are then taken from the earth (`raw`, metres); `screen` is its length in px. */
+export function readStroke(raw: V2[], screen: number, drawn?: V2[]): Reading {
+  if (!drawn || drawn.length < 3) return readOn(raw, screen);
+  // the screen's points in units of ~60 px, so the shape rules' sizes hold for a finger
+  const k = readOn(drawn.map(([x, y]) => [x / 60, -y / 60] as V2), screen);
+  if (!k || k.kind === "dot") return k;
+  const g = readOn(raw, screen);
+  if (g && g.kind === k.kind) return g;
+  return onEarth(k, raw);
+}
+
+/** A shape read on the screen, laid on the earth: its place and size from the earth's points. */
+function onEarth(k: Exclude<Reading, null>, raw: V2[]): Reading {
+  const p = resample(raw, 64);
+  let L = 0, cx = 0, cz = 0;
+  for (let i = 0; i < p.length; i++) {
+    if (i) L += Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]);
+    cx += p[i][0] / p.length;
+    cz += p[i][1] / p.length;
+  }
+  const rad = p.map(([x, z]) => Math.hypot(x - cx, z - cz));
+  const mean = rad.reduce((a, b) => a + b, 0) / rad.length;
+  switch (k.kind) {
+    case "wall":
+      return { kind: "wall", path: p, closed: k.closed, length: L };
+    case "ring":
+    case "pillar":
+      return { kind: mean * 2 >= RING_D ? "ring" : "pillar", c: [cx, cz], r: mean };
+    case "spire":
+      return { kind: "spire", c: [cx, cz], r: Math.max(...rad) };
+    case "pyramid":
+      return { kind: "pyramid", c: [cx, cz], r: mean };
+    case "arch":
+      return { kind: "arch", a: p[0], b: p[63] };
+    case "stairs": {
+      const D = Math.hypot(p[63][0] - p[0][0], p[63][1] - p[0][1]) || 1;
+      const ux = (p[63][0] - p[0][0]) / D, uz = (p[63][1] - p[0][1]) / D;
+      let lo = Infinity, hi = -Infinity;
+      for (const [x, z] of p) {
+        const s = (x - p[0][0]) * -uz + (z - p[0][1]) * ux;
+        lo = Math.min(lo, s);
+        hi = Math.max(hi, s);
+      }
+      return { kind: "stairs", a: p[0], b: p[63], w: hi - lo };
+    }
+    default:
+      return k;
+  }
+}
+
+/** The shape rules, on points in metres (or the screen's, scaled). */
+function readOn(raw: V2[], screen: number): Reading {
   if (screen < 16 || raw.length < 3) return { kind: "dot" };
   const p = resample(raw, 64);
   let L = 0;
@@ -154,7 +207,7 @@ export function readStroke(raw: V2[], screen: number): Reading {
     }
   }
   // a U: an open stroke turning about half round, smoothly, its ends apart and bowed well out
-  if (!closed && turns > 0.32 && turns < 0.85 && corner < 0.4 && D > 0.8) {
+  if (!closed && turns > 0.32 && turns < 0.85 && corner < 0.75 && D > 0.8) {
     const ux = (p[63][0] - p[0][0]) / D, uz = (p[63][1] - p[0][1]) / D;
     let bow = 0;
     for (const [x, z] of p) bow = Math.max(bow, Math.abs((x - p[0][0]) * -uz + (z - p[0][1]) * ux));
