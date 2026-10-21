@@ -212,6 +212,20 @@ function addNight(c: N, d: N, y: N, hy: N, above: N, detail: boolean): void {
   c.addAssign(vec3(1.0, 0.72, 0.42).mul(pow(ss, 300)).mul(0.3).mul(U.uStars).mul(float(1).sub(U.uDeep.mul(0.7))));
 }
 
+/** The stars as still water holds them (the owner: "the water reflecting the stars"): the sky's
+    own stars (the same cells, so each has its twin below), drawn a little larger, since the
+    surface is seen foreshortened and a star's point would fall between the pixels. */
+export const mirroredStars = Fn(([d]: N[]) => {
+  const U = skyUniforms;
+  const q = d.mul(230), cell = floor(q), h = hash3(cell), f = fract(q).sub(0.5);
+  const tw = sin(U.uT.mul(h.mul(2).add(0.7)).add(h.mul(60))).mul(0.3).add(0.7);
+  const many = mix(0.988, 0.975, U.uDeep);
+  const star = step(many, h).mul(smoothstep(0.42, 0, length(f))).mul(tw);
+  const faint = step(0.965, hash3(cell.add(17))).mul(smoothstep(0.34, 0, length(f))).mul(U.uStarBoost.add(U.uDeep.mul(0.6)).add(0.25)).mul(0.4);
+  const col = mix(vec3(0.75, 0.85, 1.0), vec3(1.0, 0.9, 0.75), step(0.995, h));
+  return col.mul(star.add(faint)).mul(U.uStars).mul(smoothstep(0.03, 0.2, d.y));
+});
+
 /** The colour of the sky in direction `d`, as the water mirrors it. */
 export const skyColor = Fn(([d]: N[]) => skyColorImpl(d, false));
 /** The sky itself, with its nebulae, dust and galaxies. */

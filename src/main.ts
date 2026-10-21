@@ -2421,6 +2421,7 @@ let vibeK = 0, vibeTimer = 0;
 let vibeStone: { p: THREE.Vector3; r: number; crystal: boolean } | null = null;
 let medK = 0;
 const heartPos = new THREE.Vector3();
+const floatHeart = new THREE.Vector3();
 function updateStillness(dt: number, wt: number): void {
   const calm =
     S.mode === "play" && player.grounded && !player.swimming && !player.flying && player.speed < 0.15 &&
@@ -2432,6 +2433,8 @@ function updateStillness(dt: number, wt: number): void {
   wanderer.meditation = medK;
   creationUniforms.uCommune.value = medK;
   heartPos.copy(player.pos).setY(player.pos.y + 1.15);
+  // lying back on the water the heart is at the chest, a little over it, not where it stands
+  if (floatK > 0.001 && wanderer.ready) heartPos.lerp(wanderer.chestPos(floatHeart).setY(floatHeart.y + 0.1), floatK);
   communion.update(wt, dt, medK, heartPos, player.pos, () => [
     ...creation.anchors(),
     ...beings.list.map((b) => b.root.position.clone().setY(b.root.position.y + 1.1)),
@@ -2886,7 +2889,7 @@ let sunStill = false;
 function contemplationFrame(dt: number): void {
   const idle = performance.now() - lastTouch > INWARD_AFTER && Math.hypot(input.move.x, input.move.y) < 0.05 && !input.hold;
   const want = inwardOn && idle && S.mode === "play" && !startMap.isOpen && $("#menu").hidden && !oracle.isOpen && player.speed < 0.3 &&
-    !player.flying && !player.diving && !follow.underwater && !autofly.active && !autorun.active && !crossing &&
+    !player.flying && !player.diving && !player.floating && !follow.underwater && !autofly.active && !autorun.active && !crossing &&
     (sitting.phase === "none" || lessonSeated()) && !document.body.classList.contains("touring") && !sanct.building && !sanct.formingNow && !med.active;
   inwardK += ((want ? 1 : 0) - inwardK) * Math.min(1, dt * (want ? 0.35 : 3));
   if (inwardK < 0.002 && !want) inwardK = 0;
@@ -5056,6 +5059,8 @@ function readings(): string {
 /* ============ LOOP ============ */
 let lastPrint = 0;
 let lastStroke = 0;
+let floatRing = 0;
+let floatK = 0;
 const orbPos = new THREE.Vector3();
 let wasSwimming = false;
 let saveTimer = 0;
@@ -5177,7 +5182,7 @@ function update(dt: number): void {
 
   if (S.mode === "play") {
     // Steps on the ground (no footprints: the owner), rings on water.
-    if (player.grounded && player.odometer - lastPrint > 0.7) {
+    if (player.grounded && !player.floating && player.odometer - lastPrint > 0.7) {
       lastPrint = player.odometer;
       const gy = heightAt(player.pos.x, player.pos.z);
       if (apart()) {
@@ -5185,6 +5190,16 @@ function update(dt: number): void {
       } else {
         audio.step(false);
         if (gy < 0.15) water.ripple(player.pos.x, player.pos.z, 0.5, t);
+      }
+    }
+    // lying back on the shallows: a slow ring now and then as the body drifts, a soft stroke as it moves
+    if (player.floating) {
+      floatRing -= dt;
+      if (player.odometer - lastStroke > 1.6 || floatRing <= 0) {
+        if (player.odometer - lastStroke > 1.6) audio.step(true);
+        lastStroke = player.odometer;
+        floatRing = 4 + Math.random() * 3;
+        water.ripple(player.pos.x, player.pos.z, player.speed > 0.3 ? 0.45 : 0.25, t);
       }
     }
     if (player.swimming && !player.diving && player.odometer - lastStroke > 1.1) {
@@ -5275,7 +5290,16 @@ function update(dt: number): void {
   if (player.diving && Math.random() < dt * 0.6) seaLife.bubbles(player.pos, 1);
   wasSwimming = player.swimming;
 
+  // floating, the view looks at the body lying on the water, not the air above it, and the water
+  // round it stills to a mirror of the stars
+  floatK += ((player.floating ? 1 : 0) - floatK) * Math.min(1, dt * 0.8);
+  const lift0 = follow.targetLift;
+  if (floatK > 0.002) follow.targetLift = (lift0 ?? 1.3) - 0.85 * floatK;
+  follow.floatK = floatK;
+  water.uniforms.uMirror.value = floatK;
+  water.uniforms.uMirrorAt.value.set(player.pos.x, player.pos.z);
   follow.update(dt, player.pos, player.heading, player.speed > 0.5, t, S.reduced, player.flying);
+  follow.targetLift = lift0;
   cardsCamera(dt);
   sanct.cameraFrame(camera, dt);
   // high in the air, the camera reaches farther (and keeps its depth precise)

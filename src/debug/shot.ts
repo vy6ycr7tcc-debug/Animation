@@ -426,6 +426,20 @@ export function runShot(ctx: ShotCtx): void {
     base = [g.x, heightAt(g.x, g.z), g.z];
     view = { eye: [3.1, gy + 0.85, 1.9], look: [3.5, gy + 0.14, 0] };
     ctx.player.pos.set(g.x, heightAt(g.x, g.z), g.z);
+  } else if (id === "float") {
+    // lying back on the shallows: the nearest water ~0.75 m deep to the start, with more of it
+    // round it; use &live=8 for the game's own view as it settles
+    let px = SPAWN.x, pz = SPAWN.z, best = Infinity;
+    for (let r = 4; r < 160 && best === Infinity; r += 3)
+      for (let k = 0; k < 48; k++) {
+        const a = (k / 48) * Math.PI * 2, x = SPAWN.x + Math.sin(a) * r, z = SPAWN.z + Math.cos(a) * r;
+        const d = -heightAt(x, z);
+        if (d > 0.65 && d < 0.9 && Math.abs(d - 0.75) < best) (best = Math.abs(d - 0.75)), (px = x), (pz = z);
+      }
+    base = [px, -0.07, pz];
+    const up = new URLSearchParams(location.search).has("above");
+    view = up ? { eye: [1.2, 3.4, 1.2], look: [0.6, 0, 0.6] } : { eye: [0, 2.0, 4.2], look: [0, 0, 0] };
+    ctx.player.pos.set(px, heightAt(px, pz), pz);
   } else if (id === "meadow" || id === "horses") {
     // the open land near the start: from a little rise, across the meadow to the vision of
     // creation standing on it, the sky above (it framed bare ground before)
