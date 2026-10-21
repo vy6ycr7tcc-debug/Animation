@@ -5607,7 +5607,8 @@ renderer
         sanct.open(new THREE.Vector3(c.x, c.y, c.z), { yaw: f + 0.5 });
         // each in its own stone (the finishes), two carved with a note in the old script
         const fins = ["earth", "cliff", "granite", "marble", "field", "cut"] as const;
-        sanct.shotForms(Sanctuary.shotLayout().map((s, i) => (s.ink === "stone" ? { ...s, fin: fins[i % fins.length], ...(i === 0 || i === 6 ? { note: 1 } : {}) } : s)));
+        // the ring roofed, the steps leading up onto it
+        sanct.shotForms(Sanctuary.shotLayout().map((s) => (s.kind === "ring" ? { ...s, top: "roof" as const } : s.kind === "stairs" ? { ...s, h: 1.15, l: 2.6, z: 2.1 } : s)).map((s, i) => (s.ink === "stone" ? { ...s, fin: fins[i % fins.length], ...(i === 0 || i === 6 ? { note: 1 } : {}) } : s)));
         sanct.shotSelect(6);
         stand(0.6, 5.2, 0);
         // `sanctuary-build&near`: close to the arch's head, to read the carving
