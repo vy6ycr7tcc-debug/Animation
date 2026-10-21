@@ -28,7 +28,7 @@ export function forest(spots: TreeSpot[], t: N, R: () => number, seed = 3000): {
   const leafK: number[] = [];
   spots.forEach((sp, i) => {
     const tree = grow(SHAPES[sp.shape], seed + i * 13);
-    const geo = tubes([...tree.limbs, ...tree.roots]);
+    const geo = tubes(tree.limbs);
     const a = R() * Math.PI * 2;
     geo.rotateY(a);
     geo.scale(sp.size, sp.size, sp.size);

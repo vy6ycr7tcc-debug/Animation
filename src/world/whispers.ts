@@ -243,16 +243,15 @@ export class Whispers {
     {
       const T0 = LONE_TREE;
       const shape: TreeShape = { height: 13, radius: 1.05, limbs: 7, depth: 2, spread: 1.2, limbLen: 7.5, bend: 0.85, roots: 12, rootLen: 9, leaves: 8 };
-      const { limbs, roots, tips } = grow(shape, 0.611);
+      const { limbs, tips } = grow(shape, 0.611);
       const tree = new THREE.Group();
       tree.position.set(T0.x, T0.y - 0.1, T0.z);
       tree.rotation.y = 0.7;
       tree.scale.setScalar(1.25);
       const accent = new THREE.Color(1.0, 0.82, 0.62);
       const bark = new THREE.Mesh(tubes(limbs).clone(), barkMaterial(accent, 0.37));
-      const rootsMesh = new THREE.Mesh(tubes(roots, -0.2), barkMaterial(accent, 0.37));
       bark.castShadow = true;
-      tree.add(bark, rootsMesh);
+      tree.add(bark);
       // in leaf, as the world's trees are
       {
         let q = 9173;

@@ -146,6 +146,10 @@ function arc(p: THREE.Vector3, dir: THREE.Vector3, len: number, turn: number, ax
   return pts;
 }
 
+/** The roots (bark flaring into the earth, their lines of light seen through the ground, the
+    network joining trees and crystals underground): off on the owner's word (2026-10-21). */
+export const ROOTS = false;
+
 export function grow(shape: TreeShape, seed: number): { limbs: Limb[]; roots: Limb[]; tips: THREE.Vector3[] } {
   const R = rng(seed);
   const limbs: Limb[] = [];
@@ -619,11 +623,11 @@ export class Creation {
     }
     this.rootLines.frustumCulled = false;
     this.rootLines.renderOrder = 3;
-    this.group.add(this.rootLines);
+    if (ROOTS) this.group.add(this.rootLines);
     SHAPES.forEach((shape, kind) => {
       const { limbs, roots, tips } = grow(shape, 0.137 + kind * 0.211);
       this.trunkCurves[kind] = { curve: new THREE.CatmullRomCurve3(limbs[0].pts), r0: limbs[0].r0, r1: limbs[0].r1 };
-      const geo = mergeGeometries([tubes(limbs), tubes(roots, -0.2)]);
+      const geo = ROOTS ? mergeGeometries([tubes(limbs), tubes(roots, -0.2)]) : tubes(limbs);
       const seeds = new THREE.InstancedBufferAttribute(new Float32Array(MAX_TREES), 1);
       seeds.setUsage(THREE.DynamicDrawUsage);
       geo.setAttribute("aSeed", seeds);
@@ -841,7 +845,7 @@ export class Creation {
     const l = new THREE.LineSegments(g, mat);
     l.frustumCulled = false;
     l.renderOrder = 3;
-    this.group.add(l);
+    if (ROOTS) this.group.add(l);
     return l;
   }
 
@@ -982,7 +986,7 @@ export class Creation {
         this.m4.compose(this.sc.set(t.x, t.y, t.z), this.q, new V(t.scale, t.scale, t.scale));
         bark.setMatrixAt(n, this.m4);
         seeds[n] = hash1js(t.x, t.z);
-        if (Math.hypot(t.x - px, t.z - pz) < 50) {
+        if (ROOTS && Math.hypot(t.x - px, t.z - pz) < 50) {
           const seed = t.hue;
           for (const g of roots) {
             for (const [q, u] of [[g.a, g.ua], [g.b, g.ub]] as const) {
@@ -1113,7 +1117,7 @@ export class Creation {
     for (const c of this.activeClusters) this.mine.push({ x: c.x, z: c.z, r: c.great ? 1.4 : 0.8, top: c.y + (c.great ? 3.6 : 1.6) });
     colliders.push(...this.mine);
 
-    this.buildWebLines();
+    if (ROOTS) this.buildWebLines();
   }
 
   private buildWebLines(): void {
