@@ -4,7 +4,7 @@
    forms (beam, veil, garden, throne, arch, rings) stand as landmarks to wander toward.
    Narration plays in the background the whole time, one recording after another.
    States: intro (title over the night water) → play → rest (after Leave) → play … */
-import { FILM } from "./debug/filmClock"; // first: in film mode it seeds Math.random and (fast capture) owns time
+import { FILM, SIM } from "./debug/filmClock"; // first: in film mode it seeds Math.random and (fast capture) owns time
 import { KeyHints } from "./ui/keyHints";
 import { solidity } from "./world/solidity";
 import { setShadowSize } from "./gpu/lightRig";
@@ -1462,7 +1462,10 @@ function templeFrame(dt: number): void {
     toldGate = true;
     whisper("A temple. Walk through its door.", 5000);
   }
-  if (d < 6 && !crossing && !autofly.active && sitting.phase !== "seated" && temple.atGateDoor(player.pos)) crossTemple(true);
+  // a walk passing by on its way elsewhere is not taken in (leaving the temple for the pyramid it
+  // went back through the door, and the temple's tour began again)
+  const passing = !!walk && walk.stops[walk.i]?.place !== "temple";
+  if (d < 6 && !crossing && !passing && !autofly.active && sitting.phase !== "seated" && temple.atGateDoor(player.pos)) crossTemple(true);
 }
 
 // Autofly (⋮ → Autofly, or P): the wanderer flies by itself, low over the land from place to
@@ -1991,14 +1994,18 @@ function places(): Place[] {
 }
 
 /** Wake at the chosen place. */
+/** An arrival through the dark is under way (a tour's stop waits for it before it begins). */
+let arriving = false;
 function arrive(c: Choice, first: boolean): void {
   // the land to build is heavy work that holds the page still: first a soft dark with the
   // loading mark, painted, then the work, then the dark lifts
+  arriving = true;
   busy(1.5);
   input.enabled = false;
   fadeEl.classList.add("on");
   requestAnimationFrame(() => requestAnimationFrame(() => window.setTimeout(() => {
     arriveNow(c, first);
+    arriving = false;
     busy(0.8);
     window.setTimeout(() => fadeEl.classList.remove("on"), 150);
   }, 60)));
@@ -2024,7 +2031,9 @@ function arriveNow(c: Choice, first: boolean): void {
   wanderer.setGesture("none");
   beings.reset();
   lastMet = -1;
-  playlist.startWith(c.place.narration);
+  // the background narrator begins again from here, but not under a tour: its start stops the
+  // voice speaking, and a tour's stop reached through the dark lost its telling as it began
+  if (!walk && !duatTour && !areaTour) playlist.startWith(c.place.narration);
   input.enabled = true;
   S.mode = "play";
   persist();
@@ -3197,6 +3206,7 @@ function walkStart(id: string): void {
   standUp();
   if (duatTour) duatTourEnd(false);
   if (narration.current) narration.stop(1.5); // a background voice gives way to the tour's own
+  siteHoldFrom = 0;
   walk = { id, label: w.label, stops: w.stops(), i: 0, phase: "enter", t: 0, heard: false, skip: false, tries: 0, begun: false, done: false, best: { d: Infinity, t: 0 } };
   document.body.classList.add("touring");
   tourBar().show(walkBar);
@@ -3240,6 +3250,7 @@ async function walkEnterStop(): Promise<void> {
   // monument for the next one and skipped on (the next monument's lobby was never walked, and
   // the flight there was lost to the dark)
   const w = walk, i = walk.i;
+  if (sitting.phase === "seated") standUp(); // never carried off still seated
   walk.phase = "leaving";
   walk.t = 0;
   if (other) {
@@ -3419,9 +3430,16 @@ function duatTourFrame(dt: number): void {
       pyramid.duatRestart(d.i);
       Object.assign(d, { phase: "watch", t: 0 });
     }
-  } else if (d.t > h.cycle + 1.5) Object.assign(d, { i: d.i + 1, phase: "walk", t: 0 });
+  } else if (d.t > h.cycle + 1.5) {
+    // the last story waits for the Duat's telling to end (it ran ~70 s past the dawn's climb, and
+    // was heard back out in the world), at most two minutes more
+    const telling = narration.current === DUAT_TRACKS.entry || narration.loading;
+    if (d.i < hs.length - 1 || !telling || d.t > h.cycle + 120) Object.assign(d, { i: d.i + 1, phase: "walk", t: 0 });
+  }
 }
 /** Each frame at a narrated place: begin it its own way, hear it to the end, then on. */
+/** When a walk began holding at an area's door for a word spoken there (0: not holding). */
+let siteHoldFrom = 0;
 function siteFrame(st: SiteStop): void {
   if (!walk) return;
   const playing = narration.current === st.track;
@@ -3433,6 +3451,13 @@ function siteFrame(st: SiteStop): void {
       if (j.inside && !j.crossing) {
         walk.begun = true;
         areaTourStart(j, h.hall.label);
+      } else if (!j.crossing && (narration.current || narration.loading) && performance.now() - siteHoldFrom < 150000) {
+        // a word spoken at the door (the angel's, beat 1): heard before going in. The walk went
+        // straight through, and crossing the door cut it after a second
+        if (!siteHoldFrom) siteHoldFrom = performance.now();
+        player.target = null;
+        tourGoal(h.hall.door.x, h.hall.door.z);
+        walk.t = Math.min(walk.t, 1);
       } else if (!j.crossing) {
         driveTo(h.hall.door.x, h.hall.door.z, null, walk.t);
         tourGoal(h.hall.door.x, h.hall.door.z);
@@ -3506,6 +3531,7 @@ function walkSkip(): void {
 }
 function walkNext(): void {
   if (!walk) return;
+  siteHoldFrom = 0;
   siteLeave();
   walk.skip = false;
   walk.tries = 0;
@@ -3572,14 +3598,17 @@ function walkFrame(dt: number): void {
   }
   if (walk.phase === "place") {
     walkTitle(stopName(s0), `${walk.i + 1} of ${walk.stops.length}`);
-    if (crossing) return;
+    if (crossing || arriving) return;
     if (s0.place === "temple") {
       const tour = tourScenes.tour;
       if (temple.inside && tour.active) {
         walk.begun = true;
         if (tour.completed && walk.t > 6) {
-          // its end ("rest at the tree / stay"): stay, and go on
+          // its end ("rest at the tree / stay"): stay, and go on. Not sat down again at the
+          // Choice's seat on the way (it restarted the Choice's part over the flight onward)
+          choiceSit.off = false;
           tour.choose("stay");
+          if (sitting.phase === "seated") standUp();
           crossTemple(false);
           walkNext();
         } else if (!tour.completed) walk.t = 0;
@@ -3627,10 +3656,12 @@ function walkFrame(dt: number): void {
       (player.target ??= new THREE.Vector2()).copy(walkTo);
       tourGoal(seat.x, seat.z);
     }
-    const pr = narration.progress();
+    const pr = narration.progress(), loading = narration.loading;
     if (pr) walk.heard = true;
-    // a room is heard when its recording has played to its end; a room without a voice, a moment
-    const quiet = !j.voiced ? walk.t > 7 : walk.heard ? !pr || pr.t > pr.total - 0.4 : walk.t > (stage?.seated ? 30 : 14);
+    // a room is heard when its recording has played to its end; a room without a voice, a moment.
+    // A recording still on its way is waited for (up to two minutes): a slow connection used to
+    // reach the 14/30 s "no voice" limit first, and the tour went on before the room spoke
+    const quiet = !j.voiced ? walk.t > 7 : loading ? walk.t > 120 : walk.heard ? !pr || pr.t > pr.total - 0.4 : walk.t > (stage?.seated ? 30 : 14);
     if (quiet || walk.t > 480) {
       walk.phase = "linger";
       walk.t = 0;
@@ -5325,7 +5356,7 @@ function frame(now: number): void {
   renderer.info.reset();
   gpuDiagStart();
   try {
-    post.render();
+    if (!SIM) post.render(); // a simulated tour (testing) draws nothing
     drawFaults = 0;
   } catch (e) {
     frameFault(e);
@@ -6104,5 +6135,5 @@ addX(document.getElementById("next-up"), () => nextUp.hide(), "Stay here");
   new MutationObserver(sync).observe($("#map-close"), { attributes: true, attributeFilter: ["hidden"] });
   sync();
 }
-Object.assign(window, { __ij: { med, sanct, canTouch, beginBuild, groundPoint, solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, myHeart, oracle, oracleVision, stepFrames: (n: number, dt = 1 / 60) => { realDt = dt; for (let i = 0; i < n; i++) update(dt); post.render(); }, heartFrame, maze: () => maze } });
+Object.assign(window, { __ij: { med, sanct, canTouch, beginBuild, groundPoint, solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, myHeart, oracle, oracleVision, stepFrames: (n: number, dt = 1 / 60) => { realDt = dt; for (let i = 0; i < n; i++) update(dt); post.render(); }, heartFrame, maze: () => maze, tourInfo: () => tourBar().info() } });
 Object.assign((window as unknown as { __ij: object }).__ij, { whispers, hearWhisper, rapaNui });

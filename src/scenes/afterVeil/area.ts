@@ -777,7 +777,7 @@ export function createAfterVeil(scene: THREE.Scene, narration: Narration, whispe
           spokeFor += dt;
           angel.look = local;
           // its line has ended (while paused it is still speaking)
-          if (spokeFor > 2 && !narration.progress()) {
+          if (spokeFor > 2 && !narration.progress() && !narration.loading) {
             speaking = false;
             beat++;
             if (b.n === 7) {

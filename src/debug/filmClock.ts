@@ -11,6 +11,9 @@
 const q = new URLSearchParams(location.search);
 export const FILM: string | null = q.get("film");
 export const FAST = !!FILM && q.get("fast") === "1";
+/** A tour simulated, for testing (`&fast=1&sim=1`): the virtual clock, nothing drawn or encoded;
+    each clip's chapters and voice events are left on `window.__sim`. */
+export const SIM = FAST && q.get("sim") === "1";
 
 /** The real timers, for film.ts's own use (the virtual ones replace the page's). */
 export const real = {

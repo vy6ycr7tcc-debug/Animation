@@ -168,7 +168,13 @@ export class Narration {
     this.stop(0.5);
     const token = this.token;
     this.current = id;
-    const buf = await this.buffer(id);
+    this.pending = id;
+    let buf: AudioBuffer | null;
+    try {
+      buf = await this.buffer(id);
+    } finally {
+      if (this.pending === id) this.pending = null;
+    }
     const ctx = this.audio.ctx;
     if (token !== this.token || this.current !== id || !ctx) return;
     if (!buf) {
@@ -209,6 +215,14 @@ export class Narration {
       this.playing = null;
       this.finish(id);
     };
+  }
+
+  /** A recording asked for and still on its way (downloading, decoding): it is the current voice
+      but has no clock yet. Tours wait through this rather than take it for silence (on a slow
+      connection they used to give up on a room before its voice began, and go on). */
+  private pending: string | null = null;
+  get loading(): boolean {
+    return !!this.current && this.pending === this.current;
   }
 
   /** Paused where it was (the half-moon's ❚❚): its clock stands still, and so does everything

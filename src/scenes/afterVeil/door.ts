@@ -160,7 +160,7 @@ export class VeilDoor implements Hall {
     if (this.speaking > 0) {
       this.speaking += dt;
       this.angel.look = visitor;
-      if (this.speaking > 2 && !this.narration.progress()) this.speaking = 0;
+      if (this.speaking > 2 && !this.narration.progress() && !this.narration.loading) this.speaking = 0;
     } else {
       // between, it turns back toward the door, waiting
       this.away += dt;

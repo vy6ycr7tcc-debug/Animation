@@ -13,6 +13,8 @@ Open a URL, walk away, come back to a video file with the tour's picture and sou
 &until=<seconds>            stop after this long (otherwise: 3 s after the tour's end)
 &fast=1                     offline capture (below)
 &seed=<n>                   seed for what the tours leave to chance (Math.random is seeded)
+&sim=1                      with &fast=1, for testing: the tour is run on the virtual clock with nothing drawn
+                            or encoded; each clip's chapters and voice events are left on window.__sim
 ```
 
 In real time the file is an `.mp4` (H.264, made by the computer's own video hardware, so recording barely slows the game) where the browser can, else a `.webm`. The game wakes at the shore (the device's save is neither read nor written), plays the tour with
