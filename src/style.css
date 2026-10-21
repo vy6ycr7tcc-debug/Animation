@@ -1417,14 +1417,19 @@ body.typing #heart-mini { display: none; }
 /* the build screen is a screen of its own: nothing of walking shows */
 body.building :is(#joy, #act, #ctx, #auto, #menu-btn, #tp-mini, #hear-again, #keys, #heart-mini, #tour-start, #breath-cue, #seat-hint, #nprog, #labels) { opacity: 0 !important; pointer-events: none !important; }
 
-/* ---- the meditation: the dark, the inner body with its lungs (world/meditation.ts) ---- */
+/* ---- the meditation: the dark, one cycle as a ring of light filling, the lungs breathing at its
+   heart with the breath's word (world/meditation.ts) ---- */
 #meditation { position: fixed; left: 0; top: 0; width: 100vw; height: var(--fh, 100vh); z-index: 30; pointer-events: none; }
 #meditation[hidden] { display: none; }
+#meditation.held { pointer-events: auto; } /* in the dark a stray tap must not walk the wanderer off */
 #meditation .dark { position: absolute; inset: 0; background: #000; opacity: 0; }
-#meditation .inner { position: absolute; left: 50%; top: 50%; height: min(66%, 560px); aspect-ratio: 200 / 440; transform: translate(-50%, -52%); opacity: 0; }
-#meditation canvas.body { position: absolute; inset: 0; width: 100%; height: 100%; }
-/* the lungs at the chest of the drawn body (its frame: the chest ~y 96–176 of 440) */
-#meditation canvas.lungs { position: absolute; left: 50%; top: 21.5%; width: 44%; aspect-ratio: 148 / 140; height: auto; transform: translateX(-50%); }
+#meditation .inner { position: absolute; left: 50%; top: 47%; width: min(84vw, 56vh, 460px); aspect-ratio: 1; transform: translate(-50%, -50%); opacity: 0; }
+#meditation canvas.ring { position: absolute; inset: 0; width: 100%; height: 100%; }
+#meditation canvas.lungs { position: absolute; left: 50%; top: 44%; width: 44%; aspect-ratio: 148 / 140; height: auto; transform: translate(-50%, -50%); }
+#meditation .word { position: absolute; left: 0; right: 0; top: 68%; text-align: center; font-size: 17px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(214, 228, 255, 0.82); font-weight: 300; }
+#meditation .what { position: absolute; left: 50%; bottom: calc(10% + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); width: min(86vw, 420px); margin: 0; text-align: center; font-size: 14px; line-height: 1.4; color: rgba(244, 239, 230, 0.8); opacity: 0; }
+#meditation .leave { position: absolute; top: calc(14px + env(safe-area-inset-top, 0px)); right: calc(14px + env(safe-area-inset-right, 0px)); width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(244, 239, 230, 0.18); background: rgba(255, 255, 255, 0.04); color: rgba(244, 239, 230, 0.6); font-size: 16px; pointer-events: none; opacity: 0; transition: opacity 1.2s; }
+#meditation.held .leave { pointer-events: auto; opacity: 1; }
 /* in the dark, and in the quiet view after, nothing of the controls shows */
 body.meditating :is(#joy, #act, #ctx, #auto, #menu-btn, #tp-mini, #hear-again, #keys, #heart-mini, #build, #tour-start, #breath-cue, #seat-hint, #whisper),
 body.contemplative :is(#joy, #act, #ctx, #auto, #menu-btn, #tp-mini, #hear-again, #keys, #build, #tour-start, #breath-cue, #seat-hint) {

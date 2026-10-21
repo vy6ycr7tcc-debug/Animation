@@ -1717,6 +1717,7 @@ const med = new Meditation({
   play: (p) => void narration.play(p),
   stopVoice: (f) => narration.stop(f),
   speaking: (p) => narration.current === p,
+  progress: (p) => (narration.current === p ? narration.progress() : null),
   rise: () => touch.stop(),
   completed: () => {
     if (medRock) medStoneAt = S.t + 3.2;
@@ -1744,7 +1745,8 @@ function medFrame(dt: number): void {
     medRock = null;
   }
 }
-input.onHoldEnd = () => med.release();
+// the hold only begins it (the finger may lift): its ✕ or the stick leaves early
+input.onHoldEnd = null;
 // a touch during the quiet view after brings the controls back
 addEventListener("pointerdown", () => med.wake(), { capture: true });
 /* stills: `?shot=meditation` (the inner body in the dark, its lungs mid-breath),
@@ -1813,7 +1815,7 @@ function beginTouch(x: number, y: number, earth = false): void {
   const tg = touch.target!;
   medRock = tg.kind === "rock" ? { contact: tg.contact.clone(), centre: tg.centre.clone(), r: tg.r } : null;
   medStoneAt = 0;
-  med.begin();
+  med.begin(tg.kind === "tree" ? "the tree" : tg.kind === "crystal" ? "the crystal" : tg.kind === "ground" ? "the earth" : "the stone");
   // a small ring where the finger rests: the press was heard
   const mark = Object.assign(document.createElement("div"), { className: "touch-mark" });
   mark.style.left = `${x}px`;
