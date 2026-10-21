@@ -3,6 +3,10 @@
    (the right third of the view), storm clouds overhead that gather light but never break. No
    plant, no animal. Sparks of consciousness rest inside the stone; as the narration names them
    they wake, and then lean, barely, toward the light: the first dream of movement.
+   When the narration names the elements at full voice, the young world shows its violence: a
+   tsunami rises out at sea, rolls in and breaks over the black shore; the earth quakes; the ground
+   tears open to the right of the path, magma glowing in the rift. Then it settles: the rift cools
+   to a dark scar and the calm that follows is as it was.
    Ahead, down the one path of sand, the way on: a stone door whose frame has begun to grow living
    branches, light spilling through their leaves (the second density, waiting).
    Built as the other rooms are: a factory module at a temporary zero site (integration moves the
@@ -65,7 +69,23 @@ export function createDensityRoom1Scene(
   const uSwell = uniform(1); // the ocean's breath
   const uStorm = uniform(1); // how often the clouds light from within
   const uPortal = uniform(0.35); // the door's light
-  const goal = { spark: 0.12, lean: 0, lava: 1, swell: 1, storm: 1, portal: 0.35 };
+  const goal = { spark: 0.12, lean: 0, lava: 1, swell: 1, storm: 1, portal: 0.35, heat: 0 };
+  // the young world's violence (the owner: "tsunamis, earthquakes, the ground opening, then
+  // complete calm"): each begins at its beat and runs on its own clock (real seconds)
+  const uWaveX = uniform(SHORE_X - 160); // the tsunami's crest, coming in from the open sea
+  const uWaveA = uniform(0); // … its height
+  const uSurge = uniform(0); // the sea thrown up the beach as it breaks
+  const uSpray = uniform(-1); // seconds since it broke (spray)
+  const uOpen = uniform(0); // the rift: how far open
+  const uHeat = uniform(0); // … how hot its magma
+  const ev = { tsu: -1, quake: -1, rift: -1 };
+  let now = 0;
+  /* a still (`?shot=density-1&t=<s>&tau=<s>`) lives the room T seconds with every beat fired at
+     once: `tau` holds the sequence that many seconds after the tsunami began (the others after it
+     as their beats are spaced) */
+  const tau = Number(new URLSearchParams(location.search).get("tau") ?? NaN);
+  const dbg = (narration as unknown as { debugTime?: number | null }).debugTime;
+  const start = (beat: number) => (Number.isFinite(tau) && dbg != null ? Math.max(200, Math.round(dbg / 0.05)) * 0.05 - tau + (beat - 112) : now);
   // the room's air: dark, clear enough to see the far fire, glowing ember toward the volcano
   const air: Air = {
     color: new THREE.Color(0.045, 0.04, 0.062),
@@ -144,15 +164,22 @@ export function createDensityRoom1Scene(
       const w1 = P.x.mul(0.045).add(P.z.mul(0.012)).add(t.mul(0.42));
       const w2 = P.x.mul(0.07).sub(P.z.mul(0.05)).add(t.mul(0.61));
       const w3 = P.x.mul(0.16).add(P.z.mul(0.11)).add(t.mul(0.9));
-      const h = sin(w1).mul(0.55).add(sin(w2).mul(0.28)).add(sin(w3).mul(0.09)).mul(breath);
-      const dhdx = cos(w1).mul(0.55 * 0.045).add(cos(w2).mul(0.28 * 0.07)).add(cos(w3).mul(0.09 * 0.16)).mul(breath);
+      // the tsunami: one long crest, steeper on its landward face, and the sea thrown up the beach
+      const cr = P.x.sub(uWaveX);
+      const wid = mix(float(16), float(6), smoothstep(-1, 1, cr)); // steep in front, long behind
+      const wave = exp(cr.mul(cr).div(wid.mul(wid)).negate()).mul(uWaveA);
+      const surge = uSurge.mul(smoothstep(SHORE_X - 50, SHORE_X + 2, P.x));
+      const h = sin(w1).mul(0.55).add(sin(w2).mul(0.28)).add(sin(w3).mul(0.09)).mul(breath).add(wave).add(surge);
+      const dhdx = cos(w1).mul(0.55 * 0.045).add(cos(w2).mul(0.28 * 0.07)).add(cos(w3).mul(0.09 * 0.16)).mul(breath)
+        .sub(cr.mul(2).div(wid.mul(wid)).mul(wave));
       const dhdz = cos(w1).mul(0.55 * 0.012).sub(cos(w2).mul(0.28 * 0.05)).add(cos(w3).mul(0.09 * 0.11)).mul(breath);
       m.positionNode = vec3(positionLocal.x, h.sub(0.35), positionLocal.z);
       const n = normalize(vec3(dhdx.negate(), 1, dhdz.negate()));
       m.normalNode = normalize(cameraViewMatrix.mul(vec4(n, 0)).xyz);
       // deep, nearly black water; a pale seethe of foam where it meets the sand, riding the swell
       const shoreD = abs(P.x.sub(SHORE_X - 7).sub(h.mul(3.5)));
-      const foam = smoothstep(2.2, 0.0, shoreD).mul(vnoise(P.xz.mul(0.35).add(vec2(t.mul(0.12), 0))).mul(0.7).add(0.3));
+      const crest = smoothstep(0.55, 0.95, wave.div(uWaveA.add(0.01))).mul(smoothstep(0.3, 1.5, uWaveA)).mul(smoothstep(-3, 2, cr));
+      const foam = smoothstep(mix(float(2.2), float(9), uSurge.div(2.4)), 0.0, shoreD).add(crest).min(1).mul(vnoise(P.xz.mul(0.35).add(vec2(t.mul(0.12), 0))).mul(0.7).add(0.3));
       m.colorNode = mix(vec3(0.008, 0.016, 0.03), vec3(0.3, 0.3, 0.36), foam.mul(0.6));
       const mesh = new THREE.Mesh(geo, m);
       mesh.receiveShadow = true;
@@ -296,6 +323,103 @@ export function createDensityRoom1Scene(
     stormCeiling(g, t, VOLCANO, uStorm, ours);
     ash(g, t, R, ours);
 
+    /* ---------------- the tsunami's spray, where it breaks on the shore ---------------- */
+    {
+      const n = 1400;
+      const c = pointCloud(n, 0.55);
+      for (let i = 0; i < n; i++) {
+        const z = -110 + R() * 150;
+        c.pos.set([SHORE_X - 6 + R() * 8, 0, z], i * 3);
+        c.k.set([R(), R(), R(), R()], i * 4);
+      }
+      touch(c.cloud);
+      const K = c.cloud.nodes.aK, base = c.cloud.nodes.position;
+      const tau = uSpray.sub(K.x.mul(1.2)); // each a moment after the one before, down the shore
+      const live = step(0, tau).mul(float(1).sub(smoothstep(2.4, 4.2, tau)));
+      const v = float(7).add(K.y.mul(9));
+      const up = tau.max(0).mul(v).sub(tau.max(0).mul(tau.max(0)).mul(4.9)).max(0);
+      c.material.positionNode = base.add(vec3(K.z.sub(0.3).mul(tau.max(0)).mul(3.5), up, K.w.sub(0.5).mul(tau.max(0)).mul(2)));
+      c.material.colorNode = vec4(vec3(0.62, 0.66, 0.72).mul(c.round).mul(live).mul(0.55), 1);
+      g.add(c.cloud.sprite);
+      ours.push(c.material);
+    }
+
+    /* ---------------- the ground opening: a rift to the right of the path ---------------- */
+    {
+      const pts = [new THREE.Vector3(6.2, 0, -19), new THREE.Vector3(11, 0, -23.5), new THREE.Vector3(16.5, 0, -22.5), new THREE.Vector3(21.5, 0, -26), new THREE.Vector3(27, 0, -25.5), new THREE.Vector3(33, 0, -29)];
+      const curve = new THREE.CatmullRomCurve3(pts, false, "centripetal");
+      const N = 120;
+      const cps = curve.getSpacedPoints(N);
+      // two strips laid on the sand along it: the torn dark lip, and the magma within
+      const strip = (widthK: number, lift: number) => {
+        const pos: number[] = [], side: number[] = [], along: number[] = [], nrm: number[] = [], idx: number[] = [];
+        for (let i = 0; i <= N; i++) {
+          const a = cps[Math.max(0, i - 1)], b = cps[Math.min(N, i + 1)];
+          const tx = b.x - a.x, tz = b.z - a.z, tl = Math.hypot(tx, tz) || 1;
+          for (const sd of [-1, 1]) {
+            pos.push(cps[i].x, 0, cps[i].z);
+            side.push(sd);
+            along.push(i / N);
+            nrm.push(-tz / tl, tx / tl);
+          }
+          if (i < N) idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2);
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+        geo.setAttribute("aSide", new THREE.Float32BufferAttribute(side, 1));
+        geo.setAttribute("aAlong", new THREE.Float32BufferAttribute(along, 1));
+        geo.setAttribute("aN", new THREE.Float32BufferAttribute(nrm, 2));
+        geo.setIndex(idx);
+        const A = T.attribute("aAlong", "float"), S2 = T.attribute("aSide", "float"), NN = T.attribute("aN", "vec2");
+        // wide in the middle, closing to nothing at its ends, jagged
+        const taper = sin(A.mul(Math.PI)).pow(0.6);
+        const jag = vnoise(vec2(A.mul(38), S2.mul(7))).mul(0.7).add(0.5);
+        const w = uOpen.mul(taper).mul(jag).mul(widthK);
+        const m = new THREE.MeshBasicNodeMaterial({ fog: false, polygonOffset: true, polygonOffsetFactor: -2 - lift, polygonOffsetUnits: -2 - lift });
+        m.positionNode = vec3(positionLocal.x.add(NN.x.mul(S2).mul(w)), positionLocal.y, positionLocal.z.add(NN.y.mul(S2).mul(w)));
+        return { geo, m, A, S2 };
+      };
+      const lip = strip(1.9, 0);
+      lip.m.colorNode = vec4(0.006, 0.005, 0.008, 1);
+      const core = strip(1.0, 1);
+      {
+        const flow = vnoise(vec2(core.A.mul(30).sub(t.mul(0.35)), core.S2.mul(2).add(t.mul(0.2))));
+        const hot = vec3(1.0, 0.42, 0.08).mul(flow.mul(0.8).add(0.6)).add(vec3(1, 0.85, 0.5).mul(smoothstep(0.7, 1, flow).mul(0.8)));
+        const crust = vec3(0.02, 0.012, 0.01);
+        core.m.colorNode = vec4(mix(crust, hot.mul(1.6), uHeat.mul(flow.mul(0.6).add(0.55)).min(1)), 1);
+      }
+      for (const [st, lift] of [[lip, 0], [core, 1]] as const) {
+        // laid on the sand, each point at its own height
+        const p = st.geo.attributes.position as THREE.BufferAttribute;
+        for (let i = 0; i < p.count; i++) p.setY(i, sandHeight(p.getX(i), p.getZ(i)) + 0.05 + lift * 0.02);
+        const mesh = new THREE.Mesh(st.geo, st.m);
+        mesh.frustumCulled = false;
+        g.add(mesh);
+        ours.push(st.geo, st.m);
+      }
+      // embers rising out of it while it is hot
+      const n = 500;
+      const e = pointCloud(n, 0.22);
+      for (let i = 0; i < n; i++) {
+        const q = cps[Math.floor(R() * N)];
+        e.pos.set([q.x + (R() - 0.5) * 0.8, sandHeight(q.x, q.z), q.z + (R() - 0.5) * 0.8], i * 3);
+        e.k.set([R(), R(), R(), R()], i * 4);
+      }
+      touch(e.cloud);
+      const K = e.cloud.nodes.aK;
+      const cyc = fract(K.x.add(t.mul(float(0.12).add(K.y.mul(0.12)))));
+      e.material.positionNode = e.cloud.nodes.position.add(vec3(sin(cyc.mul(9).add(K.z.mul(20))).mul(0.6), cyc.mul(float(3).add(K.w.mul(7))), cos(cyc.mul(7).add(K.w.mul(20))).mul(0.6)));
+      e.material.colorNode = vec4(vec3(1, 0.5, 0.15).mul(e.round).mul(sin(cyc.mul(Math.PI))).mul(uHeat).mul(1.4), 1);
+      g.add(e.cloud.sprite);
+      ours.push(e.material);
+      // its glow on the towers and the sand
+      const lamp = new THREE.PointLight(0xff6a24, 0, 34, 1.6);
+      const mid = curve.getPoint(0.5);
+      lamp.position.set(mid.x, sandHeight(mid.x, mid.z) + 2.2, mid.z);
+      g.add(lamp);
+      tickers.push(() => (lamp.intensity = uHeat.value * 90));
+    }
+
     /* ---------------- the way on: a stone door, and branches growing from its frame ---------------- */
     {
       const door = new THREE.Group();
@@ -392,9 +516,34 @@ export function createDensityRoom1Scene(
       }
     }
 
+    let rest: THREE.Vector3 | null = null; // where the room stands (the journey moves it), the quake about it
     tickers.push((dt: number) => {
       const d = Math.min(0.05, Math.max(0, dt));
       clock.tick(d);
+      now += d;
+      // the tsunami: a crest out of the open sea, rising as it comes, breaking on the shore
+      if (ev.tsu >= 0) {
+        const τ = now - ev.tsu;
+        uWaveX.value = SHORE_X - 150 + 154 * Math.pow(Math.min(1, τ / 11), 1.25);
+        uWaveA.value = 7.5 * sm(0, 4, τ) * (1 - sm(9.6, 11.6, τ));
+        uSurge.value = 2.4 * sm(10, 11.6, τ) * (1 - sm(12.5, 22, τ));
+        uSpray.value = τ - 10.4;
+        if (τ > 26) ev.tsu = -1;
+      }
+      // the earth quakes: the whole land trembles under the storm's flashes
+      if (!rest) rest = g.position.clone();
+      if (ev.quake >= 0) {
+        const τ = now - ev.quake;
+        const a = 0.11 * sm(0, 1.4, τ) * (1 - sm(7, 10.5, τ));
+        g.position.set(rest.x + (Math.sin(now * 37) + Math.sin(now * 23.7)) * a, rest.y + Math.sin(now * 29.3) * a * 0.5, rest.z + (Math.sin(now * 31.1) + Math.cos(now * 19.3)) * a);
+        if (τ > 11) {
+          g.position.copy(rest);
+          ev.quake = -1;
+        }
+      } else rest.copy(g.position);
+      // the ground tears open, and its magma glows
+      if (ev.rift >= 0) uOpen.value = Math.max(uOpen.value, sm(0.4, 4.5, now - ev.rift));
+      uHeat.value = damp(uHeat.value, goal.heat, 0.4, d);
       applyAir(air);
       uSpark.value = damp(uSpark.value, goal.spark, 0.35, d);
       uLean.value = damp(uLean.value, goal.lean, 0.25, d);
@@ -418,11 +567,15 @@ export function createDensityRoom1Scene(
       // "because it is attracted to the light, it conceives of the idea of movement": they lean
       { t: 76, apply: () => (goal.lean = 1) },
       // "The volcano, tearing open the earth… The ocean… The storm…": the elements at full voice
-      { t: 112, apply: () => Object.assign(goal, { lava: 2.2, swell: 1.45, storm: 2.2 }) },
+      { t: 112, apply: () => (Object.assign(goal, { lava: 2.2, swell: 1.45, storm: 2.2 }), (ev.tsu = start(112))) },
+      // … the earth quakes (the storm flashing above it)
+      { t: 122, apply: () => ((ev.quake = start(122)), (goal.storm = 3)) },
+      // … and the ground tears open, magma in the rift
+      { t: 128, apply: () => ((ev.rift = start(128)), (goal.heat = 1)) },
       // "There is a dignity here…": the fire settles back to its slow pour
-      { t: 152, apply: () => Object.assign(goal, { lava: 1.2, swell: 1, storm: 1 }) },
+      { t: 152, apply: () => Object.assign(goal, { lava: 1.2, swell: 1, storm: 1, heat: 0.3 }) },
       // "Being is enough… I am.": stillness; the storm quiets, the sea lies almost flat
-      { t: 262, apply: () => Object.assign(goal, { storm: 0.2, swell: 0.45, lava: 0.9 }) },
+      { t: 262, apply: () => Object.assign(goal, { storm: 0.2, swell: 0.45, lava: 0.9, heat: 0.04 }) },
       // "the light that the first sparks were drawn to… you are still following now": the way on opens
       { t: 300, apply: () => Object.assign(goal, { portal: 1.1, lean: 1.6 }) },
     ],

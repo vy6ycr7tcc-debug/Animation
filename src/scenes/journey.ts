@@ -377,6 +377,8 @@ export class Journey {
       if (!e.mark) continue;
       const t = threshold();
       t.mesh.position.set(JOURNEY_ORIGIN.x + e.x, this.floorAt(JOURNEY_ORIGIN.x + e.x, JOURNEY_ORIGIN.z + e.z), JOURNEY_ORIGIN.z + e.z);
+      // turned to face where you begin, wherever in the room it stands
+      t.mesh.rotation.y = Math.atan2(s.start.x - e.x, s.start.z - e.z);
       h.scene.add(t.mesh);
       this.objs.push(t.mesh);
       this.marks.push(t);

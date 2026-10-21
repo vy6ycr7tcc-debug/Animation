@@ -395,7 +395,7 @@ export function densityStages(seen: () => Set<string>): Stage[] {
       make: mk(() => import("./room_0"), "createDensityRoom0Scene"),
       start: { x: 0, z: 1.5, heading: 0 },
       exits: [
-        { x: 0, z: -24, r: 2.2, to: 2, dark: 3, mark: true }, // into the first density, through pitch black
+        { x: 17, z: -6, r: 2.2, to: 2, dark: 3, mark: true }, // into the first density, through pitch black: off to the right, out of the way of the creation ahead (the owner: its light fell across it)
         { x: 0, z: 5, r: 1.6, to: 0, at: LOBBY_BACK },
       ],
       confine: box(-24, 24, -27, 6),
