@@ -76,6 +76,7 @@ import { Pyramid, DUAT_ORIGIN } from "./world/pyramid";
 import { FalseDoors } from "./world/falseDoors";
 import { Gobekli } from "./world/ancient/gobekli";
 import { NanMadol } from "./world/ancient/nanMadol";
+import { Waterfalls } from "./world/waterfalls";
 import { RapaNui } from "./world/ancient/rapaNui";
 import { Whispers, whisperOf, type WhisperId } from "./world/whispers";
 import { DUAT_TRACKS } from "./world/duat";
@@ -2007,6 +2008,7 @@ function places(): Place[] {
   return [
     { numeral: "", label: "The shore", group: "Shore", x: SPAWN.x, z: SPAWN.z, narration: "J01", start: { x: SPAWN.x, z: SPAWN.z, heading: SPAWN.heading } },
     { numeral: "", label: "The temple", group: "Shore", order: 1, x: temple.gateAt.x, z: temple.gateAt.z, narration: "J01", start: { ...temple.outside(), heading: temple.gateHeading } },
+    ...waterfalls.list.map(({ f, view }, i) => ({ numeral: "", label: `A waterfall, ${compass(f.x, f.z)}`, group: "Shore" as const, order: 8 + i, x: f.x, z: f.z, narration: "J01", start: view })),
     { numeral: "", label: "The vision of creation", group: "Shore" as const, order: 0, x: vision.group.position.x, z: vision.group.position.z, narration: "J01", start: { x: vision.group.position.x + 11, z: vision.group.position.z + 11, heading: Math.atan2(11, 11) } },
     (() => {
       const [x, z] = nanMadolAt(0, -30);
@@ -2606,6 +2608,9 @@ scene.add(nanMadol.group, nanMadol.live);
 // Rapa Nui (world/ancient/rapaNui.ts): the ancestors on their headland over the sea, westward
 const rapaNui = new RapaNui(MOBILE);
 scene.add(rapaNui.group, rapaNui.live);
+// the waterfalls (world/waterfalls.ts; their land is shaped in terrain.ts): stream, curtain, foam, mist
+const waterfalls = new Waterfalls(MOBILE);
+scene.add(waterfalls.group);
 /* Whispers (world/whispers.ts): seven tellings hidden in the world, each found by being there
    (a door that breathes deeper, a stone of days, a wandering world, a singing quartz, a star, a
    tree alone, Rapa Nui). Found once, they wait under the map. */
@@ -4416,6 +4421,8 @@ function deepFrame(dt: number, wt: number, inWater: boolean): void {
     });
   else rapaNui.group.visible = rapaNui.live.visible = false;
   audio.surf(apart() ? 0 : Math.max(nanMadol.surf, rapaNui.surf));
+  waterfalls.update(player.pos, apart());
+  audio.falls(waterfalls.roar);
   // the whispers: what answers a visitor who is still, or near
   {
     const outdoors = !apart() && S.mode === "play";

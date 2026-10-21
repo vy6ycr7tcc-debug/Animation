@@ -753,6 +753,38 @@ export class AudioEngine {
     this.surfBus.gain.setTargetAtTime(k * 0.07, c.currentTime, 0.8);
   }
 
+  private fallsBus: GainNode | null = null;
+  /** A waterfall's roar (0–1): broad noise, brighter than the surf, with a slow, uneven breath in it
+      (water never falls quite evenly); kept above the phone's lost low end. */
+  falls(k: number): void {
+    if (!this.ctx) return;
+    const c = this.ctx;
+    if (!this.fallsBus) {
+      if (k < 0.01) return;
+      const s = c.createBufferSource();
+      s.buffer = this.noise;
+      s.loop = true;
+      const hp = c.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 260;
+      const lp = c.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 2400;
+      const swell = c.createGain();
+      swell.gain.value = 0.85;
+      const lfo = c.createOscillator(), lfoG = c.createGain();
+      lfo.frequency.value = 0.23;
+      lfoG.gain.value = 0.12;
+      lfo.connect(lfoG).connect(swell.gain);
+      lfo.start();
+      this.fallsBus = c.createGain();
+      this.fallsBus.gain.value = 0;
+      s.connect(hp).connect(lp).connect(swell).connect(this.fallsBus).connect(this.worldDry);
+      s.start();
+    }
+    this.fallsBus.gain.setTargetAtTime(k * 0.09, c.currentTime, 0.6);
+  }
+
   private windBus: GainNode | null = null;
   /** A soothing wind (0–1), for the meditation's dark: breathy noise in two bands, gusting slowly
       (two slow waves that never line up), its colour drifting; a faint high sigh over it. Kept
