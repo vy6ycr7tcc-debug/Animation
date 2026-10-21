@@ -30,7 +30,8 @@
    ink and drawn path; the geometry is grown again from them on load. */
 import * as THREE from "three/webgpu";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { T, fogUniforms, softPoints, spriteCloud, viewDepth, softDot, pointR, glowShader, type SpriteCloud, type N } from "../gpu/tsl";
+import { T, fogUniforms, softPoints, spriteCloud, viewDepth, softDot, pointR, glowShader, skySheen, type SpriteCloud, type N } from "../gpu/tsl";
+import { surface, type SurfaceName } from "./textures";
 import { landStone, stoneBlock, contactShade } from "./stoneworks";
 import { solid } from "./solidity";
 import { SANCTUARY, heightAt } from "./terrain";
@@ -64,6 +65,11 @@ const HEIGHT: Record<FormKind, [number, number, number]> = {
   orb: [0, 0, 0],
 };
 
+/** What stone a form is laid in (the owner: "modes of textures for the walls… soil in game has
+    interesting textures already"): cut stone, rough fieldstone, marble, granite, rammed earth (the
+    ground's own soil scan, in strata), and cliff rock (the mountains' scan). */
+export type Finish = "cut" | "field" | "marble" | "granite" | "earth" | "cliff";
+const FINISHES: [Finish, string][] = [["cut", "Cut stone"], ["field", "Fieldstone"], ["marble", "Marble"], ["granite", "Granite"], ["earth", "Rammed earth"], ["cliff", "Cliff rock"]];
 export type FormKind = "wall" | "ring" | "pillar" | "spire" | "orb" | "arch" | "stairs" | "pyramid";
 export type Ink = "stone" | "gold";
 export interface SavedForm {
@@ -91,14 +97,18 @@ export interface SavedForm {
   y: number;
   rot: number;
   cost: number;
-  /** a gold form's heart note (its createdAt) */
+  /** the heart note carved on it (its createdAt): a gold form keeps the newest when drawn; any
+      can be given one (Inscribe) */
   note?: number;
+  /** what stone it is laid in (stone ink) */
+  fin?: Finish;
 }
 interface Saved {
   v: 3;
   stone: number;
   goldSpent: number;
   ink: Ink;
+  fin?: Finish;
   forms: SavedForm[];
 }
 interface Form {
@@ -385,6 +395,136 @@ function goldMaterial(): THREE.MeshStandardNodeMaterial {
   return solid(m);
 }
 
+/** A wall in one of the ground's own scans, laid from all three sides (so no face stretches), its
+    occlusion deepening every pit and crack, its relief, and the sky's sheen at its edges; rammed
+    earth shows the strata it was beaten down in. */
+function surfaceWall(name: SurfaceName, tile: number, tint: [number, number, number], strata = false): THREE.MeshStandardNodeMaterial {
+  const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.95, metalness: 0 });
+  const sc = surface(name);
+  const P = T.positionWorld, Nw = T.normalWorldGeometry;
+  const wp = pow(abs(Nw), vec3(4));
+  const W = wp.div(wp.x.add(wp.y).add(wp.z));
+  const tri = (t: THREE.Texture) => [T.texture(t, P.zy.div(tile)), T.texture(t, P.xz.div(tile)), T.texture(t, P.xy.div(tile))];
+  const [a, b, c] = tri(sc.diff);
+  const d = a.rgb.mul(W.x).add(b.rgb.mul(W.y)).add(c.rgb.mul(W.z));
+  const [oa, ob, oc] = tri(sc.arm);
+  const ao = mix(float(0.32), float(1.08), oa.r.mul(W.x).add(ob.r.mul(W.y)).add(oc.r.mul(W.z)));
+  let col: N = d.mul(vec3(...tint)).mul(2.1).mul(ao);
+  if (strata) {
+    // beaten down in courses a hand deep, each its own shade, a darker seam between
+    const y = P.y.mul(1 / 0.14);
+    const band = T.fract(T.sin(T.floor(y).mul(12.9898)).mul(43758.5453));
+    const seam = smoothstep(0.0, 0.12, T.fract(y)).mul(smoothstep(1.0, 0.88, T.fract(y)));
+    col = col.mul(float(0.82).add(band.mul(0.3))).mul(float(0.72).add(seam.mul(0.28)));
+  }
+  m.colorNode = col;
+  const [nx, ny, nz] = tri(sc.nor).map((t: N) => t.xyz.mul(2).sub(1));
+  const dn = vec3(0, nx.y, nx.x).mul(W.x).add(vec3(ny.x, 0, ny.y).mul(W.y)).add(vec3(nz.x, nz.y, 0).mul(W.z));
+  m.normalNode = normalize(T.normalView.add(T.cameraViewMatrix.mul(vec4(dn.mul(1.6), 0)).xyz));
+  m.emissiveNode = skySheen(normalize(Nw));
+  return solid(m);
+}
+
+/* ---------------- an invented script for the heart's notes ---------------- */
+/** A glyph of the script carved on a form (the owner: "Egyptian or Atlantean invented writing"):
+    each letter of the note becomes one sign built from the old signs' parts (sun discs, eyes,
+    water, reeds, feathers, loops, steps, spirals), the same letter always the same sign; never a
+    real hieroglyph and never readable words. Drawn in a cell `s` across, centred. */
+function glyph(g: CanvasRenderingContext2D, code: number, s: number): void {
+  const k = (code * 2654435761) >>> 0;
+  const r = s * 0.42;
+  const parts: ((g: CanvasRenderingContext2D) => void)[] = [
+    (g) => (g.beginPath(), g.arc(0, -r * 0.35, r * 0.42, 0, Math.PI * 2), g.stroke(), g.beginPath(), g.arc(0, -r * 0.35, r * 0.1, 0, Math.PI * 2), g.fill()), // a sun disc
+    (g) => (g.beginPath(), g.moveTo(-r * 0.8, 0), g.quadraticCurveTo(0, -r * 0.7, r * 0.8, 0), g.quadraticCurveTo(0, r * 0.5, -r * 0.8, 0), g.stroke(), g.beginPath(), g.arc(0, -r * 0.05, r * 0.16, 0, Math.PI * 2), g.fill()), // an eye
+    (g) => { g.beginPath(); for (let i = 0; i <= 12; i++) g.lineTo(-r * 0.85 + (i / 12) * r * 1.7, r * 0.45 + (i % 2 ? -1 : 1) * r * 0.14); g.stroke(); }, // water
+    (g) => (g.beginPath(), g.moveTo(0, r * 0.9), g.lineTo(0, -r * 0.9), g.moveTo(0, -r * 0.4), g.quadraticCurveTo(r * 0.5, -r * 0.8, r * 0.2, -r * 0.95), g.stroke()), // a reed
+    (g) => (g.beginPath(), g.moveTo(0, r * 0.9), g.quadraticCurveTo(r * 0.55, 0, 0, -r * 0.9), g.quadraticCurveTo(-r * 0.25, 0, 0, r * 0.9), g.stroke()), // a feather
+    (g) => (g.beginPath(), g.ellipse(0, -r * 0.5, r * 0.28, r * 0.36, 0, 0, Math.PI * 2), g.moveTo(0, -r * 0.14), g.lineTo(0, r * 0.9), g.moveTo(-r * 0.5, r * 0.15), g.lineTo(r * 0.5, r * 0.15), g.stroke()), // a loop over a cross
+    (g) => (g.beginPath(), g.moveTo(-r * 0.8, r * 0.8), g.lineTo(-r * 0.8, r * 0.3), g.lineTo(-r * 0.25, r * 0.3), g.lineTo(-r * 0.25, -r * 0.2), g.lineTo(r * 0.3, -r * 0.2), g.lineTo(r * 0.3, -r * 0.7), g.lineTo(r * 0.8, -r * 0.7), g.stroke()), // steps
+    (g) => { g.beginPath(); for (let i = 0; i <= 40; i++) { const a = i * 0.42, rr = (i / 40) * r * 0.8; g.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } g.stroke(); }, // a spiral
+    (g) => (g.beginPath(), g.moveTo(-r * 0.7, r * 0.7), g.lineTo(0, -r * 0.8), g.lineTo(r * 0.7, r * 0.7), g.closePath(), g.stroke()), // a peak
+    (g) => (g.beginPath(), g.arc(0, r * 0.2, r * 0.6, Math.PI, 0), g.stroke(), g.beginPath(), g.arc(0, r * 0.2, r * 0.12, 0, Math.PI * 2), g.fill()), // a rising sun
+    (g) => (g.beginPath(), g.moveTo(-r * 0.6, -r * 0.6), g.lineTo(r * 0.6, -r * 0.6), g.moveTo(-r * 0.6, 0), g.lineTo(r * 0.6, 0), g.moveTo(-r * 0.6, r * 0.6), g.lineTo(r * 0.6, r * 0.6), g.stroke()), // three bars
+    (g) => (g.beginPath(), g.moveTo(-r * 0.7, -r * 0.2), g.bezierCurveTo(-r * 0.2, -r * 1.0, r * 0.4, r * 0.6, r * 0.8, -r * 0.3), g.stroke(), g.beginPath(), g.arc(-r * 0.7, -r * 0.2, r * 0.1, 0, Math.PI * 2), g.fill()), // a serpent
+    (g) => (g.beginPath(), g.moveTo(-r * 0.15, r * 0.9), g.lineTo(-r * 0.15, -r * 0.6), g.moveTo(r * 0.15, r * 0.9), g.lineTo(r * 0.15, -r * 0.6), g.moveTo(-r * 0.5, -r * 0.6), g.lineTo(r * 0.5, -r * 0.6), g.moveTo(-r * 0.4, -r * 0.85), g.lineTo(r * 0.4, -r * 0.85), g.stroke()), // a pillar
+    (g) => { g.beginPath(); g.arc(0, 0, r * 0.55, 0, Math.PI * 2); g.stroke(); for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; g.moveTo(Math.cos(a) * r * 0.7, Math.sin(a) * r * 0.7); g.lineTo(Math.cos(a) * r * 0.92, Math.sin(a) * r * 0.92); } g.stroke(); }, // a star-sun
+    (g) => (g.beginPath(), g.moveTo(-r * 0.7, 0), g.quadraticCurveTo(-r * 0.35, -r * 0.6, 0, 0), g.quadraticCurveTo(r * 0.35, r * 0.6, r * 0.7, 0), g.stroke()), // a wave
+    (g) => (g.beginPath(), g.moveTo(-r * 0.6, r * 0.8), g.lineTo(-r * 0.6, -r * 0.3), g.arc(0, -r * 0.3, r * 0.6, Math.PI, 0), g.lineTo(r * 0.6, r * 0.8), g.stroke()), // a door
+  ];
+  g.save();
+  g.translate(s / 2, s / 2);
+  if (k & 1) g.scale(-1, 1);
+  parts[k % parts.length](g);
+  // a second, smaller sign beside or under it now and then, as the old scripts stack them
+  if (((k >>> 4) % 3) === 0) {
+    g.translate(0, r * 0.95);
+    g.scale(0.4, 0.4);
+    parts[(k >>> 8) % parts.length](g);
+  }
+  if (((k >>> 12) % 4) === 0) (g.beginPath(), g.arc(r * 0.78, -r * 0.78, r * 0.07, 0, Math.PI * 2), g.fill());
+  g.restore();
+}
+/** Additive light that leaves the frame's alpha alone (as the rooms' `keepAlpha`). */
+function addLight<M extends THREE.Material>(m: M): M {
+  m.blending = THREE.CustomBlending;
+  m.blendSrc = THREE.SrcAlphaFactor;
+  m.blendDst = THREE.OneFactor;
+  m.blendSrcAlpha = THREE.ZeroFactor;
+  m.blendDstAlpha = THREE.OneFactor;
+  return m;
+}
+const GLYPHS = 32, CELL = 128;
+const scripts = new Map<number, THREE.CanvasTexture>();
+/** A note's words as a band of the script (cached by the note). */
+function scriptTexture(note: number): THREE.CanvasTexture {
+  let t = scripts.get(note);
+  if (t) return t;
+  const text = (heartNotes().find((n) => n.createdAt === note)?.text ?? String(note)).toLowerCase().replace(/\s+/g, " ");
+  const cv = document.createElement("canvas");
+  cv.width = GLYPHS * CELL;
+  cv.height = CELL;
+  const g = cv.getContext("2d")!;
+  g.strokeStyle = g.fillStyle = "#fff";
+  g.lineWidth = 7;
+  g.lineCap = g.lineJoin = "round";
+  // ruled lines above and below, as the registers of a temple wall
+  g.fillRect(0, 4, cv.width, 3);
+  g.fillRect(0, CELL - 7, cv.width, 3);
+  // a short note is carved again round the band, a divider between, so the band is never bare
+  const chars = [...text.trim()];
+  const seq: string[] = [];
+  while (chars.length && seq.length < GLYPHS) seq.push(...chars, " ", "·", " ");
+  let i = 0;
+  for (const ch of seq) {
+    if (i >= GLYPHS) break;
+    if (ch === "·") {
+      g.beginPath();
+      g.arc(i * CELL + CELL / 2, CELL / 2, 9, 0, Math.PI * 2);
+      g.fill();
+      i++;
+      continue;
+    }
+    if (ch === " ") {
+      // a word's end: a small divider
+      g.fillRect(i * CELL + CELL / 2 - 2, CELL * 0.4, 4, CELL * 0.2);
+    } else {
+      g.save();
+      g.translate(i * CELL, 0);
+      g.scale(0.82, 0.82);
+      g.translate(CELL * 0.11, CELL * 0.11);
+      glyph(g, ch.codePointAt(0) ?? 0, CELL);
+      g.restore();
+    }
+    i++;
+  }
+  t = new THREE.CanvasTexture(cv);
+  t.wrapS = THREE.RepeatWrapping;
+  t.anisotropy = 8;
+  t.colorSpace = THREE.NoColorSpace;
+  scripts.set(note, t);
+  return t;
+}
+
 /* ---------------- light on the earth (the trail, the base ring) ---------------- */
 /** A ribbon of light laid on the earth along points; its own buffers, rewritten only when set. */
 class Ribbon {
@@ -512,12 +652,16 @@ export class Sanctuary {
   /** 0..1: how hushed the world is (building: a little; the brush down: a little more) */
   hush = 0;
   ink: Ink = "stone";
+  /** the stone new forms are laid in (the last chosen) */
+  finish: Finish = "cut";
+  private finishes = new Map<Finish, THREE.Material>();
+  private carve: THREE.MeshBasicNodeMaterial[] = [];
   private stone = 0;
   private goldSpent = 0;
   private forms: Form[] = [];
   private persist: boolean;
   private notes: HeartNote[] = [];
-  private mats: { stone: THREE.Material; gold: THREE.Material; floor: THREE.Material; aura: THREE.Material; orbCore: Record<Ink, THREE.Material>; orbHalo: Record<Ink, Halo> };
+  private mats: { stone: THREE.MeshStandardNodeMaterial; gold: THREE.Material; floor: THREE.Material; aura: THREE.Material; orbCore: Record<Ink, THREE.Material>; orbHalo: Record<Ink, Halo> };
   /** the page: the earth round where building opened, conforming to the land */
   private page: THREE.Mesh & { material: Halo };
   private plot = new THREE.Vector3();
@@ -662,6 +806,7 @@ export class Sanctuary {
         this.stone = Math.max(0, Number(v.stone) || 0);
         this.goldSpent = Math.max(0, Number(v.goldSpent) || 0);
         this.ink = v.ink === "gold" ? "gold" : "stone";
+        if (v.fin && FINISHES.some(([f]) => f === v.fin)) this.finish = v.fin;
         for (const s of v.forms)
           if (s && s.kind in HEIGHT && Number.isFinite(s.x) && Number.isFinite(s.z)) this.addForm(v.v === 2 ? fromTerrace(s, true) : s, true);
         if (v.v === 2) this.save(); // drawn on the terrace before: now kept by their place in the world
@@ -685,12 +830,43 @@ export class Sanctuary {
         stone: round(this.stone),
         goldSpent: round(this.goldSpent),
         ink: this.ink,
+        fin: this.finish,
         forms: this.live().map((f) => ({ ...f.s, x: round(f.s.x), z: round(f.s.z), y: round(f.s.y), rot: round(f.s.rot) })),
       };
       localStorage.setItem(KEY, JSON.stringify(out));
     } catch {
       /* full or refused: the forms still stand for this visit */
     }
+  }
+  /** The stone of a finish (made when first used). */
+  private finishMat(f: Finish | undefined): THREE.Material {
+    if (!f || f === "cut") return this.mats.stone;
+    let m = this.finishes.get(f);
+    if (!m) {
+      m =
+        f === "field" ? landStone("sandstone_blocks_05", 0, 1.4, [0.78, 0.74, 0.7], { course: 0.26, block: 0.4 }) :
+        f === "marble" ? landStone("sandstone_cracks", 0, 2.4, [1, 1, 1], { course: 0.5, block: 1.2 }, "marble") :
+        f === "granite" ? landStone("sandstone_cracks", 0, 2.0, [1, 1, 1], { course: 0.42, block: 0.9 }, "granite") :
+        f === "earth" ? surfaceWall("meadow", 1.6, [1.05, 0.86, 0.7], true) :
+        surfaceWall("cliff", 2.5, [0.95, 0.92, 0.9]);
+      this.finishes.set(f, m);
+    }
+    return m;
+  }
+  /** The carving's gold light, reading the script's band (one material per note). */
+  private carving(note: number): THREE.MeshBasicNodeMaterial {
+    const tex = scriptTexture(note);
+    let m = this.carve.find((c) => c.userData.note === note);
+    if (!m) {
+      m = addLight(new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
+      const a = T.texture(tex, T.uv()).r;
+      const breathe = sin(T.time.mul(0.6).add(T.uv().x.mul(2))).mul(0.15).add(0.85);
+      const near = float(1).sub(smoothstep(30, 90, length(T.cameraPosition.sub(T.positionWorld))));
+      m.colorNode = vec4(vec3(1, 0.74, 0.34).mul(a).mul(breathe).mul(near).mul(0.95), 1);
+      m.userData.note = note;
+      this.carve.push(m);
+    }
+    return m;
   }
   private live(): Form[] {
     return this.forms.filter((f) => f.out === undefined);
@@ -744,6 +920,7 @@ export class Sanctuary {
       </div>
       <p class="b-hint">Draw on the ground with one finger. Two fingers turn and tilt the view; pinch to come closer.</p>
       <div class="b-shapes" aria-label="What each stroke makes">
+        <button type="button" class="chip fin" aria-label="The stone new forms are laid in"><i></i><span><em>Texture</em><b></b></span></button>
         ${SHAPES.map(([k, d, n]) => `<button type="button" class="chip" data-k="${k}">${ico(k)}<span><em>${d}</em>${n}</span></button>`).join("")}
       </div>
       <div class="b-tools" hidden>
@@ -756,11 +933,18 @@ export class Sanctuary {
         </div>
         <div class="b-row">
           <button type="button" class="wide" data-t="ink">In gold</button>
+          <button type="button" class="wide finb" data-t="fin">Texture</button>
+          <button type="button" class="wide noteb" data-t="note">Carve a note ♥</button>
           <button type="button" class="wide topb" data-t="top">Add a dome</button>
           <button type="button" class="wide" data-t="copy">Copy</button>
           <button type="button" class="wide warn" data-t="del">Let go</button>
           <button type="button" class="wide x" data-t="none" aria-label="Done with this">✓</button>
         </div>
+      </div>
+      <div class="b-notes" hidden role="dialog" aria-label="Carve a heart note on it">
+        <p>Carve one of your heart's notes on it, in the old script. A tap on it later reads it again.</p>
+        <div class="list"></div>
+        <div class="row"><button type="button" class="wide clear">No carving</button><button type="button" class="wide shut">Close</button></div>
       </div>`;
     document.body.appendChild(el);
     const tap = (b: HTMLElement, f: () => void) => {
@@ -778,7 +962,18 @@ export class Sanctuary {
     tap(el.querySelector(".ink.gold")!, () => this.choose("gold"));
     tap(el.querySelector(".undo")!, () => this.takeBack());
     tap(el.querySelector(".done")!, () => this.onDone());
-    for (const c of el.querySelectorAll<HTMLElement>(".chip")) {
+    el.querySelector(".chip.fin")!.addEventListener("click", (e) => {
+      e.preventDefault();
+      const i = FINISHES.findIndex(([f]) => f === this.finish);
+      this.finish = FINISHES[(i + 1) % FINISHES.length][0];
+      this.hooks.bell(392, 0.012, 1.4);
+      this.hooks.say(`New stone forms: ${FINISHES.find(([f]) => f === this.finish)![1].toLowerCase()}.`);
+      this.drawUi();
+      this.save();
+    });
+    tap(el.querySelector(".b-notes .clear")!, () => this.carveNote(null));
+    tap(el.querySelector(".b-notes .shut")!, () => ((el.querySelector(".b-notes") as HTMLElement).hidden = true));
+    for (const c of el.querySelectorAll<HTMLElement>(".chip:not(.fin)")) {
       const k = c.dataset.k!, sh = SHAPES.find((x) => x[0] === k)!;
       const how: Record<string, string> = {
         wall: "Draw a line, straight or curving: a wall rises along it. A closed shape with corners walls it round.",
@@ -790,7 +985,8 @@ export class Sanctuary {
         pyramid: "Draw a triangle: a step pyramid you can climb, as wide as you draw it. Height adds or takes away tiers.",
         orb: "Touch the ground: an orb of light. Choose it and raise it to hang it higher.",
       };
-      tap(c, () => this.hooks.say(how[k] ?? sh[2]));
+      // a click, not the touch itself: a swipe across the strip scrolls it
+      c.addEventListener("click", (e) => (e.preventDefault(), this.hooks.say(how[k] ?? sh[2])));
     }
     for (const b of el.querySelectorAll<HTMLElement>("[data-t]")) tap(b, () => this.tool(b.dataset.t!));
     el.addEventListener("pointerdown", (e) => e.stopPropagation());
@@ -819,8 +1015,12 @@ export class Sanctuary {
       b.classList.toggle("empty", this.have(ink) < 0.04);
     }
     (this.ui.querySelector(".undo") as HTMLButtonElement).disabled = !this.undo.length;
+    const fn = (f?: Finish) => FINISHES.find(([k]) => k === (f ?? "cut"))![1];
+    (this.ui.querySelector(".chip.fin b") as HTMLElement).textContent = fn(this.finish);
+    (this.ui.querySelector(".chip.fin") as HTMLElement).dataset.fin = this.finish;
     const f = this.selected;
     this.ui.classList.toggle("sel", !!f);
+    if (!f) (this.ui.querySelector(".b-notes") as HTMLElement).hidden = true;
     (this.ui.querySelector(".b-tools") as HTMLElement).hidden = !f;
     (this.ui.querySelector(".b-shapes") as HTMLElement).hidden = !!f;
     (this.ui.querySelector(".b-hint") as HTMLElement).textContent = f
@@ -828,8 +1028,14 @@ export class Sanctuary {
       : "Draw on the ground with one finger. Two fingers turn and tilt the view; pinch to come closer.";
     if (!f) return;
     const names: Record<FormKind, string> = { wall: "Wall", ring: "Ring", pillar: "Pillar", spire: "Spire", orb: "Orb", arch: "Arch", stairs: "Steps", pyramid: "Pyramid" };
-    (this.ui.querySelector(".b-name") as HTMLElement).textContent = `${names[f.s.kind]} · ${f.s.ink === "gold" ? "gold" : "stone"}`;
+    (this.ui.querySelector(".b-name") as HTMLElement).textContent = `${names[f.s.kind]} · ${f.s.ink === "gold" ? "gold" : fn(f.s.fin).toLowerCase()} · drag it to move it`;
     (this.ui.querySelector("[data-t=ink]") as HTMLElement).textContent = f.s.ink === "gold" ? "In stone" : "In gold";
+    const finb = this.ui.querySelector(".finb") as HTMLElement;
+    finb.hidden = f.s.ink === "gold" || f.s.kind === "orb";
+    finb.textContent = `${fn(f.s.fin)} ›`;
+    const noteb = this.ui.querySelector(".noteb") as HTMLElement;
+    noteb.hidden = f.s.kind === "orb" || f.s.kind === "stairs";
+    noteb.textContent = f.s.note != null ? "Carved ♥ · change" : "Carve a note ♥";
     const top = this.ui.querySelector(".topb") as HTMLElement;
     const canTop = f.s.kind === "ring" || (f.s.kind === "wall" && !!f.s.closed);
     top.hidden = !canTop;
@@ -1163,6 +1369,18 @@ export class Sanctuary {
     if (!f) return;
     const s = f.s;
     if (t === "del") return this.release(f);
+    if (t === "fin") {
+      if (s.ink === "gold") return;
+      this.remember();
+      const i = FINISHES.findIndex(([k]) => k === (s.fin ?? "cut"));
+      s.fin = FINISHES[(i + 1) % FINISHES.length][0];
+      if (s.fin === "cut") delete s.fin;
+      this.finish = s.fin ?? "cut";
+      this.rebuild(f);
+      this.after(f, 392);
+      return;
+    }
+    if (t === "note") return this.openNotes();
     if (t === "copy") {
       const c: SavedForm = JSON.parse(JSON.stringify(s));
       const off = 1.4 + (s.kind === "ring" ? (s.r ?? 1.5) * (s.sc ?? 1) * 2 : s.kind === "arch" || s.kind === "pyramid" ? (s.w ?? 2) * (s.sc ?? 1) : 0.6);
@@ -1219,6 +1437,39 @@ export class Sanctuary {
     s.cost = round(Math.max(0, s.cost + d));
     if (!t.startsWith("lift")) this.rebuild(f); // turned, the land under it changes too
     this.after(f, t === "top" ? 587.33 : 440);
+  }
+  /** The list of the heart's notes to carve on the chosen form. */
+  private openNotes(): void {
+    const panel = this.ui.querySelector(".b-notes") as HTMLElement, list = panel.querySelector(".list") as HTMLElement;
+    const notes = heartNotes().slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 40);
+    if (!notes.length) {
+      this.hooks.say("Write a note in your heart first (double tap your heart, or H); then it can be carved here.");
+      return;
+    }
+    list.textContent = "";
+    for (const n of notes) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "note";
+      if (this.selected?.s.note === n.createdAt) b.classList.add("on");
+      const d = new Date(n.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+      b.innerHTML = `<em></em><span></span>`;
+      (b.firstChild as HTMLElement).textContent = d;
+      (b.lastChild as HTMLElement).textContent = n.text.length > 70 ? n.text.slice(0, 68) + "…" : n.text;
+      b.addEventListener("click", (e) => (e.preventDefault(), this.carveNote(n.createdAt)));
+      list.appendChild(b);
+    }
+    panel.hidden = false;
+  }
+  private carveNote(note: number | null): void {
+    (this.ui.querySelector(".b-notes") as HTMLElement).hidden = true;
+    const f = this.selected;
+    if (!f) return;
+    this.remember();
+    if (note == null) delete f.s.note;
+    else f.s.note = note;
+    this.rebuild(f);
+    this.after(f, note == null ? 349.23 : 659.25);
   }
   private after(f: Form, note: number): void {
     this.hooks.bell(note, 0.012, 1.6);
@@ -1279,7 +1530,10 @@ export class Sanctuary {
       const l = clampN(Math.hypot(bx - ax, bz - az), 1.2, 9);
       s = { kind: "stairs", ink, l: round(l), w: round(clampN(r.w, 1, 3.2)), h: round(clampN(l * 0.5, 0.6, 3)), x: (ax + bx) / 2, z: (az + bz) / 2, y: 0, rot: Math.atan2(bx - ax, bz - az), cost: 0 };
     }
-    if (s) s.cost = round(Math.max(0.02, costOf(s)));
+    if (s) {
+      s.cost = round(Math.max(0.02, costOf(s)));
+      if (ink === "stone" && this.finish !== "cut") s.fin = this.finish;
+    }
     if (!s || s.cost > this.have(ink) + 1e-6) {
       // not understood, or not enough essence: the stroke sinks back, unforged, with a quiet word
       this.trailFade = 1.6;
@@ -1325,7 +1579,8 @@ export class Sanctuary {
   }
   /** Grow a form's shapes from what is kept of it (again, after it changes). */
   private make(f: Form): void {
-    const s = f.s, sc = s.sc ?? 1, mat = s.ink === "gold" ? this.mats.gold : this.mats.stone;
+    const s = f.s, sc = s.sc ?? 1, mat = s.ink === "gold" ? this.mats.gold : this.finishMat(s.fin);
+    const paving = s.ink === "gold" || (s.fin && s.fin !== "cut") ? mat : this.mats.floor;
     f.base = groundAt(s.x, s.z);
     const lay = this.layOf(s, f.base);
     const mesh = (g: THREE.BufferGeometry, m: THREE.Material) => {
@@ -1352,14 +1607,14 @@ export class Sanctuary {
       mesh(wallGeometry(path, !!s.closed, H, 0.24, lay), mat);
       line = smoothPath(path, !!s.closed);
       half = 0.24;
-      if (s.closed && s.top === "floor") mesh(floorGeometry(line), s.ink === "gold" ? mat : this.mats.floor);
+      if (s.closed && s.top === "floor") mesh(floorGeometry(line), paving);
     } else if (s.kind === "ring") {
       const R = (s.r ?? 1.5) * sc, n = Math.max(18, Math.round(R * 10));
       line = Array.from({ length: n }, (_, i) => [Math.cos((i / n) * Math.PI * 2) * R, Math.sin((i / n) * Math.PI * 2) * R] as V2);
       mesh(wallGeometry(line, true, H, 0.22, lay), mat);
       half = 0.22;
       if (s.top === "dome") mesh(domeGeometry(R + 0.2, H + Math.max(0, lay(0, 0))), mat);
-      else if (s.top === "floor") mesh(floorGeometry(line.map(([x, z]) => [x * 0.96, z * 0.96] as V2)), s.ink === "gold" ? mat : this.mats.floor);
+      else if (s.top === "floor") mesh(floorGeometry(line.map(([x, z]) => [x * 0.96, z * 0.96] as V2)), paving);
     } else if (s.kind === "pillar") {
       mesh(pillarGeometry((s.r ?? 0.3) * sc, H), mat);
       half = (s.r ?? 0.3) * sc * 1.2;
@@ -1383,6 +1638,7 @@ export class Sanctuary {
     f.line = line;
     f.half = half;
     f.H = H;
+    if (s.note != null && s.kind !== "orb" && s.kind !== "stairs") this.carveOn(f, s.note, lay);
     // its soft footprint: a feathered shade along a wall, a round one under the others
     if (s.kind === "wall" || s.kind === "ring") {
       const rb = new Ribbon(line.length + 2, 0.62, new THREE.Color(), false, true);
@@ -1398,6 +1654,71 @@ export class Sanctuary {
     }
     f.geos.push(f.shade.geometry);
     f.group.add(f.shade);
+  }
+  /** A band of the script carved round a form at about chest height (its heart note's words):
+      along both faces of a wall, round a ring, a pillar or a spire, across an arch's head, round a
+      pyramid's first tier. */
+  private carveOn(f: Form, note: number, lay: Lay): void {
+    const s = f.s, sc = s.sc ?? 1, B = 0.3;
+    const strip = (pts: V2[], closed: boolean, side: number, yAt: (x: number, z: number) => number, out: number) => {
+      const n = pts.length, count = closed ? n + 1 : n;
+      const pos: number[] = [], uv: number[] = [], idx: number[] = [];
+      let acc = 0;
+      for (let i = 0; i < count; i++) {
+        const c = pts[i % n];
+        if (i > 0) acc += Math.hypot(c[0] - pts[(i - 1) % n][0], c[1] - pts[(i - 1) % n][1]);
+        const a = closed ? pts[(i - 1 + n) % n] : pts[Math.max(0, i - 1)], b = closed ? pts[(i + 1) % n] : pts[Math.min(n - 1, i + 1)];
+        let tx = b[0] - a[0], tz = b[1] - a[1];
+        const tl = Math.hypot(tx, tz) || 1;
+        tx /= tl;
+        tz /= tl;
+        const x = c[0] - tz * side * out, z = c[1] + tx * side * out, y = yAt(c[0], c[1]);
+        pos.push(x, y, z, x, y + B, z);
+        // read left to right from outside, a glyph to every 0.3 m
+        const u = (side * acc) / (B * GLYPHS);
+        uv.push(u, 0, u, 1);
+        if (i < count - 1) idx.push(i * 2, i * 2 + 2, i * 2 + 1, i * 2 + 1, i * 2 + 2, i * 2 + 3);
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+      g.setIndex(idx);
+      const m = new THREE.Mesh(g, this.carving(note));
+      m.renderOrder = 4;
+      f.body.add(m);
+      f.geos.push(g);
+    };
+    const H = heightOf(s);
+    if (s.kind === "wall" || s.kind === "ring") {
+      const w = s.kind === "wall" ? 0.24 : 0.22, y0 = Math.min(H * 0.55, 1.15) - B / 2;
+      // the battered face's half-thickness at that height, and a hair out from it
+      const off = w - 0.16 * w * Math.min(1, (y0 + B / 2) / Math.max(0.2, H - 0.16)) + 0.014;
+      const yAt = (x: number, z: number) => lay(x, z) + y0;
+      if (s.kind === "wall") {
+        strip(f.line, !!s.closed, 1, yAt, off);
+        strip(f.line, !!s.closed, -1, yAt, off);
+      } else strip(f.line, true, -1, yAt, off); // the ring's outer face (its line runs anticlockwise)
+    } else if (s.kind === "pillar" || s.kind === "spire") {
+      const r0 = (s.r ?? (s.kind === "pillar" ? 0.3 : 0.6)) * sc;
+      const y0 = s.kind === "pillar" ? Math.min(1.15, H * 0.45) : Math.min(0.75, H * 0.2);
+      let R: number;
+      if (s.kind === "pillar") R = r0 * 0.99 + 0.015;
+      else {
+        const t = (y0 + B / 2 - 0.22) / (H - 0.22);
+        R = r0 * Math.pow(1 - t, 0.9) * (1 + 0.06 * Math.sin(t * Math.PI)) * 1.08 + 0.02;
+      }
+      const ring: V2[] = Array.from({ length: 48 }, (_, i) => [Math.cos((i / 48) * Math.PI * 2) * R, Math.sin((i / 48) * Math.PI * 2) * R] as V2);
+      strip(ring, true, -1, () => y0, 0);
+    } else if (s.kind === "arch") {
+      const span = (s.w ?? 2) * sc, r = span / 2, top = H + Math.max(0.42, span * 0.12);
+      const y0 = (H + top) / 2 - B / 2;
+      for (const sd of [-1, 1]) strip([[-r, sd * 0.385], [r, sd * 0.385]], false, sd < 0 ? -1 : 1, () => y0, 0);
+    } else if (s.kind === "pyramid") {
+      const w = ((s.w ?? 6) * sc) / 2 + 0.014, n = Math.max(2, Math.round(H / 0.5)), rise = H / n;
+      const y0 = Math.max(0.03, (rise - B) / 2);
+      const c: V2[] = [[-w, w], [w, w], [w, -w], [-w, -w]];
+      for (let i = 0; i < 4; i++) strip([c[i], c[(i + 1) % 4]], false, 1, () => y0, 0);
+    }
   }
   /** A form changed shape: grown again where it stands. */
   private rebuild(f: Form): void {
@@ -1552,8 +1873,8 @@ export class Sanctuary {
   pickNote(x: number, y: number, camera: THREE.Camera): { note: HeartNote | null } | null {
     if (this.building) return null;
     this.camera = camera;
-    const f = this.formAt(x, y, true);
-    if (!f) return null;
+    const f = this.formAt(x, y);
+    if (!f || f.s.note == null) return null;
     return { note: heartNotes().find((m) => m.createdAt === f.s.note) ?? null };
   }
 
