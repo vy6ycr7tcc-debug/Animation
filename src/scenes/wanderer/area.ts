@@ -330,7 +330,8 @@ export function createLongDescent(scene: THREE.Scene, narration: Narration, whis
       m.rotation.set(Math.cos(a) * -0.14, 0, Math.sin(a) * 0.14); // leaning in
       g.add(m);
       windows.push([m, -1, S_SPIRAL1]);
-      solids.push({ x: m.position.x, z: m.position.z, r: 0.8, h: 22 });
+      // light, not stone: you pass through. One stands on the way in (at the council's foot), and
+      // as a solid it held the guided walk there for good, the long descent never beginning
       tops.push(new V3(COUNCIL.x + Math.sin(a) * 10.5, HIGH + 9, COUNCIL.z + Math.cos(a) * 10.5));
     }
     // three gold rings overhead, turning on long periods
@@ -986,7 +987,7 @@ export function createLongDescent(scene: THREE.Scene, narration: Narration, whis
         }
         if (speaking) {
           spokeFor += dt;
-          if (spokeFor > 2 && !narration.progress()) {
+          if (spokeFor > 2 && !narration.progress() && !narration.loading) {
             speaking = false;
             beat++;
           }

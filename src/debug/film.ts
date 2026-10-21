@@ -28,7 +28,7 @@ import { ArrayBufferTarget, Muxer } from "webm-muxer";
 import type { AudioEngine, Tape } from "../core/audio";
 import { crossfadeLoop } from "../core/audio";
 import type { Narration } from "../core/narration";
-import { FAST, real, vclock } from "./filmClock";
+import { FAST, SIM, real, vclock } from "./filmClock";
 
 export interface FilmHost {
   canvas: HTMLCanvasElement;
@@ -551,11 +551,11 @@ async function session(host: FilmHost, ui: Screen, clips: Clip[], total: number,
     const chaptersBlob = new Blob([JSON.stringify({ clip: clip.id, label: clip.label, duration: out.duration, chapters: out.chapters }, null, 1)], { type: "application/json" });
     ui.status(`saving ${base}…`);
     let url: string | null = null;
-    for (const f of out.files) {
+    for (const f of SIM ? [] : out.files) {
       url = (await sink.save(f.name, f.blob)) ?? url;
       status.saved.push({ name: f.name, bytes: f.blob.size });
     }
-    await sink.save(chaptersFile, chaptersBlob);
+    if (!SIM) await sink.save(chaptersFile, chaptersBlob);
     const bytes = out.files.reduce((a, f) => a + f.blob.size, 0);
     const video = out.files[0].name;
     const warning = clip.secs === undefined && !UNTIL && out.duration < 10 ? `This clip lasted only ${out.duration} s: the tour or animation probably did not start. Film it again with ?film=${clip.id}.` : undefined;
@@ -872,7 +872,7 @@ async function captureFast(host: FilmHost, ui: Screen, clip: Clip, zip: boolean,
   let encErr: unknown = null;
   const jpegs: { name: string; blob: Blob }[] = [];
   const pending: Promise<void>[] = [];
-  if (!zip) {
+  if (!zip && !SIM) {
     muxer = new Muxer({ target: new ArrayBufferTarget(), video: { codec: "V_VP9", width: W, height: H, frameRate: FPS }, audio: { codec: "A_OPUS", numberOfChannels: 2, sampleRate: RATE }, firstTimestampBehavior: "offset" });
     venc = new VideoEncoder({ output: (c, m) => muxer!.addVideoChunk(c, m), error: (e) => (encErr = e) });
     venc.configure({ codec: "vp09.00.51.08", width: W, height: H, framerate: FPS, bitrate: Math.min(40e6, Math.round(W * H * FPS * 0.14)) });
@@ -885,6 +885,15 @@ async function captureFast(host: FilmHost, ui: Screen, clip: Clip, zip: boolean,
   host.onFrame(() => {
     if (!capturing || finished) return;
     const f = captured++;
+    if (SIM) {
+      if (f % 8 === 0) chapters.note(f / FPS, host.chapter());
+      status.frames = captured;
+      if (captured >= limit) finished = true;
+      else if (!timed && !host.active()) {
+        if (++idleFrames >= TAIL * FPS) finished = true;
+      } else idleFrames = 0;
+      return;
+    }
     pic.draw(f / FPS);
     if (venc) {
       const vf = new VideoFrame(pic.canvas, { timestamp: Math.round((f * 1e6) / FPS), duration: Math.round(1e6 / FPS) });
@@ -964,6 +973,12 @@ async function captureFast(host: FilmHost, ui: Screen, clip: Clip, zip: boolean,
   const tl = new Blob([JSON.stringify(timeline, null, 1)], { type: "application/json" });
   const ch = chapters.finish(duration);
   const common = { duration: Math.round(duration * 100) / 100, size: { width: W, height: H }, chapters: ch, timeline };
+  if (SIM) {
+    // a simulated tour (testing): nothing to save, its record left for the test to read
+    const w = window as unknown as { __sim?: unknown[] };
+    (w.__sim ??= []).push({ clip: clip.id, duration: common.duration, chapters: ch, events: timeline.events });
+    return { ...common, files: [{ name: `${base}.sim.json`, blob: tl }], note: "simulated" };
+  }
 
   if (!zip && venc && aenc && muxer) {
     await encodeAudio(audioDone, duration);
