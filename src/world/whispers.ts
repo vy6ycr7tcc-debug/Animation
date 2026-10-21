@@ -28,7 +28,7 @@
    waits while "Only nature" rests the voices (a tap is your own choice, and still speaks). */
 import * as THREE from "three/webgpu";
 import { T, gpuUniforms, outOfTheWay, softDot, pointR, softPoints, spriteCloud, viewDepth, worldPoints } from "../gpu/tsl";
-import { barkMaterial, grow, prismGeometry, tubes, type TreeShape } from "./creation";
+import { barkMaterial, crownLeaves, foliageCloud, grow, prismGeometry, tubes, type TreeShape } from "./creation";
 import { GROVE_SITES } from "./sites";
 import { CAVE_SITES, GLADES, KEEP_CLEAR, LANDMARK_SITES, SPAWN, WATER_Y, colliders, heightAt, keptClear } from "./terrain";
 import { SITES } from "../scenes/sites";
@@ -253,6 +253,19 @@ export class Whispers {
       const rootsMesh = new THREE.Mesh(tubes(roots, -0.2), barkMaterial(accent, 0.37));
       bark.castShadow = true;
       tree.add(bark, rootsMesh);
+      // in leaf, as the world's trees are
+      {
+        let q = 9173;
+        const Q = () => ((q = (q * 16807) % 2147483647) / 2147483647);
+        const { f, fl } = crownLeaves(tips, Q, 34);
+        const c = foliageCloud(fl.length, { size: 1.0 });
+        (c.attrs.base.array as Float32Array).set(f);
+        (c.attrs.aL.array as Float32Array).set(fl);
+        const k = c.attrs.aK.array as Float32Array, h = c.attrs.aHue.array as Float32Array;
+        for (let i = 0; i < fl.length; i++) (k[i] = (i * 0.618034) % 1), (h[i] = 0.05);
+        c.setCount(fl.length);
+        tree.add(c.sprite);
+      }
       this.group.add(tree);
       tree.updateMatrixWorld(true);
       // its crown's lights: they drift toward you as you come near (it reaches out first)

@@ -11,8 +11,8 @@
    - Each tree is one of the world's own kinds (creation.ts: its grown limbs in living bark, glints
      at its twig tips), its own seed; kept on this device only, where it was planted. */
 import * as THREE from "three/webgpu";
-import { T, worldPoints, glowShader } from "../gpu/tsl";
-import { barkMaterial, grow, SHAPES, tubes } from "./creation";
+import { T, glowShader, type SpriteCloud } from "../gpu/tsl";
+import { barkMaterial, crownLeaves, foliageCloud, grow, SHAPES, tubes } from "./creation";
 import { colliders, heightAt, type Collider } from "./terrain";
 
 const KEY = "inward-journey:planted";
@@ -35,7 +35,7 @@ interface Planted extends Kept {
   group: THREE.Group;
   trunk: THREE.Mesh;
   tips: THREE.Vector3[];
-  canopy: ReturnType<typeof worldPoints> | null;
+  canopy: SpriteCloud | null;
   scale: number;
   collider: Collider | null;
 }
@@ -117,21 +117,31 @@ export class Garden {
     this.hold(t);
     return t;
   }
-  /** Glints at its twig tips, as the world's trees have (rebuilt as it grows). */
+  /** Its crown: the world's own leaves round its twig tips (rebuilt as it grows). */
   private leaves(t: Planted): void {
     if (t.canopy) {
       t.group.remove(t.canopy.sprite);
-      t.canopy.material.dispose();
+      t.canopy.sprite.geometry.dispose();
+      (t.canopy.sprite.material as THREE.Material).dispose();
     }
     t.canopy = null;
     if (t.stage < 1) return;
     const s = STAGE[t.stage];
-    const pts: number[] = [];
     let r = t.seed + 7;
     const R = () => ((r = (r * 16807) % 2147483647) / 2147483647);
-    for (const tp of t.tips) for (let k = 0; k < 5; k++) pts.push(tp.x * s + (R() - 0.5) * 1.6 * s, tp.y * s + (R() - 0.3) * 1.2 * s, tp.z * s + (R() - 0.5) * 1.6 * s);
-    t.canopy = worldPoints(new Float32Array(pts), { color: new THREE.Color(0.78, 1, 0.66), size: 0.12 + 0.12 * s, opacity: 0.75 });
-    t.group.add(t.canopy.sprite);
+    const { f, fl } = crownLeaves(t.tips, R, t.stage < 2 ? 6 : 12, s);
+    const n = fl.length;
+    const c = foliageCloud(n, { size: 0.62 * Math.max(0.3, s) });
+    const a = c.attrs;
+    (a.base.array as Float32Array).set(f);
+    (a.aL.array as Float32Array).set(fl);
+    const k = a.aK.array as Float32Array, h = a.aHue.array as Float32Array;
+    const hue = (t.seed % 1000) / 1000;
+    for (let i = 0; i < n; i++) (k[i] = (i * 0.618034 + hue * 3.1) % 1), (h[i] = hue);
+    for (const v of Object.values(a)) v.needsUpdate = true;
+    c.setCount(n);
+    t.canopy = c;
+    t.group.add(c.sprite);
   }
   /** Grown enough to stand in your way: its trunk is solid. */
   private hold(t: Planted): void {

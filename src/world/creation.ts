@@ -265,6 +265,24 @@ export function tubes(limbs: Limb[], minU = -Infinity): THREE.BufferGeometry {
       }
       rings++;
     }
+    // a limb never ends cut square: it closes in a rounded tip
+    if (rings === segs + 1 && !g.curl) {
+      const P = curve.getPointAt(1), Tg = curve.getTangentAt(1);
+      const N = fr.normals[segs], B = fr.binormals[segs];
+      for (const [ahead, rk] of [[0.55, 0.62], [0.95, 0.12]] as const) {
+        const C = P.clone().addScaledVector(Tg, g.r1 * ahead);
+        for (let k = 0; k <= sides; k++) {
+          const a = (k / sides) * Math.PI * 2;
+          const n = N.clone().multiplyScalar(Math.cos(a)).addScaledVector(B, -Math.sin(a));
+          pos.push(C.x + n.x * g.r1 * rk, C.y + n.y * g.r1 * rk, C.z + n.z * g.r1 * rk);
+          n.multiplyScalar(rk).addScaledVector(Tg, 1 - rk).normalize();
+          nor.push(n.x, n.y, n.z);
+          au.push(g.u1);
+          ang.push(k / sides);
+        }
+        rings++;
+      }
+    }
     for (let i = 0; i < rings - 1; i++)
       for (let k = 0; k < sides; k++) {
         const i0 = base + i * (sides + 1) + k, i1 = i0 + 1, j0 = i0 + sides + 1, j1 = j0 + 1;
@@ -301,6 +319,61 @@ function rootLineSegs(roots: Limb[]): Seg[] {
 /** Living bark: willow-bark relief, a thin rim of starlight, fine grain lines of light, and
     light flowing down from the crown. `accent`: the colour of that light (default: gold/silver).
     Instanced meshes carry each tree's seed in `aSeed`; a single tree passes its `seed`. */
+/** A crown's leaves: clustered round each twig tip in rough round clusters, each with how high
+    in the crown it hangs (`fl`: 0 at its foot, 1 at its top, where the light falls). */
+export function crownLeaves(tips: THREE.Vector3[], R: () => number, per = 14, s = 1): { f: Float32Array; fl: Float32Array } {
+  let lo = Infinity, hi = -Infinity;
+  for (const tp of tips) (lo = Math.min(lo, tp.y)), (hi = Math.max(hi, tp.y));
+  const f: number[] = [], fl: number[] = [];
+  for (const tp of tips)
+    for (let j = 0; j < per; j++) {
+      const a = R() * Math.PI * 2, u = R() * 2 - 1, rr = 0.35 + Math.cbrt(R()) * 0.85;
+      const sx = Math.sqrt(1 - u * u);
+      const y = tp.y + u * rr * 0.62 + 0.15;
+      f.push((tp.x + Math.cos(a) * sx * rr) * s, y * s, (tp.z + Math.sin(a) * sx * rr) * s);
+      fl.push(Math.min(1, Math.max(0, (y - lo + 0.6) / (hi - lo + 1.4))));
+    }
+  return { f: new Float32Array(f), fl: new Float32Array(fl) };
+}
+
+/** The crowns (the owner: "more realistic… between aethereal now and the second density room"):
+    ragged leaves, solid (they hide the sky behind them), dark green and lit from above, each tree
+    its own green (some turning gold, a few silvered), swaying in the wind; the tips nearest you
+    edged with a little light. Per leaf: `base` (position in the sprite's frame), `aK` (its own
+    0..1), `aHue` (its tree's), `aL` (height in the crown). `size`: a leaf's size there. */
+export function foliageCloud(max: number, opts: { size?: number; far?: number } = {}): SpriteCloud {
+  const mat = new THREE.PointsNodeMaterial({ transparent: false, depthWrite: true, alphaTest: 0.5, fog: false });
+  mat.sizeAttenuation = true;
+  mat.size = opts.size ?? 0.62;
+  const far = opts.far ?? 118;
+  const cloud = spriteCloud(max, { base: 3, aK: 1, aHue: 1, aL: 1 }, mat);
+  const { base, aK, aHue, aL } = cloud.nodes;
+  const sway = aL.mul(0.12).add(0.03);
+  const p = base.add(vec3(sin(U.uT.mul(0.8).add(aK.mul(30)).add(base.x.mul(0.1))).mul(sway), sin(U.uT.mul(1.1).add(aK.mul(17))).mul(0.03), cos(U.uT.mul(0.6).add(aK.mul(23)).add(base.z.mul(0.1))).mul(sway)));
+  mat.positionNode = p;
+  const pw = T.modelWorldMatrix.mul(vec4(p, 1)).xyz;
+  const d = distance(pw, cameraPosition);
+  // its own green: most trees green, some turning gold, a few silvered
+  const h = fract(aHue.mul(7.13));
+  const green = mix(vec3(0.03, 0.075, 0.03), vec3(0.11, 0.2, 0.06), aK.mul(0.6));
+  const gold = mix(vec3(0.16, 0.1, 0.03), vec3(0.32, 0.2, 0.05), aK);
+  const silver = mix(vec3(0.06, 0.09, 0.09), vec3(0.15, 0.2, 0.19), aK);
+  const leaf = mix(mix(green, gold, step(0.84, h)), silver, step(0.95, h));
+  // lit from above and by the sky's own colour; the inner leaves darker
+  const lit = mix(float(0.32), float(1.15), aL);
+  const near = smoothstep(14, 3, distance(pw.xz, U.uPlayer.xz));
+  const edgeGlow = vec3(0.5, 0.42, 0.22).mul(pow(aK, 14)).mul(near.mul(0.6).add(0.15));
+  const c = leaf.mul(lit).add(U.uFogC.mul(0.4).mul(lit)).add(edgeGlow);
+  // each leaf its own ragged shape, not a disc
+  const pr = length(pointUV.sub(0.5).mul(vec2(1, 1.45))).mul(2).add(T.mx_noise_float(pointUV.mul(5).add(aK.mul(40))).mul(0.45));
+  // gone near the lens (a leaf is never a blot across the view) and beyond the living trees
+  const keep = smoothstep(0.9, 2.2, d).mul(float(1).sub(smoothstep(far - 18, far, d)));
+  mat.colorNode = vec4(mix(c, U.uFogC, fogF(d)), 1);
+  mat.opacityNode = smoothstep(1.02, 0.86, pr).mul(step(hash1(screenCoordinate.xy), keep));
+  cloud.setCount(0);
+  return cloud;
+}
+
 /** A stand-in until a rebuilt mesh's first contents arrive: `verts` coincident points (draws
     nothing) carrying every attribute its material reads, so compiling it finds them all. */
 function blank(verts: number, name: string, size: number): THREE.BufferGeometry {
@@ -310,9 +383,14 @@ function blank(verts: number, name: string, size: number): THREE.BufferGeometry 
   return g;
 }
 
-export function barkMaterial(accent?: THREE.Color, seed: number | null = null): THREE.MeshBasicNodeMaterial {
+/** Living bark (the owner: "more realistic… somewhere between aethereal now and the second
+    density room"): the bark scan in warm browns and greys, its relief, lit by the moon and the
+    sky as the rocks and the ground are, shadowed; the light that moves through everything stays,
+    fainter: the grain's fine lines, light pouring down from the crown, and the hands' warmth when
+    it is held. */
+export function barkMaterial(accent?: THREE.Color, seed: number | null = null): THREE.MeshStandardNodeMaterial {
   const barkTex = surface("bark");
-  const m = new THREE.MeshBasicNodeMaterial({ fog: false });
+  const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.92, metalness: 0 });
   const aSeed = seed === null ? attribute("aSeed", "float") : float(seed);
   // the crown sways; the roots stay still (positionLocal is already in the world here)
   const sw0 = max(positionGeometry.y, 0), sway = sw0.mul(sw0).mul(0.002);
@@ -324,38 +402,47 @@ export function barkMaterial(accent?: THREE.Color, seed: number | null = null): 
   );
   const vSeed = varying(aSeed), vU = varying(attribute("aU", "float")), vAng = varying(attribute("aAng", "float"));
   const acc = accent ? vec3(accent.r, accent.g, accent.b) : null;
+  const buv = vec2(vAng.mul(2), vU.mul(7).add(vSeed));
+  const vW = positionWorld;
+  const dist0 = length(vW.sub(cameraPosition));
+  // the bark: its own colour, warm brown to grey, each tree a little its own, mossier low down
   m.colorNode = Fn(() => {
-    const vW = positionWorld;
-    const buv = vec2(vAng.mul(2), vU.mul(7).add(vSeed));
+    const bk = texture(barkTex.diff, buv).rgb;
+    const tone = mix(vec3(0.42, 0.33, 0.26), vec3(0.36, 0.34, 0.33), fract(vSeed.mul(7.3)));
+    const moss = smoothstep(0.35, 0.0, vU).mul(smoothstep(0.2, 0.8, normalWorldGeometry.y.mul(0.5).add(0.5))).mul(0.45);
+    const c = bk.mul(tone).mul(2.1).mul(mix(vec3(1), vec3(0.55, 0.75, 0.42), moss));
+    // never a wall of bark in front of the camera: it dissolves as the camera comes close
+    If(hash1(screenCoordinate.xy).greaterThan(smoothstep(0.6, 2.2, dist0)), () => {
+      Discard();
+    });
+    return c;
+  })();
+  // its relief, from the normal map, oriented by the surface's own derivatives
+  m.normalNode = Fn(() => {
     const n0 = normalize(normalWorldGeometry);
-    const v = normalize(cameraPosition.sub(vW));
-    const dist0 = length(vW.sub(cameraPosition));
-    // the bark's relief, from its normal map, oriented by the surface's own derivatives
     const mm = mix(vec3(0, 0, 1), texture(barkTex.nor, buv).xyz.mul(2).sub(1), float(1).sub(smoothstep(25, 60, dist0)));
     const q0 = dFdx(vW), q1 = dFdy(vW), s0 = dFdx(buv), s1 = dFdy(buv);
     const q1p = cross(q1, n0), q0p = cross(n0, q0);
     const Tn = q1p.mul(s0.x).add(q0p.mul(s1.x)), Bn = q1p.mul(s0.y).add(q0p.mul(s1.y));
     const dd = max(dot(Tn, Tn), dot(Bn, Bn));
     const k = dd.equal(0).select(float(0), inverseSqrt(dd));
-    const nb = normalize(Tn.mul(mm.x.mul(k)).add(Bn.mul(mm.y.mul(k))).add(n0.mul(mm.z)));
-    const n = dist0.lessThan(60).select(nb, n0);
-    const bk = texture(barkTex.diff, buv).rgb;
-    const hemi = n.y.mul(0.5).add(0.5);
-    const c = mix(vec3(0.006, 0.005, 0.014), vec3(0.03, 0.028, 0.06), hemi).mul(bk.mul(2.4).add(0.4)).toVar();
-    c.addAssign(vec3(0.09, 0.07, 0.05).mul(max(0, dot(n, U.uStar))));
-    c.addAssign(vec3(0.3, 0.38, 0.8).mul(pow(float(1).sub(max(0, dot(n, v))), 5)).mul(0.18)); // a thin rim of starlight
-    // the grain spirals up the trunk as fine lines of light
+    const nb = normalize(Tn.mul(mm.x.mul(k)).add(Bn.mul(mm.y.mul(k))).add(n0.mul(mm.z.mul(1.6))));
+    return normalize(T.cameraViewMatrix.mul(vec4(dist0.lessThan(60).select(nb, n0), 0)).xyz);
+  })();
+  // the light through it, fainter than before: the grain's lines, the flow down from the crown,
+  // a thin rim of starlight, and the hands' warmth when held
+  m.emissiveNode = Fn(() => {
+    const n0 = normalize(normalWorldGeometry);
+    const v = normalize(cameraPosition.sub(vW));
+    const c = vec3(0.3, 0.38, 0.8).mul(pow(float(1).sub(max(0, dot(n0, v))), 5)).mul(0.05).toVar();
     const f = vAng.mul(4).add(vU.mul(5)).add(vSeed.mul(3));
     const w = fwidth(f);
     const grain = float(1).sub(smoothstep(w.mul(0.4), w.mul(1.4), abs(fract(f).sub(0.5))));
-    // light pours down from the crown toward the roots
     const flow = pow(fract(vU.mul(3).add(U.uT.mul(0.11)).add(vSeed)), 14);
     const near = smoothstep(12, 2, distance(vW.xz, U.uPlayer.xz));
     const gold0 = mix(vec3(1.0, 0.78, 0.48), vec3(0.75, 0.85, 1.0), step(0.5, vSeed));
     const gold = acc ?? gold0;
-    c.addAssign(gold.mul(grain.mul(near.mul(0.12).add(0.05).add(flow.mul(1.1))).add(flow.mul(0.08))));
-    // held: warmth where the hands rest, and each answer a wave of light running up into the
-    // crown and down into the roots along the grain
+    c.addAssign(gold.mul(grain.mul(near.mul(0.035).add(0.01).add(flow.mul(0.22))).add(flow.mul(0.012))));
     const tH = distance(vW.xz, U.uTouchPos.xz), tY = abs(vW.y.sub(U.uTouchPos.y));
     const mine = float(1).sub(smoothstep(3.5, 6, tH)).mul(U.uTouchK);
     const along = tY.add(tH.mul(0.6));
@@ -363,11 +450,7 @@ export function barkMaterial(accent?: THREE.Color, seed: number | null = null): 
     const band = exp(along.sub(front).mul(along.sub(front)).mul(-2.5)).mul(float(1).sub(smoothstep(2, 4.5, U.uTouchWave)));
     const warm = exp(length(vW.sub(U.uTouchPos)).mul(-2.2)).mul(0.35);
     c.addAssign(gold.mul(grain.mul(1.4).add(0.25)).mul(band.mul(0.9).add(warm)).mul(mine));
-    // never a wall of bark in front of the camera: it dissolves as the camera comes close
-    If(hash1(screenCoordinate.xy).greaterThan(smoothstep(0.6, 2.2, dist0)), () => {
-      Discard();
-    });
-    return vec4(mix(c, U.uFogC, fogF(dist0)), 1);
+    return c;
   })();
   return m;
 }
@@ -476,8 +559,10 @@ export class Creation {
   private barks: THREE.InstancedMesh[] = [];
   private rootSegs: Seg[][] = [];
   private rootLines!: THREE.LineSegments;
-  private tipSets: { p: Float32Array; k: Float32Array }[] = [];
+  private tipSets: { p: Float32Array; k: Float32Array; f: Float32Array; fl: Float32Array }[] = [];
   private leaves: SpriteCloud;
+  /** the crowns: ragged leaves clustered round every twig tip (solid, lit from above) */
+  private foliage: SpriteCloud;
   private rockMeshes: THREE.InstancedMesh[] = [];
   private prisms: THREE.InstancedMesh;
   private prismC: THREE.InstancedBufferAttribute;
@@ -501,6 +586,7 @@ export class Creation {
   constructor(private sparks: Sparks) {
     this.buildTrees();
     this.leaves = this.buildLeaves();
+    this.foliage = this.buildFoliage();
     this.buildRocks();
     const [prisms, prismC] = this.buildPrisms();
     this.prisms = prisms;
@@ -545,6 +631,7 @@ export class Creation {
       const mesh = new THREE.InstancedMesh(geo, bark, MAX_TREES);
       mesh.count = 0;
       mesh.castShadow = true; // the moon casts the trees' shadows near the wanderer
+      mesh.receiveShadow = true;
       this.barks.push(mesh);
       this.rootSegs.push(rootLineSegs(roots));
       this.group.add(mesh);
@@ -563,7 +650,10 @@ export class Creation {
           k.push(1.0 + R() * 0.9); // ≥ 1: a soft canopy glow
         }
       });
-      this.tipSets.push({ p: new Float32Array(p), k: new Float32Array(k) });
+      // the crown: leaves clustered round each twig tip in a rough round cluster, each with how
+      // high in the crown it hangs (0 at its foot, 1 at its top: the top catches the light)
+      const { f, fl } = crownLeaves(tips, R);
+      this.tipSets.push({ p: new Float32Array(p), k: new Float32Array(k), f, fl });
     });
   }
 
@@ -595,6 +685,12 @@ export class Creation {
     const a = mix(smoothstep(1, 0, r).mul(1.6).add(smoothstep(0.3, 0, r).mul(1.5)), exp(r.mul(r).mul(-3.5)).mul(0.3), big);
     mat.colorNode = vec4(vC.mul(a).mul(vA), 1);
     cloud.setCount(0);
+    this.group.add(cloud.sprite);
+    return cloud;
+  }
+
+  private buildFoliage(): SpriteCloud {
+    const cloud = foliageCloud(MAX_TREES * 1400);
     this.group.add(cloud.sprite);
     return cloud;
   }
@@ -858,6 +954,9 @@ export class Creation {
     const lpa = lp.array as Float32Array, lka = lk.array as Float32Array, lha = lh.array as Float32Array;
     const maxLeaves = lka.length;
     let nl = 0;
+    const fp = this.foliage.attrs.base.array as Float32Array, fk = this.foliage.attrs.aK.array as Float32Array, fh = this.foliage.attrs.aHue.array as Float32Array, fla = this.foliage.attrs.aL.array as Float32Array;
+    const maxFol = fk.length;
+    let nf = 0;
     const rp: number[] = [], ra: number[] = [];
     byKind.forEach((list, kind) => {
       const bark = this.barks[kind], roots = this.rootSegs[kind];
@@ -878,6 +977,16 @@ export class Creation {
             }
           }
         }
+        for (let k = 0; k < tips.fl.length && nf < maxFol; k++) {
+          this.v.set(tips.f[k * 3], tips.f[k * 3 + 1], tips.f[k * 3 + 2]).applyMatrix4(this.m4);
+          fp[nf * 3] = this.v.x;
+          fp[nf * 3 + 1] = this.v.y;
+          fp[nf * 3 + 2] = this.v.z;
+          fk[nf] = ((k * 0.618034 + t.hue * 3.1) % 1 + 1) % 1;
+          fh[nf] = t.hue;
+          fla[nf] = tips.fl[k];
+          nf++;
+        }
         for (let k = 0; k < tips.k.length && nl < maxLeaves; k++) {
           this.v.set(tips.p[k * 3], tips.p[k * 3 + 1], tips.p[k * 3 + 2]).applyMatrix4(this.m4);
           lpa[nl * 3] = this.v.x;
@@ -894,6 +1003,8 @@ export class Creation {
       bark.computeBoundingSphere();
     });
     this.leaves.setCount(nl);
+    this.foliage.setCount(nf);
+    for (const a of Object.values(this.foliage.attrs)) a.needsUpdate = true;
     const rg = this.renew(this.rootLines);
     rg.setAttribute("position", new THREE.Float32BufferAttribute(rp, 3));
     rg.setAttribute("aR", new THREE.Float32BufferAttribute(ra, 2));
