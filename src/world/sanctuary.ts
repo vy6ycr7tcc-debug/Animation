@@ -1748,9 +1748,13 @@ export class Sanctuary {
     this.save();
     this.drawUi();
   }
+  /** The newest note no form carries yet (each gold form holds a note of its own, never the same
+      one twice); none once every note is carried. */
   private newestNote(): number | undefined {
+    const used = new Set<number>();
+    for (const f of this.live()) if (f.s.note != null) used.add(f.s.note);
     let n: number | undefined;
-    for (const m of this.notes) if (n === undefined || m.createdAt > n) n = m.createdAt;
+    for (const m of this.notes) if (!used.has(m.createdAt) && (n === undefined || m.createdAt > n)) n = m.createdAt;
     return n;
   }
 
