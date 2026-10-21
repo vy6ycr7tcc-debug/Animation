@@ -117,14 +117,16 @@ const etchLines = Fn(([p0, scale]: N[]) => {
     const a = k * 1.0471976;
     const f = dot(p, vec2(Math.cos(a), Math.sin(a)));
     const w = fwidth(f);
-    l.assign(max(l, float(1).sub(smoothstep(w.mul(0.3), w, abs(fract(f.add(0.5)).sub(0.5))))));
+    // where the lines crowd closer than the pixels can hold, they melt away (they had filled in
+    // into a bright net over every distant rock, like a geodesic cage)
+    l.assign(max(l, float(1).sub(smoothstep(w.mul(0.3), w, abs(fract(f.add(0.5)).sub(0.5)))).mul(float(1).sub(smoothstep(0.08, 0.22, w)))));
   }
   const g = vec2(p.x.sub(p.y.mul(0.57735)), p.y.mul(1.1547));
   const c = floor(g.add(0.5));
   const cc = vec2(c.x.add(c.y.mul(0.5)), c.y.mul(0.866));
   const r = length(p.sub(cc));
   const wr = fwidth(r);
-  l.assign(max(l, float(1).sub(smoothstep(wr.mul(0.3), wr, abs(r.sub(0.5))))));
+  l.assign(max(l, float(1).sub(smoothstep(wr.mul(0.3), wr, abs(r.sub(0.5)))).mul(float(1).sub(smoothstep(0.08, 0.22, wr)))));
   return l;
 });
 
@@ -174,7 +176,7 @@ export function etchedStone(
   m.emissiveNode = Fn(() => {
     const an = abs(vEN);
     const l = an.y.greaterThan(0.6).select(etchLines(vEW.xz, scale), an.x.greaterThan(an.z).select(etchLines(vEW.zy, scale), etchLines(vEW.xy, scale)));
-    const fade = float(1).sub(smoothstep(25, 70, camD));
+    const fade = float(1).sub(smoothstep(8, 26, camD));
     // the drawings' lattice survives only as a faint trace in the stone
     const e = uLine.mul(l).mul(fade).mul(0.06).mul(E.uEtchGain).mul(sin(E.uEtchT.mul(0.6).add(vEW.y)).mul(0.15).add(0.85)).toVar();
     // vibrating: rings of light race outward over the stone, and its lattice wakes
