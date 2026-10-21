@@ -153,6 +153,10 @@ export function spriteCloud(max: number, layout: Record<string, number>, materia
   }
   if (nodes.position) material.positionNode = nodes.position;
   const sprite = new THREE.Sprite(material);
+  // its own quad: three gives every Sprite one shared geometry, and a cloud's dispose (or a room's
+  // added attributes) must never reach the others (disposing the shared one broke every sprite on
+  // the phone: "WebGPU: Buffer1 index[0] is missing")
+  sprite.geometry = sprite.geometry.clone();
   sprite.count = max;
   sprite.frustumCulled = false;
   return {
@@ -163,6 +167,13 @@ export function spriteCloud(max: number, layout: Record<string, number>, materia
       sprite.count = Math.min(max, Math.max(0, n));
     },
   };
+}
+
+/* Every plain THREE.Sprite shares one geometry; nothing may dispose it (a halo's group being
+   freed traverses its sprites). Made indestructible here, once. */
+{
+  const shared = new THREE.Sprite().geometry;
+  shared.dispose = () => {};
 }
 
 /** The game's soft point of light, for every sprite cloud: a bright core in a soft halo (two
