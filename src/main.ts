@@ -337,6 +337,10 @@ const sanct = new Sanctuary(
   { sparks: (at, n, c, s) => sparks.emit(at, n, c, s), bowl: (f, g) => audio.bowl(f, g), bell: (f, g, d) => audio.bell(f, g, d), breath: () => breath.phases, say: (t) => whisper(t, 6500) },
   { persist: !new URLSearchParams(location.search).has("shot") },
 );
+/* Trees you plant and grow with your own energy (world/garden.ts): planted from the build screen,
+   tended with a hold. */
+const garden = new Garden({ persist: !new URLSearchParams(location.search).has("shot") });
+sanct["hooks"].plant = (x: number, z: number) => garden.plant(x, z);
 const grass = new LightGrass();
 const flowers = new Flowers(sparks, audio);
 const lanterns = new Lanterns(sparks);
@@ -372,7 +376,7 @@ scene.add(presences.group);
 /* the oracle at work at an archetype or a shrine, in that archetype's own light */
 const stationGlow = new StationGlow();
 scene.add(stationGlow.points);
-scene.add(sparks.points, grass.mesh, flowers.mesh, blooms.mesh, wilds.group, lanterns.points, sanct.group);
+scene.add(sparks.points, grass.mesh, flowers.mesh, blooms.mesh, wilds.group, lanterns.points, sanct.group, garden.group);
 // The whole creation: trees and their roots, rocks, crystals, and the light through them.
 creationUniforms.uFogC.value.copy(FOG_COLOR);
 creationUniforms.uFogD.value = FOG.density * 0.9;
@@ -1783,6 +1787,32 @@ function buildFrame(): void {
   }
 }
 let toldTouch = false;
+let toldTend = false;
+let tending: { tree: Garden["trees"][number]; t: number } | null = null;
+/** Tending a planted tree: while the hands are on it the ring fills; closed, it grows a stage. */
+function tendFrame(dt: number): void {
+  if (!tending) return garden.tend(null, 0, 0);
+  const tr = tending.tree;
+  if (touch.phase === "none") {
+    tending = null;
+    garden.tend(null, 0, 0);
+    return;
+  }
+  if (touch.phase !== "touching") return garden.tend(tr, 0, 0.6);
+  tending.t += dt;
+  garden.tend(tr, tending.t / TEND_CYCLE, 1);
+  if (tending.t >= TEND_CYCLE) {
+    const st = garden.growUp(tr);
+    const top = new THREE.Vector3(tr.x, tr.y + 0.6 + st * 1.2, tr.z);
+    sparks.emit(top, 34, new THREE.Color(0.8, 1, 0.62), 1.4);
+    sparks.emit(top, 20, new THREE.Color(1, 0.84, 0.55), 2.2);
+    for (const [f, d] of [[392, 0], [493.88, 0.25], [587.33, 0.5]] as const) window.setTimeout(() => audio.bell(f, 0.02, 4), d * 1000);
+    whisper(`It grew into ${STAGE_NAMES[st]}.`, 4500);
+    tending = null;
+    touch.stop();
+    garden.tend(null, 1, 0);
+  }
+}
 function canTouch(): boolean {
   return S.mode === "play" && player.grounded && !player.swimming && !player.flying && !apart() &&
     !autofly.active && sitting.phase === "none" && !startMap.isOpen;
@@ -1810,6 +1840,26 @@ function beginTouch(x: number, y: number, earth = false): void {
   if (!touch.pick(x, y, camera, earth ? groundPoint(x, y) : null)) {
     if (!earth) beginBuild(x, y);
     return;
+  }
+  // a tree you planted: tended, in the open (no dark), its ring filling round it
+  {
+    const tg0 = touch.target!;
+    const pt = tg0.kind === "tree" ? garden.at(tg0.centre.x, tg0.centre.z) : null;
+    if (pt) {
+      if (garden.small(pt)) {
+        // a sapling: kneel by it, a palm on the earth at its foot
+        touch.stop();
+        const a = Math.atan2(player.pos.x - pt.x, player.pos.z - pt.z);
+        touch.touchThing("ground", new THREE.Vector3(pt.x + Math.sin(a) * 0.35, pt.y, pt.z + Math.cos(a) * 0.35), 0, 0);
+      }
+      tending = { tree: pt, t: 0 };
+      audio.bell(392, 0.02, 2);
+      if (!toldTend) {
+        toldTend = true;
+        whisper("Stay with it. The ring fills as you tend it; when it closes, it grows.", 6000);
+      }
+      return;
+    }
   }
   // the eyes begin to close
   const tg = touch.target!;
@@ -2559,7 +2609,7 @@ scene.add(rapaNui.group, rapaNui.live);
    tree alone, Rapa Nui). Found once, they wait under the map. */
 const whispers = new Whispers(MOBILE, falseDoors, ancients.areas.find((a) => a.id === "mayan"));
 scene.add(whispers.group);
-touch.extra = () => whispers.touchables();
+touch.extra = () => [...whispers.touchables(), ...garden.touchables()];
 /** A whisper found (or asked for again from the map). Found by stillness it waits for the voices
     ("Only nature" rests them) and never breaks into a tour or an archive narration; a tap, a
     hand laid on it or the map's list is your own choice, and speaks. Each plays once on its
@@ -5141,6 +5191,7 @@ function update(dt: number): void {
     blooms.update(life);
     wilds.update(life);
     sanct.update(dt, wt, dpr, player.pos, camera);
+    garden.update(dt, wt, player.pos);
     lanterns.update(life);
   }
   if (world) forest.update(player.pos);
@@ -5166,6 +5217,7 @@ function update(dt: number): void {
       startMap.isOpen || apart() || autofly.active || sitting.phase !== "none";
     touch.update(dt, dpr, letGo, S.reduced);
     medFrame(dt);
+    tendFrame(dt);
     buildFrame();
     // a stone or crystal in the hands vibrates with light, as it does before stillness
     if (touch.vibe > 0.01 && touch.target) {
@@ -5323,6 +5375,7 @@ import { watchKeyboard } from "./core/keyboard";
 import { ARCHETYPES } from "./world/beings";
 import { getShot, runShot } from "./debug/shot";
 import { Sanctuary } from "./world/sanctuary";
+import { Garden, CYCLE as TEND_CYCLE, STAGE_NAMES } from "./world/garden";
 import { Meditation } from "./world/meditation"; // dev-only: ?shot=<scene>&t=<sec> renders one still frame
 const shot = getShot();
 

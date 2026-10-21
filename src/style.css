@@ -1386,6 +1386,8 @@ body.typing #heart-mini { display: none; }
 #build .b-shapes > :last-child { margin-right: auto; }
 #build .b-shapes .chip { touch-action: pan-x; }
 #build .b-shapes::-webkit-scrollbar { display: none; }
+#build .chip.plant svg { color: #b8f0a0; }
+#build .chip.plant.on { border-color: rgba(184, 240, 160, 0.9); background: rgba(60, 110, 50, 0.45); box-shadow: 0 0 12px rgba(184, 240, 160, 0.3); }
 #build .chip.fin { width: 84px; border-color: rgba(255, 220, 160, 0.4); }
 #build .chip.fin i { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg, #d9cbb0, #9d8b70); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25); }
 #build .chip.fin[data-fin="field"] i { background: repeating-linear-gradient(0deg, #8d8074 0 5px, #3d3630 5px 6px); }

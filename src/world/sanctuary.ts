@@ -615,6 +615,8 @@ export interface SanctuaryHooks {
   breath(): readonly { name: string; secs: number }[];
   /** a quiet line of guidance (a stroke not understood, or not enough essence) */
   say(text: string): void;
+  /** plant a seed (world/garden.ts); false where nothing can grow */
+  plant?(x: number, z: number): boolean;
 }
 
 const STONE_LIGHT = new THREE.Color(0.78, 0.84, 1.0);
@@ -652,6 +654,8 @@ export class Sanctuary {
   /** 0..1: how hushed the world is (building: a little; the brush down: a little more) */
   hush = 0;
   ink: Ink = "stone";
+  /** a tap on the earth plants a seed (the 🌱 chip) */
+  planting = false;
   /** the stone new forms are laid in (the last chosen) */
   finish: Finish = "cut";
   private finishes = new Map<Finish, THREE.Material>();
@@ -920,6 +924,7 @@ export class Sanctuary {
       </div>
       <p class="b-hint">Draw on the ground with one finger. Two fingers turn and tilt the view; pinch to come closer.</p>
       <div class="b-shapes" aria-label="What each stroke makes">
+        <button type="button" class="chip plant" aria-pressed="false" aria-label="Plant trees: a tap on the ground plants a seed"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20 V11"/><path d="M12 13 C12 9 9 7 5.5 7.5 C5.5 11 8 13 12 13 Z"/><path d="M12 11 C12 7.5 14.5 5 18.5 5.5 C18.5 9 16 11 12 11 Z"/><path d="M8 20 H16"/></svg><span><em>Tap</em>Plant</span></button>
         <button type="button" class="chip fin" aria-label="The stone new forms are laid in"><i></i><span><em>Texture</em><b></b></span></button>
         ${SHAPES.map(([k, d, n]) => `<button type="button" class="chip" data-k="${k}">${ico(k)}<span><em>${d}</em>${n}</span></button>`).join("")}
       </div>
@@ -971,9 +976,16 @@ export class Sanctuary {
       this.drawUi();
       this.save();
     });
+    el.querySelector(".chip.plant")!.addEventListener("click", (e) => {
+      e.preventDefault();
+      this.planting = !this.planting;
+      this.hooks.bell(this.planting ? 523.25 : 349.23, 0.012, 1.4);
+      if (this.planting) this.hooks.say("Planting: a tap on the ground sets a seed. Then hold on the tree to tend it with your hands; it grows a stage each time.");
+      this.drawUi();
+    });
     tap(el.querySelector(".b-notes .clear")!, () => this.carveNote(null));
     tap(el.querySelector(".b-notes .shut")!, () => ((el.querySelector(".b-notes") as HTMLElement).hidden = true));
-    for (const c of el.querySelectorAll<HTMLElement>(".chip:not(.fin)")) {
+    for (const c of el.querySelectorAll<HTMLElement>(".chip:not(.fin):not(.plant)")) {
       const k = c.dataset.k!, sh = SHAPES.find((x) => x[0] === k)!;
       const how: Record<string, string> = {
         wall: "Draw a line, straight or curving: a wall rises along it. A closed shape with corners walls it round.",
@@ -1018,6 +1030,9 @@ export class Sanctuary {
     const fn = (f?: Finish) => FINISHES.find(([k]) => k === (f ?? "cut"))![1];
     (this.ui.querySelector(".chip.fin b") as HTMLElement).textContent = fn(this.finish);
     (this.ui.querySelector(".chip.fin") as HTMLElement).dataset.fin = this.finish;
+    const pl = this.ui.querySelector(".chip.plant") as HTMLElement;
+    pl.classList.toggle("on", this.planting);
+    pl.setAttribute("aria-pressed", String(this.planting));
     const f = this.selected;
     this.ui.classList.toggle("sel", !!f);
     if (!f) (this.ui.querySelector(".b-notes") as HTMLElement).hidden = true;
@@ -1076,6 +1091,7 @@ export class Sanctuary {
   close(): void {
     if (!this.building) return;
     this.building = false;
+    this.planting = false;
     this.orbit.on = false;
     this.select(null);
     if (this.draw) this.cancelStroke();
@@ -1497,6 +1513,16 @@ export class Sanctuary {
       return;
     }
     const r = readStroke(ground, screen);
+    if (this.planting && r?.kind === "dot" && this.hooks.plant) {
+      // a seed, not an orb
+      this.trail.mesh.visible = false;
+      const [x, z] = ground[ground.length - 1];
+      if (this.hooks.plant(x, z)) {
+        this.hooks.bell(392, 0.018, 3);
+        this.hooks.sparks(this.v.set(x, groundAt(x, z) + 0.2, z), 10, new THREE.Color(0.7, 1, 0.6), 0.4);
+      } else this.hooks.say("Nothing can grow just there (water, or another tree too near).");
+      return;
+    }
     let s: SavedForm | null = null;
     if (r?.kind === "dot") {
       const [x, z] = ground[ground.length - 1];
