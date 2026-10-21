@@ -444,14 +444,7 @@ export class Vessels {
         if (k < 0.02) return;
         this.seen.push({ el: this.label(key, html, cls), at, k });
       };
-      for (const st of this.stars) {
-        const d = player.distanceTo(st.vessel.pos);
-        add(st, line(st.vessel.narration), "orb", fade(d, 120, 260), (v) => v.copy(st.vessel.pos).setY(st.vessel.pos.y + 6));
-      }
-      for (const o of this.orbs) {
-        const d = Math.max(0, player.distanceTo(o.vessel.pos) - o.vessel.radius);
-        add(o, line(o.vessel.narration), "orb", o.vessel.radius > 2 ? fade(d, 150, 380) : fade(d, 18, 40), (v) => v.copy(o.vessel.pos).setY(o.vessel.pos.y + o.vessel.radius + 0.5));
-      }
+      // (no names on the planets and stars: the owner took them away)
       for (const g of this.groves) {
         const d = Math.hypot(player.x - g.site.x, player.z - g.site.z);
         add(g, () => `<b>${esc(g.site.grove.name)}</b>`, "grove", fade(d, 70, 130) * (1 - 0.6 * fade(d, 8, 14)), (v) => v.copy(g.labelAt));
