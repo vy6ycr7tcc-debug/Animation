@@ -945,6 +945,7 @@ export class Sanctuary {
         <button type="button" class="chip plant" aria-pressed="false" aria-label="Plant trees: a tap on the ground plants a seed"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20 V11"/><path d="M12 13 C12 9 9 7 5.5 7.5 C5.5 11 8 13 12 13 Z"/><path d="M12 11 C12 7.5 14.5 5 18.5 5.5 C18.5 9 16 11 12 11 Z"/><path d="M8 20 H16"/></svg><span><em>Tap</em>Plant</span></button>
         <button type="button" class="chip fin" aria-label="The stone new forms are laid in"><i></i><span><em>Texture</em><b></b></span></button>
         ${SHAPES.map(([k, d, n]) => `<button type="button" class="chip" data-k="${k}">${ico(k)}<span><em>${d}</em>${n}</span></button>`).join("")}
+        <button type="button" class="chip clear" aria-label="Clear this site: everything built here sinks back"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18 H20"/><path d="M7 18 V12 H11 V18 M13 18 V9 H17 V18"/><path d="M6 6 L18 15" opacity="0.8"/></svg><span><em>Site</em><b>Clear</b></span></button>
       </div>
       <div class="b-tools" hidden>
         <div class="b-name"></div>
@@ -1003,7 +1004,34 @@ export class Sanctuary {
     });
     tap(el.querySelector(".b-notes .clear")!, () => this.carveNote(null));
     tap(el.querySelector(".b-notes .shut")!, () => ((el.querySelector(".b-notes") as HTMLElement).hidden = true));
-    for (const c of el.querySelectorAll<HTMLElement>(".chip:not(.fin):not(.plant)")) {
+    // clearing a whole site asks twice (a second tap within 3 s); one ↶ brings it all back
+    {
+      const c = el.querySelector(".chip.clear") as HTMLElement, label = c.querySelector("b") as HTMLElement;
+      let armed = 0;
+      c.addEventListener("click", (e) => {
+        e.preventDefault();
+        if (performance.now() - armed < 3000) {
+          armed = 0;
+          c.classList.remove("armed");
+          label.textContent = "Clear";
+          this.clearSite();
+          return;
+        }
+        if (!this.siteForms().length) return this.hooks.say("Nothing is built here yet.");
+        armed = performance.now();
+        c.classList.add("armed");
+        label.textContent = "Tap again";
+        this.hooks.bell(261.63, 0.012, 1.4);
+        window.setTimeout(() => {
+          if (armed && performance.now() - armed >= 2900) {
+            armed = 0;
+            c.classList.remove("armed");
+            label.textContent = "Clear";
+          }
+        }, 3000);
+      });
+    }
+    for (const c of el.querySelectorAll<HTMLElement>(".chip:not(.fin):not(.plant):not(.clear)")) {
       const k = c.dataset.k!, sh = SHAPES.find((x) => x[0] === k)!;
       const how: Record<string, string> = {
         wall: "Draw a line, straight or curving: a wall rises along it. A closed shape with corners walls it round.",
@@ -1903,18 +1931,33 @@ export class Sanctuary {
     this.seamOf = f;
     this.seam.set(this.outline(f, f.s.kind === "wall" ? 0.27 : 0.08), 0, true, (x, z) => groundAt(x, z) + 0.03);
   }
-  /** Let a form go: it sinks back into the earth and its essence returns. */
-  private release(f: Form): void {
-    if (f.out !== undefined) return;
+  /** The forms standing on this site (within the page round where building opened). */
+  private siteForms(): Form[] {
+    return this.live().filter((f) => Math.hypot(f.s.x - this.plot.x, f.s.z - this.plot.z) < PLOT_R + 2);
+  }
+  /** Clear the whole site: everything built here sinks back into the earth, its essence returned
+      (one ↶ brings it all back). */
+  private clearSite(): void {
+    const all = this.siteForms();
+    if (!all.length) return;
     this.remember();
+    this.select(null);
+    for (const f of all) this.release(f, true);
+    this.hooks.bell(196, 0.02, 4);
+    this.hooks.say("The site is clear. ↶ brings it back.");
+  }
+  /** Let a form go: it sinks back into the earth and its essence returns. */
+  private release(f: Form, quiet = false): void {
+    if (f.out !== undefined) return;
+    if (!quiet) this.remember();
     f.out = 0;
     this.jointsDirty = true;
     if (f.s.kind !== "orb") this.seamFor(f);
     this.select(null);
     this.refund(f.s.ink, f.s.cost);
     this.v.set(f.s.x, f.base + 0.5 + f.s.y, f.s.z);
-    this.hooks.sparks(this.v, 10, f.s.ink === "gold" ? GOLD_LIGHT : STONE_LIGHT, 0.9);
-    this.hooks.bell(f.s.ink === "gold" ? 659.25 : 349.23, 0.016, 3);
+    this.hooks.sparks(this.v, quiet ? 4 : 10, f.s.ink === "gold" ? GOLD_LIGHT : STONE_LIGHT, 0.9);
+    if (!quiet) this.hooks.bell(f.s.ink === "gold" ? 659.25 : 349.23, 0.016, 3);
     this.save();
     this.drawUi();
   }
