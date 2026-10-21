@@ -951,7 +951,7 @@ export class Sanctuary {
           <button class="done" type="button">Done</button>
         </div>
       </div>
-      <p class="b-hint">Choose a shape below, then draw or tap on the ground (or just draw: its shape decides). Two fingers turn and tilt the view; pinch to come closer.</p>
+      <p class="b-hint">Choose a shape below, then draw or tap on the ground (a wall is built only by choosing Wall). Two fingers turn and tilt the view; pinch to come closer.</p>
       <div class="b-shapes" aria-label="What each stroke makes">
         <button type="button" class="chip plant" aria-pressed="false" aria-label="Plant trees: a tap on the ground plants a seed"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20 V11"/><path d="M12 13 C12 9 9 7 5.5 7.5 C5.5 11 8 13 12 13 Z"/><path d="M12 11 C12 7.5 14.5 5 18.5 5.5 C18.5 9 16 11 12 11 Z"/><path d="M8 20 H16"/></svg><span><em>Tap</em>Plant</span></button>
         <button type="button" class="chip found" hidden aria-label="The foundation's shape: a disc or a sphere"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path class="disc" d="M4 10 h16 l-2 3 h-12 z M8 13 l4 6 l4 -6"/><path class="ball" d="M5 9 h14 M5 9 a7.2 7.2 0 1 0 14 0"/></svg><span><em>Foundation</em><b></b></span></button>
@@ -1120,7 +1120,7 @@ export class Sanctuary {
     (this.ui.querySelector(".b-shapes") as HTMLElement).hidden = !!f;
     (this.ui.querySelector(".b-hint") as HTMLElement).textContent = f
       ? "Drag it to move it. A tap on the ground puts it down."
-      : this.armed ? "Draw or tap on the ground: it becomes the shape chosen. Tap it again to draw any shape." : "Choose a shape below, then draw or tap on the ground (or just draw: its shape decides). Two fingers turn and tilt the view.";
+      : this.armed ? "Draw or tap on the ground: it becomes the shape chosen. Tap it again to draw any shape." : "Choose a shape below, then draw or tap on the ground (a wall is built only by choosing Wall). Two fingers turn and tilt the view.";
     if (!f) return;
     const names: Record<FormKind, string> = { wall: "Wall", ring: "Ring", pillar: "Pillar", spire: "Spire", orb: "Orb", arch: "Arch", stairs: "Steps", pyramid: "Pyramid", base: "Foundation" };
     (this.ui.querySelector(".b-name") as HTMLElement).textContent = `${names[f.s.kind]} · ${f.s.ink === "gold" ? "gold" : fn(f.s.fin).toLowerCase()} · drag it to move it`;
@@ -1698,7 +1698,13 @@ export class Sanctuary {
       this.trail.mesh.visible = false;
       return;
     }
-    const r = this.armed ? this.asArmed(this.armed, ground, screen) : readStroke(ground, screen, drawn);
+    let r = this.armed ? this.asArmed(this.armed, ground, screen) : readStroke(ground, screen, drawn);
+    // a wall is only ever built by choosing Wall: a stray line is never read as one
+    if (!this.armed && r?.kind === "wall") {
+      this.trail.mesh.visible = false;
+      this.hooks.say("Choose Wall below to build one. A stray line builds nothing.");
+      return;
+    }
     if (this.planting && r?.kind === "dot" && this.hooks.plant) {
       // a seed, not an orb
       this.trail.mesh.visible = false;
@@ -1779,7 +1785,7 @@ export class Sanctuary {
       this.trailFade = 1.6;
       if (!s) {
         this.hooks.bell(220, 0.008, 2.2);
-        this.hooks.say("Draw one clear shape: a line, a circle, a spiral, a U, a zigzag, or a touch.");
+        this.hooks.say("Draw one clear shape: a circle, a spiral, a U, a zigzag, a triangle, or a touch. (Choose Wall for walls.)");
       } else this.notEnough(ink, "for that; draw it smaller");
       return;
     }
