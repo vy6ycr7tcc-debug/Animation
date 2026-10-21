@@ -70,6 +70,9 @@ export class LungParticles {
   private trunk: { x: number; y: number }[];
   private last = 0;
   private t = 0;
+  /** how quickly the lights drift and flicker (1: the square-breathing cue; the meditation's
+      dark is slower, softer) */
+  pace = 1;
   private spawn = 0;
 
   constructor(private canvas: HTMLCanvasElement) {
@@ -114,7 +117,7 @@ export class LungParticles {
     const now = performance.now() / 1000;
     const dt = Math.min(0.1, this.last ? now - this.last : 0.016);
     this.last = now;
-    this.t += dt;
+    this.t += dt * this.pace;
     if (still) open = 0.6;
 
     // the canvas at the device's resolution
@@ -168,10 +171,10 @@ export class LungParticles {
 
     // the breath itself: motes down the airway on the inhale, up and away on the release
     if (!still && (phase === "in" || phase === "out")) {
-      this.spawn += dt * 16;
+      this.spawn += dt * 16 * this.pace;
       while (this.spawn >= 1) {
         this.spawn--;
-        this.motes.push({ t: 0, life: 1.6 + Math.random() * 0.8, dx: (Math.random() - 0.5) * 6, dir: phase === "in" ? 1 : -1 });
+        this.motes.push({ t: 0, life: (1.6 + Math.random() * 0.8) / this.pace, dx: (Math.random() - 0.5) * 6, dir: phase === "in" ? 1 : -1 });
       }
     }
     const L = this.trunk.length - 1;

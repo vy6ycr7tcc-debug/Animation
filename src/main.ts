@@ -1710,18 +1710,14 @@ const touch = new Touch(creation, wanderer, player, {
 });
 scene.add(touch.points);
 /* The meditation (world/meditation.ts): holding on a rock, a tree or a crystal, the eyes close
-   into the dark, the inner body breathes the square with one of Aria's guidances, and the world
-   comes back quietly. A rock meditation run to its end gives its stone (stone-essence): it
+   into the dark, three slow square breaths with the lungs (no voice), and the world comes back
+   quietly. A rock meditation run to its end gives its stone (stone-essence): it
    gathers out of the rock once the world is back, and comes to you. */
 const chestAt = new THREE.Vector3();
 let medRock: { contact: THREE.Vector3; centre: THREE.Vector3; r: number } | null = null;
 let medStoneAt = 0;
 let heartInviteUntil = 0;
 const med = new Meditation({
-  play: (p) => void narration.play(p),
-  stopVoice: (f) => narration.stop(f),
-  speaking: (p) => narration.current === p,
-  progress: (p) => (narration.current === p ? narration.progress() : null),
   rise: () => touch.stop(),
   completed: () => {
     if (medRock) medStoneAt = S.t + 3.2;
@@ -1740,7 +1736,8 @@ const med = new Meditation({
 function medFrame(dt: number): void {
   // the hold let go another way (the stick, T again, flight): the meditation goes with it
   if ((med.phase === "closing" || med.phase === "inner" || med.phase === "guiding") && touch.phase === "none") med.release();
-  med.update(dt);
+  // its clock is real time (the frame's dt is capped, and the world is drawn slowly under the dark)
+  med.update(Math.min(0.25, realDt || dt));
   // the narrator leaves the silence alone: through the meditation and for a while after it
   if (med.active) playlist.rest(150);
   if (medStoneAt && S.t >= medStoneAt && medRock) {
@@ -5388,7 +5385,8 @@ function frame(now: number): void {
   if (S.hidden || devHeld) return;
   // a frame is drawn only when its time has come: the cap (⋮ → Frame rate), and a crawl behind the
   // map, whose near-opaque sheet hides the world (a film keeps every frame)
-  const gap = FILM ? 0 : startMap.isOpen ? 1000 / 10 : frameCap ? 1000 / frameCap : 0;
+  // under the meditation's dark the world is hidden: drawn slowly (the dark draws its own frames)
+  const gap = FILM ? 0 : startMap.isOpen || med.covered ? 1000 / 10 : frameCap ? 1000 / frameCap : 0;
   if (gap && now - last < gap - 4) return;
   const ms = now - last;
   last = now;
