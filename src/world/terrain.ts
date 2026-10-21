@@ -371,35 +371,101 @@ function waterways(x: number, z: number, h: number): number {
   return falls(x, z, out);
 }
 
-/** The waterfalls: each a shelf of land raised `top` metres high upstream of its lip, a stream
-    along it, a cliff, and a plunge pool below. `dx, dz` points downstream. */
-export interface Fall { x: number; z: number; dx: number; dz: number; top: number; seed: number }
+/** The waterfalls. Each is a notch in an escarpment: the land raised `top` metres high upstream
+    of the lip, rising gently from behind, a stream along it, and a cliff that curves forward on
+    either side round a plunge pool below (an amphitheatre, as falls cut back into their cliffs).
+    A tiered fall has a ledge at `mid` between two drops, with a pool of its own. `dx, dz` points
+    downstream; `w` is the curtain's half-width at the lip; `sc` scales the height of land (the
+    great falls stand on broader ground). */
+export type FallKind = "single" | "ribbon" | "tiered" | "great";
+export interface Fall { x: number; z: number; dx: number; dz: number; top: number; seed: number; w: number; mid: number; sc: number; kind: FallKind }
 export let WATERFALLS: Fall[] = [];
 /** A waterfall's frame: s along the stream (0 at the cliff's foot line, + downstream), u across. */
 export const fallLocal = (f: Fall, x: number, z: number) => {
   const px = x - f.x, pz = z - f.z;
   return { s: px * f.dx + pz * f.dz, u: -px * f.dz + pz * f.dx };
 };
-export const FALL_LIP = -1.6, FALL_POOL = 10, FALL_STREAM = -42;
+export const FALL_LIP = -1.6, FALL_POOL = 10;
+/** Where a fall's stream rises (its spring), and a tiered fall's upper cliff (its foot line). */
+export const fallStream = (f: Fall) => -26 * f.sc;
+export const fallLedge = (f: Fall) => -14 * f.sc;
+/** A fall's drops, highest first: where the water leaves its lip (s), the water's height there,
+    and the height of the water it falls into. */
+export interface FallDrop { lip: number; from: number; to: number }
+export function fallDrops(f: Fall): FallDrop[] {
+  return f.mid > 0
+    ? [{ lip: fallLedge(f) + FALL_LIP, from: f.top - 0.45, to: f.mid - 0.3 }, { lip: FALL_LIP, from: f.mid - 0.45, to: WATER_Y }]
+    : [{ lip: FALL_LIP, from: f.top - 0.45, to: WATER_Y }];
+}
 function falls(x: number, z: number, h: number): number {
   for (const f of WATERFALLS) {
-    if (Math.abs(x - f.x) > 95 || Math.abs(z - f.z) > 95) continue;
+    const sc = f.sc, R = 110 * sc;
+    if (Math.abs(x - f.x) > R || Math.abs(z - f.z) > R) continue;
     const { s, u } = fallLocal(f, x, z);
-    // the shelf: an oval behind the lip, its far edges easing down, its front a cliff
-    // (its outline broken by noise, so its sides are crags rather than a smooth mound)
-    const e = ((s + 34) / 44) ** 2 + (u / 32) ** 2 + (qnoise(x * 0.06 + f.seed, z * 0.06) - 0.5) * 0.35;
-    const jag = Math.abs(u) < 7 ? 0 : (qnoise(u * 0.18 + f.seed, f.seed) - 0.5) * 5;
-    const mask = smooth(1.08, 0.9, e) * smooth(2.5, -1.5, s - jag);
-    const top = f.top + (qnoise(x * 0.07, z * 0.07 + f.seed) - 0.5) * 1.6 * smooth(4, 12, -s) - Math.max(0, -s - 30) * 0.05;
-    if (mask > 0) h = Math.max(h, h + (top - h) * mask);
-    // the stream along it, a hand deeper than the shelf's lip, to the spring
-    const ch = smooth(2.8, 1.6, Math.abs(u)) * smooth(FALL_STREAM - 4, FALL_STREAM + 4, s) * smooth(0.5, -1.5, s) * mask;
-    if (ch > 0) h = Math.min(h, h + (f.top - 0.9 - h) * ch);
-    // the plunge pool
+    const au = Math.abs(u);
+    // the escarpment: wide across, fading toward its ends, rising gently from behind, its front a
+    // cliff (its line broken by noise, so it is crags rather than a smooth wall)
+    const ends = smooth(1, 0.6, au / (64 * sc) + (qnoise(x * 0.03 + f.seed, z * 0.03) - 0.5) * 0.18);
+    const behind = smooth(-80 * sc, -30 * sc, s);
+    // where the water falls the lip runs straight; beside it the cliff curves forward round the
+    // pool (an amphitheatre), its line crags
+    const open = f.w + 2.5;
+    const curve = au < open ? 0 : Math.min(9 * sc, (0.02 * (au - open) ** 2) / sc);
+    // its line: broad buttresses and recesses with crags in them (never a saw's teeth)
+    const jag = ((qnoise(u * 0.055 + f.seed, f.seed * 0.7) - 0.5) * 9 + (qnoise(u * 0.11 - f.seed, f.seed + 9) - 0.5) * 1.4) * smooth(open, open + 6, au);
+    const sl = s - jag - curve;
+    // the cliff: steep where the water falls (the water hides it), broader along the wall, so the
+    // ground's 2 m grid draws its edge as a line, not a row of teeth; at its foot a skirt of fallen rock
+    const side = smooth(f.w + 0.5, f.w + 8, au), rw = 4 + 4.5 * side;
+    const front = Math.max(smooth(0.5 + rw / 2, 0.5 - rw / 2, sl), smooth(10 + rw / 2, -1.5, sl) * 0.32 * side);
+    const mask = ends * behind * front;
+    // the plunge pool, in front of the cliff (its soft edge never eats into the lip above)
     const dp = Math.hypot(s - FALL_POOL, u * 0.9) * (1 + (qnoise(x * 0.11 + f.seed, z * 0.11) - 0.5) * 0.45);
-    if (dp < 16) h = Math.min(h, h + (-2.8 - h) * smooth(15, 7, dp));
+    const pool = dp < 16 * Math.sqrt(sc) ? smooth(15 * Math.sqrt(sc), 7, dp) * smooth(-1.5 + rw / 2 - 2, 1.5 + rw / 2 - 2, sl) : 0;
+    if (mask <= 0) {
+      if (pool > 0) h = Math.min(h, h + (-2.8 - h) * pool);
+      continue;
+    }
+    // a tiered fall: the land steps down at its upper cliff onto a ledge, then falls again
+    let level = f.top;
+    if (f.mid > 0) {
+      const jagU = ((qnoise(u * 0.07 - f.seed, f.seed + 3) - 0.5) * 6 + (qnoise(u * 0.13 + f.seed, f.seed - 4) - 0.5) * 1.2) * smooth(open, open + 5, au);
+      const rwU = 4 + 3.5 * smooth(open, open + 5, au);
+      level = f.mid + (f.top - f.mid) * smooth(0.5 + rwU / 2, 0.5 - rwU / 2, s - fallLedge(f) - jagU - curve * 0.6);
+    }
+    const top = level * (1 - 0.3 * (au / (64 * sc)) ** 2) + (qnoise(x * 0.07, z * 0.07 + f.seed) - 0.5) * 1.6 * smooth(4, 12, -s) * smooth(4, 12, au);
+    h = Math.max(h, h + (top - h) * mask);
+    // the stream along the top, a hand deeper than the lip, from its spring
+    const upperLip = f.mid > 0 ? fallLedge(f) : 0;
+    const st = fallStream(f);
+    const ch = smooth(2.8, 1.6, au - (f.w - 1.6) * 0.6) * smooth(st - 4, st + 4, s) * smooth(0.5, -1.5, s - upperLip) * mask;
+    if (ch > 0) h = Math.min(h, h + (f.top - 0.9 - h) * ch);
+    // a tiered fall's ledge: a shallow pool where the upper water lands, running on to the lower lip
+    if (f.mid > 0) {
+      const L = fallLedge(f);
+      const pool = Math.hypot(s - (L + 2.5), u * 0.8);
+      const lane = smooth(f.w + 1.6, f.w + 0.6, au) * smooth(L - 0.5, L + 1, s) * smooth(0.5, -1.5, s);
+      const k = Math.max(lane, smooth(f.w + 3.2, f.w + 1.4, pool) * smooth(L - 0.5, L + 1, s)) * mask;
+      if (k > 0) h = Math.min(h, h + (f.mid - 1.1 - h) * k);
+    }
+    if (pool > 0) h = Math.min(h, h + (-2.8 - h) * pool);
   }
   return h;
+}
+/** How wet the ground is at the foot of a waterfall's cliff, behind and beside its falling water
+    (0–1): the rock there darkens, with moss at its edges. */
+export function fallWet(x: number, z: number, h: number): number {
+  let w = 0;
+  for (const f of WATERFALLS) {
+    if (Math.abs(x - f.x) > 40 * f.sc || Math.abs(z - f.z) > 40 * f.sc) continue;
+    const { s, u } = fallLocal(f, x, z);
+    for (const d of fallDrops(f)) {
+      if (h < d.to - 0.6 || h > d.from + 1) continue;
+      const near = smooth(f.w + 6, f.w + 1.5, Math.abs(u)) * smooth(d.lip - 5, d.lip - 1.5, s) * smooth(d.lip + 9, d.lip + 3, s);
+      w = Math.max(w, near);
+    }
+  }
+  return w;
 }
 
 /** Where each archetype's home should stand, roughly, and on what kind of ground; each
@@ -1546,6 +1612,9 @@ export class Terrain {
       this.col.lerp(this.tmp, earth * 0.8);
       if (talus > 0) this.col.lerp(this.tmp.copy(C.stone).lerp(C.granite, 0.5), talus * 0.45);
       if (h < 0.1) this.col.lerp(C.wet, smooth(0.1, -0.6, h));
+      // the rock behind and beside a waterfall: dark with wet, and moss along its edges
+      const wetK = fallWet(x, z, h);
+      if (wetK > 0) this.col.lerp(this.tmp.setRGB(0.045, 0.055, 0.06), wetK * 0.7).lerp(this.tmp.setRGB(0.06, 0.1, 0.045), wetK * (1 - wetK) * 1.2);
       col.setXYZ(v, this.col.r, this.col.g, this.col.b);
       const sandy = Math.min(1, k.sand + smooth(0.45, 0.62, fbm(x * 0.01 - 30, z * 0.01 + 12)) * (1 - k.stone) * 0.6 * (1 - away * 0.7));
       // the earth takes the rock scan's grit and the sand's grain
@@ -1558,35 +1627,52 @@ export class Terrain {
   }
 }
 
-// the waterfalls: low land by the water (its plunge pool fills from the lakes' level), with
-// room upstream for the shelf, clear of every site, cave, glade and each other
+// the waterfalls: low land by the water (its plunge pool fills from the lakes' level), with room
+// upstream for the height of land, clear of every site, cave, glade and each other. Two within an
+// easy walk of the shore, the rest out across the land; of those, one great fall, tiered ones,
+// slender ribbons, and single drops of every width.
 WATERFALLS = (() => {
   const out: Fall[] = [];
   const GA = Math.PI * (3 - Math.sqrt(5));
-  for (let i = 0; i < 900 && out.length < 6; i++) {
-    const r = 380 + ((i * 0.6180339) % 1) * 1300, a = i * GA;
-    const x = SPAWN.x + Math.cos(a) * r, z = SPAWN.z + Math.sin(a) * r;
-    const h = rawHeight(x, z);
-    if (h < 1.8 || h > 6) continue;
-    if (out.some((f) => Math.hypot(f.x - x, f.z - z) < 450)) continue;
-    if (PADS.some((p) => Math.hypot(p.x - x, p.z - z) < p.outer + 90)) continue;
-    if (keptClear(x, z, 70) || CAVE_SITES.some((c) => Math.hypot(c.x - x, c.z - z) < 110)) continue;
-    if (GLADES.some((g) => Math.hypot(g.x - x, g.z - z) < g.r + 70)) continue;
-    // downstream: toward the lowest land 50 m out, the shelf's ground behind dry
-    let best = -1, bh = Infinity;
-    for (let k = 0; k < 16; k++) {
-      const b = (k / 16) * Math.PI * 2, dx = Math.cos(b), dz = Math.sin(b);
-      const dn = rawHeight(x + dx * 50, z + dz * 50), up = rawHeight(x - dx * 34, z - dz * 34);
-      if (up < 1 || up > 22 || dn < -6) continue;
-      if (dn < bh) (bh = dn), (best = b);
+  // [nearest, farthest, how many, the kinds they take in turn]
+  const passes: [number, number, number, FallKind[]][] = [
+    [170, 460, 2, ["single", "tiered"]],
+    [460, 1900, 11, ["great", "single", "ribbon", "tiered", "single", "ribbon", "single", "tiered", "single", "ribbon", "single"]],
+  ];
+  let i = 0;
+  for (const [r0, r1, want, kinds] of passes) {
+    let got = 0;
+    for (let k = 0; k < 1600 && got < want; k++, i++) {
+      const kind = kinds[got];
+      const sc = kind === "great" ? 1.55 : 1;
+      const r = r0 + ((k * 0.6180339) % 1) * (r1 - r0), a = k * GA + r0 * 0.01;
+      const x = SPAWN.x + Math.cos(a) * r, z = SPAWN.z + Math.sin(a) * r;
+      const h = rawHeight(x, z);
+      if (h < 1.8 || h > 6) continue;
+      if (out.some((f) => Math.hypot(f.x - x, f.z - z) < 300 + 60 * (f.sc + sc))) continue;
+      if (PADS.some((p) => Math.hypot(p.x - x, p.z - z) < p.outer + 100 * sc)) continue;
+      if (keptClear(x, z, 80 * sc) || CAVE_SITES.some((c) => Math.hypot(c.x - x, c.z - z) < 130 * sc)) continue;
+      if (GLADES.some((g) => Math.hypot(g.x - x, g.z - z) < g.r + 80 * sc)) continue;
+      // downstream: toward the lowest land 50 m out, the ground behind dry
+      let best = -1, bh = Infinity;
+      for (let q = 0; q < 16; q++) {
+        const b = (q / 16) * Math.PI * 2, dx = Math.cos(b), dz = Math.sin(b);
+        const dn = rawHeight(x + dx * 50, z + dz * 50), up = rawHeight(x - dx * 34 * sc, z - dz * 34 * sc);
+        if (up < 1 || up > 22 || dn < -6) continue;
+        if (dn < bh) (bh = dn), (best = b);
+      }
+      if (best < 0) continue;
+      const seed = ihash(i, out.length, 5) * 100, roll = ihash(i, 2, 13);
+      const top = h + (kind === "great" ? 27 + roll * 6 : kind === "tiered" ? 19 + roll * 6 : kind === "ribbon" ? 15 + roll * 6 : 10 + roll * 7);
+      const w = kind === "great" ? 3.4 : kind === "ribbon" ? 0.75 + roll * 0.3 : kind === "tiered" ? 1.5 : 1.2 + ihash(i, 3, 17) * 2.2;
+      const mid = kind === "tiered" ? h + (top - h) * 0.48 : 0;
+      out.push({ x, z, dx: Math.cos(best), dz: Math.sin(best), top, seed, w, mid, sc, kind });
+      got++;
     }
-    if (best < 0) continue;
-    const seed = ihash(i, out.length, 5) * 100;
-    out.push({ x, z, dx: Math.cos(best), dz: Math.sin(best), top: h + 11 + ihash(i, 1, 9) * 6, seed });
   }
   for (const f of out) {
     const at = (s: number) => ({ x: f.x + f.dx * s, z: f.z + f.dz * s });
-    for (const [s, r] of [[FALL_POOL, 18], [0, 10], [-12, 5], [-26, 5], [-40, 6]] as const) KEEP_CLEAR.push({ ...at(s), r });
+    for (const [s, r] of [[FALL_POOL, 18], [0, 10 + f.w], [-12, 6], [-26, 6], [-40, 6]] as const) KEEP_CLEAR.push({ ...at(s * f.sc), r: r * f.sc });
   }
   return out;
 })();
