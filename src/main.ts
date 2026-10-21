@@ -1604,7 +1604,7 @@ const HEART_UP = new THREE.Vector3(0, 1.15, 0);
 function heartAt(out: THREE.Vector3): THREE.Vector3 {
   return out.copy(player.pos).add(HEART_UP);
 }
-input.onHold = (x, y) => beginTouch(x, y);
+input.onHold = (x, y) => (canTouch() || sanct.building ? beginTouch(x, y) : beginHoverBuild());
 // building's own touches: a stroke on the sanctuary's earth, a touch on a form (world/sanctuary.ts)
 input.capture = sanct.capture;
 
@@ -1764,10 +1764,29 @@ addEventListener("pointerdown", () => med.wake(), { capture: true });
    with a palm on the earth; once settled, the build screen opens round that spot (the view rises
    over it). Done stands the wanderer up again. */
 let buildPending: { since: number } | null = null;
+/** Building on the water, under it or in the air: the wanderer holds still where it is (no kneeling:
+    there is no earth to kneel on) while the build screen is open. */
+let buildHover: THREE.Vector3 | null = null;
 sanct.onDone = () => {
   sanct.close();
   touch.stop();
+  buildHover = null;
 };
+/** A hold while flying or in the water opens building there: in the air and on the water a floating
+    foundation (disc or sphere) under you, under the water on the lake floor below. */
+function beginHoverBuild(): void {
+  if (S.mode !== "play" || sanct.building || apart() || autofly.active || sitting.phase !== "none" || startMap.isOpen) return;
+  if (!player.flying && !player.swimming) return;
+  stopAuto();
+  touch.stop();
+  const p = player.pos;
+  buildHover = p.clone();
+  const yaw = Math.atan2(camera.position.x - p.x, camera.position.z - p.z);
+  if (player.flying) sanct.open(p, { yaw, level: p.y - 0.4 });
+  else if (player.diving || player.seabed) sanct.open(p, { yaw });
+  else sanct.open(p, { yaw, level: WATER_Y + 0.15 });
+  audio.bell(330, 0.016, 2.4);
+}
 function buildFrame(): void {
   input.captureAll = sanct.building;
   if (buildPending) {
@@ -1779,10 +1798,11 @@ function buildFrame(): void {
     }
   }
   // building rests when the wanderer is taken elsewhere (the map, a place apart, the water, the air)
-  if (sanct.building && (apart() || player.flying || player.swimming || startMap.isOpen || S.mode !== "play")) {
+  if (sanct.building && (apart() || (!buildHover && (player.flying || player.swimming)) || startMap.isOpen || S.mode !== "play")) {
     sanct.close();
     touch.stop();
   }
+  if (!sanct.building) buildHover = null;
 }
 let toldTouch = false;
 let toldTend = false;
@@ -5111,7 +5131,13 @@ function update(dt: number): void {
     if (wanderer.gesture !== "none" && Math.hypot(input.move.x, input.move.y) > 0.2 && wanderer.gesture === "sit") wanderer.setGesture("none");
     if (autofly.active && !isTv && (Math.hypot(input.move.x, input.move.y) > 0.25 || input.hold)) setAutofly(false); // the thumb takes over
     if (autorun.active && (Math.hypot(input.move.x, input.move.y) > 0.25 || input.hold || player.swimming || player.flying || player.target)) setAutorun(false);
-    if (temple.cardsOpen || tourScenes.tour.active) player.update(dt, { x: 0, y: 0, glide: false, run: 0, hold: false, down: false, pitch: follow.pitch }, follow.yaw);
+    if (buildHover && sanct.building) {
+      // building in the air or the water: held still where it began
+      player.pos.copy(buildHover);
+      player.vel.set(0, 0, 0);
+      player.vy = 0;
+      player.speed = 0;
+    } else if (temple.cardsOpen || tourScenes.tour.active) player.update(dt, { x: 0, y: 0, glide: false, run: 0, hold: false, down: false, pitch: follow.pitch }, follow.yaw);
     else if (walk?.phase === "travel" || walk?.phase === "go" || (walk?.phase === "listen" && player.target) || (duatTour?.phase === "walk" && player.target) || guideAuto) player.update(dt, { x: 0, y: 0, glide: false, run: 1, hold: travelHold, down: false, pitch: follow.pitch }, follow.yaw);
     else if (autofly.active) {
       const r = autofly.update(dt, player.pos);
@@ -6207,5 +6233,5 @@ addX(document.getElementById("next-up"), () => nextUp.hide(), "Stay here");
   new MutationObserver(sync).observe($("#map-close"), { attributes: true, attributeFilter: ["hidden"] });
   sync();
 }
-Object.assign(window, { __ij: { med, sanct, garden, canTouch, beginBuild, groundPoint, solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, myHeart, oracle, oracleVision, stepFrames: (n: number, dt = 1 / 60) => { realDt = dt; for (let i = 0; i < n; i++) update(dt); post.render(); }, heartFrame, maze: () => maze, tourInfo: () => tourBar().info() } });
+Object.assign(window, { __ij: { med, sanct, garden, canTouch, beginBuild, beginHoverBuild, groundPoint, solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, myHeart, oracle, oracleVision, stepFrames: (n: number, dt = 1 / 60) => { realDt = dt; for (let i = 0; i < n; i++) update(dt); post.render(); }, heartFrame, maze: () => maze, tourInfo: () => tourBar().info() } });
 Object.assign((window as unknown as { __ij: object }).__ij, { whispers, hearWhisper, rapaNui });

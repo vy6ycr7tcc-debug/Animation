@@ -63,6 +63,7 @@ const HEIGHT: Record<FormKind, [number, number, number]> = {
   stairs: [1.6, 0.4, 5],
   pyramid: [2.5, 1, 8],
   orb: [0, 0, 0],
+  base: [0.8, 0.8, 0.8],
 };
 
 /** What stone a form is laid in (the owner: "modes of textures for the walls… soil in game has
@@ -70,7 +71,7 @@ const HEIGHT: Record<FormKind, [number, number, number]> = {
     ground's own soil scan, in strata), and cliff rock (the mountains' scan). */
 export type Finish = "cut" | "field" | "marble" | "granite" | "earth" | "cliff";
 const FINISHES: [Finish, string][] = [["cut", "Cut stone"], ["field", "Fieldstone"], ["marble", "Marble"], ["granite", "Granite"], ["earth", "Rammed earth"], ["cliff", "Cliff rock"]];
-export type FormKind = "wall" | "ring" | "pillar" | "spire" | "orb" | "arch" | "stairs" | "pyramid";
+export type FormKind = "wall" | "ring" | "pillar" | "spire" | "orb" | "arch" | "stairs" | "pyramid" | "base";
 export type Ink = "stone" | "gold";
 export interface SavedForm {
   kind: FormKind;
@@ -103,6 +104,11 @@ export interface SavedForm {
   note?: number;
   /** what stone it is laid in (stone ink) */
   fin?: Finish;
+  /** built on the water or in the air: the height it stands at (its own level, not the land's);
+      it lies flat there and keeps that height wherever it is carried */
+  ab?: number;
+  /** a foundation's shape: a flat disc, or a sphere with a flat top */
+  sh?: "sphere";
 }
 interface Saved {
   v: 3;
@@ -205,6 +211,8 @@ export function costOf(s: SavedForm): number {
       return 0.06 * (s.l ?? 3) * (s.w ?? 1.6) * sc * sc + 0.05 * h;
     case "pyramid":
       return 0.025 * Math.pow((s.w ?? 6) * sc, 2) + 0.04 * h;
+    case "base":
+      return 0; // the ground to build on, where there is none (the water, the air)
     default:
       return COST.orb * sc;
   }
@@ -678,6 +686,9 @@ export class Sanctuary {
   /** a shape chosen from the strip: whatever is drawn or tapped next becomes that (null: read the
       stroke's own shape) */
   armed: FormKind | null = null;
+  /** building on the water or in the air: the height of the page (a foundation floats there);
+      null: the page lies on the land (or the lake floor) */
+  level: number | null = null;
   /** the stone new forms are laid in (the last chosen) */
   finish: Finish = "cut";
   private finishes = new Map<Finish, THREE.Material>();
@@ -947,6 +958,7 @@ export class Sanctuary {
       <p class="b-hint">Choose a shape below, then draw or tap on the ground (or just draw: its shape decides). Two fingers turn and tilt the view; pinch to come closer.</p>
       <div class="b-shapes" aria-label="What each stroke makes">
         <button type="button" class="chip plant" aria-pressed="false" aria-label="Plant trees: a tap on the ground plants a seed"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20 V11"/><path d="M12 13 C12 9 9 7 5.5 7.5 C5.5 11 8 13 12 13 Z"/><path d="M12 11 C12 7.5 14.5 5 18.5 5.5 C18.5 9 16 11 12 11 Z"/><path d="M8 20 H16"/></svg><span><em>Tap</em>Plant</span></button>
+        <button type="button" class="chip found" hidden aria-label="The foundation's shape: a disc or a sphere"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path class="disc" d="M4 10 h16 l-2 3 h-12 z M8 13 l4 6 l4 -6"/><path class="ball" d="M5 9 h14 M5 9 a7.2 7.2 0 1 0 14 0"/></svg><span><em>Foundation</em><b></b></span></button>
         <button type="button" class="chip fin" aria-label="The stone new forms are laid in"><i></i><span><em>Texture</em><b></b></span></button>
         ${SHAPES.map(([k, d, n]) => `<button type="button" class="chip" data-k="${k}">${ico(k)}<span><em>${d}</em>${n}</span></button>`).join("")}
         <button type="button" class="chip clear" aria-label="Clear this site: everything built here sinks back"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18 H20"/><path d="M7 18 V12 H11 V18 M13 18 V9 H17 V18"/><path d="M6 6 L18 15" opacity="0.8"/></svg><span><em>Site</em><b>Clear</b></span></button>
@@ -998,6 +1010,10 @@ export class Sanctuary {
       this.hooks.say(`New stone forms: ${FINISHES.find(([f]) => f === this.finish)![1].toLowerCase()}.`);
       this.drawUi();
       this.save();
+    });
+    el.querySelector(".chip.found")!.addEventListener("click", (e) => {
+      e.preventDefault();
+      this.foundationShape();
     });
     el.querySelector(".chip.plant")!.addEventListener("click", (e) => {
       e.preventDefault();
@@ -1092,6 +1108,13 @@ export class Sanctuary {
     (this.ui.querySelector(".chip.fin") as HTMLElement).dataset.fin = this.finish;
     const pl = this.ui.querySelector(".chip.plant") as HTMLElement;
     pl.classList.toggle("on", this.planting);
+    {
+      const fc = this.ui.querySelector(".chip.found") as HTMLElement, fh = this.foundationHere();
+      fc.hidden = !fh;
+      const sphere = fh?.s.sh === "sphere";
+      (fc.querySelector("b") as HTMLElement).textContent = sphere ? "Sphere" : "Disc";
+      fc.classList.toggle("sphere", sphere);
+    }
     for (const c of this.ui.querySelectorAll<HTMLElement>(".b-shapes .chip[data-k]")) c.classList.toggle("on", this.armed === c.dataset.k);
     pl.setAttribute("aria-pressed", String(this.planting));
     const f = this.selected;
@@ -1103,7 +1126,7 @@ export class Sanctuary {
       ? "Drag it to move it. A tap on the ground puts it down."
       : this.armed ? "Draw or tap on the ground: it becomes the shape chosen. Tap it again to draw any shape." : "Choose a shape below, then draw or tap on the ground (or just draw: its shape decides). Two fingers turn and tilt the view.";
     if (!f) return;
-    const names: Record<FormKind, string> = { wall: "Wall", ring: "Ring", pillar: "Pillar", spire: "Spire", orb: "Orb", arch: "Arch", stairs: "Steps", pyramid: "Pyramid" };
+    const names: Record<FormKind, string> = { wall: "Wall", ring: "Ring", pillar: "Pillar", spire: "Spire", orb: "Orb", arch: "Arch", stairs: "Steps", pyramid: "Pyramid", base: "Foundation" };
     (this.ui.querySelector(".b-name") as HTMLElement).textContent = `${names[f.s.kind]} · ${f.s.ink === "gold" ? "gold" : fn(f.s.fin).toLowerCase()} · drag it to move it`;
     (this.ui.querySelector("[data-t=ink]") as HTMLElement).textContent = f.s.ink === "gold" ? "In stone" : "In gold";
     const finb = this.ui.querySelector(".finb") as HTMLElement;
@@ -1125,9 +1148,11 @@ export class Sanctuary {
 
   /** Open the build screen round `at` (where the wanderer kneels). `orbit`: the view rises over it
       (a still keeps its own view). */
-  open(at: THREE.Vector3, opts: { orbit?: boolean; yaw?: number } = {}): void {
+  open(at: THREE.Vector3, opts: { orbit?: boolean; yaw?: number; level?: number } = {}): void {
     this.building = true;
-    this.plot.set(at.x, groundAt(at.x, at.z), at.z);
+    this.level = opts.level ?? null;
+    this.plot.set(at.x, this.level ?? groundAt(at.x, at.z), at.z);
+    if (this.level !== null) this.foundation();
     this.layPage();
     this.orbit.use = opts.orbit !== false;
     this.orbit.on = true;
@@ -1178,13 +1203,14 @@ export class Sanctuary {
   private layPage(): void {
     const R = PLOT_R, rings = 22, seg = 72, P = this.plot;
     const pos: number[] = [], uv: number[] = [], idx: number[] = [];
-    pos.push(0, groundAt(P.x, P.z) + 0.05, 0);
+    const lv = this.level, at = (x: number, z: number) => (lv ?? groundAt(x, z)) + 0.05;
+    pos.push(0, at(P.x, P.z), 0);
     uv.push(0.5, 0.5);
     for (let j = 1; j <= rings; j++) {
       const r = (j / rings) * R;
       for (let i = 0; i < seg; i++) {
         const a = (i / seg) * Math.PI * 2, x = Math.cos(a) * r, z = Math.sin(a) * r;
-        pos.push(x, groundAt(P.x + x, P.z + z) + 0.05, z);
+        pos.push(x, at(P.x + x, P.z + z), z);
         uv.push(x / (2 * R) + 0.5, z / (2 * R) + 0.5);
       }
     }
@@ -1238,6 +1264,12 @@ export class Sanctuary {
       formula, so no mesh is needed). */
   private groundHit(): V2 | null {
     const o = this.ray.ray.origin, d = this.ray.ray.direction;
+    if (this.level !== null) {
+      // the page's own level (over the water, in the air): a plane
+      if (Math.abs(d.y) < 1e-4) return null;
+      const t = (this.level - o.y) / d.y;
+      return t > 0 ? [o.x + d.x * t, o.z + d.z * t] : null;
+    }
     const above = (t: number) => o.y + d.y * t - groundAt(o.x + d.x * t, o.z + d.z * t);
     let t0 = 0, t = 0;
     for (let i = 0; i < 400 && t < 300; i++) {
@@ -1261,7 +1293,7 @@ export class Sanctuary {
     if (!this.camera) return null;
     this.rayAt(x, y);
     this.hits.length = 0;
-    for (const f of this.forms) if (f.out === undefined && f.group.visible && (!gold || f.s.ink === "gold")) this.ray.intersectObject(f.body, true, this.hits);
+    for (const f of this.forms) if (f.out === undefined && f.s.kind !== "base" && f.group.visible && (!gold || f.s.ink === "gold")) this.ray.intersectObject(f.body, true, this.hits);
     let best: Form | null = null, bd = Infinity;
     for (const h of this.hits) {
       if (h.distance >= bd) continue;
@@ -1274,6 +1306,31 @@ export class Sanctuary {
       }
     }
     return best;
+  }
+  /** The foundation under the page on the water or in the air: the one already there, or a new one
+      (it costs nothing: it is the ground there isn't). */
+  private foundationHere(): Form | null {
+    const lv = this.level;
+    if (lv === null) return null;
+    return this.live().find((f) => f.s.kind === "base" && Math.hypot(f.s.x - this.plot.x, f.s.z - this.plot.z) < PLOT_R && Math.abs((f.s.ab ?? 0) + f.s.y - lv) < 1.5) ?? null;
+  }
+  private foundation(): void {
+    if (this.foundationHere()) return;
+    const s: SavedForm = { kind: "base", ink: "stone", r: 5.6, x: round(this.plot.x), z: round(this.plot.z), y: 0, ab: round(this.level!), rot: 0, cost: 0 };
+    if (this.finish !== "cut") s.fin = this.finish;
+    this.addForm(s, false);
+    this.save();
+  }
+  /** The foundation's shape: a flat disc, or a sphere with a flat top. */
+  private foundationShape(): void {
+    const f = this.foundationHere();
+    if (!f) return;
+    this.remember();
+    f.s.sh = f.s.sh === "sphere" ? undefined : "sphere";
+    this.rebuild(f);
+    this.hooks.bell(f.s.sh ? 523.25 : 392, 0.016, 2);
+    this.save();
+    this.drawUi();
   }
   /** The title's view is kept clear of what was built (the forms rest hidden while it shows). */
   titleClear(on: boolean): void {
@@ -1633,6 +1690,8 @@ export class Sanctuary {
         const every = Math.max(1, Math.ceil(n / 64));
         return { kind: "wall", path: ground.filter((_, i) => i % every === 0 || i === n - 1), closed: false, length: L };
       }
+      case "base":
+        return null;
     }
   }
   /** A stroke let go: read it, and grow what it is, or let it sink back into the earth. */
@@ -1648,7 +1707,7 @@ export class Sanctuary {
       // a seed, not an orb
       this.trail.mesh.visible = false;
       const [x, z] = ground[ground.length - 1];
-      if (this.hooks.plant(x, z, onTop > 0.05 ? groundAt(x, z) + onTop : undefined)) {
+      if (this.hooks.plant(x, z, onTop > 0.05 ? groundAt(x, z) + onTop : this.level ?? undefined)) {
         this.hooks.bell(392, 0.018, 3);
         this.hooks.sparks(this.v.set(x, groundAt(x, z) + 0.2, z), 10, new THREE.Color(0.7, 1, 0.6), 0.4);
       } else this.hooks.say("Nothing can grow just there (water, or another tree too near).");
@@ -1687,7 +1746,15 @@ export class Sanctuary {
       const l = clampN(Math.hypot(bx - ax, bz - az), 1.2, 9);
       s = { kind: "stairs", ink, l: round(l), w: round(clampN(r.w, 1, 3.2)), h: round(clampN(l * 0.5, 0.6, 3)), x: (ax + bx) / 2, z: (az + bz) / 2, y: 0, rot: Math.atan2(bx - ax, bz - az), cost: 0 };
     }
-    if (s && onTop > 0.05) {
+    if (s && this.level !== null) {
+      // on the page's own level (the foundation's top), or on top of a form standing there
+      const [hx, hz] = ground[ground.length - 1];
+      const up = onTop > 0.05 ? Math.max(0, groundAt(hx, hz) + onTop - this.level) : 0;
+      s.ab = round(this.level);
+      s.y = round(s.kind === "orb" ? up + (onTop > 0.05 ? 1 : 1.6) : up);
+      s.x = round(s.x);
+      s.z = round(s.z);
+    } else if (s && onTop > 0.05) {
       // set on top of what was touched (an orb hangs a little over it)
       s.y = round(s.kind === "orb" ? onTop + 1 : onTop);
       s.x = round(s.x);
@@ -1724,6 +1791,7 @@ export class Sanctuary {
 
   /** The height of the land under a point of a form's own frame, over the earth at its origin. */
   private layOf(s: SavedForm, base: number): Lay {
+    if (s.ab !== undefined) return () => 0; // on its own level: flat
     const c = Math.cos(s.rot), sn = Math.sin(s.rot);
     return (lx, lz) => groundAt(s.x + lx * c + lz * sn, s.z - lx * sn + lz * c) - base;
   }
@@ -1744,7 +1812,7 @@ export class Sanctuary {
   private make(f: Form): void {
     const s = f.s, sc = s.sc ?? 1, mat = s.ink === "gold" ? this.mats.gold : this.finishMat(s.fin);
     const paving = s.ink === "gold" || (s.fin && s.fin !== "cut") ? mat : this.mats.floor;
-    f.base = groundAt(s.x, s.z);
+    f.base = s.ab ?? groundAt(s.x, s.z);
     const lay = this.layOf(s, f.base);
     const mesh = (g: THREE.BufferGeometry, m: THREE.Material) => {
       const x = new THREE.Mesh(g, m);
@@ -1796,6 +1864,22 @@ export class Sanctuary {
     } else if (s.kind === "pyramid") {
       mesh(pyramidGeometry((s.w ?? 6) * sc, H), mat);
       half = ((s.w ?? 6) * sc) / 2;
+    } else if (s.kind === "base") {
+      // the ground to build on over the water or in the air: its top at the form's own level
+      const R = (s.r ?? 5.6) * sc;
+      if (s.sh === "sphere") {
+        const Rs = R * 1.12, c = 0.42, cut = Math.acos(c);
+        const ball = new THREE.SphereGeometry(Rs, 56, 36, 0, Math.PI * 2, cut, Math.PI - cut).translate(0, -Rs * c, 0);
+        const top = new THREE.CircleGeometry(Rs * Math.sqrt(1 - c * c), 56).rotateX(-Math.PI / 2);
+        mesh(ball, mat);
+        mesh(top, paving);
+      } else {
+        mesh(new THREE.CylinderGeometry(R, R * 0.86, 0.8, 64).translate(0, -0.4, 0), paving);
+        // beneath, a rough taper of stone: a floating island
+        mesh(new THREE.ConeGeometry(R * 0.86, R * 0.55, 48, 3).rotateX(Math.PI).translate(0, -0.8 - R * 0.275, 0), mat);
+      }
+      half = R;
+      H = 0;
     } else {
       mesh(stairsGeometry((s.l ?? 3) * sc, (s.w ?? 1.6) * sc, H), mat);
       half = ((s.w ?? 1.6) * sc) / 2;
@@ -1813,7 +1897,7 @@ export class Sanctuary {
     } else {
       const ext = s.kind === "pyramid" ? ((s.w ?? 6) * sc) / 2 : s.kind === "stairs" ? Math.max((s.l ?? 3) * sc, (s.w ?? 1.6) * sc) * 0.5 : s.kind === "arch" ? ((s.w ?? 2) * sc) / 2 + half : half * 1.05;
       f.shade = contactShade({ r: s.kind === "orb" ? 0.01 : ext }, s.kind === "spire" ? 1.1 : 0.8, 0.5);
-      f.shade.visible = s.kind !== "orb";
+      f.shade.visible = s.kind !== "orb" && s.kind !== "base" && s.ab === undefined;
       f.shade.position.y = 0.012;
       f.shadeK = null;
     }
@@ -1909,7 +1993,7 @@ export class Sanctuary {
     const out: JointForm[] = [];
     for (const f of this.forms) {
       const s = f.s;
-      if (s.kind === "orb" || s.kind === "stairs" || s.kind === "pyramid" || f.out !== undefined || f.grow < 1 || s.y > 0.35) continue;
+      if (s.kind === "orb" || s.kind === "base" || s.ab !== undefined || s.kind === "stairs" || s.kind === "pyramid" || f.out !== undefined || f.grow < 1 || s.y > 0.35) continue;
       const c = Math.cos(s.rot), sn = Math.sin(s.rot);
       const line = f.line.map(([x, z]) => [x * c + z * sn + s.x, -x * sn + z * c + s.z] as V2);
       out.push({ kind: s.kind === "arch" ? "wall" : s.kind, ink: s.ink, line, half: f.half, open: s.kind === "wall" && !s.closed, H: f.H });
@@ -2159,7 +2243,7 @@ export class Sanctuary {
         f.group.position.z += (f.to.y - f.group.position.z) * k;
         px = f.group.position.x;
         pz = f.group.position.z;
-        f.base += (groundAt(px, pz) - f.base) * k;
+        f.base += ((f.s.ab ?? groundAt(px, pz)) - f.base) * k;
       }
       f.lift += (f.s.y - f.lift) * k;
       f.group.position.set(px, f.base + f.lift + (f.s.kind === "orb" ? Math.sin(t * 0.6 + f.s.x * 3) * 0.06 : 0), pz);
@@ -2172,7 +2256,10 @@ export class Sanctuary {
       }
       this.pose(f);
     }
-    if (this.selected && this.base.mesh.visible) this.base.set(this.outline(this.selected, 0.6), 0, true, (x, z) => groundAt(x, z) + 0.06);
+    if (this.selected && this.base.mesh.visible) {
+      const ab = this.selected.s.ab, up = this.selected.s.y;
+      this.base.set(this.outline(this.selected, 0.6), 0, true, (x, z) => (ab !== undefined ? ab + up : groundAt(x, z)) + 0.06);
+    }
     if (gone) {
       for (const f of this.forms) if (f.out !== undefined && f.out > 2.3) this.dispose(f);
       this.forms = this.forms.filter((f) => !(f.out !== undefined && f.out > 2.3));
