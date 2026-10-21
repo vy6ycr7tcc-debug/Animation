@@ -1462,7 +1462,10 @@ function templeFrame(dt: number): void {
     toldGate = true;
     whisper("A temple. Walk through its door.", 5000);
   }
-  if (d < 6 && !crossing && !autofly.active && sitting.phase !== "seated" && temple.atGateDoor(player.pos)) crossTemple(true);
+  // a walk passing by on its way elsewhere is not taken in (leaving the temple for the pyramid it
+  // went back through the door, and the temple's tour began again)
+  const passing = !!walk && walk.stops[walk.i]?.place !== "temple";
+  if (d < 6 && !crossing && !passing && !autofly.active && sitting.phase !== "seated" && temple.atGateDoor(player.pos)) crossTemple(true);
 }
 
 // Autofly (⋮ → Autofly, or P): the wanderer flies by itself, low over the land from place to
@@ -1991,14 +1994,18 @@ function places(): Place[] {
 }
 
 /** Wake at the chosen place. */
+/** An arrival through the dark is under way (a tour's stop waits for it before it begins). */
+let arriving = false;
 function arrive(c: Choice, first: boolean): void {
   // the land to build is heavy work that holds the page still: first a soft dark with the
   // loading mark, painted, then the work, then the dark lifts
+  arriving = true;
   busy(1.5);
   input.enabled = false;
   fadeEl.classList.add("on");
   requestAnimationFrame(() => requestAnimationFrame(() => window.setTimeout(() => {
     arriveNow(c, first);
+    arriving = false;
     busy(0.8);
     window.setTimeout(() => fadeEl.classList.remove("on"), 150);
   }, 60)));
@@ -2024,7 +2031,9 @@ function arriveNow(c: Choice, first: boolean): void {
   wanderer.setGesture("none");
   beings.reset();
   lastMet = -1;
-  playlist.startWith(c.place.narration);
+  // the background narrator begins again from here, but not under a tour: its start stops the
+  // voice speaking, and a tour's stop reached through the dark lost its telling as it began
+  if (!walk && !duatTour && !areaTour) playlist.startWith(c.place.narration);
   input.enabled = true;
   S.mode = "play";
   persist();
@@ -3589,7 +3598,7 @@ function walkFrame(dt: number): void {
   }
   if (walk.phase === "place") {
     walkTitle(stopName(s0), `${walk.i + 1} of ${walk.stops.length}`);
-    if (crossing) return;
+    if (crossing || arriving) return;
     if (s0.place === "temple") {
       const tour = tourScenes.tour;
       if (temple.inside && tour.active) {
