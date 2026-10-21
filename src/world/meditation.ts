@@ -4,7 +4,8 @@
    1. the screen fades to black over a few seconds, never a cut;
    2. in the dark, one cycle of slow square breaths (in 5, hold 5, out 5, rest 5; three of them):
       the lungs (ui/breathLungs.ts) breathing at the centre, slow and soft, with the breath's one
-      word; no voice (the owner: "remove the narration"), only the world's own sound beneath;
+      word; no voice (the owner: "remove the narration… replace for soothing wind"): a soft wind
+      rises as the eyes close and settles as they open;
    3. how much is left shows small, in a corner: a little pair of lungs filling with warm light
       from the base up (the owner: "small in a corner and with just filling a small lung");
    4. when it is full, the world fades back and the wanderer rises, unhurried;
@@ -27,6 +28,8 @@ const CYCLE = SIDE * 4 * 3; // three slow breaths
 const WORDS: Record<string, string> = { in: "Breathe in", hold: "Hold", out: "Release", rest: "Wait" };
 
 export interface MeditationHooks {
+  /** the wind: 1 rising, 0 settling */
+  wind(k: number): void;
   /** the wanderer lets go of what it holds and rises */
   rise(): void;
   /** it ran its whole course (stone-essence, for a rock) */
@@ -121,6 +124,7 @@ export class Meditation {
     this.what.textContent = `Stay with ${what}, and breathe with the lungs.`;
     this.el.hidden = false;
     document.body.classList.add("meditating");
+    this.hooks.wind(1);
     this.loop();
   }
   /** Leave early (the ✕, the stick, the hold let go some other way). */
@@ -128,6 +132,7 @@ export class Meditation {
     if (this.phase === "closing" || this.phase === "inner" || this.phase === "guiding") {
       this.phase = "leaving";
       this.t = 0;
+      this.hooks.wind(0);
       this.hooks.rise();
     }
   }
@@ -223,7 +228,10 @@ export class Meditation {
   private next(p: Phase): void {
     this.phase = p;
     this.t = 0;
-    if (p === "opening") this.risen = false;
+    if (p === "opening") {
+      this.risen = false;
+      this.hooks.wind(0);
+    }
   }
   private end(): void {
     this.phase = "none";

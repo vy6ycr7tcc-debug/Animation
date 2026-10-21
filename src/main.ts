@@ -1710,7 +1710,7 @@ const touch = new Touch(creation, wanderer, player, {
 });
 scene.add(touch.points);
 /* The meditation (world/meditation.ts): holding on a rock, a tree or a crystal, the eyes close
-   into the dark, three slow square breaths with the lungs (no voice), and the world comes back
+   into the dark, three slow square breaths with the lungs and a soft wind, and the world comes back
    quietly. A rock meditation run to its end gives its stone (stone-essence): it
    gathers out of the rock once the world is back, and comes to you. */
 const chestAt = new THREE.Vector3();
@@ -1718,6 +1718,7 @@ let medRock: { contact: THREE.Vector3; centre: THREE.Vector3; r: number } | null
 let medStoneAt = 0;
 let heartInviteUntil = 0;
 const med = new Meditation({
+  wind: (k) => audio.wind(k),
   rise: () => touch.stop(),
   completed: () => {
     if (medRock) medStoneAt = S.t + 3.2;
