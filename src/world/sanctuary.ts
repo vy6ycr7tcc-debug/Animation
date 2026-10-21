@@ -906,14 +906,11 @@ export class Sanctuary {
   private pageAt(x: number, y: number, hold = false): V2 | null {
     if (!this.camera) return null;
     this.rayAt(x, y);
-    this.hits.length = 0;
-    this.page.raycast(this.ray, this.hits);
     let px: number, pz: number;
-    if (this.hits.length) {
-      let h = this.hits[0];
-      for (const k of this.hits) if (k.distance < h.distance) h = k;
-      px = h.point.x;
-      pz = h.point.z;
+    const hit = this.groundHit();
+    if (hit) {
+      px = hit[0];
+      pz = hit[1];
     } else {
       if (!hold) return null;
       const o = this.ray.ray.origin, d = this.ray.ray.direction;
@@ -929,6 +926,28 @@ export class Sanctuary {
       pz = this.plot.z + (dz * lim) / r;
     }
     return [px, pz];
+  }
+  /** Where the ray meets the land: marched down to it, then halved in on it (the land is a
+      formula, so no mesh is needed). */
+  private groundHit(): V2 | null {
+    const o = this.ray.ray.origin, d = this.ray.ray.direction;
+    const above = (t: number) => o.y + d.y * t - groundAt(o.x + d.x * t, o.z + d.z * t);
+    let t0 = 0, t = 0;
+    for (let i = 0; i < 400 && t < 300; i++) {
+      const h = above(t);
+      if (h <= 0) {
+        let lo = t0, hi = t;
+        for (let k = 0; k < 14; k++) {
+          const m = (lo + hi) / 2;
+          if (above(m) > 0) lo = m;
+          else hi = m;
+        }
+        return [o.x + d.x * hi, o.z + d.z * hi];
+      }
+      t0 = t;
+      t += Math.max(0.12, h * 0.5);
+    }
+    return null;
   }
   /** The form under a screen point. */
   private formAt(x: number, y: number, gold = false): Form | null {
