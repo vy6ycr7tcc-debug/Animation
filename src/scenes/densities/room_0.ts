@@ -16,7 +16,7 @@ import { LessonScene } from "../lessonKit";
 import type { LessonCtx, LessonOpts, SceneModule } from "../lessonKit";
 import { T, hash2 } from "../../gpu/tsl";
 import { MOBILE } from "../../core/quality";
-import { applyAir, pointCloud, roomClock, scannedGround, seeded, skyDome, touch, type Air } from "./roomKit";
+import { applyAir, pointCloud, roomClock, seeded, skyDome, touch, type Air } from "./roomKit";
 import { env, lessonDark } from "../enacted";
 
 const { cos, exp, float, floor, fract, max, mix, pow, sin, smoothstep, step, uniform, vec3, vec4 } = T;
@@ -73,19 +73,7 @@ export function createDensityRoom0Scene(scene: THREE.Scene, narration: LessonCtx
       g.add(sky.mesh);
       ours.push(sky);
     }
-    // the floor: black stone, seen only by what light there is
-    {
-      const geo = new THREE.PlaneGeometry(120, 120, 20, 20);
-      geo.rotateX(-Math.PI / 2);
-      const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.75, metalness: 0 });
-      const scan = scannedGround("rock", 3, { hue: 0.2, relief: 0.8, bright: 0.9 });
-      m.colorNode = vec3(0.012, 0.011, 0.013).mul(scan.color);
-      m.normalNode = scan.normal;
-      const mesh = new THREE.Mesh(geo, m);
-      mesh.receiveShadow = true;
-      g.add(mesh);
-      ours.push(geo, m);
-    }
+    // no floor drawn: the black stone only got in the animation's way (the ground still holds you)
 
     /* ---------------- the one body of light ---------------- */
     {

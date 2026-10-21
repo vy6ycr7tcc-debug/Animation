@@ -42,7 +42,6 @@ import { Joints, type JointForm } from "./joints";
 const { float, vec3, vec4, abs, max, min, smoothstep, sin, pow, dot, normalize, clamp, fract, length, mix, fwidth } = T;
 
 /** The sanctuary's terrace (the place on the map, where the first forms were drawn). */
-const PAGE_R = 9;
 const TOP = 0.3; // its floor above the levelled ground
 /** The page round where building opens: forms are drawn and carried within it. */
 const PLOT_R = 14;
@@ -154,11 +153,8 @@ function forges(n: HeartNote): boolean {
   return !!n;
 }
 
-/** The earth a form stands on: the terrace's floor on it, the land elsewhere. */
+/** The earth a form stands on. */
 export function groundAt(x: number, z: number): number {
-  const S = SANCTUARY, d = Math.hypot(x - S.x, z - S.z);
-  if (d < PAGE_R + 0.05) return S.y + TOP;
-  if (d < PAGE_R + 0.95) return Math.max(heightAt(x, z), S.y + TOP - 0.25);
   return heightAt(x, z);
 }
 /** A form drawn on the terrace before forms could stand anywhere (its frame): into the world. */
@@ -754,17 +750,6 @@ export class Sanctuary {
     this.root.position.set(S.x, S.y + TOP, S.z);
     this.root.rotation.y = S.face;
     this.group.add(this.root, this.world);
-
-    // the terrace: a round floor of flagstones and a low step round it, in the temple's stone
-    const floorStone = landStone("sandstone_cracks", S.y, 2.4, [0.92, 0.88, 0.84], { flag: 1.2 });
-    const floor = new THREE.Mesh(new THREE.CylinderGeometry(PAGE_R, PAGE_R + 0.12, 0.7, 72, 1), floorStone);
-    floor.position.y = -0.35;
-    const step = new THREE.Mesh(new THREE.CylinderGeometry(PAGE_R + 0.9, PAGE_R + 1.05, 0.5, 72, 1), floorStone);
-    step.position.y = -0.55;
-    floor.receiveShadow = step.receiveShadow = true;
-    const shade = contactShade({ r: PAGE_R + 1.05 }, 1.6, 0.45);
-    shade.position.y = -TOP + 0.02;
-    this.root.add(floor, step, shade);
 
     // the inks
     const stone = landStone("sandstone_cracks", 0, 1.6, [0.95, 0.9, 0.84], { course: 0.32, block: 0.66 });
