@@ -651,9 +651,8 @@ export const SANCTUARY = (() => {
       }
     }
   const y = Math.max(WATER_Y + 1.5, best.h);
-  PADS.push({ x: best.x, z: best.z, h: y, inner: 10, outer: 17 });
-  KEEP_CLEAR.push({ x: best.x, z: best.z, r: 14 });
-  coarse.clear();
+  // (no longer a place: building is anywhere now; this only places forms drawn here in older saves,
+  // and the sanctuary's stills. It levels and keeps clear nothing.)
   // it faces the pylon
   return { x: best.x, z: best.z, y, face: Math.atan2(g.x - best.x, g.z - best.z), gate: { x: g.x, z: g.z } };
 })();

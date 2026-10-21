@@ -7,19 +7,19 @@
      (let go: under the water you sink gently) and the sea hushes, the ring brightens and a
      question to sit with rises (written for the game; Samuel's own may replace them).
    - Caves: arches of stone in the steep underwater slopes, light at their back. Swim through
-     one and you come into the Archive of the Deeper Self, a place apart (like the temple):
-     a great grotto under the water, its walls a spiral of tablets, one for each narration of
-     the archive (those you have heard glow, and a touch plays them again), and twenty-two
-     alcoves, one for each archetype (those you have met hold their light, and a touch lets them
-     speak again). At its centre, a ring of stillness. Swim back out through the way you came. */
+     one and you come into the Archive of the Heart, a place apart (like the temple): a great
+     grotto under the water whose dome holds every note you have written in My Heart as a star,
+     the stars joined to one another like constellations; a touch on one reads its note again.
+     At its centre, a ring of stillness. Swim back out through the way you came. */
 import * as THREE from "three/webgpu";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { T, worldPoints, type N } from "../gpu/tsl";
-import { etchedStone } from "./etching";
 import { columnGeometry, scan, type ScanName } from "./temple";
 import { surface } from "./textures";
 import { colliders, heightAt, LANDMARK_KINDS, LANDMARK_SITES, levelGround, SPAWN, WATER_Y } from "./terrain";
 import { solid } from "./solidity";
+import { ribbonGeometry, ribbonMaterial } from "../gpu/ribbons";
+import type { HeartNote } from "../ui/heart";
 
 const { abs, atan, cos, float, fract, length, max, mix, positionGeometry, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
 const V = THREE.Vector3;
@@ -624,8 +624,6 @@ export const ARCHIVE_ORIGIN = new THREE.Vector3(40000, -26, 0);
 const GR = 24; // the grotto's radius
 const GH = 15; // its height
 
-export interface ArchiveItem { id: string; title: string }
-export interface Being { numeral: string; name: string; tint: THREE.Color }
 
 export class Depths {
   /** In the lakes: ruins, rings, cave mouths (drawn only near or under the water). */
@@ -636,9 +634,10 @@ export class Depths {
   rings: Ring[] = [];
   mouths: { site: MouthSite; portal: THREE.Vector3; door: THREE.MeshBasicNodeMaterial }[] = [];
   centreRing: Ring;
-  private tablets!: THREE.InstancedMesh;
-  private tabletIds: string[] = [];
-  private alcoveOrbs: THREE.Mesh[] = [];
+  /** The heart's notes as stars, joined like constellations (rebuilt on each coming in). */
+  private sky = new THREE.Group();
+  private stars: THREE.InstancedMesh | null = null;
+  private starNotes: HeartNote[] = [];
   private exitDoor!: THREE.MeshBasicNodeMaterial;
   readonly exitAt = new THREE.Vector3();
   private local = new THREE.Vector3();
@@ -649,7 +648,7 @@ export class Depths {
   /** Each ruin's merged stone, shown only within `RUIN_SEEN` of the wanderer. */
   private ruinParts: { x: number; z: number; group: THREE.Group }[] = [];
 
-  constructor(items: ArchiveItem[], beings: Being[]) {
+  constructor() {
     const s = new Stones(this.uT);
     const lights: number[] = [];
     const mats: Record<Mat, THREE.Material> = {
@@ -693,11 +692,11 @@ export class Depths {
     }
     this.group.visible = false;
     this.centreRing = new Ring({ x: ARCHIVE_ORIGIN.x, z: ARCHIVE_ORIGIN.z, y: ARCHIVE_ORIGIN.y, r: 3.4 }, new THREE.Color(1.0, 0.88, 0.66));
-    this.buildGrotto(items, beings);
+    this.buildGrotto();
     this.grotto.visible = false;
   }
 
-  private buildGrotto(items: ArchiveItem[], beings: Being[]): void {
+  private buildGrotto(): void {
     const O = ARCHIVE_ORIGIN;
     this.grotto.position.copy(O);
     // the dome: dark water-worn stone, veins of light running through it
@@ -730,67 +729,7 @@ export class Depths {
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = 0.01;
     this.grotto.add(floor);
-    // the tablets: a spiral band round the wall, one per narration of the archive
-    const tabM = new THREE.MeshBasicNodeMaterial({ fog: false });
-    const n = items.length;
-    this.tablets = new THREE.InstancedMesh(new THREE.BoxGeometry(0.62, 0.9, 0.08), tabM, Math.max(1, n));
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
-    items.forEach((it, i) => {
-      const turns = 2.2, u = (i + 0.5) / Math.max(1, n);
-      const a = u * turns * Math.PI * 2 + 0.6;
-      const y = 3.2 + u * 6.5;
-      // on the dome at that height (an ellipsoid), a little in from the wall
-      const rr = GR * Math.sqrt(Math.max(0.05, 1 - (y / GH) ** 2)) - 0.9;
-      const x = Math.cos(a) * rr, z = Math.sin(a) * rr;
-      q.setFromAxisAngle(new V(0, 1, 0), Math.atan2(-x, -z));
-      m4.compose(new V(x, y, z), q, new V(1, 1, 1));
-      this.tablets.setMatrixAt(i, m4);
-      this.tablets.setColorAt(i, this.col.setRGB(0.05, 0.05, 0.07));
-      this.tabletIds.push(it.id);
-    });
-    this.tablets.instanceMatrix.needsUpdate = true;
-    if (this.tablets.instanceColor) this.tablets.instanceColor.needsUpdate = true;
-    this.tablets.computeBoundingSphere();
-    this.grotto.add(this.tablets);
-    // the alcoves: twenty-two, low round the wall, an arch of stone and a light within
-    const alcoveStone = etchedStone("#23262f", "#e9c37d", 2.2);
-    const pillars = new THREE.InstancedMesh(new THREE.BoxGeometry(0.35, 2.4, 0.35), alcoveStone, 44);
-    const lintels = new THREE.InstancedMesh(new THREE.BoxGeometry(1.7, 0.3, 0.45), alcoveStone, 22);
-    beings.forEach((b, i) => {
-      const a = (i / beings.length) * Math.PI * 2 + Math.PI / 22;
-      const rr = GR - 2.4;
-      const x = Math.cos(a) * rr, z = Math.sin(a) * rr;
-      const face = Math.atan2(-x, -z);
-      q.setFromAxisAngle(new V(0, 1, 0), face);
-      const side = new V(Math.cos(face), 0, -Math.sin(face));
-      for (const sgn of [-1, 1]) pillars.setMatrixAt(i * 2 + (sgn > 0 ? 1 : 0), m4.compose(new V(x + side.x * 0.7 * sgn, 1.2, z + side.z * 0.7 * sgn), q, new V(1, 1, 1)));
-      lintels.setMatrixAt(i, m4.compose(new V(x, 2.55, z), q, new V(1, 1, 1)));
-      const orb = new THREE.Mesh(new THREE.SphereGeometry(0.32, 20, 14), new THREE.MeshBasicMaterial({ color: b.tint.clone().multiplyScalar(0.12), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-      orb.position.set(x, 1.3, z);
-      orb.userData = { numeral: b.numeral, name: b.name, tint: b.tint.clone() };
-      this.alcoveOrbs.push(orb);
-      this.grotto.add(orb);
-      // its numeral, carved above
-      const c = document.createElement("canvas");
-      c.width = 128;
-      c.height = 64;
-      const g = c.getContext("2d")!;
-      g.fillStyle = "rgba(233,195,125,0.85)";
-      g.font = "40px Georgia, serif";
-      g.textAlign = "center";
-      g.textBaseline = "middle";
-      g.fillText(b.numeral, 64, 34);
-      const tex = new THREE.CanvasTexture(c);
-      tex.colorSpace = THREE.SRGBColorSpace;
-      const label = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.45), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0.8 }));
-      label.position.set(x - Math.sin(face) * 0.25, 3.05, z - Math.cos(face) * 0.25);
-      label.rotation.y = face;
-      this.grotto.add(label);
-    });
-    pillars.instanceMatrix.needsUpdate = lintels.instanceMatrix.needsUpdate = true;
-    pillars.computeBoundingSphere();
-    lintels.computeBoundingSphere();
-    this.grotto.add(pillars, lintels);
+    this.grotto.add(this.sky);
     // the way out: a soft light in the wall, where you came in
     this.exitDoor = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
     {
@@ -798,7 +737,7 @@ export class Depths {
       this.exitDoor.colorNode = vec4(vec3(0.4, 0.78, 1.0).mul(smoothstep(1, 0.4, r).mul(smoothstep(0, 0.1, uv().y)).mul(0.45)), 1);
     }
     const exit = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 4), this.exitDoor);
-    const ea = Math.PI; // due west in the grotto (between two alcoves)
+    const ea = Math.PI; // due west in the grotto 
     exit.position.set(Math.cos(ea) * (GR - 0.6), 2, Math.sin(ea) * (GR - 0.6));
     exit.rotation.y = Math.PI / 2;
     this.grotto.add(exit);
@@ -815,26 +754,82 @@ export class Depths {
     this.grotto.add(worldPoints(motes, { color: new THREE.Color(0.7, 0.9, 1.0), size: 0.07, opacity: 0.6 }).sprite);
   }
 
-  /** The tablets and alcoves reflect what you have heard and whom you have met. */
-  refresh(heard: Set<string>, met: (numeral: string) => boolean): void {
-    this.tabletIds.forEach((id, i) => this.tablets.setColorAt(i, heard.has(id) ? this.col.setRGB(1.0, 0.78, 0.48).multiplyScalar(1.2) : this.col.setRGB(0.05, 0.05, 0.07)));
-    if (this.tablets.instanceColor) this.tablets.instanceColor.needsUpdate = true;
-    for (const o of this.alcoveOrbs) {
-      const d = o.userData as { numeral: string; tint: THREE.Color };
-      (o.material as THREE.MeshBasicMaterial).color.copy(d.tint).multiplyScalar(met(d.numeral) ? 1.1 : 0.1);
+  /** The heart's notes, laid out as stars on the dome: the oldest low, the newest at the crown,
+      each joined to the nearest of those before it (so all are one web) and to its next nearest
+      neighbour, as constellations are drawn. */
+  setNotes(notes: HeartNote[]): void {
+    for (const c of [...this.sky.children]) {
+      this.sky.remove(c);
+      (c as THREE.Mesh).geometry?.dispose();
     }
+    this.stars = null;
+    const list = notes.slice(0, 240).sort((x, y) => x.createdAt - y.createdAt);
+    this.starNotes = list;
+    const n = list.length;
+    if (!n) return;
+    const pts: THREE.Vector3[] = list.map((nt, i) => {
+      const h1 = hash(nt.createdAt % 9973, i, 3), h2 = hash(nt.createdAt % 7919, i, 8);
+      const u = (i + 0.5) / n;
+      const a = i * 2.39996 + h1 * 0.9;
+      const e = 0.14 + 1.0 * Math.sqrt(u) + (h2 - 0.5) * 0.12;
+      const rr = 0.86, ce = Math.cos(e);
+      return new V(Math.cos(a) * ce * GR * rr, Math.sin(e) * GH * rr, Math.sin(a) * ce * GR * rr);
+    });
+    const edge = new Set<string>();
+    const segs: number[] = [];
+    const link = (i: number, j: number) => {
+      const k = i < j ? `${i}-${j}` : `${j}-${i}`;
+      if (i === j || edge.has(k)) return;
+      edge.add(k);
+      segs.push(pts[i].x, pts[i].y, pts[i].z, pts[j].x, pts[j].y, pts[j].z);
+    };
+    for (let i = 1; i < n; i++) {
+      let b1 = 0, d1 = Infinity;
+      for (let j = 0; j < i; j++) {
+        const d = pts[i].distanceToSquared(pts[j]);
+        if (d < d1) (d1 = d), (b1 = j);
+      }
+      link(i, b1);
+    }
+    for (let i = 0; i < n; i++) {
+      let b2 = -1, d2 = Infinity;
+      for (let j = 0; j < n; j++) {
+        if (j === i || edge.has(i < j ? `${i}-${j}` : `${j}-${i}`)) continue;
+        const d = pts[i].distanceToSquared(pts[j]);
+        if (d < d2) (d2 = d), (b2 = j);
+      }
+      if (b2 >= 0 && d2 < 90) link(i, b2);
+    }
+    if (segs.length) {
+      const thread = new THREE.Mesh(ribbonGeometry(segs), ribbonMaterial(vec3(0.95, 0.8, 0.52).mul(0.55), 0.5, false));
+      thread.frustumCulled = false;
+      this.sky.add(thread);
+    }
+    // each star: a small bright body (tappable) in a soft halo
+    const body = new THREE.InstancedMesh(new THREE.SphereGeometry(0.26, 14, 10), new THREE.MeshBasicMaterial({ fog: false }), n);
+    const m4 = new THREE.Matrix4(), halo = new Float32Array(n * 3);
+    pts.forEach((p, i) => {
+      m4.makeTranslation(p.x, p.y, p.z);
+      body.setMatrixAt(i, m4);
+      const w = hash(list[i].createdAt % 6151, i, 1);
+      body.setColorAt(i, this.col.setRGB(1.0, 0.86 + w * 0.1, 0.62 + w * 0.3).multiplyScalar(1.5));
+      halo.set([p.x, p.y, p.z], i * 3);
+    });
+    body.instanceMatrix.needsUpdate = true;
+    if (body.instanceColor) body.instanceColor.needsUpdate = true;
+    body.computeBoundingSphere();
+    this.stars = body;
+    this.sky.add(body, worldPoints(halo, { color: new THREE.Color(1, 0.84, 0.58), size: 1.7, opacity: 0.5 }).sprite);
   }
 
-  /** A tap in the grotto: a tablet (its narration) or an alcove's light (its archetype). */
-  pick(x: number, y: number, camera: THREE.Camera): { tablet: string } | { numeral: string } | null {
-    if (!this.inside) return null;
+  /** A tap in the grotto: a star (its note). */
+  pick(x: number, y: number, camera: THREE.Camera): { note: HeartNote } | null {
+    if (!this.inside || !this.stars) return null;
     this.ray.setFromCamera(new THREE.Vector2((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1), camera);
-    const hits = this.ray.intersectObjects([this.tablets, ...this.alcoveOrbs], false);
-    const h = hits.find((k) => k.distance < 30);
-    if (!h) return null;
-    if (h.object === this.tablets && h.instanceId !== undefined) return { tablet: this.tabletIds[h.instanceId] };
-    const d = h.object.userData as { numeral?: string };
-    return d.numeral ? { numeral: d.numeral } : null;
+    const h = this.ray.intersectObject(this.stars, false)[0];
+    if (!h || h.instanceId === undefined) return null;
+    const note = this.starNotes[h.instanceId];
+    return note ? { note } : null;
   }
 
   /** A cave mouth the wanderer is swimming through, if any. */

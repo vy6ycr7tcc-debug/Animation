@@ -52,7 +52,7 @@ import { SpiritHorses } from "./world/spiritHorses";
 import { SpiritCritters } from "./world/spiritCritters";
 import { Readables, type Reading } from "./world/readables";
 import { Reader } from "./ui/reader";
-import { Heart, keepToItself } from "./ui/heart";
+import { Heart, heartNotes, keepToItself } from "./ui/heart";
 import { Oracle, type Lens } from "./ui/oracle";
 import { Install, buildIntro, isStandalone } from "./ui/intro";
 import { StationGlow } from "./world/stationGlow";
@@ -900,19 +900,13 @@ input.onAction = () => {
 };
 input.onTap = (x, y, touch) => {
   if (isTv || S.mode !== "play" || temple.cardsOpen) return;
-  // in the deep archive: a tablet plays its narration again, an alcove's light its archetype
+  // in the archive of the heart: a star is a note, read again
   if (depths.inside) {
     const got = depths.pick(x, y, camera);
-    if (got && "tablet" in got) {
-      const n = ARCHIVE_ORDER.find((a) => a.id === got.tablet);
-      if (n && archiveHeard.has(n.id)) playArchive(n);
-      else if (n) whisper("Not yet heard. It waits in the world above, in the sky or among the groves.", 4500);
-    } else if (got && "numeral" in got) {
-      const b = beings.list.find((k) => k.spec.numeral === got.numeral);
-      if (b && (b.met || playlist.heardIds.includes(b.spec.narration))) {
-        whisper(`${b.spec.numeral} · ${b.spec.name}`, 4000);
-        void narration.play(b.spec.narration);
-      } else if (b) whisper(`${b.spec.name}: not yet met.`, 3500);
+    if (got) {
+      const d = new Date(got.note.createdAt);
+      reader.show({ id: `heart-${got.note.createdAt}`, title: `${d.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })} · ${got.note.scene}`, pages: [got.note.text], place: {} });
+      audio.bowl(660, 0.03, undefined, 5);
     }
     return;
   }
@@ -1621,7 +1615,7 @@ myHeart.place = () => {
   if (h) return h.journey.stage && h.journey.inside ? h.journey.stage.title : h.hall.label;
   if (temple.inside) return "The temple";
   if (pyramid.isInside) return player.pos.distanceTo(DUAT_ORIGIN) < 260 ? "The Duat" : "The pyramid";
-  if (depths.inside) return "The deep archive";
+  if (depths.inside) return "The archive of the heart";
   let best: Place | null = null, bd = Infinity;
   for (const p of places()) {
     const d = Math.hypot(p.x - player.pos.x, p.z - player.pos.z);
@@ -2013,10 +2007,6 @@ function places(): Place[] {
   return [
     { numeral: "", label: "The shore", group: "Shore", x: SPAWN.x, z: SPAWN.z, narration: "J01", start: { x: SPAWN.x, z: SPAWN.z, heading: SPAWN.heading } },
     { numeral: "", label: "The temple", group: "Shore", order: 1, x: temple.gateAt.x, z: temple.gateAt.z, narration: "J01", start: { ...temple.outside(), heading: temple.gateHeading } },
-    (() => {
-      const c = sanct.centre;
-      return { numeral: "", label: "Your sanctuary", group: "Shore" as const, order: 1.5, x: c.x, z: c.z, narration: "J01", start: { x: c.x + Math.sin(c.face) * 13, z: c.z + Math.cos(c.face) * 13, heading: c.face } };
-    })(),
     { numeral: "", label: "The vision of creation", group: "Shore" as const, order: 0, x: vision.group.position.x, z: vision.group.position.z, narration: "J01", start: { x: vision.group.position.x + 11, z: vision.group.position.z + 11, heading: Math.atan2(11, 11) } },
     (() => {
       const [x, z] = nanMadolAt(0, -30);
@@ -2052,7 +2042,7 @@ function places(): Place[] {
     }),
     ...depths.mouths.slice(0, 1).map((m) => {
       const o = depths.outside(m.site);
-      return { numeral: "", label: "The way to the deep archive", group: "Deep" as const, x: m.site.x, z: m.site.z, narration: "J01", start: { x: o.x, z: o.z, heading: o.heading + Math.PI } };
+      return { numeral: "", label: "The way to the archive of the heart", group: "Deep" as const, x: m.site.x, z: m.site.z, narration: "J01", start: { x: o.x, z: o.z, heading: o.heading + Math.PI } };
     }),
     ...beings.list.map((b, i) => ({
       numeral: b.spec.numeral,
@@ -2529,11 +2519,8 @@ tp.next = (n) => {
 };
 
 // The deep (world/depths.ts): ruins and rings of stillness on the lake floors, and caves whose
-// mouths lead to the Archive of the Deeper Self, a grotto apart like the temple.
-const depths = new Depths(
-  ARCHIVE_ORDER.map((n) => ({ id: n.id, title: n.title })),
-  beings.list.map((b) => ({ numeral: b.spec.numeral, name: b.spec.name, tint: new THREE.Color(...b.spec.tint) })),
-);
+// mouths lead to the Archive of the Heart, a grotto apart like the temple.
+const depths = new Depths();
 scene.add(depths.group, depths.grotto);
 const ancients = new Ancients();
 scene.add(ancients.group);
@@ -2558,10 +2545,7 @@ function setDeep(inside: boolean): void {
     const keep = new Set<THREE.Object3D>([depths.grotto, wanderer.root, wanderer.fx, camera]);
     deepHidden = scene.children.filter((o) => !keep.has(o)).map((o) => [o, o.visible]);
     for (const [o] of deepHidden) o.visible = false;
-    depths.refresh(archiveHeard, (numeral) => {
-      const b = beings.list.find((k) => k.spec.numeral === numeral);
-      return !!b && (b.met || playlist.heardIds.includes(b.spec.narration));
-    });
+    depths.setNotes(heartNotes());
     depths.show(true);
     const e = depths.entry();
     player.pos.set(e.x, e.y, e.z);
@@ -2592,7 +2576,7 @@ function crossDeep(inside: boolean): void {
   window.setTimeout(async () => {
     setDeep(inside);
     await compileInDark();
-    if (inside) whisper("The Archive of the Deeper Self. All you have heard and met is kept here. Touch a light to hear it again.", 8000);
+    if (inside) whisper(heartNotes().length ? "The Archive of the Heart. Every note you have written is a star here. Touch one to read it again." : "The Archive of the Heart. Nothing is gathered yet: each note you write becomes a star here.", 8000);
     window.setTimeout(() => {
       fadeEl.classList.remove("on");
       crossing = false;
@@ -6097,7 +6081,7 @@ function devPlace(): string {
     return "The temple" + (i >= 0 && ARCHETYPES[i] ? ` › ${ARCHETYPES[i].numeral} ${ARCHETYPES[i].name}` : "");
   }
   if (pyramid.isInside) return player.pos.distanceTo(DUAT_ORIGIN) < 260 ? "The Duat" : "The pyramid, inside";
-  if (depths.inside) return "The deep archive";
+  if (depths.inside) return "The archive of the heart";
   let best: Place | null = null, bd = Infinity;
   for (const p of places()) {
     const d = Math.hypot(p.x - player.pos.x, p.z - player.pos.z);
