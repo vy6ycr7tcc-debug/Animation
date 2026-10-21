@@ -1164,6 +1164,31 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
     return out;
   })();
 
+  // Hillside creases, as rain cuts them (the realism of eroded land): on gentle-to-steep slopes, fine
+  // gullies run straight down the fall line, a few metres apart and wandering a little, their
+  // floors darker and damper; drawn into the light by tilting the surface across them (xyz) and
+  // shading their floors (w). Near only, on dry land, never on the snow or the sand.
+  const gully = Fn(() => {
+    const out = vec4(0, 0, 0, 1).toVar();
+    const slope = float(1).sub(nW.y);
+    const k = smoothstep(0.05, 0.16, slope).mul(float(1).sub(smoothstep(0.55, 0.8, slope))).mul(float(1).sub(smoothstep(250, 600, camD)))
+      .mul(step(0.8, vGW.y)).mul(float(1).sub(w.x)).toVar();
+    If(k.greaterThan(L), () => {
+      const down = normalize(nW.xz.add(vec2(1e-4, 0))), across = vec2(down.y.negate(), down.x);
+      const u = dot(q, across), v = dot(q, down);
+      const wob = gN(vec2(v.mul(0.05), u.mul(0.02)).add(13)).sub(0.5).mul(6);
+      const cr = (uu: N) => {
+        const r = float(1).sub(abs(gN(vec2(uu.add(wob).mul(0.14), v.mul(0.01)).add(41)).mul(2).sub(1)));
+        return pow(r, 4);
+      };
+      const E = 0.6;
+      const c0 = cr(u), cA = cr(u.add(E)), cB = cr(u.sub(E));
+      const tilt = cA.sub(cB).div(2 * E).mul(0.4).mul(k);
+      out.assign(vec4(across.x.mul(tilt), 0, across.y.mul(tilt), float(1).sub(c0.mul(0.2).mul(k))));
+    });
+    return out;
+  })();
+
   m.colorNode = Fn(() => {
     const { W, ST, CD, SEA, FD, samp, tri, side, bx, bz, bsum } = setup();
     const SN = snow.toVar();
@@ -1244,7 +1269,7 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
     // the rock darkens into its crevices (the crags' hollows), the snow keeps its white
     const crev = tmix(float(1), smoothstep(0.15, 0.7, cragN.x).mul(0.5).add(0.62), mtn);
     const snowC = tmix(vec3(0.5, 0.49, 0.7), vec3(0.76, 0.78, 0.89), smoothstep(150, 230, vGW.y)).mul(grain);
-    return vec4(tmix(ground.mul(T.vertexColor().rgb).mul(crev), snowC, SN).mul(gr.x), 1);
+    return vec4(tmix(ground.mul(T.vertexColor().rgb).mul(crev).mul(gully.w), snowC, SN).mul(gr.x), 1);
   })();
 
   // Sand, as in Journey: ripples the wind combs across it (two wavelengths, bent by slow noise),
@@ -1288,7 +1313,7 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
       d.addAssign(dc.mul(ST));
     });
     return d;
-  })().add(dRip).add(dCrag);
+  })().add(dRip).add(dCrag).add(gully.xyz);
   m.normalNode = normalize(normalView.add(cameraViewMatrix.mul(vec4(dW, 0)).xyz));
 
   m.emissiveNode = Fn(() => {
@@ -1498,6 +1523,11 @@ export class Terrain {
       for (let o = 0; o < 16; o += 2) avg += H[(b + SKY_TAPS[o + 1]) * W + a + SKY_TAPS[o]];
       avg /= 8;
       const sky = Math.min(1.12, Math.max(0.5, 1 - ((avg - h) * 0.9) / Math.max(4, step * B)));
+      // talus: where a cliff stands just above (the land rising steeply within a few metres) and the
+      // ground here has eased off, the rock that fell lies in a skirt of scree round its foot
+      let rise = 0;
+      for (let o = 0; o < 16; o += 2) rise = Math.max(rise, H[(b + SKY_TAPS[o + 1]) * W + a + SKY_TAPS[o]] - h);
+      const talus = smooth(2.5, 7, rise / Math.max(1, step * 2) * 4) * smooth(0.55, 0.85, nor.getY(v)) * (h > 0.6 ? 1 : 0);
       const k = groundKind(x, z, h);
       const region = fbm(x * 0.004 + 9, z * 0.004 - 4);
       this.col.copy(C.meadowA).lerp(C.meadowB, smooth(0.35, 0.6, region)).lerp(C.meadowC, smooth(0.6, 0.78, region));
@@ -1514,12 +1544,13 @@ export class Terrain {
       const earth = smooth(0.42, 0.62, fbm(x * 0.005 + 123, z * 0.005 - 7)) * (1 - k.sand) * smooth(0.6, 2.5, h) * (1 - away * 0.8);
       this.tmp.copy(C.earth).lerp(C.loam, smooth(0.3, 0.7, fbm(x * 0.03 - 9, z * 0.03 + 4)));
       this.col.lerp(this.tmp, earth * 0.8);
+      if (talus > 0) this.col.lerp(this.tmp.copy(C.stone).lerp(C.granite, 0.5), talus * 0.45);
       if (h < 0.1) this.col.lerp(C.wet, smooth(0.1, -0.6, h));
       col.setXYZ(v, this.col.r, this.col.g, this.col.b);
       const sandy = Math.min(1, k.sand + smooth(0.45, 0.62, fbm(x * 0.01 - 30, z * 0.01 + 12)) * (1 - k.stone) * 0.6 * (1 - away * 0.7));
       // the earth takes the rock scan's grit and the sand's grain
-      const rocky = Math.min(1 - sandy, k.stone + smooth(0.5, 1.0, 1 - nor.getY(v)) * 0.8 + earth * 0.55);
-      gr.setXYZ(v, sky, Math.min(1 - rocky, sandy + earth * 0.3), rocky);
+      const rocky = Math.min(1 - sandy * (1 - talus), k.stone + smooth(0.5, 1.0, 1 - nor.getY(v)) * 0.8 + earth * 0.55 + talus * 0.85);
+      gr.setXYZ(v, sky, Math.max(0, Math.min(1 - rocky, sandy * (1 - talus) + earth * 0.3)), rocky);
     }
     pos.needsUpdate = nor.needsUpdate = col.needsUpdate = gr.needsUpdate = true;
     g.computeBoundingSphere();

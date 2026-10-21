@@ -885,22 +885,30 @@ export class Creation {
     const out: RockDef[] = [];
     const x0 = (i + 0.5) * RCELL, z0 = (j + 0.5) * RCELL;
     const k0 = groundKind(x0, z0);
-    const p = 0.08 + k0.stone * 0.7 + k0.sand * 0.12;
+    // talus: at the foot of a cliff (the land rising steeply within ~9 m, the ground here easing
+    // off) fallen rock gathers, more of it, and the great blocks lie farthest out
+    const h0 = heightAt(x0, z0);
+    let rise = 0;
+    for (const [dx, dz] of [[9, 0], [-9, 0], [0, 9], [0, -9], [6, 6], [-6, -6], [6, -6], [-6, 6]]) rise = Math.max(rise, heightAt(x0 + dx, z0 + dz) - h0);
+    const talus = h0 > WATER_Y + 0.4 ? smooth(4, 9, rise) : 0;
+    const p = 0.08 + k0.stone * 0.7 + k0.sand * 0.12 + talus * 0.85;
     if (cellHash(i, j, 50) < p) {
-      const n = 1 + Math.floor(cellHash(i, j, 51) * 3);
+      const n = 1 + Math.floor(cellHash(i, j, 51) * (3 + talus * 2.5));
       for (let r = 0; r < n; r++) {
-        const x = (i + cellHash(i, j, 52 + r)) * RCELL, z = (j + cellHash(i, j, 55 + r)) * RCELL;
+        // (the first three keep their old seeds, so the rocks that stood stay; talus adds more on fresh ones)
+        const o = r < 3 ? r : 100 + r * 23;
+        const x = (i + cellHash(i, j, 52 + o)) * RCELL, z = (j + cellHash(i, j, 55 + o)) * RCELL;
         if (!clearOf(x, z, 6, 12)) continue;
         const h = heightAt(x, z);
         if (h < WATER_Y - 1.5) continue;
-        const big = cellHash(i, j, 58 + r) < 0.12;
-        const s = big ? 1.8 + cellHash(i, j, 61 + r) * 1.8 : 0.25 + cellHash(i, j, 61 + r) * 0.9;
+        const big = cellHash(i, j, 58 + o) < 0.12 + talus * 0.25;
+        const s = big ? 1.8 + cellHash(i, j, 61 + o) * 1.8 : 0.25 + cellHash(i, j, 61 + o) * 0.9;
         const m = new THREE.Matrix4().compose(
           new V(x, h - s * 0.28, z),
-          new THREE.Quaternion().setFromEuler(new THREE.Euler((cellHash(i, j, 64 + r) - 0.5) * 0.5, cellHash(i, j, 67 + r) * 6.28, 0)),
-          new V(s, s, s * (0.8 + cellHash(i, j, 70 + r) * 0.4)),
+          new THREE.Quaternion().setFromEuler(new THREE.Euler((cellHash(i, j, 64 + o) - 0.5) * 0.5, cellHash(i, j, 67 + o) * 6.28, 0)),
+          new V(s, s, s * (0.8 + cellHash(i, j, 70 + o) * 0.4)),
         );
-        out.push({ x, y: h, z, kind: Math.floor(cellHash(i, j, 73 + r) * 3), m, r: s * 0.8 });
+        out.push({ x, y: h, z, kind: Math.floor(cellHash(i, j, 73 + o) * 3), m, r: s * 0.8 });
       }
     }
     this.rocks.set(key, out);
