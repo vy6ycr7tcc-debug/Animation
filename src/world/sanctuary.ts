@@ -141,10 +141,10 @@ const outCubic = (x: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3)
 const round = (x: number) => Math.round(x * 100) / 100;
 const clampN = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 
-/** A note that forges gold: written by the person here (not the oracle's answers, not memories
-    brought in from elsewhere). */
+/** Every note in the heart forges gold: written here, an answer kept from the oracle, or a memory
+    brought in (the owner: "gold is not recorded when saving memories or importing"). */
 function forges(n: HeartNote): boolean {
-  return !n.scene.startsWith("The oracle") && n.scene !== "Brought from elsewhere";
+  return !!n;
 }
 
 /** The earth a form stands on: the terrace's floor on it, the land elsewhere. */
@@ -898,7 +898,7 @@ export class Sanctuary {
   private notEnough(ink: Ink, what: string): void {
     this.hooks.bell(220, 0.008, 2.2);
     if (ink === "stone") this.hooks.say(`Not enough stone ${what}. Sit with a rock until its meditation ends to gather more${this.have("gold") > 0.1 ? ", or build in gold" : ""}.`);
-    else this.hooks.say(`Not enough gold ${what}. Each note you write in your heart (double tap your heart, or H) gives gold${this.have("stone") > 0.1 ? "; or build in stone" : ""}.`);
+    else this.hooks.say(`Not enough gold ${what}. Each note kept in your heart (written, saved from the oracle, or brought in) gives gold${this.have("stone") > 0.1 ? "; or build in stone" : ""}.`);
   }
 
   /* ---------------- the build screen ---------------- */
