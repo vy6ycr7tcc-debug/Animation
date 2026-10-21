@@ -30,13 +30,30 @@ function atlas(): { tex: THREE.CanvasTexture; size: { w: number; h: number; base
     const scale = Math.min((S * 0.5) / half, (S * 0.96) / (top + base));
     const X = (x: number) => k * S + S / 2 + x * scale, Y = (y: number) => S - (y + base) * scale;
     g.lineCap = "round";
-    g.strokeStyle = "rgba(10,9,20,1)";
+    g.strokeStyle = "rgba(34,26,22,1)"; // bark, as the living trees now are
     for (const l of limbs) {
       g.lineWidth = Math.max(1.2, (l.r0 + l.r1) * scale);
       g.beginPath();
       l.pts.forEach((p, i) => (i ? g.lineTo(X(p.x), Y(p.y)) : g.moveTo(X(p.x), Y(p.y))));
       g.stroke();
     }
+    // the crown: dark leaves clustered round every twig tip, lighter toward the top (as the
+    // living trees' crowns)
+    let lo = Infinity, hi = -Infinity;
+    for (const t of tips) (lo = Math.min(lo, t.y)), (hi = Math.max(hi, t.y));
+    let seed = 7 + k * 101;
+    const R = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (const t of tips)
+      for (let j = 0; j < 22; j++) {
+        const a = R() * Math.PI * 2, rr = (0.35 + Math.cbrt(R()) * 0.85) * scale;
+        const x = X(t.x) + Math.cos(a) * rr, y = Y(t.y + 0.15) + Math.sin(a) * rr * 0.62;
+        const up = Math.min(1, Math.max(0, (t.y - lo + 0.6) / (hi - lo + 1.4)));
+        const l = 0.55 + up * 0.6 + R() * 0.2;
+        g.fillStyle = `rgba(${Math.round(16 * l)},${Math.round(36 * l)},${Math.round(16 * l)},1)`;
+        g.beginPath();
+        g.ellipse(x, y, 0.2 * scale, 0.28 * scale, R() * 3, 0, Math.PI * 2);
+        g.fill();
+      }
     // the crown's glints, small as on the living trees (larger, they read as white puffs)
     for (const t of tips) {
       const grd = g.createRadialGradient(X(t.x), Y(t.y), 0, X(t.x), Y(t.y), 0.45 * scale);
