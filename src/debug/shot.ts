@@ -331,7 +331,7 @@ export function runShot(ctx: ShotCtx): void {
     const a = -Number(id.slice(7)) * (Math.PI / 4);
     let px = Math.cos(a) * 900, pz = Math.sin(a) * 900;
     for (let k = 0; k < 40; k++) {
-      const r = 700 + (k % 10) * 70, b = a + (Math.floor(k / 10) - 1.5) * 0.12;
+      const r = Number(new URLSearchParams(location.search).get("r") ?? 700) + (k % 10) * 70, b = a + (Math.floor(k / 10) - 1.5) * 0.12;
       const cx = Math.cos(b) * r, cz = Math.sin(b) * r, cy = heightAt(cx, cz);
       if (cy > 1.5 && cy < 30) {
         (px = cx), (pz = cz);

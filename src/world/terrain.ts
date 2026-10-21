@@ -91,6 +91,208 @@ function rawHeight(x: number, z: number): number {
   return h;
 }
 
+/* ---------- regions: each direction from the shore its own country, under its own sky ----------
+   The shore keeps its moonlit meadow; walking out, the land turns into the country of the sky
+   above it (moods.ts): east frost tundra under the sunrise, north-east an autumn forest in the
+   golden hour, north black volcanic ash under the deep night, north-west heather moor at dusk,
+   west ochre dunes at sunset, south-west red rock in the ember light, south a deep green mossland
+   in the blue hour, south-east pale chalk downs at the pink dawn. The borders wander (the bearing
+   is bent by slow noise), and here and there a pocket of the home meadow remains. */
+interface Region {
+  dir: number; // bearing, radians (atan2(z, x): east 0, south +π/2, north −π/2)
+  col: THREE.Color; // the ground's colour there
+  sand: number; // how much of it is the sand scan
+  rock: number; // how much the rock scan (outcrops, ash, chalk)
+  trees: number; // tree density against the home meadow's
+  leaf: number; // the leaves' hue there (−1: their own; 0.86 gold; 0.97 silvered)
+}
+const Q = Math.PI / 4;
+const REGIONS: Region[] = [
+  { dir: 0, col: new THREE.Color("#b4bfd6"), sand: 0.6, rock: 0.25, trees: 0.3, leaf: 0.97 }, // E tundra
+  { dir: -Q, col: new THREE.Color("#a8582a"), sand: 0, rock: 0.08, trees: 1.9, leaf: 0.87 }, // NE autumn forest
+  { dir: -2 * Q, col: new THREE.Color("#25252b"), sand: 0.15, rock: 0.85, trees: 0.08, leaf: 0.97 }, // N volcanic ash
+  { dir: -3 * Q, col: new THREE.Color("#7c4a74"), sand: 0, rock: 0.2, trees: 0.45, leaf: -1 }, // NW heather moor
+  { dir: 4 * Q, col: new THREE.Color("#c88a4c"), sand: 0.95, rock: 0.05, trees: 0.04, leaf: 0.87 }, // W ochre dunes
+  { dir: 3 * Q, col: new THREE.Color("#b44a2c"), sand: 0.15, rock: 0.85, trees: 0.15, leaf: -1 }, // SW red rock
+  { dir: 2 * Q, col: new THREE.Color("#3f8f5c"), sand: 0, rock: 0, trees: 1.5, leaf: -1 }, // S mossland
+  { dir: Q, col: new THREE.Color("#e2dad2"), sand: 0.1, rock: 0.8, trees: 0.3, leaf: 0.97 }, // SE chalk downs
+];
+/** The blend of regions at a point: `away` (0 the home meadow … 1 wholly the regions), and the
+    regions' own colour, scans, tree density and leaf hue mixed by weight. One shared result:
+    read it before calling again. */
+export const regionHere = { away: 0, col: new THREE.Color(), sand: 0, rock: 0, trees: 1, leaf: -1 };
+const _rw = new Float64Array(REGIONS.length);
+/** Each region's weight at a point into `out` (summing to 1), and how far out of the home meadow
+    it is (the returned `away`, 0 … 1). */
+function regionWeights(x: number, z: number, out: Float64Array): number {
+  if (Math.hypot(x - SPAWN.x, z - SPAWN.z) < 140) return 0;
+  // they change only over hundreds of metres: read from a lattice every 16 m (bilinear), each
+  // corner reckoned once
+  const fx = x / RG, fz = z / RG, ix = Math.floor(fx), iz = Math.floor(fz), u = fx - ix, v = fz - iz;
+  const a = rgCorner(ix, iz), b = rgCorner(ix + 1, iz), c = rgCorner(ix, iz + 1), d = rgCorner(ix + 1, iz + 1);
+  const wa = (1 - u) * (1 - v), wb = u * (1 - v), wc = (1 - u) * v, wd = u * v;
+  for (let i = 0; i < REGIONS.length; i++) out[i] = a[i + 1] * wa + b[i + 1] * wb + c[i + 1] * wc + d[i + 1] * wd;
+  return a[0] * wa + b[0] * wb + c[0] * wc + d[0] * wd;
+}
+const RG = 16;
+const rgCache = new Map<number, Float32Array>();
+const _rc = new Float64Array(REGIONS.length);
+function rgCorner(ix: number, iz: number): Float32Array {
+  const key = (ix + 50000) * 100003 + (iz + 50000);
+  let e = rgCache.get(key);
+  if (!e) {
+    if (rgCache.size > 60000) rgCache.clear();
+    e = new Float32Array(REGIONS.length + 1);
+    e[0] = regionExact(ix * RG, iz * RG, _rc);
+    for (let i = 0; i < REGIONS.length; i++) e[i + 1] = _rc[i];
+    rgCache.set(key, e);
+  }
+  return e;
+}
+function regionExact(x: number, z: number, out: Float64Array): number {
+  out.fill(0);
+  const dist = Math.hypot(x - SPAWN.x, z - SPAWN.z);
+  if (dist < 160) return 0;
+  // pockets of the home meadow remain out in the regions
+  const pocket = smooth(0.64, 0.76, fbm(x * 0.0026 - 41, z * 0.0026 + 19));
+  const away = smooth(160, 650, dist) * (1 - pocket * 0.75);
+  if (away <= 0) return 0;
+  const a = Math.atan2(z - SPAWN.z, x - SPAWN.x) + (fbm(x * 0.0011 + 5, z * 0.0011 - 8) - 0.5) * 1.1;
+  let sum = 0;
+  for (let i = 0; i < REGIONS.length; i++) sum += out[i] = smooth(0.62, 1, Math.cos(a - REGIONS[i].dir));
+  for (let i = 0; i < REGIONS.length; i++) out[i] /= sum || 1;
+  return away;
+}
+export function regionAt(x: number, z: number): typeof regionHere {
+  const r = regionHere;
+  r.away = regionWeights(x, z, _rw);
+  if (r.away <= 0) {
+    r.col.setRGB(0, 0, 0), (r.sand = r.rock = 0), (r.trees = 1), (r.leaf = -1);
+    return r;
+  }
+  r.col.setRGB(0, 0, 0), (r.sand = r.rock = r.trees = 0);
+  let best = 0;
+  for (let i = 0; i < REGIONS.length; i++) {
+    const w = _rw[i], g = REGIONS[i];
+    r.col.r += g.col.r * w, r.col.g += g.col.g * w, r.col.b += g.col.b * w;
+    r.sand += g.sand * w, r.rock += g.rock * w, r.trees += g.trees * w;
+    if (_rw[i] > _rw[best]) best = i;
+  }
+  r.leaf = REGIONS[best].leaf;
+  return r;
+}
+
+/* ---------- the regions' landforms: shapes for the light to rake across ----------
+   Each region has its own relief, laid over the land after the world's own sites are chosen (so
+   nothing built moves), never on the shore, the shallows or under the water, and levelled again
+   under every site's pad: frost polygons, kettle holes and pingos on the tundra; ravines cut
+   through the autumn forest; lava ridges, craters and fissures in the ash; peat banks on the moor;
+   sharp-crested dunes with slip faces; mesas and buttes in stepped red cliffs; sinkholes in the
+   mossland; chalk scarps. Steep faces wear the cliff scan by themselves (the ground's shader). */
+let reliefOn = false;
+const _fw = new Float64Array(REGIONS.length);
+const ridge = (n: number) => 1 - Math.abs(n * 2 - 1);
+/** Cellular noise: the distance to the nearest feature point (f1), the gap to the second
+    (edge, 0 on a cell's border), and the nearest point's own hash; cells `s` metres across. */
+const _cell = { f1: 0, edge: 0, id: 0 };
+function ihash(x: number, z: number, seed: number): number {
+  let h = Math.imul(x, 0x27d4eb2d) ^ Math.imul(z, 0x165667b1) ^ Math.imul(seed, 0x9e3779b1);
+  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+function cellular(x: number, z: number, s: number, seed: number): typeof _cell {
+  const fx = x / s, fz = z / s, ix = Math.floor(fx), iz = Math.floor(fz);
+  let d1 = 81, d2 = 81, id = 0;
+  for (let j = -1; j <= 1; j++)
+    for (let i = -1; i <= 1; i++) {
+      const cx = ix + i, cz = iz + j;
+      const ex = cx + 0.1 + ihash(cx, cz, seed) * 0.8 - fx, ez = cz + 0.1 + ihash(cx, cz, seed + 1) * 0.8 - fz;
+      const d = ex * ex + ez * ez;
+      if (d < d1) (d2 = d1), (d1 = d), (id = ihash(cx, cz, seed + 2));
+      else if (d < d2) d2 = d;
+    }
+  const r1 = Math.sqrt(d1);
+  _cell.f1 = r1, _cell.edge = Math.sqrt(d2) - r1, _cell.id = id;
+  return _cell;
+}
+/** A bowl with a raised rim (craters, kettle holes, sinkholes): `f1` in cell units, `r` its radius. */
+const bowl = (f1: number, r: number, depth: number, rim: number) =>
+  f1 > r * 1.6 ? 0 : -depth * smooth(r, r * 0.25, f1) + rim * Math.exp(-(((f1 - r) / (r * 0.28)) ** 2));
+function relief(x: number, z: number, h: number): number {
+  const land = smooth(1.4, 4.5, h) * smooth(70, 30, h); // not on the shore, nor on the high massifs
+  if (land <= 0) return 0;
+  const away = regionWeights(x, z, _fw);
+  if (away <= 0.02) return 0;
+  let k = land * away;
+  for (const c of CAVE_SITES) {
+    const d = Math.hypot(x - c.x, z - c.z);
+    if (d < 70) k *= smooth(40, 70, d);
+  }
+  if (k <= 0) return 0;
+  const w = _fw;
+  let d = 0;
+  // E: the tundra's frost polygons (shallow troughs along the cells' borders), kettle holes, pingos
+  if (w[0] > 0.01) {
+    let t = -0.8 * smooth(0.14, 0, cellular(x, z, 11, 3).edge);
+    const c = cellular(x, z, 70, 7);
+    t += c.id < 0.35 ? bowl(c.f1, 0.16 + c.id * 0.3, 3.2, 0.6) : c.id > 0.9 ? 6 * smooth(0.22, 0, c.f1) ** 1.5 : 0;
+    d += t * w[0];
+  }
+  // NE: ravines cut through the forest floor, their banks steep, the land rolling between
+  if (w[1] > 0.01) {
+    const r = ridge(vnoise(x * 0.008 + 3, z * 0.008 - 6));
+    const r2 = ridge(vnoise(x * 0.019 - 11, z * 0.019 + 2));
+    d += (-6 * smooth(0.86, 0.985, r) - 2.5 * smooth(0.9, 0.99, r2) + (vnoise(x * 0.03, z * 0.03) - 0.5) * 2.5) * w[1];
+  }
+  // N: the ash: ropes of old lava standing in ridges, craters with raised rims, fissures
+  if (w[2] > 0.01) {
+    const f = ridge(fbm(x * 0.006 + 13, z * 0.006 - 21));
+    let t = Math.pow(f, 4) * 7;
+    const c = cellular(x, z, 90, 11);
+    if (c.id < 0.55) t += bowl(c.f1, 0.12 + c.id * 0.35, 6, 2.2);
+    t -= 2.2 * smooth(0.95, 0.995, ridge(vnoise(x * 0.016 - 4, z * 0.05 + 9)));
+    d += t * w[2];
+  }
+  // NW: the moor's peat banks, a step a man's height, and hummocks
+  if (w[3] > 0.01) {
+    const b = fbm(x * 0.012 + 29, z * 0.012 - 3);
+    d += (smooth(0.5, 0.515, b) * 1.8 + smooth(0.6, 0.615, b) * 1.4 + (vnoise(x * 0.18, z * 0.18) - 0.5) * 0.7) * w[3];
+  }
+  // W: dunes, sharp crested, a long windward slope and a short slip face, bending with the wind
+  if (w[4] > 0.01) {
+    const s = (x * 0.8 + z * 0.6) * 0.022 + fbm(x * 0.004 - 7, z * 0.004 + 1) * 3.5;
+    const t = s - Math.floor(s);
+    const prof = t < 0.78 ? smooth(0, 0.78, t) : smooth(1, 0.78, t);
+    d += prof * (3 + 6 * fbm(x * 0.005 + 40, z * 0.005)) * w[4];
+  }
+  // SW: mesas and buttes of red rock, their sides broken into ledges (strata) by stepped cliffs
+  if (w[5] > 0.01) {
+    const m = fbm(x * 0.0045 + 77, z * 0.0045 - 31);
+    let t = smooth(0.55, 0.575, m) * 16 + smooth(0.64, 0.66, m) * 10;
+    const c = cellular(x, z, 120, 17);
+    if (c.id > 0.75) t += 22 * smooth(0.13, 0.1, c.f1); // a lone butte
+    // the strata: the land itself stepped into ledges, 3.2 m a step
+    const H = h + t, f = H / 3.2, lo = Math.floor(f);
+    t += ((lo + smooth(0.55, 0.9, f - lo)) * 3.2 - H) * 0.85;
+    d += t * w[5];
+  }
+  // S: the mossland's soft hummocks, and sinkholes with steep green sides
+  if (w[6] > 0.01) {
+    const c = cellular(x, z, 60, 23);
+    let t = (vnoise(x * 0.11, z * 0.11) - 0.5) * 1.2;
+    if (c.id < 0.4) t += bowl(c.f1, 0.12 + c.id * 0.25, 5, 0.5);
+    d += t * w[6];
+  }
+  // SE: chalk scarps: the downs rise gently and break off in a white face, twice over
+  if (w[7] > 0.01) {
+    const c = fbm(x * 0.003 - 9, z * 0.003 + 4);
+    d += (smooth(0.5, 0.512, c) * 9 + smooth(0.58, 0.592, c) * 7 + Math.max(0, c - 0.5) * 30) * w[7];
+  }
+  // never into the water: a hollow stops a little above it
+  return Math.max(d * k, Math.min(0, 1.1 - h));
+}
+
 /** Where each archetype's home should stand, roughly, and on what kind of ground; each
     settles on the nearest place that suits it.
     - land: calm, dry, level ground;   high: a height with a view;
@@ -557,6 +759,7 @@ export function heightCoarse(x: number, z: number): number {
 export function heightAt(x: number, z: number): number {
   if (x > 20000 && floorHook.fn) return floorHook.fn(x, z);
   let h = rawHeight(x, z);
+  if (reliefOn) h += relief(x, z, h);
   for (const p of PADS) {
     if (Math.abs(x - p.x) > p.outer || Math.abs(z - p.z) > p.outer) continue;
     const d = Math.hypot(x - p.x, z - p.z);
@@ -656,62 +859,6 @@ export const SANCTUARY = (() => {
   // it faces the pylon
   return { x: best.x, z: best.z, y, face: Math.atan2(g.x - best.x, g.z - best.z), gate: { x: g.x, z: g.z } };
 })();
-
-/* ---------- regions: each direction from the shore its own country, under its own sky ----------
-   The shore keeps its moonlit meadow; walking out, the land turns into the country of the sky
-   above it (moods.ts): east frost tundra under the sunrise, north-east an autumn forest in the
-   golden hour, north black volcanic ash under the deep night, north-west heather moor at dusk,
-   west ochre dunes at sunset, south-west red rock in the ember light, south a deep green mossland
-   in the blue hour, south-east pale chalk downs at the pink dawn. The borders wander (the bearing
-   is bent by slow noise), and here and there a pocket of the home meadow remains. */
-interface Region {
-  dir: number; // bearing, radians (atan2(z, x): east 0, south +π/2, north −π/2)
-  col: THREE.Color; // the ground's colour there
-  sand: number; // how much of it is the sand scan
-  rock: number; // how much the rock scan (outcrops, ash, chalk)
-  trees: number; // tree density against the home meadow's
-  leaf: number; // the leaves' hue there (−1: their own; 0.86 gold; 0.97 silvered)
-}
-const Q = Math.PI / 4;
-const REGIONS: Region[] = [
-  { dir: 0, col: new THREE.Color("#b4bfd6"), sand: 0.6, rock: 0.25, trees: 0.3, leaf: 0.97 }, // E tundra
-  { dir: -Q, col: new THREE.Color("#a8582a"), sand: 0, rock: 0.08, trees: 1.9, leaf: 0.87 }, // NE autumn forest
-  { dir: -2 * Q, col: new THREE.Color("#25252b"), sand: 0.15, rock: 0.85, trees: 0.08, leaf: 0.97 }, // N volcanic ash
-  { dir: -3 * Q, col: new THREE.Color("#7c4a74"), sand: 0, rock: 0.2, trees: 0.45, leaf: -1 }, // NW heather moor
-  { dir: 4 * Q, col: new THREE.Color("#c88a4c"), sand: 0.95, rock: 0.05, trees: 0.04, leaf: 0.87 }, // W ochre dunes
-  { dir: 3 * Q, col: new THREE.Color("#b44a2c"), sand: 0.15, rock: 0.85, trees: 0.15, leaf: -1 }, // SW red rock
-  { dir: 2 * Q, col: new THREE.Color("#3f8f5c"), sand: 0, rock: 0, trees: 1.5, leaf: -1 }, // S mossland
-  { dir: Q, col: new THREE.Color("#e2dad2"), sand: 0.1, rock: 0.8, trees: 0.3, leaf: 0.97 }, // SE chalk downs
-];
-/** The blend of regions at a point: `away` (0 the home meadow … 1 wholly the regions), and the
-    regions' own colour, scans, tree density and leaf hue mixed by weight. One shared result:
-    read it before calling again. */
-export const regionHere = { away: 0, col: new THREE.Color(), sand: 0, rock: 0, trees: 1, leaf: -1 };
-const _rw = new Float64Array(REGIONS.length);
-export function regionAt(x: number, z: number): typeof regionHere {
-  const r = regionHere;
-  const dist = Math.hypot(x - SPAWN.x, z - SPAWN.z);
-  // pockets of the home meadow remain out in the regions
-  const pocket = smooth(0.64, 0.76, fbm(x * 0.0026 - 41, z * 0.0026 + 19));
-  r.away = smooth(160, 650, dist) * (1 - pocket * 0.75);
-  if (r.away <= 0) {
-    r.col.setRGB(0, 0, 0), (r.sand = r.rock = 0), (r.trees = 1), (r.leaf = -1);
-    return r;
-  }
-  const a = Math.atan2(z - SPAWN.z, x - SPAWN.x) + (fbm(x * 0.0011 + 5, z * 0.0011 - 8) - 0.5) * 1.1;
-  let sum = 0;
-  for (let i = 0; i < REGIONS.length; i++) sum += _rw[i] = smooth(0.62, 1, Math.cos(a - REGIONS[i].dir));
-  r.col.setRGB(0, 0, 0), (r.sand = r.rock = r.trees = 0);
-  let best = 0;
-  for (let i = 0; i < REGIONS.length; i++) {
-    const w = _rw[i] / (sum || 1), g = REGIONS[i];
-    r.col.r += g.col.r * w, r.col.g += g.col.g * w, r.col.b += g.col.b * w;
-    r.sand += g.sand * w, r.rock += g.rock * w, r.trees += g.trees * w;
-    if (_rw[i] > _rw[best]) best = i;
-  }
-  r.leaf = REGIONS[best].leaf;
-  return r;
-}
 
 /** Which kind of ground this is, 0–1 each: meadow (for grass and flowers), sand, stone. */
 export function groundKind(x: number, z: number, h = heightAt(x, z)): { meadow: number; sand: number; stone: number } {
@@ -931,7 +1078,12 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
       If(ST.greaterThan(L), () => {
         const farK = smoothstep(120, 600, CD);
         const cl = tmix(tri(cliff.diff, CS).rgb, tri(cliff.diff, CS * 9).rgb, farK);
-        det0.addAssign(cl.mul(2.3).mul(ST));
+        // strata: the faces banded by the rock's layers (a hand to a man's height each, wavering
+        // with the beds), each band its own tone, a dark seam under every ledge
+        const by = vGW.y.add(gN(q.mul(0.04)).mul(5)).add(gN(q.mul(0.3).add(9)).mul(0.5));
+        const bed = fract(by.div(1.6)), bedId = floor(by.div(1.6));
+        const strata = tmix(float(0.74), float(1.18), gH(vec2(bedId, 3))).mul(smoothstep(0.0, 0.12, bed).mul(0.35).add(0.65));
+        det0.addAssign(cl.mul(2.3).mul(ST).mul(tmix(float(1), strata, float(1).sub(mtn).mul(0.85))));
         If(withAo, () => {
             ao0.addAssign(side(cliff.arm, CS, "zy").r.mul(bx).add(side(cliff.arm, CS, "xy").r.mul(bz)).div(bsum).mul(ST));
           });
@@ -1262,3 +1414,7 @@ export class Terrain {
     g.computeBoundingBox();
   }
 }
+
+// the regions' landforms, now that every site of this module has been chosen on the land as it was
+reliefOn = true;
+coarse.clear();
