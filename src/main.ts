@@ -2008,7 +2008,7 @@ function places(): Place[] {
   return [
     { numeral: "", label: "The shore", group: "Shore", x: SPAWN.x, z: SPAWN.z, narration: "J01", start: { x: SPAWN.x, z: SPAWN.z, heading: SPAWN.heading } },
     { numeral: "", label: "The temple", group: "Shore", order: 1, x: temple.gateAt.x, z: temple.gateAt.z, narration: "J01", start: { ...temple.outside(), heading: temple.gateHeading } },
-    ...waterfalls.list.map(({ f, view }, i) => ({ numeral: "", label: `A waterfall, ${compass(f.x, f.z)}`, group: "Shore" as const, order: 8 + i, x: f.x, z: f.z, narration: "J01", start: view })),
+    ...waterfalls.list.map(({ f, name, view }, i) => ({ numeral: "", label: `${name}, ${compass(f.x, f.z)}`, group: "Shore" as const, order: 8 + i, x: f.x, z: f.z, narration: "J01", start: view })),
     { numeral: "", label: "The vision of creation", group: "Shore" as const, order: 0, x: vision.group.position.x, z: vision.group.position.z, narration: "J01", start: { x: vision.group.position.x + 11, z: vision.group.position.z + 11, heading: Math.atan2(11, 11) } },
     (() => {
       const [x, z] = nanMadolAt(0, -30);

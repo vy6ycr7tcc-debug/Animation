@@ -355,10 +355,10 @@ export function runShot(ctx: ShotCtx): void {
     base = [px, 140, pz];
     view = { eye: [0, 0, 0], look: [ux * 300, heightAt(px + ux * 300, pz + uz * 300) - 140, uz * 300] };
     ctx.player.pos.set(px, 140, pz);
-  } else if (/^falls-\d$/.test(id)) {
-    // a waterfall from beside its plunge pool, looking up at the curtain and the shelf
+  } else if (/^falls-\d+$/.test(id)) {
+    // a waterfall from beside its plunge pool, looking up at the curtain and the cliff
     const f = WATERFALLS[Number(id.slice(6))] ?? WATERFALLS[0];
-    const back = Number(new URLSearchParams(location.search).get("back") ?? 26);
+    const back = Number(new URLSearchParams(location.search).get("back") ?? 26 * f.sc);
     const px = f.x + f.dx * back + -f.dz * 7, pz = f.z + f.dz * back + f.dx * 7;
     const gy = Math.max(heightAt(px, pz), 0.2);
     base = [px, gy, pz];
