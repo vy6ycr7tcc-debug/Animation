@@ -60,10 +60,11 @@ const HEIGHT: Record<FormKind, [number, number, number]> = {
   spire: [5, 2, 14],
   arch: [2.2, 1.6, 6],
   stairs: [1.6, 0.4, 5],
+  pyramid: [2.5, 1, 8],
   orb: [0, 0, 0],
 };
 
-export type FormKind = "wall" | "ring" | "pillar" | "spire" | "orb" | "arch" | "stairs";
+export type FormKind = "wall" | "ring" | "pillar" | "spire" | "orb" | "arch" | "stairs" | "pyramid";
 export type Ink = "stone" | "gold";
 export interface SavedForm {
   kind: FormKind;
@@ -75,7 +76,7 @@ export interface SavedForm {
   r?: number;
   /** its height (a spire's, an arch's opening, the steps' rise; walls, rings, pillars once changed) */
   h?: number;
-  /** an arch's span, the steps' width */
+  /** an arch's span, the steps' width, a pyramid's side */
   w?: number;
   /** the steps' length */
   l?: number;
@@ -190,6 +191,8 @@ export function costOf(s: SavedForm): number {
       return (0.15 + (s.w ?? 2) * sc * 0.1) * k;
     case "stairs":
       return 0.06 * (s.l ?? 3) * (s.w ?? 1.6) * sc * sc + 0.05 * h;
+    case "pyramid":
+      return 0.025 * Math.pow((s.w ?? 6) * sc, 2) + 0.04 * h;
     default:
       return COST.orb * sc;
   }
@@ -325,6 +328,21 @@ function stairsGeometry(l: number, w: number, h: number): THREE.BufferGeometry {
     const H = (i + 1) * rise + 1.0;
     const b = stoneBlock(w, H, run + 0.04, i + 3);
     b.translate(0, (i + 1) * rise - H / 2, -l / 2 + run * (i + 0.5));
+    for (const a of Object.keys(b.attributes)) if (a !== "position" && a !== "normal") b.deleteAttribute(a);
+    parts.push(b.index ? b.toNonIndexed() : b);
+  }
+  return mergeGeometries(parts)!;
+}
+/** A step pyramid: square tiers of cut stone, each a climbable step (about half a metre), each
+    stepping in, `w` across at its foot and `h` high; its foot sunk deep for sloping ground. */
+function pyramidGeometry(w: number, h: number): THREE.BufferGeometry {
+  const n = Math.max(2, Math.round(h / 0.5)), rise = h / n, top = Math.max(1.2, w * 0.18);
+  const parts: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < n; i++) {
+    const side = w - ((w - top) * i) / Math.max(1, n - 1);
+    const H = i === 0 ? rise + 1.2 : rise + 0.02;
+    const b = stoneBlock(side, H, side, i + 11);
+    b.translate(0, (i + 1) * rise - H / 2, 0);
     for (const a of Object.keys(b.attributes)) if (a !== "position" && a !== "normal") b.deleteAttribute(a);
     parts.push(b.index ? b.toNonIndexed() : b);
   }
@@ -469,6 +487,7 @@ const ICON: Record<string, string> = {
   spire: `<path d="M12 12 m0 0 a1.5 1.5 0 1 1 1.5 1.5 a3 3 0 1 1 -3 -3 a4.6 4.6 0 1 1 4.6 4.6 a6.2 6.2 0 1 1 -6.2 -6.2"/>`,
   arch: `<path d="M6 19 V11 a6 6 0 0 1 12 0 V19"/>`,
   stairs: `<path d="M4 18 L8 8 L12 17 L16 7 L20 16"/>`,
+  pyramid: `<path d="M12 5 L20 18 H4 Z"/>`,
   orb: `<circle cx="12" cy="12" r="1.6" fill="currentColor"/>`,
 };
 const SHAPES: [string, string, string][] = [
@@ -478,6 +497,7 @@ const SHAPES: [string, string, string][] = [
   ["spire", "Spiral", "Spire"],
   ["arch", "U", "Arch"],
   ["stairs", "Zigzag", "Steps"],
+  ["pyramid", "Triangle", "Pyramid"],
   ["orb", "Tap", "Orb"],
 ];
 
@@ -767,6 +787,7 @@ export class Sanctuary {
         spire: "Draw a spiral, winding in or out: a spire, taller the wider you draw it.",
         arch: "Draw a U, a horseshoe: an arch standing on its two ends, the way through it across them.",
         stairs: "Draw a zigzag: steps rising from where you began toward where you end.",
+        pyramid: "Draw a triangle: a step pyramid you can climb, as wide as you draw it. Height adds or takes away tiers.",
         orb: "Touch the ground: an orb of light. Choose it and raise it to hang it higher.",
       };
       tap(c, () => this.hooks.say(how[k] ?? sh[2]));
@@ -806,7 +827,7 @@ export class Sanctuary {
       ? "Drag it to move it. A tap on the ground puts it down."
       : "Draw on the ground with one finger. Two fingers turn and tilt the view; pinch to come closer.";
     if (!f) return;
-    const names: Record<FormKind, string> = { wall: "Wall", ring: "Ring", pillar: "Pillar", spire: "Spire", orb: "Orb", arch: "Arch", stairs: "Steps" };
+    const names: Record<FormKind, string> = { wall: "Wall", ring: "Ring", pillar: "Pillar", spire: "Spire", orb: "Orb", arch: "Arch", stairs: "Steps", pyramid: "Pyramid" };
     (this.ui.querySelector(".b-name") as HTMLElement).textContent = `${names[f.s.kind]} · ${f.s.ink === "gold" ? "gold" : "stone"}`;
     (this.ui.querySelector("[data-t=ink]") as HTMLElement).textContent = f.s.ink === "gold" ? "In stone" : "In gold";
     const top = this.ui.querySelector(".topb") as HTMLElement;
@@ -1144,7 +1165,7 @@ export class Sanctuary {
     if (t === "del") return this.release(f);
     if (t === "copy") {
       const c: SavedForm = JSON.parse(JSON.stringify(s));
-      const off = 1.4 + (s.kind === "ring" ? (s.r ?? 1.5) * (s.sc ?? 1) * 2 : s.kind === "arch" ? (s.w ?? 2) * (s.sc ?? 1) : 0.6);
+      const off = 1.4 + (s.kind === "ring" ? (s.r ?? 1.5) * (s.sc ?? 1) * 2 : s.kind === "arch" || s.kind === "pyramid" ? (s.w ?? 2) * (s.sc ?? 1) : 0.6);
       c.x += Math.cos(s.rot) * off;
       c.z -= Math.sin(s.rot) * off;
       c.cost = round(costOf(c));
@@ -1249,6 +1270,10 @@ export class Sanctuary {
       const span = clampN(Math.hypot(bx - ax, bz - az), 1.2, 6);
       // the arch stands across the line between its ends; its way through goes across that line
       s = { kind: "arch", ink, w: round(span), h: round(clampN(1.4 + span * 0.45, 1.8, 4.5)), x: (ax + bx) / 2, z: (az + bz) / 2, y: 0, rot: Math.atan2(-(bz - az), bx - ax), cost: 0 };
+    } else if (r?.kind === "pyramid") {
+      // a square base about as wide as the triangle drawn, a slope a little gentler than Giza's
+      const w = clampN(r.r * 2.2, 3, 14);
+      s = { kind: "pyramid", ink, w: round(w), h: round(clampN(Math.round((w * 0.42) / 0.5) * 0.5, 1, 8)), x: r.c[0], z: r.c[1], y: 0, rot: 0, cost: 0 };
     } else if (r?.kind === "stairs") {
       const [ax, az] = r.a, [bx, bz] = r.b;
       const l = clampN(Math.hypot(bx - ax, bz - az), 1.2, 9);
@@ -1348,6 +1373,9 @@ export class Sanctuary {
       line = [[-(span / 2 + pier / 2), 0], [span / 2 + pier / 2, 0]];
       half = pier / 2;
       H = H + Math.max(0.42, span * 0.12);
+    } else if (s.kind === "pyramid") {
+      mesh(pyramidGeometry((s.w ?? 6) * sc, H), mat);
+      half = ((s.w ?? 6) * sc) / 2;
     } else {
       mesh(stairsGeometry((s.l ?? 3) * sc, (s.w ?? 1.6) * sc, H), mat);
       half = ((s.w ?? 1.6) * sc) / 2;
@@ -1362,7 +1390,7 @@ export class Sanctuary {
       f.shade = rb.mesh;
       f.shadeK = rb.k;
     } else {
-      const ext = s.kind === "stairs" ? Math.max((s.l ?? 3) * sc, (s.w ?? 1.6) * sc) * 0.5 : s.kind === "arch" ? ((s.w ?? 2) * sc) / 2 + half : half * 1.05;
+      const ext = s.kind === "pyramid" ? ((s.w ?? 6) * sc) / 2 : s.kind === "stairs" ? Math.max((s.l ?? 3) * sc, (s.w ?? 1.6) * sc) * 0.5 : s.kind === "arch" ? ((s.w ?? 2) * sc) / 2 + half : half * 1.05;
       f.shade = contactShade({ r: s.kind === "orb" ? 0.01 : ext }, s.kind === "spire" ? 1.1 : 0.8, 0.5);
       f.shade.visible = s.kind !== "orb";
       f.shade.position.y = 0.012;
@@ -1395,7 +1423,7 @@ export class Sanctuary {
     const out: JointForm[] = [];
     for (const f of this.forms) {
       const s = f.s;
-      if (s.kind === "orb" || s.kind === "stairs" || f.out !== undefined || f.grow < 1 || s.y > 0.35) continue;
+      if (s.kind === "orb" || s.kind === "stairs" || s.kind === "pyramid" || f.out !== undefined || f.grow < 1 || s.y > 0.35) continue;
       const c = Math.cos(s.rot), sn = Math.sin(s.rot);
       const line = f.line.map(([x, z]) => [x * c + z * sn + s.x, -x * sn + z * c + s.z] as V2);
       out.push({ kind: s.kind === "arch" ? "wall" : s.kind, ink: s.ink, line, half: f.half, open: s.kind === "wall" && !s.closed, H: f.H });
@@ -1486,6 +1514,9 @@ export class Sanctuary {
           });
         pts.push(...side(p), ...side([...p].reverse()));
       }
+    } else if (s.kind === "pyramid") {
+      const hw = ((s.w ?? 6) * sc) / 2 + off;
+      for (const [x, z] of [[-hw, -hw], [hw, -hw], [hw, hw], [-hw, hw]] as V2[]) pts.push([x, z]);
     } else if (s.kind === "arch" || s.kind === "stairs") {
       const hw = (s.kind === "arch" ? ((s.w ?? 2) * sc) / 2 + Math.max(0.45, (s.w ?? 2) * sc * 0.16) : ((s.w ?? 1.6) * sc) / 2) + off;
       const hl = (s.kind === "arch" ? 0.33 : ((s.l ?? 3) * sc) / 2) + off;

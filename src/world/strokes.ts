@@ -39,6 +39,8 @@ export type Reading =
   | { kind: "ring" | "pillar" | "spire"; c: V2; r: number }
   /** a U (a horseshoe): an arch standing on its two ends */
   | { kind: "arch"; a: V2; b: V2 }
+  /** a triangle: a step pyramid on the ground it encloses (c its centre, r its size) */
+  | { kind: "pyramid"; c: V2; r: number }
   /** a zigzag: a flight of steps rising from its first point toward its last */
   | { kind: "stairs"; a: V2; b: V2; w: number }
   | null;
@@ -106,6 +108,24 @@ export function readStroke(raw: V2[], screen: number): Reading {
   const closed = D < Math.max(0.5, diag * 0.3);
   if (closed && turns > 0.6) {
     if (round < 0.3 && corner < 0.2) return { kind: mean * 2 >= RING_D ? "ring" : "pillar", c: [cx, cz], r: mean };
+    // a triangle (its corners turn about 120° each, a square's 90°): a step pyramid
+    {
+      const W = 8, sums: number[] = [];
+      for (let i = 0; i + W <= steps.length; i++) {
+        let w = 0;
+        for (let k = i; k < i + W; k++) w += steps[k];
+        sums.push(Math.abs(w));
+      }
+      const peaks: number[] = [];
+      for (let i = 0; i < sums.length; i++) {
+        if (sums[i] < 1.0) continue;
+        if ((i > 0 && sums[i - 1] > sums[i]) || (i + 1 < sums.length && sums[i + 1] >= sums[i])) continue;
+        if (peaks.length && i - peaks[peaks.length - 1] < 6) continue;
+        peaks.push(i);
+      }
+      const avg = peaks.reduce((a, i) => a + sums[i], 0) / Math.max(1, peaks.length);
+      if (peaks.length >= 2 && peaks.length <= 3 && avg > 1.8 && corner > 0.18) return { kind: "pyramid", c: [cx, cz], r: mean };
+    }
     // closed but not round (a square, a leaf): a wall all the way round it
     return { kind: "wall", path: p, closed: true, length: L };
   }
