@@ -1,9 +1,11 @@
 /* Square breathing while the world carries you (v5 item 3; the owner). While auto-walk or autofly
-   moves the wanderer, a ring of warm gold motes breathes round it at the heart's height: it opens
-   on the inhale, holds, draws in on the exhale, rests, and again. Over the view, the side of the
-   square ("Breathe", "Hold", "Release", "Hold") and its seconds counting (the owner; main.ts
-   `breathCueFrame`); the first time, a line says what square breathing is. The pattern is config (`public/breathing.json`: 4-4-4-4 by
-   default; 4-4-6-2 or any other is an edit there, no code).
+   moves the wanderer, the breath's clock runs: breathe in, hold, release, wait, and again. Over the
+   view the lungs fill and empty with it and one word names the side of the square (main.ts
+   `breathCueFrame`, ui/breathLungs.ts); the first time, a line says what square breathing is. (The
+   ring of motes that once breathed round the wanderer is no longer drawn: the owner kept the lungs
+   only.) The breath's shape through each side is `breathCurve`, shared with the meditation. The
+   pattern is config (`public/breathing.json`: 5-5-5-5, as slow as the meditation's; 4-4-6-2 or any
+   other is an edit there, no code).
 
    The voice: Aria will guide it ("Breathe in." / "Hold." / "Breathe out." / "Rest."), from the
    narrations pipeline. ASSET SLOT, PENDING: until those recordings exist the config names none, and
@@ -16,6 +18,7 @@ import * as THREE from "three/webgpu";
 import { T, outOfTheWay } from "../gpu/tsl";
 import { pointCloud, touch } from "../scenes/densities/roomKit";
 import type { AudioEngine } from "../core/audio";
+import { breathCurve } from "../ui/breathLungs";
 
 const { cos, float, mix, sin, smoothstep, vec3, vec4 } = T;
 
@@ -29,10 +32,10 @@ export interface BreathConfig {
 }
 const DEFAULT: BreathConfig = {
   phases: [
-    { name: "in", secs: 4 },
-    { name: "hold", secs: 4 },
-    { name: "out", secs: 4 },
-    { name: "rest", secs: 4 },
+    { name: "in", secs: 5 },
+    { name: "hold", secs: 5 },
+    { name: "out", secs: 5 },
+    { name: "rest", secs: 5 },
   ],
   voice: { cues: {}, loop: null, gain: 0.9 },
 };
@@ -188,8 +191,7 @@ export class BreathGuide {
     this.secs = ph.secs;
     this.counting = true;
     this.phaseK = Math.min(1, s / ph.secs);
-    const e = this.phaseK * this.phaseK * (3 - 2 * this.phaseK);
-    this.open = ph.name === "in" ? e : ph.name === "hold" ? 1 : ph.name === "out" ? 1 - e : 0;
+    this.open = breathCurve(ph.name, this.phaseK);
     this.uOpen.value = this.open;
     // a phase's edge: its cue, started on the audio clock where the phase began
     const idx = n * this.cfg.phases.length + i;
