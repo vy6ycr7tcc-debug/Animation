@@ -207,6 +207,9 @@ export class FollowCamera {
   private seeB = new THREE.Vector3();
   /** How high over the feet the view looks (null: the usual 1.3 m; the maze's ball looks lower). */
   targetLift: number | null = null;
+  /** 0–1 (eased by main.ts): lying back on the shallows, the view rises a little and comes in
+      closer, looking down over the body along the water. */
+  floatK = 0;
   firstPerson = false;
   fpEye = 0.7;
   private fpK = 0;
@@ -276,7 +279,9 @@ export class FollowCamera {
     // the chase view's crane: where a wall would come between, it rises and looks down over the
     // ball instead of coming closer (eased up quickly, down slowly)
     this.crane += ((this.chase ? this.craneWant : 0) - this.crane) * Math.min(1, dt * (this.craneWant > this.crane ? 8 : 1.1));
-    const pitch = this.pitch + this.crane + 0.1 * w, dist = Math.min(this.dist, this.nearDist ?? Infinity) * (1 + 1.3 * w);
+    const pitch = Math.min(1.25, this.pitch + this.crane + 0.1 * w + 0.42 * this.floatK);
+    const dist0 = Math.min(this.dist, this.nearDist ?? Infinity) * (1 + 1.3 * w);
+    const dist = dist0 + (Math.min(dist0, 4.6) - dist0) * this.floatK;
     const cp = Math.cos(pitch), sp = Math.sin(pitch);
     // Pull in when the ground would come between the camera and the wanderer.
     let clear = dist;

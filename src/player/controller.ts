@@ -43,6 +43,14 @@ const JUMP_V = 5.6;
 const SWIM_DEPTH = 1.0; // ground this far under water means swimming
 const SWIM_FEET = WATER_Y - 1.0; // feet height while swimming (head just above the surface)
 const BODY_R = 0.3;
+// The shallows (the owner: "where water isn't deep, character can lay flat relaxed and slowly
+// swim if at all, just drift"): water this deep over the ground and the wanderer lies back on it
+const FLOAT_IN = 0.55, FLOAT_OUT = 0.4;
+const FLOAT_DEEP = 2.2; // floating carries on over water this deep before the body becomes the orb
+const FLOAT = 0.7; // drifting where the stick asks, unhurried
+const FLOAT_FAST = 1.2;
+const DRIFT = 0.12; // let go: a slow drift round a wide circle, never carried far
+const FLOAT_Y = WATER_Y + 0.14; // where the body lies: on the water, its back just in it (the surface is opaque; the bones lie nearer the back, ~5 cm under this)
 
 export interface MoveInput {
   x: number; // right
@@ -67,6 +75,10 @@ export class Controller {
   vy = 0;
   grounded = true;
   swimming = false;
+  /** Lying back on shallow water, drifting. */
+  floating = false;
+  private floatT = 0;
+  private driftA = Math.random() * Math.PI * 2;
   pose: Pose = "idle";
   gliding = false;
   /** Free flight: no gravity; rise and sink at will, as high as you like. */
@@ -179,7 +191,7 @@ export class Controller {
       reach and lies just ahead: jump it. The jump is a small hop, not a leap (apex ~1 m). */
   private autoHop(dx: number, dz: number, mag: number, moved: number, intended: number, dt: number): void {
     this.hopWait = Math.max(0, this.hopWait - dt);
-    if (!this.autoJump || this.walkOnly || !this.grounded || this.flying || this.swimming || this.hopWait > 0 || mag < 0.4 || intended < 1e-4) return;
+    if (!this.autoJump || this.walkOnly || !this.grounded || this.flying || this.swimming || this.floating || this.hopWait > 0 || mag < 0.4 || intended < 1e-4) return;
     if (moved > intended * 0.45) return; // not held up
     const len = Math.hypot(dx, dz) || 1;
     const ax = this.pos.x + (dx / len) * (BODY_R + 0.3), az = this.pos.z + (dz / len) * (BODY_R + 0.3);
@@ -204,6 +216,7 @@ export class Controller {
   }
 
   update(dt: number, input: MoveInput, camYaw: number): void {
+    if (this.flying || this.swimming) this.floating = false;
     if (this.swimming && !this.flying && (this.depth > 0.5 || this.plunge > 0)) {
       this.swimUnder(dt, input, camYaw);
       return;
@@ -235,6 +248,17 @@ export class Controller {
       dz = -Math.cos(this.heading);
       mag = FLY_GLIDE / FLY;
     }
+    // lying back on the shallows with the stick let go: a slow drift that turns round a wide circle
+    const drifting = this.floating && mag < 0.05;
+    if (drifting) {
+      // the shallows are often a narrow band: the drift turns away from water too shallow to float
+      // in (it would stand you up) or deep enough to make the orb, so it never carries you out
+      const d = WATER_Y - heightAt(this.pos.x + Math.cos(this.driftA) * 1.6, this.pos.z + Math.sin(this.driftA) * 1.6);
+      this.driftA += dt * (d < 0.7 || d > 1.8 ? 1.4 : 0.08);
+      dx = Math.cos(this.driftA);
+      dz = Math.sin(this.driftA);
+      mag = DRIFT / FLOAT;
+    }
     if (mag > 0.001) {
       const len = Math.hypot(dx, dz);
       dx /= len;
@@ -244,11 +268,11 @@ export class Controller {
     const lerp = THREE.MathUtils.lerp;
     const top = this.flying
       ? lerp(FLY, FLY_FAST, run)
-      : this.swimming ? lerp(SWIM, SWIM_FAST, run) : this.gliding && !this.grounded ? AIR_GLIDE : lerp(WALK, RUN, run);
+      : this.swimming ? lerp(SWIM, SWIM_FAST, run) : this.floating ? lerp(FLOAT, FLOAT_FAST, run) : this.gliding && !this.grounded ? AIR_GLIDE : lerp(WALK, RUN, run);
     // flying without holding the button is a glide: it keeps its speed, steered by the stick
     const target = Math.min(1, mag) * (glideOn ? FLY_GLIDE : this.flying && !input.hold ? Math.max(FLY_GLIDE, top) : top);
     // quick to answer the thumb: a walk is under way within a tenth of a second, a run within a few
-    const accel = this.flying ? 3 : this.grounded || this.swimming ? lerp(9, 5.5, run) : this.gliding ? 3 : 2.5;
+    const accel = this.flying ? 3 : this.floating ? 1.1 : this.grounded || this.swimming ? lerp(9, 5.5, run) : this.gliding ? 3 : 2.5;
     this.vel.x += (dx * target - this.vel.x) * Math.min(1, dt * accel);
     this.vel.z += (dz * target - this.vel.z) * Math.min(1, dt * accel);
 
@@ -310,7 +334,8 @@ export class Controller {
       }
     }
     const wasSwimming = this.swimming;
-    this.swimming = ground < WATER_Y - SWIM_DEPTH && this.pos.y < WATER_Y + 0.3;
+    // floating, the body stays afloat over deeper water too; only past FLOAT_DEEP does it become the orb
+    this.swimming = ground < WATER_Y - (this.floating ? FLOAT_DEEP : SWIM_DEPTH) && this.pos.y < WATER_Y + 0.3;
     if (!this.swimming) this.depth = 0;
 
     if (this.swimming) {
@@ -335,7 +360,12 @@ export class Controller {
       this.grounded = false;
     } else {
       const floor = Math.max(ground, wasSwimming ? SWIM_FEET : -Infinity);
-      if (this.grounded && ground > this.pos.y - 0.7 && ground < this.pos.y + 0.8) {
+      // the shallows: standing in water deep enough, the body lies back on it and floats
+      this.floating = this.grounded && !this.walkOnly && WATER_Y - ground > (this.floating ? FLOAT_OUT : FLOAT_IN);
+      if (this.floating) {
+        this.floatT += dt;
+        this.pos.y += (FLOAT_Y + Math.sin(this.floatT * 0.9) * 0.02 - this.pos.y) * Math.min(1, dt * 1.6);
+      } else if (this.grounded && ground > this.pos.y - 0.7 && ground < this.pos.y + 0.8) {
         // Follow the ground up and down gentle slopes and steps.
         this.pos.y += (ground - this.pos.y) * Math.min(1, dt * 14);
       } else {
@@ -380,11 +410,14 @@ export class Controller {
       const want = Math.atan2(-dx, -dz);
       let dh = want - this.heading;
       dh = Math.atan2(Math.sin(dh), Math.cos(dh));
-      this.heading += dh * Math.min(1, dt * 10);
+      this.heading += dh * Math.min(1, dt * (drifting ? 0.5 : this.floating ? 1.5 : 10));
     }
+    if (this.swimming || !this.grounded) this.floating = false;
     this.pose = this.swimming
       ? "swim"
-      : !this.grounded
+      : this.floating
+        ? "float"
+        : !this.grounded
         ? "air"
         : this.speed < 0.25
           ? "idle"

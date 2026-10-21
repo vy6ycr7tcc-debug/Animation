@@ -15,8 +15,9 @@ import { floatAttributes, loadBytes } from "../core/assets";
 import { GeoForm } from "./geoform";
 import { FluidBody, SEGMENTS } from "./fluidBody";
 import { lightBodyMaterial, tickLightBody } from "./lightBody";
+import { WATER_Y } from "../world/terrain";
 
-export type Pose = "idle" | "walk" | "glide" | "swim" | "air" | "fly" | "hover";
+export type Pose = "idle" | "walk" | "glide" | "swim" | "air" | "fly" | "hover" | "float";
 export type Gesture = "none" | "sit" | "reach" | "touch";
 /** How the wanderer lays hands on something (touch.ts): arms around a trunk; kneeling, a palm
     on the earth; kneeling, both palms on a low stone; standing, both palms on a stone or crystal. */
@@ -313,7 +314,7 @@ export class Wanderer {
   private geo = new GeoForm();
   private halo: THREE.Sprite;
   private light: THREE.PointLight;
-  private k = { swim: 0, water: 0, glide: 0, move: 0, air: 0, sit: 0, reach: 0, fly: 0, soar: 0, touch: 0 };
+  private k = { swim: 0, water: 0, glide: 0, move: 0, air: 0, sit: 0, reach: 0, fly: 0, soar: 0, touch: 0, float: 0 };
   /** Set by touch.ts while the wanderer lays hands on something. */
   /** In a temple rite, the wanderer makes the archetype's gesture with it (player/gestures.ts):
       `k` how fully (set each frame), `t` the gesture's clock. */
@@ -467,6 +468,8 @@ export class Wanderer {
     // stretched out flat when moving, upright when hovering
     const soar = ease("soar", pose === "fly" ? THREE.MathUtils.smoothstep(speed, 1.5, 5) : 0, 2);
     const glide = ease("glide", pose === "glide" ? 1 : 0, 3);
+    // lying back on the shallows: the body settles onto the water slowly, and rises from it slowly
+    const floatK = THREE.MathUtils.smoothstep(ease("float", pose === "float" ? 1 : 0, 1.3), 0, 1);
     const air = ease("air", pose === "air" ? 1 : 0, 8);
     const sit = ease("sit", this.gesture === "sit" ? 1 : 0, 2.2);
     const reach = ease("reach", this.gesture === "reach" ? 1 : 0, 2.5);
@@ -510,15 +513,17 @@ export class Wanderer {
       if (this.act.tread) this.act.tread.timeScale = reduced ? 0.5 : 0.8;
       this.mixer.update(dt);
       // flying: the body tips forward about the hips until it lies along the line of flight
-      const tilt = -1.42 * soar * fly;
+      // floating: it lies back about the hips, the hips down at the surface, rocking a little
+      const tilt = -1.42 * soar * fly + (Math.PI / 2) * floatK; // lying level on the water
       this.body.rotation.x = tilt;
+      this.body.rotation.z = floatK * (reduced ? 0 : Math.sin(t * 0.45) * 0.015);
       const settle = THREE.MathUtils.smoothstep(kneel, 0, 1);
-      this.body.position.set(0, water * (swimMove * 0.28 + (1 - swimMove) * 0.35) + HIP * (1 - Math.cos(tilt)) - KNEEL_DROP * settle, -HIP * Math.sin(tilt) - this.touching.lean * THREE.MathUtils.smoothstep(lean, 0, 1));
+      this.body.position.set(0, water * (swimMove * 0.28 + (1 - swimMove) * 0.35) + HIP * (1 - Math.cos(tilt)) - HIP * floatK - KNEEL_DROP * settle, -HIP * Math.sin(tilt) - this.touching.lean * THREE.MathUtils.smoothstep(lean, 0, 1));
     }
 
     const breathe = reduced ? 0 : Math.sin(t * 0.63);
     U.uPulse.value = 1 + 0.08 * breathe + glide * 0.2 + reach * 0.25;
-    this.halo.position.y = 1.1 + swim * 0.2 - sit * 0.4;
+    this.halo.position.set(0, 1.1 + swim * 0.2 - sit * 0.4 - 1.05 * floatK, 0.15 * floatK); // floating, over the chest
     this.halo.scale.multiplyScalar(1 - swim * 0.4);
     this.halo.material.opacity *= 1 - water; // the water would slice it into a box
     // in flight the body becomes a geometric being (Samuel), as in the water it becomes an orb
@@ -540,7 +545,7 @@ export class Wanderer {
       // the heading); fainter and wider the higher the body is above it
       const h = Math.max(0, this.root.position.y - this.groundY);
       const lift = 1 - THREE.MathUtils.smoothstep(h, 0.15, 2.4);
-      this.contactK.value = 0.6 * lift * (1 - water) * (1 - flameK) * f * this.presence;
+      this.contactK.value = 0.6 * lift * (1 - water) * (1 - flameK) * (1 - floatK) * f * this.presence;
       this.contact.visible = this.contactK.value > 0.004;
       this.contact.position.set(0, this.groundY - this.root.position.y + 0.03, 0);
       const n = this.tmp.a.copy(this.groundNormal).applyAxisAngle(this.tmp.b.set(0, 1, 0), -this.root.rotation.y);
@@ -552,14 +557,15 @@ export class Wanderer {
 
     // Place the fluid body along the skeleton.
     this.root.updateMatrixWorld(true);
-    this.meditate(this.meditation * (1 - water));
+    this.meditate(this.meditation * (1 - water) * (1 - floatK));
     this.flyPose(fly, soar, reduced ? t * 0.4 : t);
-    this.touchPose(THREE.MathUtils.smoothstep(touch, 0, 1) * (1 - water) * (1 - fly));
+    this.floatPose(floatK, THREE.MathUtils.smoothstep(speed, 0.25, 0.9), reduced ? t * 0.4 : t);
+    this.touchPose(THREE.MathUtils.smoothstep(touch, 0, 1) * (1 - water) * (1 - fly) * (1 - floatK));
     if (this.echo.sig && this.echo.k > 0.001 && this.ready) {
       this.rig ??= new Rig(this.bones, this.body);
       Object.assign(this.moment, { t: this.echo.t, rite: this.echo.rite, rt: this.echo.rt, reduced });
       this.rig.begin();
-      this.echo.sig(this.rig, this.moment, this.echo.k * (1 - water) * (1 - fly));
+      this.echo.sig(this.rig, this.moment, this.echo.k * (1 - water) * (1 - fly) * (1 - floatK));
     }
     if (this.ready) {
       SEGS.forEach((s, i) => {
@@ -582,7 +588,7 @@ export class Wanderer {
     // seated, and while standing up, they rest too: trailing 1.4 m from the hands and the crown,
     // drawn through everything (additive, no depth), they swept through the legs and torso as the
     // body rose, like a cape caught in them
-    const strength = Math.min(1, 0.25 + this.flow * 0.4 + reach * 0.5 + touch * 0.2) * f * (1 - water) * (1 - 0.9 * this.k.fly) * Math.max(0, 1 - this.k.sit * 4);
+    const strength = Math.min(1, 0.25 + this.flow * 0.4 + reach * 0.5 + touch * 0.2) * f * (1 - water) * (1 - 0.9 * this.k.fly) * Math.max(0, 1 - this.k.sit * 4) * (1 - this.k.float);
     if (this.ready) {
       this.ribbons[0].update(dt, this.bonePos("DEF-hand.L", this.tmp.a, 0.12), cam, strength);
       this.ribbons[1].update(dt, this.bonePos("DEF-hand.R", this.tmp.a, 0.12), cam, strength);
@@ -670,6 +676,35 @@ export class Wanderer {
     }
   }
 
+  /** Lying back on shallow water (the owner: "lay flat relaxed… just drift"): the arms open out
+      to the sides, a little toward the head, the hands resting on the water; the legs straight
+      along the body and a little apart, the feet soft. Moving, the hands scull slowly. */
+  private floatPose(k: number, moving: number, t: number): void {
+    if (k < 0.001 || !this.ready) return;
+    this.body.updateMatrixWorld(true);
+    const along = new THREE.Vector3(0, 1, 0).applyQuaternion(this.body.getWorldQuaternion(new THREE.Quaternion())); // head-ward
+    const h = this.root.rotation.y;
+    const right = new THREE.Vector3(Math.cos(h), 0, -Math.sin(h));
+    const back = new THREE.Vector3().crossVectors(right, along).normalize(); // under the body
+    // the legs laid out straight along the body, a little apart, the feet soft and turned out: the
+    // standing clip's stance (one foot ahead) would otherwise lift one leg and sink the other
+    for (const [side, sgn] of [["L", -1], ["R", 1]] as const) {
+      const leg = along.clone().negate().addScaledVector(right, 0.12 * sgn).normalize();
+      this.aimBone(`DEF-thigh.${side}`, leg, k);
+      this.aimBone(`DEF-shin.${side}`, leg.clone().addScaledVector(back, 0.04).normalize(), k); // knees a touch soft
+      this.aimBone(`DEF-foot.${side}`, leg.clone().addScaledVector(back, -0.9).addScaledVector(right, 0.25 * sgn).normalize(), k);
+    }
+    for (const [side, sgn] of [["L", -1], ["R", 1]] as const) {
+      const shoulder = this.bonePos(`DEF-upper_arm.${side}`, new THREE.Vector3());
+      const scull = moving * 0.14 * Math.sin(t * 1.7 + (sgn > 0 ? 0 : Math.PI * 0.15));
+      // resting on the water, not in it (the surface is opaque: what dips under it is gone)
+      const target = shoulder.addScaledVector(right, 0.48 * sgn).addScaledVector(along, 0.1 + scull).addScaledVector(back, -0.03);
+      target.y = Math.max(target.y, WATER_Y + 0.07);
+      const pole = back.clone().multiplyScalar(0.8).addScaledVector(right, 0.3 * sgn).addScaledVector(along, -0.4);
+      this.reachTo(side, target, pole, k);
+    }
+  }
+
   private meditate(k: number): void {
     if (k < 0.001 || !this.ready) return;
     const h = this.root.rotation.y;
@@ -687,6 +722,11 @@ export class Wanderer {
       const pole = up.clone().multiplyScalar(-1).addScaledVector(right, 0.7 * sgn);
       this.reachTo(side, target, pole, k);
     }
+  }
+
+  /** Where the chest is, in the world (lying back on the water, the heart is there, not 1.15 m up). */
+  chestPos(out: THREE.Vector3): THREE.Vector3 {
+    return this.bonePos("DEF-spine.003", out);
   }
 
   /** Where a hand is (its palm, a little past the wrist), in the world. */

@@ -5,7 +5,7 @@
    that once mirrored it is gone. */
 import * as THREE from "three/webgpu";
 import { T, withFog, type N } from "../gpu/tsl";
-import { skyColor, skyUniforms } from "./sky";
+import { mirroredStars, skyColor, skyUniforms } from "./sky";
 
 const {
   abs, cameraPosition, clamp, cos, dot, exp, float, Fn, If, length, Loop, max, mix, normalize, positionWorld, pow, reflect,
@@ -25,6 +25,8 @@ export class Water {
     uCalm: uniform(1),
     uGlow: uniform(new THREE.Vector3()), // the wanderer's light, reflected
     uRippleActive: uniform(0), // 1 while any ripple is younger than its 7 s life
+    uMirror: uniform(0), // 1 while the wanderer floats on the shallows: the water round it stills
+    uMirrorAt: uniform(new THREE.Vector2()),
   };
   private lastRipple = -100;
 
@@ -61,6 +63,9 @@ export class Water {
           g.addAssign(d.mul(cos(ph)).mul(0.016));
         }
         g.mulAssign(exp(dist.mul(-0.015)));
+        // floating on the shallows, the water round the body stills to a mirror (the rings stay)
+        const stillW = U.uMirror.mul(float(1).sub(smoothstep(12, 70, length(p.sub(U.uMirrorAt))))).toVar();
+        g.mulAssign(float(1).sub(stillW.mul(0.85)));
         // the rings: read only while one is alive (otherwise twenty exp() and ten sin() a pixel for nothing)
         If(U.uRippleActive.greaterThan(0.5), () => {
         Loop(MAX_RIPPLES, ({ i }: N) => {
@@ -84,8 +89,13 @@ export class Water {
         // pale cyan catches on the ripple slopes
         refl.addAssign(vec3(0.3, 0.6, 0.7).mul(smoothstep(0.02, 0.25, length(g))).mul(0.1));
         const c = mix(vec3(0.012, 0.024, 0.055), refl, clamp(fres.mul(1.25), 0, 1)).toVar();
+        // the stars held in it: faint always, clear where it is still; seen even looking down
+        // (dark water returns a little of a bright point at any angle)
+        c.addAssign(T.min(mirroredStars(R).mul(fres.mul(0.6).add(0.12)).mul(stillW.mul(1.3).add(0.4)), 0.8)); // under bloom's threshold
         // the bright star's path of light across the water
-        c.addAssign(vec3(1.0, 0.78, 0.48).mul(pow(max(dot(R, S.uStar), 0), 220)).mul(2.2));
+        // (on still water it gathers into a point with a small glow, as in the sky above)
+        const dS = max(dot(R, S.uStar), 0);
+        c.addAssign(vec3(1.0, 0.78, 0.48).mul(pow(dS, mix(float(220), float(2600), stillW)).mul(mix(float(2.2), float(5), stillW)).add(pow(dS, 300).mul(0.25).mul(stillW))));
         // the wanderer's own light, reflected nearby
         const gd = length(vW.xz.sub(U.uGlow.xz));
         c.addAssign(vec3(1.0, 0.82, 0.58).mul(exp(gd.mul(gd).mul(-0.35))).mul(0.07).mul(U.uGlow.y));
