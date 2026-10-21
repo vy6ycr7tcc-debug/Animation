@@ -884,6 +884,24 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
     // broad variation over the land, so the far country is never one flat colour
     const macro = tmix(float(0.86), float(1.1), gN(q.mul(0.0035))).mul(tmix(float(0.93), float(1.05), gN(q.mul(0.021).add(7))));
     const ground = tmix(vec3(1), det, FD).mul(macro).toVar();
+    // Soil, close by: dark humus in the meadow's hollows, scattered pebbles and flecks of litter,
+    // and the shore's wet band (darker, richer) just above the water; all procedural, near only
+    If(CD.lessThan(48).and(SEA.lessThan(0.5)).and(ST.lessThan(0.5)), () => {
+      const nearK = float(1).sub(smoothstep(14, 48, CD));
+      const land = float(1).sub(W.x);
+      const humus = smoothstep(0.52, 0.74, gN(q.mul(0.16).add(51))).mul(smoothstep(0.3, 0.7, gN(q.mul(0.9).add(8)))).mul(W.z).mul(0.5);
+      ground.assign(ground.mul(tmix(vec3(1), vec3(0.62, 0.52, 0.45), humus.mul(nearK))));
+      const pc2 = floor(q.mul(5)), pf2 = fract(q.mul(5)).sub(0.5);
+      const off2 = vec2(gH(pc2.add(11)), gH(pc2.add(17))).sub(0.5).mul(0.5);
+      const stone = step(0.8, gH(pc2)).mul(smoothstep(0.2, 0.09, length(pf2.sub(off2)))).mul(land);
+      const tone = tmix(vec3(0.42, 0.38, 0.33), vec3(0.64, 0.6, 0.54), gH(pc2.add(5)));
+      ground.assign(tmix(ground, tone.mul(0.9), stone.mul(nearK).mul(0.8)));
+      const lc = floor(q.mul(11)), lf = fract(q.mul(11)).sub(0.5);
+      const leaf = step(0.9, gH(lc.add(29))).mul(smoothstep(0.17, 0.06, length(lf.mul(vec2(1, 2.2))))).mul(W.z);
+      ground.assign(tmix(ground, vec3(0.3, 0.2, 0.1), leaf.mul(nearK).mul(0.6)));
+      const wet = smoothstep(1.7, 0.1, vGW.y).mul(step(0, vGW.y)).mul(0.5).mul(nearK.mul(0.6).add(0.4));
+      ground.assign(ground.mul(tmix(vec3(1), vec3(0.55, 0.5, 0.46), wet)));
+    });
     // The lake floors (after the drowned tombs of Jedi: Fallen Order's Zeffo): fine grey-green
     // silt settled over the sand, dark patches of growth, pebbles and shell-grit scattered, and
     // the deeper, the more of it; a floor you'd want to swim low over, not a plain of sand.
