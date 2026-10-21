@@ -5550,9 +5550,13 @@ renderer
       if (id === "sanctuary-build") {
         // the build screen over the terrace: the view risen over it, the arch chosen, its tools
         sanct.open(new THREE.Vector3(c.x, c.y, c.z), { yaw: f + 0.5 });
-        sanct.shotForms(Sanctuary.shotLayout());
+        // each in its own stone (the finishes), two carved with a note in the old script
+        const fins = ["earth", "cliff", "granite", "marble", "field", "cut"] as const;
+        sanct.shotForms(Sanctuary.shotLayout().map((s, i) => (s.ink === "stone" ? { ...s, fin: fins[i % fins.length], ...(i === 0 || i === 6 ? { note: 1 } : {}) } : s)));
         sanct.shotSelect(6);
         stand(0.6, 5.2, 0);
+        // `sanctuary-build&near`: close to the arch's head, to read the carving
+        if (new URLSearchParams(location.search).has("near")) return { base: [c.x, c.y, c.z], view: { eye: L(1.2, 2.4, 7.4), look: L(0, 2.6, 3.6) } };
         const o = sanct.shotOrbit();
         return { base: [c.x, c.y, c.z], view: { eye: [o.eye.x - c.x, o.eye.y - c.y, o.eye.z - c.z], look: [o.aim.x - c.x, o.aim.y - c.y, o.aim.z - c.z] } };
       }

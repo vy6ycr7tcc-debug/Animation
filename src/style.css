@@ -1378,10 +1378,29 @@ body.typing #heart-mini { display: none; }
 #build .undo svg { width: 100%; height: 100%; display: block; }
 #build .done { height: 44px; padding: 0 22px; border-radius: 22px; border: none; background: rgba(255, 214, 150, 0.92); color: #1a1428; font-weight: 600; font-size: 15px; letter-spacing: 0.02em; }
 #build .b-hint { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); width: min(92vw, 520px); margin: 0; text-align: center; font-size: 13px; line-height: 1.35; opacity: 0.8; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9); }
-#build.sel .b-hint { bottom: calc(158px + env(safe-area-inset-bottom, 0px)); }
-#build .b-shapes { position: absolute; left: 0; right: 0; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 6px; padding: 0 12px; overflow-x: auto; justify-content: center; pointer-events: auto; scrollbar-width: none; }
+#build.sel .b-hint { display: none; }
+/* the strip scrolls under a finger (its chips answer a tap, not the touch itself), and centres
+   only when it fits: an overflowing centred row can't be scrolled to its left end */
+#build .b-shapes { position: absolute; left: 0; right: 0; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 6px; padding: 0 12px; overflow-x: auto; justify-content: flex-start; pointer-events: auto; scrollbar-width: none; touch-action: pan-x; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+#build .b-shapes > :first-child { margin-left: auto; }
+#build .b-shapes > :last-child { margin-right: auto; }
+#build .b-shapes .chip { touch-action: pan-x; }
 #build .b-shapes::-webkit-scrollbar { display: none; }
-@media (max-width: 520px) { #build .b-shapes { justify-content: flex-start; } }
+#build .chip.fin { width: 84px; border-color: rgba(255, 220, 160, 0.4); }
+#build .chip.fin i { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg, #d9cbb0, #9d8b70); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25); }
+#build .chip.fin[data-fin="field"] i { background: repeating-linear-gradient(0deg, #8d8074 0 5px, #3d3630 5px 6px); }
+#build .chip.fin[data-fin="marble"] i { background: linear-gradient(135deg, #f2eee8, #d7d1c8 60%, #eae4dc); }
+#build .chip.fin[data-fin="granite"] i { background: radial-gradient(circle at 30% 30%, #9a9a9e 0 2px, transparent 3px), radial-gradient(circle at 70% 60%, #3a3a3e 0 2px, transparent 3px), #77767a; }
+#build .chip.fin[data-fin="earth"] i { background: repeating-linear-gradient(0deg, #8a6446 0 4px, #6e4c34 4px 7px); }
+#build .chip.fin[data-fin="cliff"] i { background: linear-gradient(160deg, #6f6a66, #4a4541 50%, #7c7672); }
+#build .chip.fin b { display: block; font-weight: 400; font-size: 11px; color: rgba(255, 226, 180, 0.95); white-space: nowrap; }
+#build .b-notes { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(10px + env(safe-area-inset-bottom, 0px)); width: min(94vw, 480px); max-height: min(62vh, calc(var(--fh, 100vh) - 120px)); box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 18px; border: 1px solid rgba(255, 220, 160, 0.3); background: rgba(12, 10, 28, 0.92); pointer-events: auto; z-index: 2; }
+#build .b-notes p { margin: 0; font-size: 13px; opacity: 0.8; line-height: 1.35; }
+#build .b-notes .list { overflow-y: auto; display: flex; flex-direction: column; gap: 6px; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+#build .b-notes .note { touch-action: pan-y; text-align: left; display: flex; gap: 10px; align-items: baseline; padding: 9px 12px; border-radius: 12px; border: 1px solid rgba(244, 239, 230, 0.12); background: rgba(244, 239, 230, 0.04); font-size: 13px; line-height: 1.3; }
+#build .b-notes .note em { flex: 0 0 auto; font-style: normal; font-size: 11px; opacity: 0.6; }
+#build .b-notes .note.on { border-color: rgba(255, 214, 150, 0.8); }
+#build .b-notes .row { display: flex; gap: 8px; justify-content: flex-end; }
 #build .chip { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 3px; width: 64px; padding: 8px 2px 7px; border-radius: 14px; border: 1px solid rgba(244, 239, 230, 0.14); background: rgba(12, 10, 28, 0.6); font-size: 12px; line-height: 1.15; }
 #build .chip svg { width: 24px; height: 24px; color: rgba(255, 226, 180, 0.95); }
 #build .chip em { display: block; font-style: normal; font-size: 10px; opacity: 0.6; }
