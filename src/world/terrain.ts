@@ -657,10 +657,73 @@ export const SANCTUARY = (() => {
   return { x: best.x, z: best.z, y, face: Math.atan2(g.x - best.x, g.z - best.z), gate: { x: g.x, z: g.z } };
 })();
 
+/* ---------- regions: each direction from the shore its own country, under its own sky ----------
+   The shore keeps its moonlit meadow; walking out, the land turns into the country of the sky
+   above it (moods.ts): east frost tundra under the sunrise, north-east an autumn forest in the
+   golden hour, north black volcanic ash under the deep night, north-west heather moor at dusk,
+   west ochre dunes at sunset, south-west red rock in the ember light, south a deep green mossland
+   in the blue hour, south-east pale chalk downs at the pink dawn. The borders wander (the bearing
+   is bent by slow noise), and here and there a pocket of the home meadow remains. */
+interface Region {
+  dir: number; // bearing, radians (atan2(z, x): east 0, south +π/2, north −π/2)
+  col: THREE.Color; // the ground's colour there
+  sand: number; // how much of it is the sand scan
+  rock: number; // how much the rock scan (outcrops, ash, chalk)
+  trees: number; // tree density against the home meadow's
+  leaf: number; // the leaves' hue there (−1: their own; 0.86 gold; 0.97 silvered)
+}
+const Q = Math.PI / 4;
+const REGIONS: Region[] = [
+  { dir: 0, col: new THREE.Color("#b4bfd6"), sand: 0.6, rock: 0.25, trees: 0.3, leaf: 0.97 }, // E tundra
+  { dir: -Q, col: new THREE.Color("#a8582a"), sand: 0, rock: 0.08, trees: 1.9, leaf: 0.87 }, // NE autumn forest
+  { dir: -2 * Q, col: new THREE.Color("#25252b"), sand: 0.15, rock: 0.85, trees: 0.08, leaf: 0.97 }, // N volcanic ash
+  { dir: -3 * Q, col: new THREE.Color("#7c4a74"), sand: 0, rock: 0.2, trees: 0.45, leaf: -1 }, // NW heather moor
+  { dir: 4 * Q, col: new THREE.Color("#c88a4c"), sand: 0.95, rock: 0.05, trees: 0.04, leaf: 0.87 }, // W ochre dunes
+  { dir: 3 * Q, col: new THREE.Color("#b44a2c"), sand: 0.15, rock: 0.85, trees: 0.15, leaf: -1 }, // SW red rock
+  { dir: 2 * Q, col: new THREE.Color("#3f8f5c"), sand: 0, rock: 0, trees: 1.5, leaf: -1 }, // S mossland
+  { dir: Q, col: new THREE.Color("#e2dad2"), sand: 0.1, rock: 0.8, trees: 0.3, leaf: 0.97 }, // SE chalk downs
+];
+/** The blend of regions at a point: `away` (0 the home meadow … 1 wholly the regions), and the
+    regions' own colour, scans, tree density and leaf hue mixed by weight. One shared result:
+    read it before calling again. */
+export const regionHere = { away: 0, col: new THREE.Color(), sand: 0, rock: 0, trees: 1, leaf: -1 };
+const _rw = new Float64Array(REGIONS.length);
+export function regionAt(x: number, z: number): typeof regionHere {
+  const r = regionHere;
+  const dist = Math.hypot(x - SPAWN.x, z - SPAWN.z);
+  // pockets of the home meadow remain out in the regions
+  const pocket = smooth(0.64, 0.76, fbm(x * 0.0026 - 41, z * 0.0026 + 19));
+  r.away = smooth(160, 650, dist) * (1 - pocket * 0.75);
+  if (r.away <= 0) {
+    r.col.setRGB(0, 0, 0), (r.sand = r.rock = 0), (r.trees = 1), (r.leaf = -1);
+    return r;
+  }
+  const a = Math.atan2(z - SPAWN.z, x - SPAWN.x) + (fbm(x * 0.0011 + 5, z * 0.0011 - 8) - 0.5) * 1.1;
+  let sum = 0;
+  for (let i = 0; i < REGIONS.length; i++) sum += _rw[i] = smooth(0.62, 1, Math.cos(a - REGIONS[i].dir));
+  r.col.setRGB(0, 0, 0), (r.sand = r.rock = r.trees = 0);
+  let best = 0;
+  for (let i = 0; i < REGIONS.length; i++) {
+    const w = _rw[i] / (sum || 1), g = REGIONS[i];
+    r.col.r += g.col.r * w, r.col.g += g.col.g * w, r.col.b += g.col.b * w;
+    r.sand += g.sand * w, r.rock += g.rock * w, r.trees += g.trees * w;
+    if (_rw[i] > _rw[best]) best = i;
+  }
+  r.leaf = REGIONS[best].leaf;
+  return r;
+}
+
 /** Which kind of ground this is, 0–1 each: meadow (for grass and flowers), sand, stone. */
 export function groundKind(x: number, z: number, h = heightAt(x, z)): { meadow: number; sand: number; stone: number } {
-  const sand = smooth(1.2, 0.2, h);
-  const stone = smooth(9, 16, h) * smooth(0.35, 0.65, fbm(x * 0.01 + 50, z * 0.01));
+  let sand = smooth(1.2, 0.2, h);
+  let stone = smooth(9, 16, h) * smooth(0.35, 0.65, fbm(x * 0.01 + 50, z * 0.01));
+  // the region's own ground: dunes, ash and chalk with outcrops breaking through
+  const rg = regionAt(x, z);
+  if (rg.away > 0) {
+    const outcrop = smooth(0.42, 0.62, fbm(x * 0.018 + 7, z * 0.018 - 13));
+    sand = Math.max(sand, rg.sand * rg.away * (1 - outcrop * 0.5));
+    stone = Math.max(stone, Math.min(1 - sand, rg.rock * rg.away * (0.35 + outcrop * 0.65)));
+  }
   let meadow = Math.max(0, 1 - sand - stone) * smooth(0.25, 0.5, fbm(x * 0.02 - 20, z * 0.02 + 40));
   // Göbekli Tepe's hill: dry soil over the top and its slopes (the stone shows only in its works)
   const gk = smooth(150, 90, Math.hypot(x - GOBEKLI.x, z - GOBEKLI.z));
@@ -1174,18 +1237,22 @@ export class Terrain {
       const k = groundKind(x, z, h);
       const region = fbm(x * 0.004 + 9, z * 0.004 - 4);
       this.col.copy(C.meadowA).lerp(C.meadowB, smooth(0.35, 0.6, region)).lerp(C.meadowC, smooth(0.6, 0.78, region));
-      this.col.lerp(this.tmp.copy(C.sand), k.sand).lerp(C.stone, k.stone);
+      // out from the shore, the country of the sky above (its colour, shaded within by slow noise)
+      const rg = regionAt(x, z);
+      const away = rg.away;
+      if (away > 0) this.col.lerp(this.tmp.copy(rg.col).multiplyScalar(0.82 + 0.36 * fbm(x * 0.012 - 3, z * 0.012 + 8)), away * 0.96);
+      this.col.lerp(this.tmp.copy(C.sand), k.sand * (1 - away * 0.85)).lerp(C.stone, k.stone * (1 - away * 0.85));
       // the mountains: bare dark rock on their steep faces (the snow is laid by the ground's shader)
       const up = nor.getY(v);
       const mount = smooth(25, 60, h);
       this.col.lerp(C.granite, mount * smooth(0.9, 0.62, up));
       // broad stretches of bare earth, warm and deeply textured
-      const earth = smooth(0.42, 0.62, fbm(x * 0.005 + 123, z * 0.005 - 7)) * (1 - k.sand) * smooth(0.6, 2.5, h);
+      const earth = smooth(0.42, 0.62, fbm(x * 0.005 + 123, z * 0.005 - 7)) * (1 - k.sand) * smooth(0.6, 2.5, h) * (1 - away * 0.8);
       this.tmp.copy(C.earth).lerp(C.loam, smooth(0.3, 0.7, fbm(x * 0.03 - 9, z * 0.03 + 4)));
       this.col.lerp(this.tmp, earth * 0.8);
       if (h < 0.1) this.col.lerp(C.wet, smooth(0.1, -0.6, h));
       col.setXYZ(v, this.col.r, this.col.g, this.col.b);
-      const sandy = Math.min(1, k.sand + smooth(0.45, 0.62, fbm(x * 0.01 - 30, z * 0.01 + 12)) * (1 - k.stone) * 0.6);
+      const sandy = Math.min(1, k.sand + smooth(0.45, 0.62, fbm(x * 0.01 - 30, z * 0.01 + 12)) * (1 - k.stone) * 0.6 * (1 - away * 0.7));
       // the earth takes the rock scan's grit and the sand's grain
       const rocky = Math.min(1 - sandy, k.stone + smooth(0.5, 1.0, 1 - nor.getY(v)) * 0.8 + earth * 0.55);
       gr.setXYZ(v, sky, Math.min(1 - rocky, sandy + earth * 0.3), rocky);
