@@ -6,6 +6,7 @@
 
 ## Textures and scanned rocks (CC0, Poly Haven — polyhaven.com)
 - Ground and stone surfaces: `coast_sand_01`, `sparse_grass`, `rock_face_03`; tree bark: `bark_willow` (colour and normal maps, 1k, re-encoded) — `public/textures/`.
+- Maldek's moon dust: `moon_01` (Greg Zaal, Rico Cilliers, Jenelle van Heerden, Dario Barresi; colour, normal and occlusion/roughness maps, 1k, re-encoded) — `public/textures/moon_*.jpg`.
 - Cliffs and mountains: `cliff_side` (James Ray Cock, Jenelle van Heerden, Dario Barresi; colour and normal maps, 1k, re-encoded) — `public/textures/cliff_*.jpg`.
 - The temple's stone: `sandstone_blocks_08` (walls, by Rob Tuytel), `sandstone_blocks_05` (the pylon, Rob Tuytel), `sandstone_cracks` (columns, ceiling, niches, Rob Tuytel), `red_sandstone_pavement` (floor, Amal Kumar) — colour, normal and AO/roughness maps, 1k, re-encoded — `public/textures/temple/`.
 - Temple props: `stone_fire_pit` (the braziers), `antique_ceramic_vase_01`, `ceramic_vase_02`, `planter_pot_clay`, `brass_diya_lantern` (simplified, 512 px maps, by `tools/build-temple-props.mjs`) — `public/models/temple-props.glb`.
