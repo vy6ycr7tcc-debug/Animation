@@ -436,7 +436,8 @@ export class Cavern {
   }
   /** Standing at the fissure, on foot. */
   atDoor(p: THREE.Vector3): boolean {
-    return Math.hypot(p.x - this.door.x, p.z - this.door.z) < 1.5 && Math.abs(p.y - this.door.y) < 2.5;
+    // (the cave's own crystals stand solid just before the fissure: its reach comes out past them)
+    return Math.hypot(p.x - this.door.x, p.z - this.door.z) < 2.3 && Math.abs(p.y - this.door.y) < 2.5;
   }
   /** Where you stand coming in: a few steps in, facing down the way. */
   entry(): { x: number; y: number; z: number; heading: number } {
