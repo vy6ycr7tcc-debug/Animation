@@ -20,6 +20,8 @@ const TALL = 18; // its height
 export class Weather {
   /** The shower now (0 … 1) and how overcast (0 … 1); eased. */
   rain = 0;
+  /** How wet the land is (0 … 1): it lags the rain, and outlasts it. */
+  wet = 0;
   cloud = 0;
   enabled = true;
   /** Held on (still frames: `&rain=1`). */
@@ -97,6 +99,9 @@ export class Weather {
     if (this.forced >= 0) (this.cloud = cloudTo), (this.rain = rainTo);
     const k = open ? this.rain : 0;
     this.uK.value = k;
+    // the ground soaks as it rains (~45 s) and dries slowly after (~3 min): puddles, wet stone
+    this.wet += ((this.rain > 0.2 ? 1 : 0) - this.wet) * Math.min(1, dt / (this.rain > 0.2 ? 45 : 180));
+    if (this.forced >= 0) this.wet = this.forced;
     this.uT.value += dt * (reduced ? 0.5 : 1);
     this.uCam.value.copy(cam);
     this.mesh.visible = k > 0.01;

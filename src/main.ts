@@ -109,6 +109,7 @@ import { Forest } from "./world/forest";
 import { RisingFlowers } from "./world/blooms";
 import { Wilds } from "./world/wilds";
 import { Nile } from "./world/nile";
+import { wetUniforms } from "./gpu/wet";
 import { lessonDark } from "./scenes/enacted";
 import { initTourScenes, tourPlaces, type TourScenes } from "./scenes/integration";
 import { bodyForms } from "./world/forms";
@@ -779,10 +780,12 @@ const tierFx = { rays: true, ao: true };
 /** Anti-aliasing: SMAA by default (crisp; TRAA softened everything and left ghost trails behind
     moving motes on the phone); `?aa=traa` or `?aa=none` to compare. */
 const AA = (new URLSearchParams(location.search).get("aa") ?? "smaa") as "smaa" | "traa" | "none";
+/** `?wet=0`: no wet reflections whatever the level (to compare their cost in `#stats`). */
+const NO_WET = /[?&]wet=0\b/.test(location.search);
 function applyTier(t: Tier, i: number = quality.tier): void {
   tierFx.rays = t.rays;
   tierFx.ao = t.ao;
-  post.configure({ ao: t.ao, rays: t.rays, bloom: t.bloom, aa: AA });
+  post.configure({ ao: t.ao, rays: t.rays, bloom: t.bloom, aa: AA, wet: t.reflection && !NO_WET });
   // no mirrored world in the lakes: the water reflects only the sky (Samuel: "better to not
   // have any reflecting… but incredible skies when you look at them")
   // the shadow map follows mapSize by itself (no dispose, as WebGL needed)
@@ -5582,6 +5585,9 @@ function update(dt: number): void {
       if (heightAt(x, z) < WATER_Y - 0.05) water.ripple(x, z, 0.18, S.t);
     });
     audio.rain(open ? weather.rain : 0);
+    // the land's wetness, for the puddles and wet stone (gpu/wet.ts); none in the places apart
+    wetUniforms.rain.value = apart() ? 0 : weather.wet;
+    wetUniforms.air.value = apart() ? 0 : 1;
   }
 
   // The starlight's shadow follows the wanderer, and stays on the land below them when they fly

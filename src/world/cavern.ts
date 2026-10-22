@@ -15,6 +15,7 @@
    the scanned cliff face worn by water: flowstone, strata, wet low down, tiny glints of mica.
    Every crystal is a real hexagonal prism with its pyramid tip, faceted and lit from within.
    Walk back up to the fissure to leave. */
+import { setWet } from "../gpu/wet";
 import * as THREE from "three/webgpu";
 import { T, gpuUniforms, type N } from "../gpu/tsl";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
@@ -187,6 +188,10 @@ function rockMaterial(crust = true, origin = CAVERN_ORIGIN): THREE.MeshStandardN
   const tipK = T.smoothstep(0.55, 0.0, dist);
   const crustCol = T.mix(T.mix(T.vec3(0.82, 0.86, 0.95), T.vec3(0.55, 0.3, 0.95), geo), T.vec3(0.95, 0.85, 1), idc.mul(0.3));
   c = T.mix(c, crustCol.mul(T.float(0.04).add(tipK.mul(0.18))), crustK);
+  // pools of still water lying in the floor's hollows: dark, and they mirror the cave (gpu/wet.ts)
+  const pool = T.smoothstep(0.12, 0.02, up).mul(T.smoothstep(0.8, 0.95, n.y)).mul(T.smoothstep(0.6, 0.66, nz(pw.mul(0.28).add(7)).mul(0.7).add(nz(pw.mul(1.1)).mul(0.3)))).mul(T.float(1).sub(crustK));
+  c = c.mul(T.float(1).sub(pool.mul(0.5)));
+  setWet(m, T.max(wet.mul(0.4).mul(T.smoothstep(0.5, 0.9, n.y)), pool), pool);
   m.colorNode = T.vec4(c, 1);
   m.roughnessNode = T.mix(T.mix(T.clamp(arm.g, 0.6, 1), T.float(0.32), wet), T.float(0.08), crustK);
   // the crust's points glint as you move (each its own face toward you) and glow faintly at the tips

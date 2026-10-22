@@ -7,6 +7,7 @@
    The ground is streamed in square chunks around the wanderer. */
 import * as THREE from "three/webgpu";
 import { fogUniforms, T, type N } from "../gpu/tsl";
+import { setWet, wetUniforms } from "../gpu/wet";
 import { starDirection } from "./fog";
 import { regionScans, REGION_LAYERS, surface } from "./textures";
 
@@ -1411,6 +1412,25 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
     return out;
   })();
 
+  // Wet ground (gpu/wet.ts reflects it on the Best and High levels): the shore's band just above the
+  // water, always; and as rain soaks the land, all the open ground a little and puddles in its
+  // flat hollows (lying level, as water does), fewer on sand. Near only; never on snow or under
+  // the water. The wet is darker, the puddles darker still (what they show is mostly reflection).
+  const shoreWet = smoothstep(0.55, 0.05, vGW.y).mul(step(0, vGW.y)).mul(0.32);
+  const flatK = smoothstep(0.9, 0.975, nW.y);
+  const puddle = Fn(() => {
+    const out = float(0).toVar();
+    If(wetUniforms.rain.greaterThan(0.01).and(camD.lessThan(140)), () => {
+      const pn = gN(q.mul(0.2).add(5)).mul(0.6).add(gN(q.mul(0.7).add(17)).mul(0.4)).add(smoothstep(1.0, 0.85, gr.x).mul(0.3));
+      out.assign(smoothstep(0.71, 0.735, pn.sub(float(1).sub(wetUniforms.rain).mul(0.25))).mul(flatK).mul(float(1).sub(w.x.mul(0.7))));
+    });
+    return out;
+  })();
+  const wetK = max(max(shoreWet, wetUniforms.rain.mul(0.3).mul(flatK.mul(0.5).add(0.5))), puddle)
+    .mul(float(1).sub(snow)).mul(float(1).sub(sea)).mul(float(1).sub(smoothstep(90, 140, camD)));
+  setWet(m, wetK, puddle);
+  const wetDark = float(1).sub(wetK.mul(0.42)).sub(puddle.mul(0.2));
+
   m.colorNode = Fn(() => {
     const { W, ST, CD, SEA, FD, N_, samp, tri, side, bx, bz, bsum, sampR, regW, keep } = setup();
     void sampR;
@@ -1583,7 +1603,7 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
         g0.assign(tmix(g0, vec3(0.55, 0.54, 0.5), chalk.mul(0.65).mul(regW[7]).mul(nk)));
       });
     });
-    return vec4(tmix(base.mul(crev).mul(gully.w), snowC, SN).mul(gr.x), 1);
+    return vec4(tmix(base.mul(crev).mul(gully.w), snowC, SN).mul(gr.x).mul(wetDark), 1);
   })();
 
   // Sand, as in Journey: ripples the wind combs across it (two wavelengths, bent by slow noise),

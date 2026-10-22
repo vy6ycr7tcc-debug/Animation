@@ -12,6 +12,7 @@
    - the mother lode: at the bottom, thick veins of gold in the rock and nuggets lying loose.
    The same underground builder as the crystal caverns (cavern.ts), with a squared section.
    Walk back up out of the portal to come out. */
+import { setWet } from "../gpu/wet";
 import * as THREE from "three/webgpu";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { T, gpuUniforms, type N } from "../gpu/tsl";
@@ -107,6 +108,10 @@ function mineRock(origin: THREE.Vector3): THREE.MeshStandardNodeMaterial {
   // a dusty, trodden floor
   const floor = T.smoothstep(0.1, 0.0, up);
   c = T.mix(c, T.vec3(0.32, 0.27, 0.21).mul(nz(pw.mul(3)).mul(0.4).add(0.75)), floor.mul(0.75));
+  // seep-water standing in the floor's ruts and hollows: dark, and it mirrors the drift (gpu/wet.ts)
+  const pool = floor.mul(T.smoothstep(0.8, 0.95, n.y)).mul(T.smoothstep(0.63, 0.68, nz(pw.mul(0.35).add(11)).mul(0.7).add(nz(pw.mul(1.4)).mul(0.3))));
+  c = c.mul(T.float(1).sub(pool.mul(0.55)));
+  setWet(m, pool, pool);
   const V = T.normalize(T.cameraPosition.sub(T.positionWorld));
   const glint = T.pow(T.max(T.dot(V, T.normalize(n.add(T.vec3(hsh.sub(0.5), 0.4, T.fract(hsh.mul(7.3)).sub(0.5))))), 0), 16).mul(fleck).mul(T.smoothstep(12, 2, T.length(T.cameraPosition.sub(T.positionWorld))));
   m.colorNode = T.vec4(c, 1);

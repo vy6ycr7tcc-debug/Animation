@@ -18,7 +18,7 @@ export interface Tier {
   particles: number;
   ao: boolean; // soft contact shadows
   rays: boolean; // god rays
-  reflection: boolean; // the mirrored world in the lakes
+  reflection: boolean; // wet surfaces reflect what is round them (puddles, wet stone, cave floors: gpu/wet.ts)
 }
 
 /** A tier as the config writes it: what differs on a phone is given separately. */
@@ -79,7 +79,7 @@ export const QUALITY_DEFAULTS: QualityConfig = {
     // renders at the full 3x: the others at 2x (the owner's phone ran hot at 15–25 fps at 3x)
     { name: "full", dprPhone: 3, dpr: 3, shadow: 2048, bloom: true, particles: 1800, particlesPhone: 1200, ao: true, aoPhone: false, rays: true, reflection: true },
     { name: "high", dprPhone: 2, dpr: 3, shadow: 2048, bloom: true, particles: 1100, particlesPhone: 1100, ao: false, aoPhone: false, rays: true, reflection: true },
-    { name: "medium", dprPhone: 2, dpr: 2.5, shadow: 1024, bloom: true, particles: 900, particlesPhone: 900, ao: false, aoPhone: false, rays: false, reflection: true },
+    { name: "medium", dprPhone: 2, dpr: 2.5, shadow: 1024, bloom: true, particles: 900, particlesPhone: 900, ao: false, aoPhone: false, rays: false, reflection: false },
     { name: "light", dprPhone: 2, dpr: 2, shadow: 1024, bloom: true, particles: 700, particlesPhone: 700, ao: false, aoPhone: false, rays: false, reflection: false },
     { name: "minimum", dprPhone: 2, dpr: 2, shadow: 512, bloom: false, particles: 400, particlesPhone: 400, ao: false, aoPhone: false, rays: false, reflection: false },
   ],
