@@ -34,6 +34,7 @@ import { T, fogUniforms, softPoints, spriteCloud, viewDepth, softDot, pointR, gl
 import { surface, type SurfaceName } from "./textures";
 import { landStone, stoneBlock, contactShade } from "./stoneworks";
 import { solid } from "./solidity";
+import { skyColorPlain } from "./sky";
 import { SANCTUARY, heightAt } from "./terrain";
 import { heartNotes, type HeartNote } from "../ui/heart";
 import { readStroke, type Reading, type V2 } from "./strokes";
@@ -492,31 +493,47 @@ function rubbleGeometry(s: SavedForm, line: V2[], half: number, lay: Lay): THREE
   return g;
 }
 
-/** The gold of a memory: warm bright metal in the world's own light, its sheen drawn by hand (the
-    game mirrors nothing), hammered, glowing a little from within so it reads as gold even by
-    night (it was mistaken for stone), and now and then a slow line of light rising through it. */
+/** The gold of a memory, as real gold is (the owner: "gold textures in build mode don't look
+    realistic"): a metal whose colour is all in its reflection. Its base is gold's own reflectance
+    (F0 ≈ 1.0, 0.77, 0.34 linear), whitening toward the edges by Schlick's Fresnel; what it reflects
+    is the sky in that direction as the lakes see it (its colours, the moon and the low sun's glow;
+    never its stars, nebulae or galaxies, which blurred into blobs) above, the dim earth below,
+    blurred by the metal's roughness. Two highlights toward the moon or the low sun (a sharp one
+    and a broad one), a faint hammered dimpling, edges worn brighter, a little dull patina in the
+    hollows; no bands or drawn lines, and nothing reaches bloom but a highlight's core. */
 function goldMaterial(): THREE.MeshStandardNodeMaterial {
-  const m = new THREE.MeshStandardNodeMaterial({ metalness: 0.85, roughness: 0.26 });
-  const ham = T.mx_noise_float(T.positionWorld.mul(9)).mul(0.5).add(0.5);
-  // deeper amber low, paler gold high, fine brushed streaks along the grain, so a slab isn't one tan
-  const brush = T.mx_noise_float(vec3(T.positionWorld.x.add(T.positionWorld.z).mul(2.2), T.positionWorld.y.mul(46), 3.1)).mul(0.5).add(0.5);
-  const grad = mix(vec3(0.8, 0.4, 0.08), vec3(0.95, 0.66, 0.24), smoothstep(0, 1, T.fract(T.positionWorld.y.mul(0.5))));
-  m.colorNode = grad.mul(float(0.82).add(ham.mul(0.2)).add(brush.mul(0.14)));
-  m.roughnessNode = float(0.2).add(ham.mul(0.14));
-  const v = normalize(T.cameraPosition.sub(T.positionWorld));
-  const r = T.reflect(v.negate(), T.normalWorld);
-  // what polished metal would hold, drawn by hand: dark earth below, a bright band where the
-  // horizon would be, a dimmer sky above; worn edges (where the surface turns fast) a little paler
-  const below = mix(vec3(0.06, 0.03, 0.01), vec3(0.5, 0.27, 0.07), smoothstep(-0.5, -0.02, r.y));
-  const above = mix(vec3(0.82, 0.46, 0.12), vec3(0.3, 0.15, 0.04), smoothstep(0.02, 0.6, r.y));
-  const band = mix(below, above, smoothstep(-0.03, 0.03, r.y));
+  const m = new THREE.MeshStandardNodeMaterial({ metalness: 1, roughness: 0.3 });
+  const P = T.positionWorld;
+  // hammered: shallow dimples at two scales, and broad slow variation of the metal's own tone
+  const dim = T.mx_noise_vec3(P.mul(16), 1, 0).mul(0.018).add(T.mx_noise_vec3(P.mul(41), 1, 0).mul(0.01));
+  const nW = normalize(T.normalWorld.add(dim));
+  m.normalNode = normalize(T.cameraViewMatrix.mul(vec4(nW, 0)).xyz);
+  const tone = T.mx_noise_float(P.mul(0.6)).mul(0.5).add(0.5);
+  const patina = smoothstep(0.45, 0.8, T.mx_noise_float(P.mul(6.5).add(7))).mul(0.18);
+  const F0 = mix(vec3(1.0, 0.72, 0.29), vec3(1.0, 0.8, 0.38), tone).mul(float(1).sub(patina.mul(0.35)));
+  m.colorNode = F0;
+  const rough = float(0.22).add(patina.mul(0.3)).add(tone.mul(0.06));
+  m.roughnessNode = rough;
+  const v = normalize(T.cameraPosition.sub(P));
+  const ndv = T.clamp(dot(nW, v), 0, 1);
+  const r = normalize(T.reflect(v.negate(), nW));
+  // the world it holds: the sky (a hair blurred upward by roughness) and the earth's dark below
+  const up = normalize(vec3(r.x, max(r.y, 0.02).add(rough.mul(0.25)), r.z));
+  const skyC = skyColorPlain(up).mul(1.9).add(fogUniforms.color.mul(0.35));
+  const earth = fogUniforms.color.mul(0.18).add(vec3(0.02, 0.014, 0.008));
+  const env0 = mix(earth, skyC, smoothstep(-0.12, 0.06, r.y));
+  // (mostly its brightness: a teal sky times gold's own colour reads olive, not gold)
+  const env = mix(env0, vec3(dot(env0, vec3(0.3, 0.55, 0.15))), 0.55);
+  // edges worn bright where the surface turns fast; the metal duller where patina lies
   const wear = smoothstep(0.15, 0.6, length(T.fwidth(T.normalWorld)).mul(6));
-  const sky = band.mul(float(0.85).add(wear.mul(0.5)));
-  const hi = pow(max(dot(r, fogUniforms.glowDir), 0), 18).mul(1.1);
-  const ndv = abs(dot(T.normalView, normalize(T.positionView.negate())));
-  const fres = float(0.32).add(pow(float(1).sub(ndv), 3).mul(0.7));
-  const rise = pow(fract(T.positionWorld.y.mul(0.22).sub(T.time.mul(0.045)).add(T.positionWorld.x.mul(0.013))), 30).mul(0.4);
-  m.emissiveNode = sky.mul(fres.mul(0.36)).add(vec3(1, 0.8, 0.5).mul(hi.mul(0.7))).add(vec3(1, 0.55, 0.15).mul(rise.add(0.05)));
+  const fres = F0.add(vec3(1).sub(F0).mul(pow(float(1).sub(ndv), 5)));
+  const refl = env.mul(fres).mul(float(1).add(wear.mul(0.6))).mul(float(1).sub(patina.mul(0.4)));
+  // the moon's or low sun's highlights: a sharp core and a broad sheen, in gold
+  const g = max(dot(r, fogUniforms.glowDir), 0);
+  const spec = pow(g, mix(float(420), float(90), rough.mul(2))).mul(1.6).add(pow(g, 14).mul(0.18));
+  const glint = F0.mul(fogUniforms.glow.add(vec3(0.25, 0.2, 0.14))).mul(spec);
+  // and a whisper of warmth from within, so it reads as gold even on the darkest night
+  m.emissiveNode = refl.add(glint).add(vec3(0.05, 0.03, 0.008));
   return solid(m);
 }
 
