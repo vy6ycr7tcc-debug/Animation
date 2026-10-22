@@ -218,20 +218,32 @@ class CrystalBuilder {
   u: number[] = [];
   glow: number[] = [];
   seedA: number[] = [];
+  /** Each triangle's barycentric corner (a component held at 1 where its opposite edge is only a
+      quad's diagonal, not a crystal's edge), so the shader can draw the true edges. */
+  bary: number[] = [];
+  /** 0 a prism face, 1 a termination face, 2 a cube's face. */
+  kind: number[] = [];
   /** The crystal's middle (its axis, or a cube's centre): every face is turned to look away from it. */
   private axisA = new THREE.Vector3();
   private axisD: THREE.Vector3 | null = null;
-  private tri(a: THREE.Vector3, b0: THREE.Vector3, c0: THREE.Vector3, ua: number, ub0: number, uc0: number, colr: THREE.Color, g: number, s: number): void {
+  private tri(a: THREE.Vector3, b0: THREE.Vector3, c0: THREE.Vector3, ua: number, ub0: number, uc0: number, colr: THREE.Color, g: number, s: number, kind = 0, off: [number, number, number] = [0, 0, 0]): void {
     let b = b0, c = c0, ub = ub0, uc = uc0;
+    let ob = off[1], oc = off[2];
     const nrm = new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(c, a)).normalize();
     const mid = a.clone().add(b).add(c).divideScalar(3);
     const out = mid.clone().sub(this.axisA);
     if (this.axisD) out.addScaledVector(this.axisD, -out.dot(this.axisD));
     if (nrm.dot(out) < 0) {
       [b, c, ub, uc] = [c, b, uc, ub];
+      [ob, oc] = [oc, ob];
       nrm.negate();
     }
+    const offs = [off[0], ob, oc];
+    let vi = 0;
     for (const [p, uu] of [[a, ua], [b, ub], [c, uc]] as [THREE.Vector3, number][]) {
+      for (let q = 0; q < 3; q++) this.bary.push(q === vi || offs[q] ? 1 : 0);
+      vi++;
+      this.kind.push(kind);
       this.pos.push(p.x, p.y, p.z);
       this.nor.push(nrm.x, nrm.y, nrm.z);
       this.col.push(colr.r, colr.g, colr.b);
@@ -263,9 +275,10 @@ class CrystalBuilder {
     const uTop = uBase + (1 - uBase) * (shaft / len);
     for (let k = 0; k < 6; k++) {
       const j = (k + 1) % 6;
-      this.tri(r0[k], r1[k], r1[j], uBase, uTop, uTop, colr, glow, s);
-      this.tri(r0[k], r1[j], r0[j], uBase, uTop, uBase, colr, glow, s);
-      this.tri(r1[k], apex, r1[j], uTop, 1, uTop, colr, glow, s);
+      // (each side face is two triangles: their shared diagonal is no edge of the crystal)
+      this.tri(r0[k], r1[k], r1[j], uBase, uTop, uTop, colr, glow, s, 0, [0, 1, 0]);
+      this.tri(r0[k], r1[j], r0[j], uBase, uTop, uBase, colr, glow, s, 0, [0, 0, 1]);
+      this.tri(r1[k], apex, r1[j], uTop, 1, uTop, colr, glow, s, 1);
     }
   }
   /** A cube (fluorite), sitting on the rock. */
@@ -278,8 +291,8 @@ class CrystalBuilder {
     const P = [v(-1, -1, -1), v(1, -1, -1), v(1, 1, -1), v(-1, 1, -1), v(-1, -1, 1), v(1, -1, 1), v(1, 1, 1), v(-1, 1, 1)];
     const F = [[0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4], [2, 3, 7, 6], [1, 2, 6, 5], [0, 4, 7, 3]];
     for (const [a, b, cc, d] of F) {
-      this.tri(P[a], P[b], P[cc], 0.4, 0.8, 0.8, colr, glow, s);
-      this.tri(P[a], P[cc], P[d], 0.4, 0.8, 0.4, colr, glow, s);
+      this.tri(P[a], P[b], P[cc], 0.4, 0.8, 0.8, colr, glow, s, 2, [0, 1, 0]);
+      this.tri(P[a], P[cc], P[d], 0.4, 0.8, 0.4, colr, glow, s, 2, [0, 0, 1]);
     }
   }
   build(): THREE.BufferGeometry {
@@ -290,6 +303,8 @@ class CrystalBuilder {
     g.setAttribute("aU", new THREE.Float32BufferAttribute(this.u, 1));
     g.setAttribute("aGlow", new THREE.Float32BufferAttribute(this.glow, 1));
     g.setAttribute("aSeed", new THREE.Float32BufferAttribute(this.seedA, 1));
+    g.setAttribute("aBary", new THREE.Float32BufferAttribute(this.bary, 3));
+    g.setAttribute("aKind", new THREE.Float32BufferAttribute(this.kind, 1));
     g.computeBoundingSphere();
     return g;
   }
@@ -321,22 +336,52 @@ function crystalMaterial(instanced = false): THREE.MeshStandardNodeMaterial {
   // Each crystal its own surface (the owner: "randomized textures"), by its seed:
   // - some frosted, etched matte by old water in patches, thicker toward the root (every root a
   //   little), evenly with a little variation (patches read as stains), the rest clear;
-  // - growth striations across its faces, lines square to its length, as quartz has (fading where
-  //   finer than a pixel);
   // - some stained rust at the root, from iron in the rock they grew from;
   // - its colour a little warmer or cooler, lighter or darker, than its neighbours'.
   const kind = T.fract(s.mul(7.31));
   const frostN = T.mx_noise_float(T.positionWorld.mul(3.1).add(s.mul(21))).mul(0.5).add(0.5);
   const frost = T.clamp(T.smoothstep(0.55, 0.78, kind).mul(frostN.mul(0.35).add(0.65)).mul(T.float(1).sub(u.mul(0.25))).add(T.smoothstep(0.22, 0.0, u).mul(0.45)), 0, 1);
-  const sp = u.mul(T.float(55).add(T.fract(s.mul(5.7)).mul(60)));
-  const stri = T.sin(sp.mul(6.2832)).mul(0.5).add(0.5).mul(T.float(1).sub(T.smoothstep(0.3, 0.8, T.fwidth(sp))));
   const stain = T.step(T.fract(s.mul(3.17)), 0.35).mul(T.smoothstep(0.38, 0.0, u)).mul(frostN.mul(0.6).add(0.4));
   const tint = T.mix(T.vec3(1.06, 0.98, 0.9), T.vec3(0.9, 0.97, 1.08), T.fract(s.mul(13.7))).mul(T.fract(s.mul(29.3)).mul(0.3).add(0.85));
   const colj = col.mul(tint);
+  // Quartz up close (the owner's reference: a clear point under a lamp): crisp bright edges,
+  // stepped growth ridges across the prism faces catching the light, the termination faces
+  // dusted with a fine sparkling frost under a soft silvery sheen, sugary etching along some
+  // edges.
+  const kindA = T.attribute("aKind", "float"), bary = T.attribute("aBary", "vec3");
+  const prismF = T.float(1).sub(T.step(0.5, kindA));
+  const termF = T.step(0.5, kindA).mul(T.float(1).sub(T.step(1.5, kindA)));
+  const pw = T.positionWorld;
+  const nG = T.normalize(T.normalWorld);
+  // the crystal's length from how u runs over the face (a cotangent frame: no tangents stored)
+  const dp1 = T.dFdx(pw), dp2 = T.dFdy(pw), du1 = T.dFdx(u), du2 = T.dFdy(u);
+  const ax = T.normalize(T.cross(dp2, nG).mul(du1).add(T.cross(nG, dp1).mul(du2)).add(T.vec3(1e-5, 2e-5, 0)));
+  // growth ridges: steps a few to a few dozen per metre, uneven, stronger on some crystals
+  const ridgeK = T.fract(s.mul(17.3)).mul(0.7).add(0.3);
+  const ph = T.dot(pw, ax).mul(T.float(9).add(T.fract(s.mul(23.1)).mul(18))).add(T.mx_noise_float(pw.mul(0.9).add(s.mul(9))).mul(0.45));
+  const aaR = T.float(1).sub(T.smoothstep(0.12, 0.35, T.fwidth(ph)));
+  // (each ridge a flat terrace and a sharp lip: the lips catch the light as fine bright lines)
+  const ridgeTilt = T.smoothstep(0.8, 0.97, T.fract(ph)).mul(0.65).sub(0.06).mul(aaR).mul(prismF).mul(ridgeK)
+    .mul(T.smoothstep(0.25, 0.6, T.mx_noise_float(pw.mul(2.2).add(s.mul(5))).mul(0.5).add(0.5)).mul(0.7).add(0.3));
+  // the true edges (the quads' diagonals left out), a hairline never finer than a pixel
+  const edgeD = T.min(bary.x, T.min(bary.y, bary.z));
+  const edge = T.float(1).sub(T.smoothstep(0, T.fwidth(edgeD).mul(1.6).add(1e-4), edgeD));
+  // sugary etching along some crystals' edges
+  const etch = T.step(0.5, T.fract(s.mul(41.7))).mul(T.smoothstep(0.24, 0.06, edgeD)).mul(T.smoothstep(0.5, 0.7, T.mx_noise_float(pw.mul(7).add(s.mul(3))).mul(0.5).add(0.5)));
+  // a fine glitter of frost on the terminations and in the etching: each grain lights from where
+  // you stand, near only
+  const gc = T.floor(pw.mul(150));
+  const gh = T.fract(T.sin(T.dot(gc, T.vec3(12.9898, 78.233, 37.719))).mul(43758.5453));
+  const tw = T.fract(T.sin(T.dot(T.floor(V.mul(16)), T.vec3(7.13, 3.71, 5.31)).add(gh.mul(91.7))).mul(43758.5453));
+  const gAA = T.float(1).sub(T.smoothstep(0.35, 0.8, T.length(T.fwidth(pw.mul(150)))));
+  const glit = T.step(0.965, gh).mul(T.step(0.6, tw)).mul(gAA).mul(T.smoothstep(5, 1, T.length(T.cameraPosition.sub(pw)))).mul(termF.mul(0.8).add(etch));
+  const grain = T.mx_noise_float(pw.mul(60)).mul(termF.mul(0.05).add(etch.mul(0.18))).mul(T.smoothstep(4, 1, T.length(T.cameraPosition.sub(pw))));
+  const nB = T.normalize(nG.add(ax.mul(ridgeTilt)).add(T.vec3(grain, grain.mul(0.7), grain.mul(-0.6))));
+
   // the body dark and glassy (its colour seen through it), clouded milky where the inclusions
   // are, pale where frosted, rust where stained, its striations faintly drawn
   const clear = colj.mul(T.float(0.02).add(phantom.mul(0.05)));
-  const body = T.mix(T.mix(clear, colj.mul(0.2).add(0.025), frost), T.vec3(0.15, 0.065, 0.022), stain.mul(0.8)).mul(T.float(1).sub(stri.mul(0.1)));
+  const body = T.mix(T.mix(clear, colj.mul(0.2).add(0.025), T.max(frost, etch.mul(0.8))), T.vec3(0.15, 0.065, 0.022), stain.mul(0.8));
   m.colorNode = T.vec4(body, 1);
   // wet and clear, it mirrors the cave (the wet reflections, gpu/wet.ts), frosted less
   setWet(m, T.float(0.5).mul(T.float(1).sub(frost.mul(0.85))).mul(T.float(1).sub(stain.mul(0.5))));
@@ -354,10 +399,13 @@ function crystalMaterial(instanced = false): THREE.MeshStandardNodeMaterial {
     .mul(breathe)
     .mul(T.float(1).add(near.mul(0.7)))
     .mul(T.float(1).sub(stain.mul(0.75)))
-    .mul(T.float(1).sub(stri.mul(0.15)))
     .add(colj.mul(fres).mul(0.22).mul(g.mul(0.5).add(0.5)))
-    .add(T.mix(T.vec3(1), colj, 0.35).mul(env).mul(fres.mul(0.7).add(0.3)).mul(T.float(1).sub(frost.mul(0.8))));
-  m.roughnessNode = T.mix(T.float(0.03).add(phantom.mul(0.16)), T.float(0.62), frost);
+    .add(T.mix(T.vec3(1), colj, 0.35).mul(env).mul(fres.mul(0.7).add(0.3)).mul(T.float(1).sub(frost.mul(0.8))))
+    // the edges, catching the light (contained: a hairline, brightest at a slant)
+    .add(T.vec3(0.82, 0.88, 1).mul(edge).mul(fres.mul(0.22).add(0.015)).mul(T.smoothstep(0.35, 0.75, T.mx_noise_float(pw.mul(4).add(s.mul(7))).mul(0.5).add(0.5))).mul(T.float(1).sub(frost.mul(0.7))).mul(T.float(1).add(near.mul(0.6))))
+    .add(T.vec3(1, 0.98, 0.95).mul(glit).mul(0.55));
+  m.roughnessNode = T.mix(T.mix(T.mix(T.float(0.03).add(phantom.mul(0.16)), T.float(0.62), frost), T.float(0.22), termF.mul(0.7)), T.float(0.5), etch);
+  m.normalNode = T.normalize(T.cameraViewMatrix.mul(T.vec4(nB, 0)).xyz);
   return m;
 }
 /* The dense crusts (the geode's lining, the gallery's walls) are one small crystal drawn many
@@ -946,12 +994,13 @@ export class Cavern extends Underground {
       const t1 = new THREE.Vector3().crossVectors(nn, a).normalize(), t2 = new THREE.Vector3().crossVectors(nn, t1);
       const mr = L * 0.26 + 0.12;
       if (o.mound !== false) {
-        const g = new THREE.IcosahedronGeometry(1, 2);
+        const g = new THREE.IcosahedronGeometry(1, 3);
         const pp = g.getAttribute("position");
-        const sx = 1.1 + rnd() * 0.4, sy = 0.55 + rnd() * 0.2;
+        const sx = 1.1 + rnd() * 0.4, sy = 0.42 + rnd() * 0.18;
         for (let k = 0; k < pp.count; k++) {
           const vx = pp.getX(k), vy = pp.getY(k), vz = pp.getZ(k);
-          const f = 0.82 + vn3(vx * 2.1 + i, vy * 2.1, vz * 2.1 + th) * 0.36;
+          // broken, knobbly rock: two scales of lumps, a few sharp facets
+          const f = 0.7 + vn3(vx * 1.6 + i, vy * 1.6, vz * 1.6 + th) * 0.5 + (vn3(vx * 5.3 - i, vy * 5.3 + 2, vz * 5.3) - 0.5) * 0.22;
           pp.setXYZ(k, vx * f * sx, vy * f * sy, vz * f * sx);
         }
         g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(up, nn));
@@ -960,7 +1009,7 @@ export class Cavern extends Underground {
         g.computeVertexNormals();
         const c = g.getAttribute("position").count;
         g.setAttribute("aZone", new THREE.Float32BufferAttribute(new Float32Array(c).fill(S[i].zone), 1));
-        g.setAttribute("aUp", new THREE.Float32BufferAttribute(new Float32Array(c).fill(0.3), 1));
+        g.setAttribute("aUp", new THREE.Float32BufferAttribute(new Float32Array(c).fill(0.05), 1));
         g.deleteAttribute("uv");
         mounds.push(g);
       }

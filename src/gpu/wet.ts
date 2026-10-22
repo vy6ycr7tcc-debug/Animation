@@ -53,7 +53,7 @@ export function wetReflections(color: N, colorTex: N, depth: N, wetTex: N, camer
   const proj = reference("projectionMatrix", "mat4", camera);
   const projInv = reference("projectionMatrixInverse", "mat4", camera);
   const near = reference("near", "float", camera), far = reference("far", "float", camera);
-  const STEPS = 28;
+  const STEPS = 36;
   return Fn(() => {
     const out = vec4(color).toVar();
     const q = uv();
@@ -66,10 +66,13 @@ export function wetReflections(color: N, colorTex: N, depth: N, wetTex: N, camer
       const r = normalize(T.reflect(v, n)).toVar();
       const maxLen = clamp(length(P).mul(1.2), 6, 70).toVar();
       const O = P.add(n.mul(0.04)).toVar();
-      const hit = float(0).toVar(), huv = vec2(0).toVar(), tHit = float(0).toVar();
-      const t0 = float(0).toVar();
+      const hit = float(0).toVar(), huv = vec2(0).toVar(), tHit = float(0).toVar(), conf = float(0).toVar();
+      const t0 = float(0).toVar(), hitThick = float(0.12).toVar();
+      // each pixel's steps a little offset from its neighbours' (interleaved gradient noise), so the
+      // march's stair-steps never line up into hatching
+      const jit = T.fract(float(52.9829189).mul(T.fract(dot(T.screenCoordinate.xy, vec2(0.06711056, 0.00583715)))));
       Loop(STEPS, ({ i }: { i: N }) => {
-        const t = pow(float(i).add(1).div(STEPS), 1.7).mul(maxLen);
+        const t = pow(float(i).add(jit).add(0.5).div(STEPS), 1.7).mul(maxLen);
         const p = O.add(r.mul(t));
         If(p.z.greaterThan(near.negate()), () => {
           Break();
@@ -80,10 +83,12 @@ export function wetReflections(color: N, colorTex: N, depth: N, wetTex: N, camer
         });
         const sz = perspectiveDepthToViewZ(depth.sample(s).r, near, far);
         const diff = sz.sub(p.z);
-        const thick = t.sub(t0).mul(1.5).add(0.12);
+        // thin: a ray passing behind a slender thing (a crystal, a post) must not take it for a hit
+        const thick = clamp(t.sub(t0).mul(0.8), 0.1, 0.5).add(0.05);
         If(diff.greaterThan(0).and(diff.lessThan(thick)), () => {
           hit.assign(1);
           tHit.assign(t);
+          hitThick.assign(thick);
           Break();
         });
         t0.assign(t);
@@ -91,7 +96,7 @@ export function wetReflections(color: N, colorTex: N, depth: N, wetTex: N, camer
       If(hit.greaterThan(0.5), () => {
         // refine between the last step short of the surface and the hit
         const a = t0.toVar(), b = tHit.toVar();
-        Loop(5, () => {
+        Loop(7, () => {
           const m = a.add(b).mul(0.5);
           const p = O.add(r.mul(m));
           const s = getScreenPosition(p, proj);
@@ -103,16 +108,25 @@ export function wetReflections(color: N, colorTex: N, depth: N, wetTex: N, camer
           });
         });
         tHit.assign(b);
-        huv.assign(getScreenPosition(O.add(r.mul(b)), proj));
+        const pb = O.add(r.mul(b));
+        huv.assign(getScreenPosition(pb, proj));
+        // how surely the ray met the surface there: a hit only just inside the depth test's
+        // tolerance fades, so its edges don't break into steps and hatching
+        const dz = T.abs(perspectiveDepthToViewZ(depth.sample(huv).r, near, far).sub(pb.z));
+        conf.assign(float(1).sub(smoothstep(hitThick.mul(0.2), hitThick, dz)));
       });
       const edge = smoothstep(0, 0.07, huv.x).mul(smoothstep(1, 0.93, huv.x)).mul(smoothstep(0, 0.07, huv.y)).mul(smoothstep(1, 0.93, huv.y));
       const reach = float(1).sub(smoothstep(0.55, 1, tHit.div(maxLen)));
-      const got = hit.mul(edge).mul(reach);
+      const got = hit.mul(edge).mul(reach).mul(conf);
       // what it meets; where it meets nothing, the air's own colour (never a picture of the sky)
       const air = fogUniforms.color.mul(0.9).add(fogUniforms.glow.mul(pow(max(dot(r, normalize(T.cameraViewMatrix.mul(vec4(fogUniforms.glowDir, 0)).xyz)), 0), 8).mul(0.25)));
       // (underground there is no air to see: the water there shows the floor under it, darker)
       const miss = mix(out.rgb.mul(0.45), air, wetUniforms.air);
-      const seen = mix(miss, colorTex.sample(huv).rgb, got);
+      // (four taps a pixel apart: still water's image, softened a hair, without the stair-steps)
+      const px = vec2(1).div(T.screenSize);
+      const img = colorTex.sample(huv.add(px.mul(vec2(-0.6, -0.6)))).rgb.add(colorTex.sample(huv.add(px.mul(vec2(0.6, -0.6)))).rgb)
+        .add(colorTex.sample(huv.add(px.mul(vec2(-0.6, 0.6)))).rgb).add(colorTex.sample(huv.add(px.mul(vec2(0.6, 0.6)))).rgb).mul(0.25);
+      const seen = mix(miss, img, got);
       // water's Fresnel (F0 0.02), stronger as you look along the surface
       const cosV = clamp(dot(v.negate(), n), 0, 1);
       const fres = float(0.02).add(float(0.98).mul(pow(float(1).sub(cosV), 5)));
