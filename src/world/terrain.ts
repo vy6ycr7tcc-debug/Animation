@@ -2038,3 +2038,35 @@ export const MORE_CAVES: { x: number; z: number; y: number; face: number }[] = (
 })();
 /** Every cave in the world: the first ones and those found here and there since. */
 export const CAVES = [...CAVE_SITES, ...MORE_CAVES];
+
+/** Gold mines (the owner: "add gold mines"): adits driven into steep dry hillsides, most of them in
+    the red hills of the west and south-west where gold would be sought, clear of every site, cave,
+    river, fall and each other. Chosen last, on the finished land, so nothing else moved. `face` is
+    the way the adit's mouth looks (downhill). */
+export const MINE_SITES: { x: number; z: number; y: number; face: number }[] = (() => {
+  const out: { x: number; z: number; y: number; face: number }[] = [];
+  const GA = Math.PI * (3 - Math.sqrt(5));
+  for (let i = 0; i < 1400 && out.length < 3; i++) {
+    // bearings toward the west (π) first: the red rocks, the dunes' edge, the moor
+    const a = Math.PI + (((i * GA) % (Math.PI * 2)) - Math.PI) * (i < 700 ? 0.45 : 1), r = 260 + ((i * 0.7548776) % 1) * 1500;
+    const x = SPAWN.x + Math.cos(a) * r, z = SPAWN.z + Math.sin(a) * r;
+    const h = heightAt(x, z);
+    if (h < 4 || h > 70 || massifAt(x, z) > 0.2) continue;
+    const gx = heightAt(x + 8, z) - heightAt(x - 8, z), gz = heightAt(x, z + 8) - heightAt(x, z - 8);
+    if (Math.hypot(gx, gz) < 3.6) continue;
+    const fx = -gx / Math.hypot(gx, gz), fz = -gz / Math.hypot(gx, gz);
+    // level enough before the mouth for its rails and spoil heap, and hill behind it
+    if (heightAt(x + fx * 14, z + fz * 14) < WATER_Y + 0.8 || heightAt(x - fx * 9, z - fz * 9) < h + 1.6) continue;
+    if (LANDMARK_SITES.some(([lx, lz]) => Math.hypot(x - lx, z - lz) < 110)) continue;
+    if (keptClear(x, z, 40) || GLADES.some((g) => Math.hypot(x - g.x, z - g.z) < g.r + 40)) continue;
+    if (riverDist(x, z) < 45 || WATERFALLS.some((f) => Math.hypot(x - f.x, z - f.z) < 140 || riverNear(f, x, z, 45))) continue;
+    if (CAVES.some((c) => Math.hypot(c.x - x, c.z - z) < 200) || out.some((c) => Math.hypot(c.x - x, c.z - z) < 400)) continue;
+    out.push({ x, z, y: h, face: Math.atan2(fz, fx) });
+  }
+  // (trees and rocks keep off each mouth, its rails and its spoil heap: creation.ts `clearOf`;
+  // not by KEEP_CLEAR, which the sites chosen after this module read, so none of them moved)
+  // a level bench before each adit, as at any mine: cut into the foot of the hill at the mouth's
+  // height, so the way in is walked on level ground (the hill rose too steeply to the door)
+  for (const m of out) levelGround(m.x + Math.cos(m.face) * 5, m.z + Math.sin(m.face) * 5, m.y, 7, 13);
+  return out;
+})();
