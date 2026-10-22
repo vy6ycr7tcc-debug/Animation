@@ -79,7 +79,7 @@ import { Depths, RUIN_NAMES, RUIN_SITES } from "./world/depths";
 import { Ancients } from "./world/ancient";
 import { Pyramid, DUAT_ORIGIN } from "./world/pyramid";
 import { Cavern, type Underground } from "./world/cavern";
-import { GoldMine } from "./world/mines";
+import { GoldMine, spinCart } from "./world/mines";
 import { MINE_SITES, wakeTheNile } from "./world/terrain";
 import { FalseDoors } from "./world/falseDoors";
 import { Gobekli } from "./world/ancient/gobekli";
@@ -4432,8 +4432,10 @@ function rideFrame(dt: number, t: number): void {
     // in along the rails to the mouth (out is less): through it, into the mine
     r.s -= r.speed * dt;
     const p = m.railOut(r.s);
+    spinCart(m.cartOut, m.cartOut.position, p);
     m.cartOut.position.copy(p);
-    player.pos.set(p.x, p.y - 0.33 + 0.22, p.z);
+    // (on the tub's floor, the bench under the hips)
+    player.pos.set(p.x, p.y + 0.03, p.z);
     player.heading = Math.atan2(Math.cos(-m.portalYaw), Math.sin(-m.portalYaw));
     if (r.s < 0.6 && !crossing) {
       r.where = "wait";
@@ -4456,10 +4458,11 @@ function rideFrame(dt: number, t: number): void {
       r.speed = Math.min(r.speed, 0.4);
     }
     const yaw = m.railIn(r.s, rideV);
-    m.cartIn.position.copy(rideV);
     m.cartIn.rotation.y = yaw;
+    spinCart(m.cartIn, m.cartIn.position, rideV);
+    m.cartIn.position.copy(rideV);
     m.cartIn.userData.s = r.s;
-    player.pos.set(rideV.x, rideV.y - 0.33 + 0.22, rideV.z);
+    player.pos.set(rideV.x, rideV.y + 0.03, rideV.z);
     // facing the way it rolls
     const tx = Math.cos(-yaw) * r.dir, tz = Math.sin(-yaw) * r.dir;
     player.heading = Math.atan2(-tx, -tz);
