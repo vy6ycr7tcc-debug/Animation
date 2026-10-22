@@ -78,6 +78,7 @@ import { Touch } from "./world/touch";
 import { Depths, RUIN_NAMES, RUIN_SITES } from "./world/depths";
 import { Ancients } from "./world/ancient";
 import { Pyramid, DUAT_ORIGIN } from "./world/pyramid";
+import { Cavern } from "./world/cavern";
 import { FalseDoors } from "./world/falseDoors";
 import { Gobekli } from "./world/ancient/gobekli";
 import { NanMadol } from "./world/ancient/nanMadol";
@@ -387,7 +388,7 @@ const temple = new Temple(sparks, {
 });
 scene.add(temple.group, temple.gate);
 let hallsReady = false; // the halls are made further down; until then their floor is level
-floorHook.fn = (x, z) => (inJourney(x) ? (hallsReady ? (inHall()?.journey.floorAt(x, z) ?? 0) : 0) : x > 45000 ? pyramid.floorAt(x, z) : x > 35000 ? depths.floorAt() : temple.floorAt(x, z));
+floorHook.fn = (x, z) => (x > 55000 ? cavern.floorAt(x, z) : inJourney(x) ? (hallsReady ? (inHall()?.journey.floorAt(x, z) ?? 0) : 0) : x > 45000 ? pyramid.floorAt(x, z) : x > 35000 ? depths.floorAt() : temple.floorAt(x, z));
 /** The figure the beings wear, once loaded (the mind's maze dresses its archetypes in it too). */
 let beingModel: BeingModel | null = null;
 void beings.load("models/wanderer.glb").then((m) => {
@@ -821,8 +822,8 @@ function persist(): void {
   if (S.mode === "intro" || resetting || FILM) return; // a film never overwrites the device's own journey
   const d: SaveData = {
     v: 1,
-    pos: inHall() ? ((o) => [o.x, o.y, o.z] as [number, number, number])(inHall()!.hall.outside()) : temple.inside ? templeReturnPos() : depths.inside ? deepReturnPos() : pyramid.isInside ? [pyramid.outside().x, heightAt(pyramid.outside().x, pyramid.outside().z), pyramid.outside().z] : [player.pos.x, player.pos.y, player.pos.z],
-    heading: inHall() ? inHall()!.hall.outside().heading : pyramid.isInside ? 0 : temple.inside ? temple.outside().heading : depths.inside ? depths.outside(deepMouth ?? depths.mouths[0].site).heading : player.heading,
+    pos: cavern.inside ? ((o) => [o.x, heightAt(o.x, o.z), o.z] as [number, number, number])(cavern.outside()) : inHall() ? ((o) => [o.x, o.y, o.z] as [number, number, number])(inHall()!.hall.outside()) : temple.inside ? templeReturnPos() : depths.inside ? deepReturnPos() : pyramid.isInside ? [pyramid.outside().x, heightAt(pyramid.outside().x, pyramid.outside().z), pyramid.outside().z] : [player.pos.x, player.pos.y, player.pos.z],
+    heading: cavern.inside ? cavern.outside().heading : inHall() ? inHall()!.hall.outside().heading : pyramid.isInside ? 0 : temple.inside ? temple.outside().heading : depths.inside ? depths.outside(deepMouth ?? depths.mouths[0].site).heading : player.heading,
     heard: [],
     visited: [],
     settings: { volume: audio.volume, reduced: S.reducedPref, subtitles: narration.subtitlesOn, voices: playlist.on, awake: awake.on },
@@ -1648,6 +1649,7 @@ myHeart.place = () => {
   if (temple.inside) return "The temple";
   if (pyramid.isInside) return player.pos.distanceTo(DUAT_ORIGIN) < 260 ? "The Duat" : "The pyramid";
   if (depths.inside) return "The archive of the heart";
+  if (cavern.inside) return cavern.chamber(player.pos)?.name ?? "The crystal caverns";
   let best: Place | null = null, bd = Infinity;
   for (const p of places()) {
     const d = Math.hypot(p.x - player.pos.x, p.z - player.pos.z);
@@ -2050,7 +2052,9 @@ function places(): Place[] {
   return [
     { numeral: "", label: "The shore", group: "Shore", x: SPAWN.x, z: SPAWN.z, narration: "J01", start: { x: SPAWN.x, z: SPAWN.z, heading: SPAWN.heading } },
     { numeral: "", label: "The temple", group: "Shore", order: 1, x: temple.gateAt.x, z: temple.gateAt.z, narration: "J01", start: { ...temple.outside(), heading: temple.gateHeading } },
-    ...waterfalls.list.map(({ f, name, view }, i) => ({ numeral: "", label: `${name}, ${compass(f.x, f.z)}`, group: "Shore" as const, order: 8 + i, x: f.x, z: f.z, narration: "J01", start: view })),
+    ...waterfalls.list.map(({ f, name, view }, i) => ({ numeral: "", label: `${name}, ${compass(f.x, f.z)}`, group: "Shore" as const, section: "Wonders" as const, order: 8 + i, x: f.x, z: f.z, narration: "J01", start: view })),
+    // the crystal caverns: you wake in the cave by the shore, its fissure before you
+    ((o) => ({ numeral: "", label: "The crystal caverns", group: "Shore" as const, section: "Wonders" as const, note: "a cave of crystals, a hundred metres deep", order: 0, x: cavern.site.x, z: cavern.site.z, narration: "J01", start: { x: o.x, z: o.z, heading: o.heading + Math.PI } }))(cavern.outside()),
     { numeral: "", label: "The vision of creation", group: "Shore" as const, order: 0, x: vision.group.position.x, z: vision.group.position.z, narration: "J01", start: { x: vision.group.position.x + 11, z: vision.group.position.z + 11, heading: Math.atan2(11, 11) } },
     (() => {
       const [x, z] = nanMadolAt(0, -30);
@@ -2123,6 +2127,7 @@ function arriveNow(c: Choice, first: boolean): void {
   if (temple.inside) setInside(false);
   if (depths.inside) setDeep(false);
   if (pyramid.isInside) setPyr(false);
+  if (cavern.inside) setCavern(false);
   for (const h of halls) h.journey.leaveNow();
   standUp();
   player.pos.set(c.x, Math.max(heightAt(c.x, c.z), WATER_Y - 1), c.z);
@@ -2977,7 +2982,7 @@ function contemplationFrame(dt: number): void {
   // otherwise a slow drift between the loveliest views: the room's points of interest, the
   // vision of creation, and out in the world the sky (where the moon or low sun glows, a peak
   // standing against it, the stars low over the land), never a wall
-  let pts = inHall()?.journey.focus() ?? [];
+  let pts = inHall()?.journey.focus() ?? (cavern.inside ? cavern.focus(player.pos) : []);
   if (!pts.length && !apart()) {
     const [g0, g1, g2] = gazePts;
     if (player.pos.distanceTo(vision.group.position) < 70) pts = [g0.copy(vision.group.position).setY(vision.group.position.y + 3)];
@@ -4035,6 +4040,7 @@ function markDone(id: string): void {
 function whereFrom(): { x: number; z: number } {
   if (temple.inside) return temple.outside();
   if (pyramid.isInside) return pyramid.outside();
+  if (cavern.inside) return cavern.outside();
   const h = inHall();
   if (h?.journey.inside) return h.hall.outside();
   if (depths.inside) return depths.outside(depths.mouths[0].site);
@@ -4127,7 +4133,7 @@ tourBar().onRecord = () => {
 
 /** In a place apart (the temple, the deep archive, the pyramid): the open world rests. */
 function apart(): boolean {
-  return temple.inside || depths.inside || pyramid.isInside || !!inHall()?.journey.inside;
+  return temple.inside || depths.inside || pyramid.isInside || cavern.inside || !!inHall()?.journey.inside;
 }
 let pyrHidden: [THREE.Object3D, boolean][] = [];
 const toldPyr = new Set<string>();
@@ -4184,6 +4190,88 @@ function crossPyr(inside: boolean): void {
       crossing = false;
     }, 250);
   }, 650);
+}
+
+/* The crystal caverns (world/cavern.ts): a cold fissure at the back of the cave by the shore leads
+   down into a place apart, one long cave of crystal chambers a hundred metres deep. Walk back up
+   to the fissure to come out. */
+const cavern = new Cavern();
+scene.add(cavern.group, cavern.world);
+let cavHidden: [THREE.Object3D, boolean][] = [];
+let toldCavern = false;
+function setCavern(inside: boolean): void {
+  if (inside === cavern.inside) return;
+  if (inside) {
+    const keep = new Set<THREE.Object3D>([cavern.group, wanderer.root, wanderer.fx, camera]);
+    cavHidden = scene.children.filter((o) => !keep.has(o)).map((o) => [o, o.visible]);
+    for (const [o] of cavHidden) o.visible = false;
+    cavern.show(true);
+    audio.setTemple(true, false);
+    const e = cavern.entry();
+    player.pos.set(e.x, e.y, e.z);
+    player.heading = e.heading;
+    follow.yaw = e.heading;
+    follow.pitch = 0.12;
+  } else {
+    for (const [o, v] of cavHidden) o.visible = v;
+    cavHidden = [];
+    cavern.show(false);
+    audio.setTemple(false);
+    audio.quartzHum(0);
+    const o = cavern.outside();
+    player.pos.set(o.x, heightAt(o.x, o.z), o.z);
+    player.heading = o.heading;
+    follow.yaw = o.heading;
+    terrain.update(o.x, o.z, true);
+  }
+  Object.assign(player, { flying: false, landing: false, grounded: true, swimming: false, vy: 0, target: null });
+  player.vel.set(0, 0, 0);
+  follow.snapTo(player.pos);
+  quality.hold(3);
+}
+function crossCavern(inside: boolean): void {
+  if (crossing) return;
+  crossing = true;
+  stopAuto();
+  fadeEl.classList.add("on");
+  audio.bell(inside ? 220 : 330, 0.08, 7);
+  window.setTimeout(async () => {
+    if (inside) busy(1.5);
+    setCavern(inside);
+    await compileInDark();
+    if (inside) whisper("The crystal caverns. The way winds down a long way into the dark: walk on, and back up to this fissure to come out.", 9000);
+    window.setTimeout(() => {
+      fadeEl.classList.remove("on");
+      crossing = false;
+    }, 250);
+  }, 650);
+}
+function cavernFrame(): void {
+  cavern.update(S.wt, player.pos);
+  if (S.mode !== "play") return;
+  if (!cavern.inside) {
+    if (apart()) return;
+    const d = player.pos.distanceTo(cavern.door);
+    if (d < 9 && !toldCavern) {
+      toldCavern = true;
+      whisper("A cold breath comes from a crack at the back of the cave, and a faint violet light.", 7000);
+    }
+    if (!crossing && !autofly.active && !player.flying && !player.swimming && cavern.atDoor(player.pos)) crossCavern(true);
+    return;
+  }
+  if (player.flying) player.flying = false;
+  if (follow.dist > 4.4) follow.dist = 4.4;
+  if (cavern.confine(player.pos) && !crossing) crossCavern(false);
+  const said = cavern.arrived(player.pos);
+  if (said) whisper(said, 6000);
+  audio.quartzHum(cavern.heartNear);
+  // the cave's own air: near black, a little violet, thin enough to see down a chamber
+  fogUniforms.color.value.setRGB(0.006, 0.005, 0.012);
+  fogUniforms.density.value = 0.016;
+  gradeUniforms.shadow.value.setRGB(0.004, 0.002, 0.012);
+  gradeUniforms.high.value.setRGB(1.0, 0.98, 0.96);
+  gradeUniforms.sat.value = 1.05;
+  gradeUniforms.contrast.value = 1.06;
 }
 
 /* The Duat crossing — fade-crossing idiom (crossPyr) + teleport idiom (setPyr), verbatim.
@@ -5434,6 +5522,7 @@ function update(dt: number): void {
   lessonDark.k *= 0.92; // held only while a lesson keeps asking for it
   templeFrame(dt);
   pyramidFrame(dt);
+  cavernFrame();
   journeyFrame(dt);
   busyFrame();
   calmFrame();
@@ -6200,6 +6289,7 @@ function devPlace(): string {
   }
   if (pyramid.isInside) return player.pos.distanceTo(DUAT_ORIGIN) < 260 ? "The Duat" : "The pyramid, inside";
   if (depths.inside) return "The archive of the heart";
+  if (cavern.inside) return cavern.chamber(player.pos)?.name ?? "The crystal caverns";
   let best: Place | null = null, bd = Infinity;
   for (const p of places()) {
     const d = Math.hypot(p.x - player.pos.x, p.z - player.pos.z);
@@ -6335,5 +6425,5 @@ addX(document.getElementById("next-up"), () => nextUp.hide(), "Stay here");
   new MutationObserver(sync).observe($("#map-close"), { attributes: true, attributeFilter: ["hidden"] });
   sync();
 }
-Object.assign(window, { __ij: { med, sanct, garden, canTouch, beginBuild, beginHoverBuild, groundPoint, solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, myHeart, oracle, oracleVision, stepFrames: (n: number, dt = 1 / 60) => { realDt = dt; for (let i = 0; i < n; i++) update(dt); post.render(); }, heartFrame, maze: () => maze, tourInfo: () => tourBar().info() } });
+Object.assign(window, { __ij: { cavern, setCavern, med, sanct, garden, canTouch, beginBuild, beginHoverBuild, groundPoint, solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, myHeart, oracle, oracleVision, stepFrames: (n: number, dt = 1 / 60) => { realDt = dt; for (let i = 0; i < n; i++) update(dt); post.render(); }, heartFrame, maze: () => maze, tourInfo: () => tourBar().info() } });
 Object.assign((window as unknown as { __ij: object }).__ij, { whispers, hearWhisper, rapaNui });

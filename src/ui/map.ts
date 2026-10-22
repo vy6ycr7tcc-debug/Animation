@@ -17,7 +17,7 @@ import { fbm, heightAt, PEAKS, regionAt, regionIndex, riverDist, smooth, SPAWN, 
 
 export type Group = "Shore" | "Mind" | "Body" | "Spirit" | "Choice" | "Deep";
 /** Where a place is listed below the map: by kind, the ancient worlds by era. */
-export type Section = "Monuments" | "Ancient" | "Lessons" | "Archetypes" | "Deep";
+export type Section = "Monuments" | "Ancient" | "Wonders" | "Lessons" | "Archetypes" | "Deep";
 export interface Place {
   numeral: string; // "" for the shore
   label: string;
@@ -65,6 +65,7 @@ const INK: Record<Group, string> = {
 const SECTION_INK: Partial<Record<Section, string>> = {
   Monuments: "rgba(236,200,130,0.95)",
   Ancient: "rgba(232,176,128,0.95)",
+  Wonders: "rgba(170,210,255,0.95)",
   Lessons: "rgba(240,184,206,0.95)",
   Deep: INK.Deep,
 };
@@ -339,6 +340,7 @@ export class StartMap {
     const SECTIONS: { s: Section | "Tours" | "Whispers"; title: string }[] = [
       { s: "Monuments", title: "Monuments" },
       { s: "Ancient", title: "Ancient" },
+      { s: "Wonders", title: "Wonders" },
       { s: "Lessons", title: "Lessons" },
       { s: "Archetypes", title: "Archetypes" },
       { s: "Deep", title: "Deep" },
@@ -807,7 +809,7 @@ export class StartMap {
       g.fillRect(x - 6 * k, y - 4 * k, 12 * k, 8 * k);
     };
     rows.push(["The Mind", ring(INK.Mind, "Mind")], ["The Body", ring(INK.Body, "Body")], ["The Spirit", ring(INK.Spirit, "Spirit")], ["The Choice", ring(INK.Choice, "Choice")]);
-    rows.push(["Monuments", dot(SECTION_INK.Monuments!)], ["Ancient worlds", dot(SECTION_INK.Ancient!)], ["Lessons", dot(SECTION_INK.Lessons!)], ["Beneath the water", ring(INK.Deep, "Deep")]);
+    rows.push(["Monuments", dot(SECTION_INK.Monuments!)], ["Ancient worlds", dot(SECTION_INK.Ancient!)], ["Wonders", dot(SECTION_INK.Wonders!)], ["Lessons", dot(SECTION_INK.Lessons!)], ["Beneath the water", ring(INK.Deep, "Deep")]);
     rows.push(["Forest", swatch("rgb(40,70,44)")], ["Rivers and lakes", swatch("rgb(50,96,140)")], ["Rock", swatch("rgb(104,98,96)")], ["Snow", swatch("rgb(232,236,244)")]);
     const lh = 15 * k, w = 128 * k, h = rows.length * lh + 12 * k, x0 = 10 * k, y0 = H - 34 * k - h;
     g.save();
