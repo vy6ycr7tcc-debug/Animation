@@ -2,7 +2,8 @@
    explore deep in"). A place apart, entered by a cold fissure at the back of the cave nearest the
    shore: one long cave winding down about a hundred metres through the dark, its passages
    swelling into chambers and narrowing again, each with its own crystals:
-   - the quartz gallery: clear and milky quartz in clusters on every wall, some as tall as you;
+   - the quartz gallery: formations of clear, smoky, blue and milky quartz rooted in lumps of the
+     rock along its walls, some taller than you, each crystal its own surface;
    - the narrows: a tight, steep squeeze, small points glinting in the rock;
    - the amethyst geode: a round chamber lined with violet points all turned inward, its rock
      banded like agate;
@@ -19,6 +20,7 @@ import { setWet } from "../gpu/wet";
 import * as THREE from "three/webgpu";
 import { T, gpuUniforms, type N } from "../gpu/tsl";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { MeshBVH } from "three-mesh-bvh";
 import { surface } from "./textures";
 import { CAVE_SITES, SPAWN, colliders, heightAt, type Collider } from "./terrain";
 
@@ -316,8 +318,28 @@ function crystalMaterial(instanced = false): THREE.MeshStandardNodeMaterial {
   const streak = T.smoothstep(0.7, 0.95, T.mx_noise_float(T.positionWorld.sub(V.mul(0.6)).mul(T.vec3(9, 1.2, 9)).add(s.mul(13))).mul(0.5).add(0.5));
   const near = T.smoothstep(6, 1.2, T.length(T.positionWorld.sub(gpuUniforms.player)));
   const breathe = T.sin(gpuUniforms.time.mul(0.5).add(s.mul(31))).mul(0.15).add(0.85);
-  // the body dark and glassy (its colour seen through it), clouded milky where the inclusions are
-  m.colorNode = T.vec4(col.mul(T.float(0.02).add(phantom.mul(0.05))), 1);
+  // Each crystal its own surface (the owner: "randomized textures"), by its seed:
+  // - some frosted, etched matte by old water in patches, thicker toward the root (every root a
+  //   little), evenly with a little variation (patches read as stains), the rest clear;
+  // - growth striations across its faces, lines square to its length, as quartz has (fading where
+  //   finer than a pixel);
+  // - some stained rust at the root, from iron in the rock they grew from;
+  // - its colour a little warmer or cooler, lighter or darker, than its neighbours'.
+  const kind = T.fract(s.mul(7.31));
+  const frostN = T.mx_noise_float(T.positionWorld.mul(3.1).add(s.mul(21))).mul(0.5).add(0.5);
+  const frost = T.clamp(T.smoothstep(0.55, 0.78, kind).mul(frostN.mul(0.35).add(0.65)).mul(T.float(1).sub(u.mul(0.25))).add(T.smoothstep(0.22, 0.0, u).mul(0.45)), 0, 1);
+  const sp = u.mul(T.float(55).add(T.fract(s.mul(5.7)).mul(60)));
+  const stri = T.sin(sp.mul(6.2832)).mul(0.5).add(0.5).mul(T.float(1).sub(T.smoothstep(0.3, 0.8, T.fwidth(sp))));
+  const stain = T.step(T.fract(s.mul(3.17)), 0.35).mul(T.smoothstep(0.38, 0.0, u)).mul(frostN.mul(0.6).add(0.4));
+  const tint = T.mix(T.vec3(1.06, 0.98, 0.9), T.vec3(0.9, 0.97, 1.08), T.fract(s.mul(13.7))).mul(T.fract(s.mul(29.3)).mul(0.3).add(0.85));
+  const colj = col.mul(tint);
+  // the body dark and glassy (its colour seen through it), clouded milky where the inclusions
+  // are, pale where frosted, rust where stained, its striations faintly drawn
+  const clear = colj.mul(T.float(0.02).add(phantom.mul(0.05)));
+  const body = T.mix(T.mix(clear, colj.mul(0.2).add(0.025), frost), T.vec3(0.15, 0.065, 0.022), stain.mul(0.8)).mul(T.float(1).sub(stri.mul(0.1)));
+  m.colorNode = T.vec4(body, 1);
+  // wet and clear, it mirrors the cave (the wet reflections, gpu/wet.ts), frosted less
+  setWet(m, T.float(0.5).mul(T.float(1).sub(frost.mul(0.85))).mul(T.float(1).sub(stain.mul(0.5))));
   // the light within: faint at the root, gathering toward the tip, a slow band of it rising
   const band = T.smoothstep(0.86, 1, T.sin(u.mul(9).sub(gpuUniforms.time.mul(0.7)).add(s.mul(17))).mul(0.5).add(0.5)).mul(0.1);
   const within = T.float(0.012).add(T.pow(u, 2.6).mul(0.34)).add(band).add(phantom.mul(0.05)).add(streak.mul(0.1)).mul(facet.mul(facet));
@@ -325,15 +347,17 @@ function crystalMaterial(instanced = false): THREE.MeshStandardNodeMaterial {
   // each flat face catches them at its own angle, so the crystal sparkles facet by facet)
   const r = T.reflect(V.negate(), n);
   const env = T.pow(T.abs(T.sin(r.x.mul(6.3).add(s.mul(9))).mul(T.sin(r.z.mul(5.1).add(r.y.mul(3.7)).add(s.mul(4))))), 22).mul(0.9).add(T.smoothstep(0.55, 1, r.y).mul(0.06));
-  m.emissiveNode = col
-    .mul(col)
+  m.emissiveNode = colj
+    .mul(colj)
     .mul(within)
     .mul(g)
     .mul(breathe)
     .mul(T.float(1).add(near.mul(0.7)))
-    .add(col.mul(fres).mul(0.22).mul(g.mul(0.5).add(0.5)))
-    .add(T.mix(T.vec3(1), col, 0.35).mul(env).mul(fres.mul(0.7).add(0.3)));
-  m.roughnessNode = T.float(0.03).add(phantom.mul(0.16));
+    .mul(T.float(1).sub(stain.mul(0.75)))
+    .mul(T.float(1).sub(stri.mul(0.15)))
+    .add(colj.mul(fres).mul(0.22).mul(g.mul(0.5).add(0.5)))
+    .add(T.mix(T.vec3(1), colj, 0.35).mul(env).mul(fres.mul(0.7).add(0.3)).mul(T.float(1).sub(frost.mul(0.8))));
+  m.roughnessNode = T.mix(T.float(0.03).add(phantom.mul(0.16)), T.float(0.62), frost);
   return m;
 }
 /* The dense crusts (the geode's lining, the gallery's walls) are one small crystal drawn many
@@ -395,6 +419,8 @@ export class Underground {
   private hemi: THREE.HemisphereLight;
   solids: Collider[] = [];
   private builtParts: THREE.Object3D[] = [];
+  /** The tube's chunks while it is being decorated (what `anchor` casts against), then let go. */
+  private chunks: { c0: number; c1: number; bvh: MeshBVH | null; mesh: THREE.Mesh }[] = [];
   private told = new Set<number>();
   /** Its heart (the crystal caverns' great crystal), if it has one: heard near. */
   readonly heart = new THREE.Vector3();
@@ -648,6 +674,7 @@ export class Underground {
       const mesh = new THREE.Mesh(g, rock);
       mesh.receiveShadow = true;
       this.add(mesh);
+      this.chunks.push({ c0, c1, bvh: null, mesh });
     }
     // stalactites from the crown, stalagmites rising to meet them by the walls, and blocks fallen
     // from the roof lying at the floor's edges: in the cave's own rock
@@ -730,6 +757,7 @@ export class Underground {
     this.sources = [];
     this.solids = [];
     this.spec.decorate(this);
+    this.chunks = [];
   }
   add(o: THREE.Object3D): void {
     this.group.add(o);
@@ -749,6 +777,45 @@ export class Underground {
     }
     this.builtParts = [];
     this.sources = [];
+  }
+
+  /** Where the rock truly is at sample i, angle θ: a ray from the section's middle out toward
+      `wallAt`'s point, cast against the tube as built (its swells and hollows included), so what
+      grows on a wall roots in it and never hangs in the air. The normal faces into the cave. */
+  anchor(i: number, th: number): { p: THREE.Vector3; n: THREE.Vector3 } {
+    const w = this.wallAt(i, th);
+    const s = this.samples[i], O = this.O;
+    const c = new THREE.Vector3(O.x + s.x, O.y + s.y + s.h * 0.45, O.z + s.z);
+    const dir = w.p.clone().sub(c);
+    const reach = dir.length() * 1.6 + 2;
+    dir.normalize();
+    const ray = new THREE.Ray(c, dir);
+    let best: { p: THREE.Vector3; n: THREE.Vector3; d: number } | null = null;
+    for (const ch of this.chunks) {
+      if (i < ch.c0 - 1 || i > ch.c1 + 1) continue;
+      ch.bvh ??= new MeshBVH(ch.mesh.geometry);
+      const hit = ch.bvh.raycastFirst(ray, THREE.DoubleSide);
+      if (hit && hit.distance < reach && (!best || hit.distance < best.d)) {
+        const n = hit.face!.normal.clone();
+        if (n.dot(dir) > 0) n.negate();
+        best = { p: hit.point.clone(), n, d: hit.distance };
+      }
+    }
+    return best ?? w;
+  }
+
+  /** The rock under a point near sample i: a ray from a little out in front of `p` back along
+      `-n`. Null if there is no rock within reach (the point then stays where it was). */
+  onRock(i: number, p: THREE.Vector3, n: THREE.Vector3, reach = 1.6): THREE.Vector3 | null {
+    const ray = new THREE.Ray(p.clone().addScaledVector(n, 0.6), n.clone().negate());
+    let best: THREE.Vector3 | null = null, bd = Infinity;
+    for (const ch of this.chunks) {
+      if (i < ch.c0 - 1 || i > ch.c1 + 1) continue;
+      ch.bvh ??= new MeshBVH(ch.mesh.geometry);
+      const hit = ch.bvh.raycastFirst(ray, THREE.DoubleSide);
+      if (hit && hit.distance < reach + 0.6 && hit.distance < bd) (bd = hit.distance), (best = hit.point.clone());
+    }
+    return best;
   }
 
   /** A point on the wall of sample i at angle θ (0 the floor's middle, π the crown), with the
@@ -849,68 +916,108 @@ export class Cavern extends Underground {
       const s = S[i];
       this.sources.push({ p: new THREE.Vector3(O.x + s.x, O.y + s.y + s.h * lift, O.z + s.z), c, k, r });
     };
-    const druse = (p: THREE.Vector3, n: THREE.Vector3, count: number, size: number, col: () => THREE.Color, glow: number, spread = 0.55) => {
-      // a basis on the wall: crystals spread over it, their roots sunk into the rock
-      const a = Math.abs(n.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
-      const t1 = new THREE.Vector3().crossVectors(n, a).normalize(), t2 = new THREE.Vector3().crossVectors(n, t1);
-      for (let k = 0; k < count; k++) {
-        const dir = n.clone().add(new THREE.Vector3(rnd() - 0.5, rnd() - 0.5, rnd() - 0.5).multiplyScalar(spread * 2)).normalize();
-        const len = size * (0.35 + Math.pow(rnd(), 2.2) * 1.4);
-        const base = p.clone().addScaledVector(t1, (rnd() - 0.5) * size * 1.4).addScaledVector(t2, (rnd() - 0.5) * size * 1.4).addScaledVector(n, -0.12 * size - 0.05);
-        b.prism(base, dir, len, len * (0.12 + rnd() * 0.06), len * (0.18 + rnd() * 0.12), col(), glow);
-      }
-    };
     // the crusts: many small crystals over a stretch of wall, all drawn as one (instanced)
     const crust: { p: THREE.Vector3; d: THREE.Vector3; len: number; c: THREE.Color }[] = [];
-    const lining = (p: THREE.Vector3, nn: THREE.Vector3, count: number, size: number, col: () => THREE.Color, spread = 0.3) => {
+    const lining = (i: number, p: THREE.Vector3, nn: THREE.Vector3, count: number, size: number, col: () => THREE.Color, spread = 0.3) => {
       const a = Math.abs(nn.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
       const t1 = new THREE.Vector3().crossVectors(nn, a).normalize(), t2 = new THREE.Vector3().crossVectors(nn, t1);
       for (let k = 0; k < count; k++) {
         const d = nn.clone().add(new THREE.Vector3(rnd() - 0.5, rnd() - 0.5, rnd() - 0.5).multiplyScalar(spread * 2)).normalize();
         const len = size * (0.4 + Math.pow(rnd(), 1.8) * 1.3);
-        const q = p.clone().addScaledVector(t1, (rnd() - 0.5) * 1.6).addScaledVector(t2, (rnd() - 0.5) * 1.6).addScaledVector(nn, -len * 0.18 - 0.04);
+        const q = p.clone().addScaledVector(t1, (rnd() - 0.5) * 1.6).addScaledVector(t2, (rnd() - 0.5) * 1.6);
+        const r = this.onRock(i, q, nn);
+        if (r) q.copy(r);
+        q.addScaledVector(nn, -len * 0.18 - 0.04);
         crust.push({ p: q, d, len, c: col() });
       }
     };
     const n = S.length;
-    const quartz = () => (rnd() < 0.65 ? C("#d8e6ff", 1.25) : rnd() < 0.5 ? C("#b8a89a", 1.1) : C("#b9d2ff", 1.3));
+    // Formations (the owner: scattered small crystals "look pretty fake… larger structures"): a
+    // cluster grows from one lump of the cave's own rock, rooted where the rock truly is
+    // (`anchor`): one great crystal, two or three lesser ones fanned about it, and a skirt of
+    // small ones at its foot leaning outward, each turned and sized on its own; the great ones
+    // lean toward the open cave, as crystals grow toward the space they have.
+    const up = new THREE.Vector3(0, 1, 0);
+    const mounds: THREE.BufferGeometry[] = [];
+    const formation = (i: number, th: number, L: number, col: () => THREE.Color, glow: number, o: { lift?: number; flat?: number; mound?: boolean } = {}) => {
+      const { p, n: nn } = this.anchor(i, th);
+      const d0 = nn.clone().addScaledVector(up, o.lift ?? 0.4).normalize();
+      const a = Math.abs(nn.y) < 0.9 ? up : new THREE.Vector3(1, 0, 0);
+      const t1 = new THREE.Vector3().crossVectors(nn, a).normalize(), t2 = new THREE.Vector3().crossVectors(nn, t1);
+      const mr = L * 0.26 + 0.12;
+      if (o.mound !== false) {
+        const g = new THREE.IcosahedronGeometry(1, 2);
+        const pp = g.getAttribute("position");
+        const sx = 1.1 + rnd() * 0.4, sy = 0.55 + rnd() * 0.2;
+        for (let k = 0; k < pp.count; k++) {
+          const vx = pp.getX(k), vy = pp.getY(k), vz = pp.getZ(k);
+          const f = 0.82 + vn3(vx * 2.1 + i, vy * 2.1, vz * 2.1 + th) * 0.36;
+          pp.setXYZ(k, vx * f * sx, vy * f * sy, vz * f * sx);
+        }
+        g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(up, nn));
+        g.scale(mr, mr, mr);
+        g.translate(p.x - nn.x * mr * 0.25, p.y - nn.y * mr * 0.25, p.z - nn.z * mr * 0.25);
+        g.computeVertexNormals();
+        const c = g.getAttribute("position").count;
+        g.setAttribute("aZone", new THREE.Float32BufferAttribute(new Float32Array(c).fill(S[i].zone), 1));
+        g.setAttribute("aUp", new THREE.Float32BufferAttribute(new Float32Array(c).fill(0.3), 1));
+        g.deleteAttribute("uv");
+        mounds.push(g);
+      }
+      const fan = (count: number, lo: number, hi: number, lean: number, ring: number) => {
+        for (let k = 0; k < count; k++) {
+          const ang = rnd() * Math.PI * 2, rr = Math.sqrt(rnd()) * ring * mr;
+          const out = t1.clone().multiplyScalar(Math.cos(ang)).addScaledVector(t2, Math.sin(ang));
+          const dir = d0.clone().addScaledVector(out, lean * (0.4 + rr / mr) + (rnd() - 0.5) * lean * 0.4).normalize();
+          const len = L * (lo + rnd() * (hi - lo));
+          const rad = len * (0.1 + rnd() * 0.05);
+          // each crystal roots in the rock under its own foot (on a bulging wall a step to the side
+          // of the cluster's middle is already in the air)
+          const foot = p.clone().addScaledVector(out, rr);
+          const onR = this.onRock(i, foot, nn);
+          if (onR) foot.copy(onR);
+          const base = foot.addScaledVector(dir, -len * 0.08 - rad * 0.5);
+          b.prism(base, dir, len, rad, rad * (1.5 + rnd() * 0.9), col(), glow, o.flat ?? 1, 0.86 + rnd() * 0.12);
+        }
+      };
+      fan(1, 0.88, 1.0, 0.1, 0.15);
+      fan(2 + Math.floor(rnd() * 2), 0.42, 0.72, 0.32, 0.55);
+      fan(5 + Math.floor(rnd() * 6), 0.12, 0.36, 0.75, 1.05);
+      if (L > 1.2 && nn.y > 0.25) this.solids.push({ x: p.x, z: p.z, r: mr + 0.25, top: p.y + L });
+    };
+    // one colour to a formation, each crystal a little its own
+    const pick = (c: THREE.Color) => () => c.clone().multiplyScalar(0.9 + rnd() * 0.2);
+    const quartzKind = () => {
+      const r = rnd();
+      return pick(r < 0.45 ? C("#d8e6ff", 1.25) : r < 0.7 ? C("#a8968a", 1.05) : r < 0.88 ? C("#b9d2ff", 1.3) : C("#eef0f6", 0.95));
+    };
     const amethyst = () => C("#9b4dff", 1.35).lerp(C("#e0c2ff", 1.2), rnd() * 0.4);
     for (let i = 8; i < n - 6; i++) {
       const s = S[i], z = s.zone;
       if (z === 1) {
-        // the quartz gallery: clusters all over its walls, a few great ones by the way
-        for (let k = 0; k < 2; k++) {
-          const th = (rnd() < 0.5 ? 1 : -1) * (0.9 + rnd() * 1.9);
-          const { p, n: nn } = this.wallAt(i, th);
-          druse(p, nn, 6 + Math.floor(rnd() * 10), 0.45 + rnd() * 0.9, quartz, 0.8);
+        // the quartz gallery: formations along both walls, a few great ones by the way, now and
+        // then one hanging from the roof
+        if ((i - 8) % 3 === 0) {
+          const side = (i / 3) % 2 < 1 ? 1 : -1;
+          const r = rnd();
+          if (r < 0.62) formation(i, side * (0.95 + rnd() * 0.55), 0.9 + rnd() * 1.4, quartzKind(), 0.85);
+          else if (r < 0.9) formation(i, side * (1.5 + rnd() * 0.6), 0.7 + rnd() * 1.0, quartzKind(), 0.8, { lift: 0.15 });
+          else formation(i, Math.PI + (rnd() - 0.5) * 0.9, 1.0 + rnd() * 0.7, quartzKind(), 0.8, { lift: -0.1 });
         }
-        // and the rock between them glittering with small points
-        for (let k = 0; k < 4; k++) {
-          const th = (rnd() < 0.5 ? 1 : -1) * (0.85 + rnd() * 2.1);
-          const { p, n: nn } = this.wallAt(i, th);
-          lining(p, nn, 8, 0.16 + rnd() * 0.1, quartz, 0.4);
-        }
-        if (i % 12 === 0) {
-          const side = rnd() < 0.5 ? 1 : -1;
-          const { p, n: nn } = this.wallAt(i, side * 1.15);
-          for (let k = 0; k < 5; k++) {
-            const len = 1.4 + rnd() * 1.6;
-            b.prism(p.clone().add(new THREE.Vector3(rnd() - 0.5, -0.2, rnd() - 0.5)), nn.clone().add(new THREE.Vector3(0, 0.9, 0)).add(new THREE.Vector3(rnd() - 0.5, 0, rnd() - 0.5).multiplyScalar(0.6)), len, len * 0.13, len * 0.22, quartz(), 1);
-          }
-        }
+        if (i % 12 === 0) formation(i, (rnd() < 0.5 ? 1 : -1) * 1.05, 2.6 + rnd() * 1.1, quartzKind(), 1);
       } else if (z === 2) {
         // the geode: violet points lining it, all turned inward, dense
         // (a crust over the whole of it, floor's edges to crown, every point turned inward)
         for (let k = 0; k < 16; k++) {
           const th = 0.75 + rnd() * (Math.PI * 2 - 1.5);
-          const { p, n: nn } = this.wallAt(i, th);
-          lining(p, nn, 9, 0.3 + rnd() * 0.22, amethyst, 0.22);
+          const { p, n: nn } = this.anchor(i, th);
+          lining(i, p, nn, 9, 0.3 + rnd() * 0.22, amethyst, 0.22);
         }
       } else if (z === 3) {
         // fluorite cubes, green and violet, scattered on the walls of the descent
         if (rnd() < 0.5) {
           const th = (rnd() < 0.5 ? 1 : -1) * (0.9 + rnd() * 1.6);
-          const { p } = this.wallAt(i, th);
+          const { p } = this.anchor(i, th);
           const col = rnd() < 0.5 ? C("#5fd19a") : C("#9b7be0");
           for (let k = 0; k < 4; k++) b.cube(p.clone().add(new THREE.Vector3(rnd() - 0.5, rnd() - 0.5, rnd() - 0.5).multiplyScalar(0.4)), 0.12 + rnd() * 0.22, col, 0.6);
         }
@@ -918,22 +1025,20 @@ export class Cavern extends Underground {
         // small selenite blades on the walls between the great beams
         if (rnd() < 0.3) {
           const th = (rnd() < 0.5 ? 1 : -1) * (1 + rnd() * 1.8);
-          const { p, n: nn } = this.wallAt(i, th);
-          druse(p, nn, 3, 0.6, () => C("#f2ead8"), 0.45);
+          formation(i, th, 0.9 + rnd() * 0.8, pick(C("#f2ead8")), 0.45, { flat: 0.55, lift: 0.2 });
         }
-      } else if (z === 0 && rnd() < 0.08) {
+      } else if (z === 0 && rnd() < 0.035) {
         // here and there in the rock of the passages, a few points glinting
         const th = (rnd() < 0.5 ? 1 : -1) * (0.9 + rnd() * 1.8);
-        const { p, n: nn } = this.wallAt(i, th);
-        druse(p, nn, 3, 0.16, quartz, 0.7);
+        formation(i, th, 0.7 + rnd() * 0.5, quartzKind(), 0.7);
       }
     }
     // the cathedral: beams of selenite ten and more metres long, crossing the chamber from wall to wall
     const cat = S.map((s, i) => ({ s, i })).filter(({ s }) => s.zone === 4 && s.w > 15);
     for (let k = 0; k < 26 && cat.length; k++) {
       const a = cat[Math.floor(rnd() * cat.length)].i, bI = Math.min(n - 1, Math.max(0, a + Math.floor((rnd() - 0.5) * 50)));
-      const A = this.wallAt(a, (rnd() < 0.5 ? 1 : -1) * (1.2 + rnd() * 1.2)).p;
-      const B = this.wallAt(bI, (rnd() < 0.5 ? 1 : -1) * (1.2 + rnd() * 1.4)).p;
+      const A = this.anchor(a, (rnd() < 0.5 ? 1 : -1) * (1.2 + rnd() * 1.2)).p;
+      const B = this.anchor(bI, (rnd() < 0.5 ? 1 : -1) * (1.2 + rnd() * 1.4)).p;
       const dir = B.clone().sub(A);
       // keep them over your head, but for a few that lie fallen across the floor
       const low = k % 9 === 0;
@@ -985,6 +1090,11 @@ export class Cavern extends Underground {
       im.instanceMatrix.needsUpdate = true;
       im.computeBoundingSphere();
       this.add(im);
+    }
+    if (mounds.length) {
+      const mm = mergeGeometries(mounds);
+      mm.computeBoundingSphere();
+      this.add(new THREE.Mesh(mm, this.spec.rock(false)));
     }
     const geo = b.build();
     const mesh = new THREE.Mesh(geo, crystalMaterial());
