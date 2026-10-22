@@ -35,6 +35,7 @@ interface Palm {
 }
 
 const NEAR_R = 230; // palms drawn whole within this
+const FAR_R = 1300; // and as likenesses within this; none beyond
 const REED_R = 170;
 
 /* ---------------------------------------------------------------- papyrus */
@@ -337,6 +338,8 @@ export class Nile {
     let fc = 0;
     for (const p of this.palms) {
       const d = Math.hypot(p.x - pl.x, p.z - pl.z);
+      // (past ~1.3 km a palm is a speck in the haze: not drawn at all)
+      if (d > FAR_R) continue;
       this.q.setFromAxisAngle(this.yAxis, p.rot);
       this.m.compose(this.p.set(p.x, p.y, p.z), this.q, this.s.setScalar(p.scale));
       const mesh = this.near[p.variant];

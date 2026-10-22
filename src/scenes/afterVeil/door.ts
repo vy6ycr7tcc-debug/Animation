@@ -20,6 +20,7 @@ const { cos, float, fract, length, sin, smoothstep, uv, vec2, vec3, vec4 } = T;
 const W = 2.3, H = 4.8; // the opening
 
 export class VeilDoor implements Hall {
+  private ring: THREE.Object3D[] = [];
   readonly world = new THREE.Group();
   readonly label = "The world after the veil";
   readonly door: THREE.Vector3;
@@ -112,6 +113,7 @@ export class VeilDoor implements Hall {
       }
       const f = forest(spots, t, R, 5200);
       this.world.add(...f.objects);
+      this.ring = f.objects;
     }
     // spores of light, drifting low in the dim
     {
@@ -143,6 +145,9 @@ export class VeilDoor implements Hall {
   /** Each frame out in the world (only near: it costs nothing far away). */
   update(dt: number, t: number, visitor: THREE.Vector3, reduced: boolean, inside: boolean): void {
     const d = Math.hypot(visitor.x - this.door.x, visitor.z - this.door.z);
+    // (its ring of trees, ~50k triangles, only within reach of the eye: far off they are a speck)
+    const ringOn = d < 450;
+    if (this.ring.length && this.ring[0].visible !== ringOn) for (const o of this.ring) o.visible = ringOn;
     const near = !inside && d < 120;
     if (near && !this.angel.root.parent) this.world.parent?.add(this.angel.root);
     if (!near) {
