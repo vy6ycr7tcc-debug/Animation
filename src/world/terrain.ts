@@ -2010,3 +2010,31 @@ function riverNear(f: Fall, x: number, z: number, r: number): boolean {
 // the regions' landforms, now that every site of this module has been chosen on the land as it was
 reliefOn = true;
 coarse.clear();
+
+/** More caves, here and there (the owner: "add caves here and there"): chosen last, on the land
+    as it now stands (its regions' landforms and waterways in), so nothing chosen before moved.
+    Steep hillsides above the water, clear of every site, waterfall, river, glade, the massifs'
+    snow and the other caves; a few near enough the shore to come upon on foot. */
+export const MORE_CAVES: { x: number; z: number; y: number; face: number }[] = (() => {
+  const out: { x: number; z: number; y: number; face: number }[] = [];
+  const GA = Math.PI * (3 - Math.sqrt(5));
+  for (let i = 0; i < 900 && out.length < 12; i++) {
+    const a = i * GA + 1.1, r = 200 + ((i * 0.7548776) % 1) * 1800;
+    const x = SPAWN.x + Math.cos(a) * r, z = SPAWN.z + Math.sin(a) * r;
+    const h = heightAt(x, z);
+    if (h < 3 || h > 70 || massifAt(x, z) > 0.2) continue;
+    const gx = heightAt(x + 8, z) - heightAt(x - 8, z), gz = heightAt(x, z + 8) - heightAt(x, z - 8);
+    if (Math.hypot(gx, gz) < 3.6) continue; // a real slope: the hollow runs into the hill
+    // the ground before the mouth (downhill) is dry, and there is hill behind it
+    const fx = -gx / Math.hypot(gx, gz), fz = -gz / Math.hypot(gx, gz);
+    if (heightAt(x + fx * 9, z + fz * 9) < WATER_Y + 0.6 || heightAt(x - fx * 9, z - fz * 9) < h + 1.6) continue;
+    if (LANDMARK_SITES.some(([lx, lz]) => Math.hypot(x - lx, z - lz) < 90)) continue;
+    if (keptClear(x, z, 30) || GLADES.some((g) => Math.hypot(x - g.x, z - g.z) < g.r + 30)) continue;
+    if (riverDist(x, z) < 40 || WATERFALLS.some((f) => Math.hypot(x - f.x, z - f.z) < 120 || riverNear(f, x, z, 40))) continue;
+    if ([...CAVE_SITES, ...out].some((c) => Math.hypot(c.x - x, c.z - z) < 240)) continue;
+    out.push({ x, z, y: h, face: Math.atan2(-gz, -gx) });
+  }
+  return out;
+})();
+/** Every cave in the world: the first ones and those found here and there since. */
+export const CAVES = [...CAVE_SITES, ...MORE_CAVES];

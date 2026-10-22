@@ -15,7 +15,7 @@ import { surface } from "./textures";
 import { crystalMaterial, prismGeometry } from "./creation";
 import { etchedStone } from "./etching";
 import type { LifeFrame } from "./life";
-import { CAVE_SITES, colliders, type Collider, fbm, groundKind, heightAt, keptClear, LANDMARK_SITES, SPAWN, WATER_Y } from "./terrain";
+import { CAVES, colliders, type Collider, fbm, groundKind, heightAt, keptClear, LANDMARK_SITES, SPAWN, WATER_Y } from "./terrain";
 
 const { attribute, cos, dot, float, fract, Fn, If, mix, positionLocal, positionWorld, sin, smoothstep, abs, screenCoordinate, step, texture, uniform, vec2, vec3 } = T;
 const V = THREE.Vector3;
@@ -242,6 +242,22 @@ function caveGeometry(): THREE.BufferGeometry {
   return g;
 }
 
+/** A rough fallen block: a sphere broken into facets and weathered. */
+function boulderGeometry(): THREE.BufferGeometry {
+  const g = new THREE.IcosahedronGeometry(1, 2);
+  const p = g.attributes.position as THREE.BufferAttribute;
+  const v = new V();
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i);
+    const f = 1 + (fbm(v.x * 1.6 + 3, v.z * 1.6 + v.y * 1.1) - 0.5) * 0.55 + (fbm(v.x * 4 - 2, v.y * 4 + v.z) - 0.5) * 0.14;
+    v.multiplyScalar(f);
+    v.y = Math.max(v.y, -0.55); // a flatter foot, settled
+    p.setXYZ(i, v.x, v.y, v.z);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
 interface Cave {
   x: number;
   y: number;
@@ -321,20 +337,26 @@ export class Wilds {
   private buildCaves(): void {
     const geo = caveGeometry();
     // the drawings' gold lattice, faint and wide here: close around you it would read as a net
-    const stone = etchedStone("#221e30", "#6e5a3c", 5.5);
+    const stone = etchedStone("#4a4037", "#6e5a3c", 5.5); // a warm dark rock, the scan's own grain
     stone.side = THREE.DoubleSide;
     // wherever the rock would come between the camera and the wanderer, it thins away
     stone.maskNode = outOfTheWay(positionWorld).greaterThan(fract(sin(dot(screenCoordinate.xy, vec2(12.9898, 78.233))).mul(43758.5453)));
     const prism = prismGeometry();
     const nCrystals = 6;
-    const aC = new THREE.InstancedBufferAttribute(new Float32Array(CAVE_SITES.length * nCrystals * 3), 3);
+    const aC = new THREE.InstancedBufferAttribute(new Float32Array(CAVES.length * nCrystals * 3), 3);
     prism.setAttribute("aC", aC);
-    const crystals = new THREE.InstancedMesh(prism, crystalMaterial(), Math.max(1, CAVE_SITES.length * nCrystals));
+    const crystals = new THREE.InstancedMesh(prism, crystalMaterial(), Math.max(1, CAVES.length * nCrystals));
+    // boulders fallen about each mouth, in the same rock (the hillside broke to open it)
+    const BOULDERS = 6;
+    const boulders = new THREE.InstancedMesh(boulderGeometry(), stone, Math.max(1, CAVES.length * BOULDERS));
+    boulders.castShadow = boulders.receiveShadow = true;
+    let bi = 0;
     crystals.renderOrder = 2;
     const worms: number[] = [];
-    const R = 7.5, H = 5.8;
     let ci = 0;
-    CAVE_SITES.forEach((c, n) => {
+    CAVES.forEach((c, n) => {
+      // each hollow its own size (the first kept theirs)
+      const R = n < 7 ? 7.5 : 5.8 + hash(n, 0, 21) * 3.4, H = R * (n < 7 ? 5.8 / 7.5 : 0.7 + hash(n, 0, 22) * 0.18);
       const cave = new THREE.Mesh(geo, stone);
       cave.position.set(c.x, c.y - 1.2, c.z);
       cave.scale.set(R, H, R);
@@ -370,8 +392,25 @@ export class Wilds {
         if (Math.abs(off) < 0.75) continue;
         colliders.push({ x: c.x + Math.cos(a) * R * 0.95, z: c.z + Math.sin(a) * R * 0.95, r: 1.1, top: c.y + H - 1 });
       }
+      for (let k = 0; k < BOULDERS; k++) {
+        // two flanking the mouth, the rest strewn down the slope before it
+        const side = k < 2 ? (k === 0 ? 1 : -1) : hash(n, k, 30) - 0.5;
+        const a = c.face + (k < 2 ? side * (0.85 + hash(n, k, 31) * 0.2) : side * 1.2);
+        const d = k < 2 ? R * (0.98 + hash(n, k, 32) * 0.12) : R * (1.15 + hash(n, k, 33) * 0.9);
+        const x = c.x + Math.cos(a) * d, z = c.z + Math.sin(a) * d;
+        const s = k < 2 ? 1.2 + hash(n, k, 34) * 0.8 : 0.45 + hash(n, k, 35) * 0.9;
+        const y = heightAt(x, z);
+        this.q.setFromEuler(new THREE.Euler((hash(n, k, 36) - 0.5) * 0.6, hash(n, k, 37) * 6.28, (hash(n, k, 38) - 0.5) * 0.6));
+        this.m.compose(new V(x, y - s * 0.3, z), this.q, new V(s * (0.9 + hash(n, k, 39) * 0.5), s * (0.65 + hash(n, k, 40) * 0.3), s));
+        boulders.setMatrixAt(bi++, this.m);
+        if (s > 0.8) colliders.push({ x, z, r: s * 0.85, top: y + s * 0.6 });
+      }
       this.caves.push({ x: c.x, y: c.y, z: c.z, back, hue });
     });
+    boulders.count = bi;
+    boulders.instanceMatrix.needsUpdate = true;
+    boulders.computeBoundingSphere();
+    this.group.add(boulders);
     crystals.count = ci;
     crystals.instanceMatrix.needsUpdate = true;
     crystals.computeBoundingSphere();

@@ -1,7 +1,7 @@
 /* The wanderer's wake: where it has just walked, as eight fading points of presence. Rocks,
    crystals and bark read it (`wakeGlow`) and brighten softly as the wanderer comes near, the light
-   lingering a few seconds behind it and fading: the world answering a passing. Only on foot; in
-   flight or in the water no new points are laid, and the old ones fade. */
+   lingering a few seconds behind it and fading: the world answering a passing. On foot and in the
+   water (where the plankton reads it too); in flight no new points are laid, and the old ones fade. */
 import * as THREE from "three/webgpu";
 import { T, type N } from "./tsl";
 
