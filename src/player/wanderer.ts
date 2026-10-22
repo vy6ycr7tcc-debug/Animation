@@ -518,7 +518,8 @@ export class Wanderer {
       // floating: it lies back about the hips, the hips down at the surface, rocking a little
       const tilt = -1.42 * soar * fly + (Math.PI / 2) * floatK; // lying level on the water
       this.body.rotation.x = tilt;
-      this.body.rotation.z = floatK * (reduced ? 0 : Math.sin(t * 0.45) * 0.015);
+      // floating, the body rocks on the swell (two slow waves across it)
+      this.body.rotation.z = floatK * (reduced ? 0 : Math.sin(t * 0.45) * 0.035 + Math.sin(t * 0.21 + 1.1) * 0.025);
       const settle = THREE.MathUtils.smoothstep(kneel, 0, 1);
       this.body.position.set(0, water * (swimMove * 0.28 + (1 - swimMove) * 0.35) + HIP * (1 - Math.cos(tilt)) - HIP * floatK - KNEEL_DROP * settle, -HIP * Math.sin(tilt) - this.touching.lean * THREE.MathUtils.smoothstep(lean, 0, 1));
     }
@@ -681,6 +682,11 @@ export class Wanderer {
   /** Lying back on shallow water (the owner: "lay flat relaxed… just drift"): the arms open out
       to the sides, a little toward the head, the hands resting on the water; the legs straight
       along the body and a little apart, the feet soft. Moving, the hands scull slowly. */
+  /** Lying back on the water (the owner: floating "looks lame"): a relaxed float, as a body lies
+      on still water. The chest rises and falls with a slow breath, the head rests back and turns
+      now and then toward the sky, the arms lie open on the water with soft elbows and drift with
+      it, the legs part and close a little as the water moves them, the knees soft. Moving, the
+      hands scull slowly at the hips. */
   private floatPose(k: number, moving: number, t: number): void {
     if (k < 0.001 || !this.ready) return;
     this.body.updateMatrixWorld(true);
@@ -688,21 +694,39 @@ export class Wanderer {
     const h = this.root.rotation.y;
     const right = new THREE.Vector3(Math.cos(h), 0, -Math.sin(h));
     const back = new THREE.Vector3().crossVectors(right, along).normalize(); // under the body
-    // the legs laid out straight along the body, a little apart, the feet soft and turned out: the
-    // standing clip's stance (one foot ahead) would otherwise lift one leg and sink the other
+    const qa = new THREE.Quaternion();
+    const turn = (name: string, axis: THREE.Vector3, a: number) => this.turnBone(this.bones[key(name)], qa.setFromAxisAngle(axis, a), k);
+    // the breath (about 5 s): the chest lifts, the shoulders open a little
+    const breath = Math.sin(t * 1.25) * 0.5 + 0.5;
+    turn("DEF-spine.002", right, 0.05 + 0.04 * breath);
+    turn("DEF-spine.003", right, 0.04 + 0.03 * breath);
+    // the head rests back on the water and turns slowly, now and then, toward the sky
+    turn("DEF-neck", right, 0.16);
+    turn("DEF-head", along, 0.22 * Math.sin(t * 0.13) + 0.1 * Math.sin(t * 0.051 + 1));
+    // the legs laid along the body, parting and closing a little as the water moves them, the
+    // knees soft, the feet loose and turned out (the standing clip's stance would lift one leg)
     for (const [side, sgn] of [["L", -1], ["R", 1]] as const) {
-      const leg = along.clone().negate().addScaledVector(right, 0.12 * sgn).normalize();
+      const open = 0.14 + 0.06 * Math.sin(t * 0.23 + (sgn > 0 ? 0 : 1.7)) + 0.03 * Math.sin(t * 0.61 + sgn);
+      const leg = along.clone().negate().addScaledVector(right, open * sgn).addScaledVector(back, 0.03).normalize();
+      const knee = 0.1 + 0.06 * Math.sin(t * 0.17 + (sgn > 0 ? 2 : 0));
       this.aimBone(`DEF-thigh.${side}`, leg, k);
-      this.aimBone(`DEF-shin.${side}`, leg.clone().addScaledVector(back, 0.04).normalize(), k); // knees a touch soft
-      this.aimBone(`DEF-foot.${side}`, leg.clone().addScaledVector(back, -0.9).addScaledVector(right, 0.25 * sgn).normalize(), k);
+      this.aimBone(`DEF-shin.${side}`, leg.clone().addScaledVector(back, knee).normalize(), k);
+      this.aimBone(`DEF-foot.${side}`, leg.clone().addScaledVector(back, -0.85).addScaledVector(right, 0.3 * sgn).normalize(), k);
     }
+    // the arms open on the water, a little below the shoulders, elbows soft; still, they drift in
+    // and out with the swell; moving, the hands scull slowly by the hips
     for (const [side, sgn] of [["L", -1], ["R", 1]] as const) {
       const shoulder = this.bonePos(`DEF-upper_arm.${side}`, new THREE.Vector3());
-      const scull = moving * 0.14 * Math.sin(t * 1.7 + (sgn > 0 ? 0 : Math.PI * 0.15));
+      const sway = 0.07 * Math.sin(t * 0.31 + (sgn > 0 ? 0 : 2.1)) + 0.03 * Math.sin(t * 0.83 + sgn);
+      const scull = moving * 0.16 * Math.sin(t * 1.4 + (sgn > 0 ? 0 : Math.PI * 0.2));
+      const reach = THREE.MathUtils.lerp(0.5, 0.36, moving);
       // resting on the water, not in it (the surface is opaque: what dips under it is gone)
-      const target = shoulder.addScaledVector(right, 0.48 * sgn).addScaledVector(along, 0.1 + scull).addScaledVector(back, -0.03);
+      const target = shoulder
+        .addScaledVector(right, reach * sgn)
+        .addScaledVector(along, THREE.MathUtils.lerp(-0.12, -0.32, moving) + sway + scull)
+        .addScaledVector(back, -0.02);
       target.y = Math.max(target.y, WATER_Y + 0.07);
-      const pole = back.clone().multiplyScalar(0.8).addScaledVector(right, 0.3 * sgn).addScaledVector(along, -0.4);
+      const pole = back.clone().multiplyScalar(0.9).addScaledVector(right, 0.25 * sgn).addScaledVector(along, -0.5);
       this.reachTo(side, target, pole, k);
     }
   }

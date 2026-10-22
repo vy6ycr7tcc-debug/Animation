@@ -10,6 +10,7 @@
 import * as THREE from "three/webgpu";
 import { colliders, pushOut, standAt, WATER_Y } from "../world/terrain";
 import { solidity, STEP } from "../world/solidity";
+import { flowAt } from "../gpu/tsl";
 import type { Pose } from "./wanderer";
 
 /** The ground under a body whose feet are at `y`: the land (and its raised places), or any solid
@@ -49,7 +50,8 @@ const FLOAT_IN = 0.55, FLOAT_OUT = 0.4;
 const FLOAT_DEEP = 2.2; // floating carries on over water this deep before the body becomes the orb
 const FLOAT = 0.7; // drifting where the stick asks, unhurried
 const FLOAT_FAST = 1.2;
-const DRIFT = 0.12; // let go: a slow drift round a wide circle, never carried far
+const DRIFT = 0.3; // let go: carried slowly on the water's currents, never far from the shallows
+const _flow = { x: 0, y: 0, z: 0 };
 const FLOAT_Y = WATER_Y + 0.14; // where the body lies: on the water, its back just in it (the surface is opaque; the bones lie nearer the back, ~5 cm under this)
 
 export interface MoveInput {
@@ -79,6 +81,7 @@ export class Controller {
   floating = false;
   private floatT = 0;
   private driftA = Math.random() * Math.PI * 2;
+  private driftSeed = Math.random() * 6;
   pose: Pose = "idle";
   gliding = false;
   /** Free flight: no gravity; rise and sink at will, as high as you like. */
@@ -248,16 +251,26 @@ export class Controller {
       dz = -Math.cos(this.heading);
       mag = FLY_GLIDE / FLY;
     }
-    // lying back on the shallows with the stick let go: a slow drift that turns round a wide circle
+    // lying back on the shallows with the stick let go: carried on the water's slow currents (the
+    // air's own flow field, gpu/tsl.ts, so neighbouring water moves alike), wandering, never still
     const drifting = this.floating && mag < 0.05;
     if (drifting) {
+      flowAt(this.pos.x * 0.03, 0, this.pos.z * 0.03, this.floatT * 0.04, _flow);
+      const want = Math.atan2(_flow.z, _flow.x);
       // the shallows are often a narrow band: the drift turns away from water too shallow to float
       // in (it would stand you up) or deep enough to make the orb, so it never carries you out
-      const d = WATER_Y - heightAt(this.pos.x + Math.cos(this.driftA) * 1.6, this.pos.z + Math.sin(this.driftA) * 1.6);
-      this.driftA += dt * (d < 0.7 || d > 1.8 ? 1.4 : 0.08);
+      const d = WATER_Y - heightAt(this.pos.x + Math.cos(this.driftA) * 2, this.pos.z + Math.sin(this.driftA) * 2);
+      if (d < 0.7 || d > 1.8) this.driftA += dt * 1.2;
+      else {
+        let dd = want - this.driftA;
+        dd = Math.atan2(Math.sin(dd), Math.cos(dd));
+        this.driftA += dd * Math.min(1, dt * 0.12);
+      }
       dx = Math.cos(this.driftA);
       dz = Math.sin(this.driftA);
-      mag = DRIFT / FLOAT;
+      mag = (DRIFT * (0.75 + 0.25 * Math.min(1.6, Math.hypot(_flow.x, _flow.z)))) / FLOAT;
+      // and the body turns slowly about itself as a leaf on a pond does, this way and that
+      this.heading += dt * (0.045 * Math.sin(this.floatT * 0.06 + this.driftSeed) + 0.012);
     }
     if (mag > 0.001) {
       const len = Math.hypot(dx, dz);
@@ -364,7 +377,8 @@ export class Controller {
       this.floating = this.grounded && !this.walkOnly && WATER_Y - ground > (this.floating ? FLOAT_OUT : FLOAT_IN);
       if (this.floating) {
         this.floatT += dt;
-        this.pos.y += (FLOAT_Y + Math.sin(this.floatT * 0.9) * 0.02 - this.pos.y) * Math.min(1, dt * 1.6);
+        // rising and falling on the swell (two slow waves)
+        this.pos.y += (FLOAT_Y + Math.sin(this.floatT * 0.9) * 0.022 + Math.sin(this.floatT * 0.37 + 1.3) * 0.018 - this.pos.y) * Math.min(1, dt * 1.6);
       } else if (this.grounded && ground > this.pos.y - 0.7 && ground < this.pos.y + 0.8) {
         // Follow the ground up and down gentle slopes and steps.
         this.pos.y += (ground - this.pos.y) * Math.min(1, dt * 14);
@@ -406,7 +420,7 @@ export class Controller {
       }
     }
 
-    if (mag > 0.05) {
+    if (mag > 0.05 && !drifting) {
       const want = Math.atan2(-dx, -dz);
       let dh = want - this.heading;
       dh = Math.atan2(Math.sin(dh), Math.cos(dh));
