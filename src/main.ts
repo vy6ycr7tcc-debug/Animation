@@ -109,6 +109,7 @@ import { Forest } from "./world/forest";
 import { RisingFlowers } from "./world/blooms";
 import { Wilds } from "./world/wilds";
 import { Nile } from "./world/nile";
+import { Canoes, cruise, paddleable, type Boat } from "./world/canoes";
 import { wetUniforms } from "./gpu/wet";
 import { lessonDark } from "./scenes/enacted";
 import { initTourScenes, tourPlaces, type TourScenes } from "./scenes/integration";
@@ -379,6 +380,9 @@ const wilds = new Wilds();
 // the Nile's palms, papyrus and boats, in the valley the pyramid now stands above (world/nile.ts)
 const nile = new Nile(MOBILE);
 scene.add(nile.group);
+// canoes moored by jetties on the lakes and rivers: tap one and it carries you (world/canoes.ts)
+const canoes = new Canoes(MOBILE ? 10 : 12);
+scene.add(canoes.group);
 // what grows and lies on the ground round you, each region its own (world/groundCover.ts)
 const cover = new GroundCover();
 scene.add(cover.group);
@@ -905,6 +909,7 @@ document.addEventListener("selectstart", (e) => {
   if (!(e.target as HTMLElement)?.closest?.("input, textarea")) e.preventDefault();
 });
 input.onLand = () => {
+  if (ride) return rideAction();
   if (player.flying) {
     player.land();
     whisper("Coming down to land", 2500);
@@ -931,6 +936,7 @@ function tapOnOrb(x: number, y: number): boolean {
   return true;
 }
 input.onAction = () => {
+  if (ride) return rideAction();
   if (wanderer.gesture !== "none") wanderer.setGesture("none");
   if (player.swimming) {
     player.stroke();
@@ -949,6 +955,7 @@ input.onTap = (x, y, touch) => {
     }
     return;
   }
+  if (rideAt(x, y)) return;
   if (tapOnOrb(x, y)) return;
   if (tapOnHeart(x, y)) return;
   // a block of gold in the sanctuary: its note, read again
@@ -2949,7 +2956,7 @@ let sunStill = false;
 function contemplationFrame(dt: number): void {
   const idle = performance.now() - lastTouch > INWARD_AFTER && Math.hypot(input.move.x, input.move.y) < 0.05 && !input.hold;
   const want = inwardOn && idle && S.mode === "play" && !startMap.isOpen && $("#menu").hidden && !oracle.isOpen && player.speed < 0.3 &&
-    !player.flying && !player.diving && !player.floating && !follow.underwater && !autofly.active && !autorun.active && !crossing &&
+    !player.flying && !player.diving && !player.floating && !follow.underwater && !autofly.active && !autorun.active && !crossing && !ride && !boardFor &&
     (sitting.phase === "none" || lessonSeated()) && !document.body.classList.contains("touring") && !sanct.building && !sanct.formingNow && !med.active;
   inwardK += ((want ? 1 : 0) - inwardK) * Math.min(1, dt * (want ? 0.35 : 3));
   if (inwardK < 0.002 && !want) inwardK = 0;
@@ -4209,6 +4216,267 @@ function crossPyr(inside: boolean): void {
    place apart, one long way down; walk back up to its doorway to come out. */
 const cavern = new Cavern();
 const mines = MINE_SITES.map((_, i) => new GoldMine(i));
+
+/* ---- rides (the owner: "add canoes across water bodies docked, and simple functionality (auto
+   cruising) enabled by simply tapping on the canoe, same goes for the mine rail thingy") ----
+   A tap on a canoe or on a mine's cart: the wanderer goes to it, gets in and sits, and it carries
+   you by itself. A canoe wanders slowly over open water, turning from the shallows; the stick
+   steers it while held. A cart at a mine's mouth rolls in along the rails, through the adit and
+   on down the whole way to the mother lode, slower through the chambers; tapped again at the
+   bottom, back up. The round button (its word "Ashore" / "Stop"), E, or a tap on what carries you
+   lets you out: the canoe makes for the nearest shore and you step out there; the cart stops. */
+type Ride =
+  | { kind: "canoe"; boat: Boat; speed: number; turnV: number; ashore: THREE.Vector3 | null; ripple: number; lap: number }
+  | { kind: "cart"; mine: GoldMine; where: "out" | "wait" | "in"; s: number; speed: number; dir: 1 | -1; stop: boolean; clack: number };
+let ride: Ride | null = null;
+let rideSnap = false; // the view comes round behind once, as you get in
+let boardFor: { kind: "canoe"; boat: Boat } | { kind: "cart"; mine: GoldMine; inside: boolean } | null = null;
+const rideV = new THREE.Vector3(), rideScr = new THREE.Vector3();
+const toldRide = { canoe: false, cart: false };
+function seatInRide(): void {
+  stopAuto();
+  if (sitting.phase !== "none") standUp();
+  boardFor = null;
+  Object.assign(player, { target: null, flying: false, landing: false, gliding: false, grounded: true, swimming: false, floating: false, seabed: false, sinking: false, vy: 0, speed: 0 });
+  player.vel.set(0, 0, 0);
+  wanderer.setGesture("sit");
+  audio.bowl(392, 0.03, undefined, 3);
+  rideSnap = true;
+}
+function boardCanoe(b: Boat): void {
+  seatInRide();
+  ride = { kind: "canoe", boat: b, speed: 0, turnV: 0, ashore: null, ripple: 0, lap: 0 };
+  if (!toldRide.canoe) {
+    toldRide.canoe = true;
+    whisper(MOBILE ? "The canoe carries you. The stick steers it; tap the round button to go ashore." : "The canoe carries you. W A S D steer it; E or Space takes you ashore.", 7000);
+  }
+}
+function boardCart(m: GoldMine, inside: boolean): void {
+  seatInRide();
+  if (inside) {
+    // from where the cart stands: on down, or back up if it is already at the bottom
+    const cur = (m.cartIn?.userData.s as number | undefined) ?? 4;
+    ride = { kind: "cart", mine: m, where: "in", s: cur, speed: 0, dir: cur > m.railEnd - 2 ? -1 : 1, stop: false, clack: 0 };
+  } else ride = { kind: "cart", mine: m, where: "out", s: m.cartRest, speed: 0, dir: 1, stop: false, clack: 0 };
+  if (!toldRide.cart) {
+    toldRide.cart = true;
+    whisper(MOBILE ? "The cart rolls down the rails by itself. Tap the round button to stop it." : "The cart rolls down the rails by itself. E or Space stops it.", 6500);
+  }
+}
+/** Out of what carries you: on the land beside it. */
+function leaveRide(at?: THREE.Vector3): void {
+  if (!ride) return;
+  const r = ride;
+  ride = null;
+  wanderer.setGesture("none");
+  if (r.kind === "canoe") {
+    const p = at ?? r.boat.pos;
+    player.pos.set(p.x, Math.max(heightAt(p.x, p.z), WATER_Y), p.z);
+  } else {
+    const g = r.where === "out" ? r.mine.cartOut : r.mine.cartIn;
+    const side = new THREE.Vector3(Math.cos(player.heading), 0, -Math.sin(player.heading)).multiplyScalar(1.1);
+    const p = (g ? g.position : player.pos).clone().add(side);
+    player.pos.set(p.x, under() ? (under() as GoldMine).floorAt(p.x, p.z) : heightAt(p.x, p.z), p.z);
+    if (r.kind === "cart" && r.mine.cartIn) r.mine.cartIn.userData.s = r.s;
+  }
+  Object.assign(player, { grounded: true, vy: 0, speed: 0 });
+  player.vel.set(0, 0, 0);
+  follow.snapTo(player.pos);
+}
+/** The nearest shore to make for: the first land met looking all round, nearest first. */
+function nearestShore(from: THREE.Vector3): THREE.Vector3 | null {
+  for (let d = 4; d < 180; d += 3)
+    for (let k = 0; k < 32; k++) {
+      const a = (k / 32) * Math.PI * 2;
+      const x = from.x + Math.cos(a) * d, z = from.z + Math.sin(a) * d;
+      if (heightAt(x, z) > WATER_Y + 0.12) return new THREE.Vector3(x, 0, z);
+    }
+  return null;
+}
+/** The round button, E, or a tap on what carries you: ashore, or stop. */
+function rideAction(): void {
+  if (!ride) return;
+  if (ride.kind === "canoe") {
+    if (ride.ashore) return;
+    ride.ashore = nearestShore(ride.boat.pos);
+    if (!ride.ashore) leaveRide();
+    else whisper("To the shore", 2200);
+  } else ride.stop = true;
+}
+/** What a tap lands on: a canoe, or a mine's cart. */
+function rideAt(x: number, y: number): boolean {
+  if (ride) {
+    rideAction();
+    return true;
+  }
+  const u = under();
+  if (u && (u as GoldMine).cartIn !== undefined) {
+    const m = u as GoldMine;
+    if (!m.cartIn) return false;
+    rideScr.copy(m.cartIn.position).project(camera);
+    const d = camera.position.distanceTo(m.cartIn.position);
+    if (rideScr.z < 1 && d < 40 && Math.hypot((rideScr.x * 0.5 + 0.5) * innerWidth - x, (-rideScr.y * 0.5 + 0.5) * innerHeight - y) < Math.max(40, 1100 / d)) {
+      if (player.pos.distanceTo(m.cartIn.position) < 4) boardCart(m, true);
+      else {
+        boardFor = { kind: "cart", mine: m, inside: true };
+        courseTo(m.cartIn.position.x, m.cartIn.position.z);
+      }
+      return true;
+    }
+    return false;
+  }
+  if (apart()) return false;
+  const b = canoes.pick(x, y, camera, innerWidth, innerHeight);
+  if (b) {
+    if (Math.hypot(b.pos.x - player.pos.x, b.pos.z - player.pos.z) < 5) boardCanoe(b);
+    else {
+      boardFor = { kind: "canoe", boat: b };
+      stopAuto();
+      // to the jetty's end beside it (or, if it lies elsewhere now, as near as the land goes)
+      const near = Math.hypot(b.pos.x - b.dock.x, b.pos.z - b.dock.z) < 9;
+      const tx = near ? b.dock.x + b.dock.dx * 4.6 : b.pos.x, tz = near ? b.dock.z + b.dock.dz * 4.6 : b.pos.z;
+      courseTo(tx, tz);
+    }
+    return true;
+  }
+  for (const m of mines) {
+    const c = m.cartOut;
+    if (!c) continue;
+    const d = camera.position.distanceTo(c.position);
+    if (d > 60) continue;
+    rideScr.copy(c.position).project(camera);
+    if (rideScr.z < 1 && Math.hypot((rideScr.x * 0.5 + 0.5) * innerWidth - x, (-rideScr.y * 0.5 + 0.5) * innerHeight - y) < Math.max(40, 1100 / d)) {
+      if (player.pos.distanceTo(c.position) < 4) boardCart(m, false);
+      else {
+        boardFor = { kind: "cart", mine: m, inside: false };
+        stopAuto();
+        courseTo(c.position.x, c.position.z);
+      }
+      return true;
+    }
+  }
+  return false;
+}
+/** Each frame while carried (and while on the way to get in). */
+function rideFrame(dt: number, t: number): void {
+  if (boardFor && !ride) {
+    if (Math.hypot(input.move.x, input.move.y) > 0.3) boardFor = null;
+    else if (boardFor.kind === "canoe") {
+      const b = boardFor.boat;
+      if (Math.hypot(b.pos.x - player.pos.x, b.pos.z - player.pos.z) < 3.4) boardCanoe(b);
+    } else {
+      const c = boardFor.inside ? boardFor.mine.cartIn : boardFor.mine.cartOut;
+      if (!c || (boardFor.inside && under() !== boardFor.mine)) boardFor = null;
+      else if (player.pos.distanceTo(c.position) < 2.4) boardCart(boardFor.mine, boardFor.inside);
+    }
+  }
+  if (!ride) return;
+  if (ride.kind === "canoe") {
+    const r = ride, b = r.boat;
+    const steer = input.move.x, push = Math.max(0, input.move.y);
+    const c = cruise(b, t, steer, push, r.ashore);
+    r.turnV += (c.turn - r.turnV) * Math.min(1, dt * 1.5);
+    b.heading += r.turnV * dt;
+    r.speed += (c.speed - r.speed) * Math.min(1, dt * 0.6);
+    const fx = Math.sin(b.heading), fz = Math.cos(b.heading);
+    const nx = b.pos.x + fx * r.speed * dt, nz = b.pos.z + fz * r.speed * dt;
+    const bowH = heightAt(nx + fx * 2.3, nz + fz * 2.3);
+    if (r.ashore) {
+      if (bowH > WATER_Y - 0.3) {
+        // aground: step out onto the land ahead
+        let land: THREE.Vector3 | null = null;
+        for (let d = 2; d < 14; d += 0.5) {
+          const x = b.pos.x + fx * d, z = b.pos.z + fz * d;
+          if (heightAt(x, z) > WATER_Y + 0.08) {
+            land = new THREE.Vector3(x, 0, z);
+            break;
+          }
+        }
+        r.speed = 0;
+        leaveRide(land ?? r.ashore);
+        return;
+      }
+      b.pos.x = nx;
+      b.pos.z = nz;
+    } else if (paddleable(nx + fx * 2.3, nz + fz * 2.3)) {
+      b.pos.x = nx;
+      b.pos.z = nz;
+    } else r.speed *= 0.5; // (the shallows ahead: it slows and turns)
+    canoes.seat(b, rideV);
+    player.pos.set(rideV.x, b.pos.y + 0.09 - 0.42, rideV.z);
+    player.heading = b.heading + Math.PI;
+    player.vel.set(fx, 0, fz).multiplyScalar(r.speed);
+    if (rideSnap) {
+      rideSnap = false;
+      follow.yaw = player.heading;
+      follow.snapTo(player.pos);
+    }
+    // its wake, and the water against the hull
+    r.ripple -= dt;
+    if (r.speed > 0.3 && r.ripple <= 0) {
+      r.ripple = 0.55;
+      water.ripple(b.pos.x - fx * 2.2, b.pos.z - fz * 2.2, 0.45, S.t);
+    }
+    r.lap -= dt;
+    if (r.lap <= 0) {
+      r.lap = 2.2 + Math.random() * 2.5;
+      audio.step(true);
+    }
+    return;
+  }
+  // the cart
+  const r = ride, m = r.mine;
+  const want = r.stop ? 0 : r.where === "in" && m.samples[Math.round(r.s)]?.zone > 0 ? 1.4 : 2.6;
+  r.speed += (want - r.speed) * Math.min(1, dt * (r.stop ? 1.6 : 0.5));
+  if (r.where === "out") {
+    // in along the rails to the mouth (out is less): through it, into the mine
+    r.s -= r.speed * dt;
+    const p = m.railOut(r.s);
+    m.cartOut.position.copy(p);
+    player.pos.set(p.x, p.y - 0.33 + 0.22, p.z);
+    player.heading = Math.atan2(Math.cos(-m.portalYaw), Math.sin(-m.portalYaw));
+    if (r.s < 0.6 && !crossing) {
+      r.where = "wait";
+      crossUnder(m, true);
+    }
+    if (r.stop && r.speed < 0.05) leaveRide();
+  } else if (r.where === "wait") {
+    // through the dark: the cart outside goes home, the ride goes on within
+    if (under() === m && !crossing) {
+      m.cartOut.position.copy(m.railOut(m.cartRest));
+      r.where = "in";
+      r.s = 2.5;
+      rideSnap = true;
+    }
+  } else if (m.cartIn) {
+    r.s += (r.dir * r.speed * dt) / m.railStep(r.s);
+    if (r.s >= m.railEnd || r.s <= 2.5) {
+      r.s = Math.max(2.5, Math.min(m.railEnd, r.s));
+      r.stop = true;
+      r.speed = Math.min(r.speed, 0.4);
+    }
+    const yaw = m.railIn(r.s, rideV);
+    m.cartIn.position.copy(rideV);
+    m.cartIn.rotation.y = yaw;
+    m.cartIn.userData.s = r.s;
+    player.pos.set(rideV.x, rideV.y - 0.33 + 0.22, rideV.z);
+    // facing the way it rolls
+    const tx = Math.cos(-yaw) * r.dir, tz = Math.sin(-yaw) * r.dir;
+    player.heading = Math.atan2(-tx, -tz);
+    if (r.stop && r.speed < 0.05) leaveRide();
+  }
+  if (rideSnap && ride) {
+    rideSnap = false;
+    follow.yaw = player.heading;
+    follow.snapTo(player.pos);
+  }
+  r.clack -= dt * r.speed;
+  if (r.clack <= 0) {
+    r.clack = 1.1;
+    if (r.speed > 0.4) audio.step(false);
+  }
+  player.vel.set(0, 0, 0);
+}
 const unders: Underground[] = [cavern, ...mines];
 for (const u of unders) scene.add(u.group, u.world);
 /** The underground place you are in, if any. */
@@ -4985,7 +5253,7 @@ addEventListener("keydown", (e) => {
     else if (k === "g") $("#guide-open").click();
     else if (k === "?" || k === "/") $("#howto-open").click();
   }
-  if ((e.key === "e" || e.key === "E") && S.mode === "play") (sitting.phase === "none" ? offerSit() : standUp());
+  if ((e.key === "e" || e.key === "E") && S.mode === "play") (ride ? rideAction() : sitting.phase === "none" ? offerSit() : standUp());
   if (e.key === "Enter" && S.mode === "play" && !(e.target as HTMLElement)?.closest?.("button, input, [role=slider]")) {
     const v = vessels.nearest(player.pos);
     if (v) playArchive(v.narration);
@@ -5293,10 +5561,13 @@ function update(dt: number): void {
   if (S.mode === "play") {
     solidity.update(scene, player.pos, dt);
     guideAutoFrame(dt);
-    if (wanderer.gesture !== "none" && Math.hypot(input.move.x, input.move.y) > 0.2 && wanderer.gesture === "sit") wanderer.setGesture("none");
+    if (!ride && wanderer.gesture !== "none" && Math.hypot(input.move.x, input.move.y) > 0.2 && wanderer.gesture === "sit") wanderer.setGesture("none");
     if (autofly.active && !isTv && (Math.hypot(input.move.x, input.move.y) > 0.25 || input.hold)) setAutofly(false); // the thumb takes over
     if (autorun.active && (Math.hypot(input.move.x, input.move.y) > 0.25 || input.hold || player.swimming || player.flying || player.target)) setAutorun(false);
-    if (buildHover && sanct.building) {
+    rideFrame(dt, t);
+    if (ride) {
+      // carried: rideFrame placed the wanderer
+    } else if (buildHover && sanct.building) {
       // building in the air or the water: held still where it began
       player.pos.copy(buildHover);
       player.vel.set(0, 0, 0);
@@ -5319,7 +5590,7 @@ function update(dt: number): void {
     // the one context word: "Land" high in the air, "Dive" on the water, "Surface" under it
     const ctx = $("#ctx");
     const high = player.flying && !player.landing && player.pos.y - Math.max(heightAt(player.pos.x, player.pos.z), WATER_Y) > 2.5;
-    const word = sitting.phase === "seated" ? "" : high ? "Land" : player.swimming ? (player.seabed || player.sinking ? "Surface" : player.diving ? "Floor" : "Dive") : "";
+    const word = ride ? (ride.kind === "canoe" ? "Ashore" : "Stop") : sitting.phase === "seated" ? "" : high ? "Land" : player.swimming ? (player.seabed || player.sinking ? "Surface" : player.diving ? "Floor" : "Dive") : "";
     ctx.hidden = !(MOBILE || input.touchUsed) || !word;
     if (ctx.textContent !== word) ctx.textContent = word;
     // on a keyboard there is no button and no word: the keys that matter here, low on the left
@@ -5395,6 +5666,7 @@ function update(dt: number): void {
     blooms.update(life);
     wilds.update(life);
     nile.update(life);
+    canoes.update(t, apart());
     cover.update(wt, player.pos, S.reduced);
     sanct.update(dt, wt, dpr, player.pos, camera);
     garden.update(dt, wt, player.pos);
@@ -6453,5 +6725,5 @@ addX(document.getElementById("next-up"), () => nextUp.hide(), "Stay here");
   new MutationObserver(sync).observe($("#map-close"), { attributes: true, attributeFilter: ["hidden"] });
   sync();
 }
-Object.assign(window, { __ij: { cavern, setCavern, mines, setUnder, med, sanct, garden, canTouch, beginBuild, beginHoverBuild, groundPoint, solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, nile, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, myHeart, oracle, oracleVision, stepFrames: (n: number, dt = 1 / 60) => { realDt = dt; for (let i = 0; i < n; i++) update(dt); post.render(); }, heartFrame, maze: () => maze, tourInfo: () => tourBar().info() } });
+Object.assign(window, { __ij: { canoes, boardCanoe, boardCart, rideAction, rideState: () => ride, cavern, setCavern, mines, setUnder, med, sanct, garden, canTouch, beginBuild, beginHoverBuild, groundPoint, solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, nile, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, myHeart, oracle, oracleVision, stepFrames: (n: number, dt = 1 / 60) => { realDt = dt; for (let i = 0; i < n; i++) update(dt); post.render(); }, heartFrame, maze: () => maze, tourInfo: () => tourBar().info() } });
 Object.assign((window as unknown as { __ij: object }).__ij, { whispers, hearWhisper, rapaNui });
