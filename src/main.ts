@@ -33,6 +33,8 @@ import { buildMandala, etchedStone, etchUniforms, vibeUniforms } from "./world/e
 import { Landmarks } from "./world/landmarks";
 import { Flowers, Lanterns, LightGrass, Sparks, type LifeFrame } from "./world/life";
 import { Motes } from "./world/motes";
+import { Risers } from "./world/risers";
+import { wakeStep } from "./gpu/wake";
 import { Creation, creationUniforms } from "./world/creation";
 import { Beings, type BeingModel } from "./world/beings";
 import { SeaFauna, SeaLife, UnderwaterEffect } from "./world/underwater";
@@ -307,6 +309,10 @@ scene.add(mandala);
 
 const motes = new Motes(500);
 scene.add(motes.points);
+// lights that rise from where you kneel or lay hands, and the quiet just after a meditation
+const risers = new Risers();
+scene.add(risers.points);
+const riseAt = new THREE.Vector3();
 
 const wanderer = new Wanderer(camera);
 scene.add(wanderer.root, wanderer.fx);
@@ -5258,6 +5264,9 @@ function update(dt: number): void {
       startMap.isOpen || apart() || autofly.active || sitting.phase !== "none";
     touch.update(dt, dpr, letGo, S.reduced);
     medFrame(dt);
+    const kneeling = touch.phase === "touching" && !!touch.target;
+    if (kneeling && touch.target) riseAt.copy(touch.target.kind === "ground" ? touch.target.contact : player.pos);
+    risers.update(dt, riseAt, standAt, kneeling || med.phase === "quiet", dpr, S.reduced, touch.target?.kind === "ground" ? 1.8 : 1.4);
     tendFrame(dt);
     buildFrame();
     // a stone or crystal in the hands vibrates with light, as it does before stillness
@@ -5396,6 +5405,7 @@ function update(dt: number): void {
   mandala.rotation.y = S.reduced ? 0 : wt * 0.01;
   center.set(camera.position.x, 0, camera.position.z);
   motes.update(wt, center, dpr, S.reduced, dt, heartPos, player.vel, medK);
+  wakeStep(S.t, player.pos, player.speed, !player.flying && !player.swimming);
   clouds.update(wt, camera.position);
 
   // The starlight's shadow follows the wanderer, and stays on the land below them when they fly

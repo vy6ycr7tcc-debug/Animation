@@ -15,6 +15,7 @@
    here makes a sound. */
 import * as THREE from "three/webgpu";
 import { flow, glimmer, softPoints, spriteCloud, T, viewDepth, type N, type SpriteCloud } from "../gpu/tsl";
+import { wakeGlow } from "../gpu/wake";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { LifeFrame, Sparks } from "./life";
 import { etchedStone, vibeUniforms } from "./etching";
@@ -454,6 +455,8 @@ export function barkMaterial(accent?: THREE.Color, seed: number | null = null): 
     const band = exp(along.sub(front).mul(along.sub(front)).mul(-2.5)).mul(float(1).sub(smoothstep(2, 4.5, U.uTouchWave)));
     const warm = exp(length(vW.sub(U.uTouchPos)).mul(-2.2)).mul(0.35);
     c.addAssign(gold.mul(grain.mul(1.4).add(0.25)).mul(band.mul(0.9).add(warm)).mul(mine));
+    // the wanderer's wake: its grain wakes as you pass, and lingers a moment after (gpu/wake.ts)
+    c.addAssign(gold.mul(grain.mul(0.7).add(0.05)).mul(wakeGlow(vW)));
     return c;
   })();
   return m;
@@ -510,6 +513,10 @@ export function crystalMaterial(): THREE.MeshBasicNodeMaterial {
     const on = float(1).sub(smoothstep(vibeUniforms.uVibeR.mul(1.1), vibeUniforms.uVibeR.mul(1.6).add(0.8), vd));
     const wave = pow(sin(vd.mul(8).sub(U.uT.mul(10))).mul(0.5).add(0.5), 5);
     c.addAssign(split.mul(1.2).add(core).mul(wave).mul(on).mul(vibeUniforms.uVibeK).mul(1.5));
+    // the wanderer's wake: a crystal passed brightens, its rainbow a little more, then settles
+    const wk = wakeGlow(vW);
+    c.mulAssign(wk.mul(0.7).add(1));
+    c.addAssign(split.mul(fres).mul(wk).mul(0.5));
     const d = length(vW.sub(cameraPosition));
     return vec4(c.mul(float(1).sub(fogF(d).mul(0.85))), 1);
   })();
