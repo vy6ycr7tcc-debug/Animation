@@ -295,6 +295,10 @@ export class AudioEngine {
       [261.63, 392, 523.25, 659.25], // C G C E (C, the flat seventh's colour)
       [293.66, 440, 587.33, 659.25], // D A D E (Dsus2)
     ];
+    // the home piece (the pad and the drone) has its own level, so other pieces can take its place
+    const home = c.createGain();
+    home.gain.value = 1;
+    home.connect(lp);
     const voices = CHORDS[0].map((f, i) => {
       const o = c.createOscillator();
       o.type = i % 2 ? "sine" : "triangle";
@@ -311,7 +315,7 @@ export class AudioEngine {
       bias.offset.value = amp;
       l.connect(lg).connect(g.gain);
       bias.connect(g.gain);
-      o.connect(g).connect(lp);
+      o.connect(g).connect(home);
       o.start();
       l.start();
       bias.start();
@@ -330,11 +334,277 @@ export class AudioEngine {
       window.setTimeout(nextChord, 40000 + Math.random() * 40000);
     };
     window.setTimeout(nextChord, 30000);
-    this.startSoundscape(lp);
+    this.startSoundscape(lp, home);
+    this.startPieces(lp, home);
+  }
+
+  /* ---------- more music in the same spirit ----------
+     The owner: "the current music is absolutely great but we need more variety… based out of
+     hypnagogia". The home piece (the pad and the drone) alternates with four others in its key
+     and register, each five to eight minutes, crossfading over ~40 s; the bowls, chimes and far
+     bell go on through all of them, so it stays one soundscape:
+     - airport loops (after Eno's Music for Airports): five soft sung tones, each repeating on its
+       own period, 17–34 s, that never fall into step, so the harmony is always newly met;
+     - tape drift (after Basinski and the hypnagogic tape records): a warm two-chord loop with tape
+       wow and flutter, a breath of hiss, and now and then a worn moment where it thins;
+     - glass piano (after Harold Budd): sparse soft notes in D Lydian, long silences between;
+     - the deep choir (after Stars of the Lid): bowed tones swelling open and closing slowly, the
+       chords changing about once a minute, no sudden shifts.
+     All above ~200 Hz and very quiet, through the night's reverb; none of them in the temple. */
+  private startPieces(into: AudioNode, home: GainNode): void {
+    const c = this.ctx!;
+    const later = (s: number, fn: () => void) => window.setTimeout(fn, s * 1000);
+    const fadeTo = (g: GainNode, to: number, secs: number) => {
+      const t = c.currentTime;
+      g.gain.cancelScheduledValues(t);
+      g.gain.setValueAtTime(g.gain.value, t);
+      g.gain.linearRampToValueAtTime(to, t + secs);
+    };
+    type Piece = { out: GainNode; start(): void; stop(): void };
+    const piece = (build: (out: GainNode, alive: () => boolean, keep: (n: AudioScheduledSourceNode) => void) => void): Piece => {
+      const out = c.createGain();
+      out.gain.value = 0;
+      out.connect(into);
+      let live = false, nodes: AudioScheduledSourceNode[] = [];
+      return {
+        out,
+        start() {
+          live = true;
+          nodes = [];
+          build(out, () => live, (n) => nodes.push(n));
+          fadeTo(out, 1, 40);
+        },
+        stop() {
+          fadeTo(out, 0, 40);
+          later(42, () => {
+            if (out.gain.value > 0.01) return; // started again meanwhile
+            live = false;
+            for (const n of nodes) {
+              try {
+                n.stop();
+              } catch {
+                /* already */
+              }
+            }
+            nodes = [];
+          });
+        },
+      };
+    };
+    const note = (out: AudioNode, f: number, peak: number, attack: number, hold: number, release: number, partials: [number, number, OscillatorType][], pan = 0) => {
+      const t = c.currentTime;
+      const g = c.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(peak, t + attack);
+      g.gain.setValueAtTime(peak, t + attack + hold);
+      g.gain.exponentialRampToValueAtTime(0.00005, t + attack + hold + release);
+      const p = c.createStereoPanner();
+      p.pan.value = pan;
+      g.connect(p).connect(out);
+      for (const [m, a, type] of partials) {
+        const o = c.createOscillator();
+        o.type = type;
+        o.frequency.value = f * m;
+        o.detune.value = (Math.random() - 0.5) * 6;
+        const og = c.createGain();
+        og.gain.value = a;
+        o.connect(og).connect(g);
+        o.start(t);
+        o.stop(t + attack + hold + release + 0.1);
+      }
+    };
+
+    const airport = piece((out, alive) => {
+      const loops: [number, number, number][] = [
+        [587.33, 17.3, -0.55],
+        [739.99, 20.9, 0.35],
+        [880, 25.1, -0.15],
+        [493.88, 29.7, 0.6],
+        [659.25, 34.3, -0.35],
+      ];
+      for (const [f, period, pan] of loops) {
+        const sing = () => {
+          if (!alive()) return;
+          if (!this.inTemple) note(out, f, 0.0055, 2.6, 1.8, 7.5, [[1, 1, "sine"], [2, 0.18, "sine"], [3, 0.05, "triangle"]], pan);
+          later(period, sing);
+        };
+        later(Math.random() * period, sing);
+      }
+    });
+
+    const tape = piece((out, alive, keep) => {
+      const A = [293.66, 369.99, 440, 554.37], B = [246.94, 293.66, 369.99, 440];
+      const lp = c.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 950;
+      lp.Q.value = 0.4;
+      const wear = c.createGain();
+      lp.connect(wear).connect(out);
+      const lpL = c.createOscillator(), lpG = c.createGain();
+      lpL.frequency.value = 0.031;
+      lpG.gain.value = 380;
+      lpL.connect(lpG).connect(lp.frequency);
+      // wow (slow) and flutter (quick), in cents, shared by every voice as one tape would
+      const wow = c.createOscillator(), wowG = c.createGain(), flut = c.createOscillator(), flutG = c.createGain();
+      wow.frequency.value = 0.09;
+      wowG.gain.value = 13;
+      flut.frequency.value = 0.71;
+      flutG.gain.value = 4;
+      wow.connect(wowG);
+      flut.connect(flutG);
+      const vs = A.map((f, i) => {
+        const o = c.createOscillator();
+        o.type = "triangle";
+        o.frequency.value = f;
+        o.detune.value = (Math.random() - 0.5) * 10;
+        wowG.connect(o.detune);
+        flutG.connect(o.detune);
+        const g = c.createGain();
+        g.gain.value = 0.0065 / (1 + i * 0.35);
+        o.connect(g).connect(lp);
+        o.start();
+        keep(o);
+        return o;
+      });
+      // a breath of tape hiss
+      const hiss = c.createBufferSource(), hb = c.createBiquadFilter(), hg = c.createGain();
+      hiss.buffer = this.noise;
+      hiss.loop = true;
+      hb.type = "bandpass";
+      hb.frequency.value = 4200;
+      hb.Q.value = 0.6;
+      hg.gain.value = 0.0012;
+      hiss.connect(hb).connect(hg).connect(out);
+      for (const n of [lpL, wow, flut, hiss]) {
+        n.start();
+        keep(n);
+      }
+      let onA = true;
+      const swap = () => {
+        if (!alive()) return;
+        onA = !onA;
+        const tt = c.currentTime;
+        vs.forEach((o, i) => {
+          o.frequency.cancelScheduledValues(tt);
+          o.frequency.setValueAtTime(o.frequency.value, tt);
+          o.frequency.exponentialRampToValueAtTime((onA ? A : B)[i], tt + 3.5);
+        });
+        later(12 + Math.random() * 4, swap);
+      };
+      later(12, swap);
+      // now and then the worn tape thins a moment
+      const worn = () => {
+        if (!alive()) return;
+        const tt = c.currentTime;
+        wear.gain.cancelScheduledValues(tt);
+        wear.gain.setValueAtTime(1, tt);
+        wear.gain.linearRampToValueAtTime(0.35, tt + 0.25);
+        wear.gain.linearRampToValueAtTime(1, tt + 1.4);
+        later(24 + Math.random() * 30, worn);
+      };
+      later(20, worn);
+    });
+
+    const glass = piece((out, alive) => {
+      const LYD = [587.33, 659.25, 739.99, 830.61, 880, 987.77, 1108.73, 1174.66];
+      const lp = c.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 2600;
+      lp.connect(out);
+      const strike = (f: number, gain: number) => note(lp, f, gain, 0.012, 0.05, 4.5 + Math.random() * 2, [[1, 1, "sine"], [2, 0.32, "sine"], [3, 0.08, "sine"], [4.02, 0.03, "sine"]], (Math.random() - 0.5) * 0.7);
+      const play = () => {
+        if (!alive()) return;
+        if (!this.inTemple) {
+          const i = Math.floor(Math.random() * (LYD.length - 2));
+          const r = Math.random();
+          if (r < 0.62) strike(LYD[i], 0.011);
+          else if (r < 0.88) {
+            strike(LYD[i], 0.009);
+            later(0.35 + Math.random() * 0.5, () => strike(LYD[i + 2], 0.008));
+          } else for (let k = 0; k < 3; k++) later(k * (0.9 + Math.random() * 0.6), () => strike(LYD[Math.max(0, i + 2 - k)], 0.008));
+        }
+        later(2.6 + Math.random() * 6.5, play);
+      };
+      later(3, play);
+    });
+
+    const choir = piece((out, alive, keep) => {
+      const CH = [
+        [293.66, 440, 587.33],
+        [329.63, 493.88, 659.25],
+        [246.94, 369.99, 587.33],
+        [261.63, 392, 523.25],
+      ];
+      const lp = c.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 800;
+      lp.Q.value = 0.7;
+      const swell = c.createGain();
+      swell.gain.value = 0.7;
+      lp.connect(swell).connect(out);
+      // one long breath through it all: the bows press and ease (22 s)
+      const br = c.createOscillator(), brF = c.createGain(), brG = c.createGain();
+      br.frequency.value = 1 / 22;
+      brF.gain.value = 450;
+      brG.gain.value = 0.3;
+      br.connect(brF).connect(lp.frequency);
+      br.connect(brG).connect(swell.gain);
+      br.start();
+      keep(br);
+      const vs: OscillatorNode[] = [];
+      CH[0].forEach((f) => {
+        for (const d of [-7, 7]) {
+          const o = c.createOscillator();
+          o.type = "sawtooth";
+          o.frequency.value = f;
+          o.detune.value = d;
+          const g = c.createGain();
+          g.gain.value = 0.0024;
+          o.connect(g).connect(lp);
+          o.start();
+          keep(o);
+          vs.push(o);
+        }
+      });
+      let ch = 0;
+      const move = () => {
+        if (!alive()) return;
+        ch = (ch + 1) % CH.length;
+        const tt = c.currentTime;
+        vs.forEach((o, i) => {
+          o.frequency.cancelScheduledValues(tt);
+          o.frequency.setValueAtTime(o.frequency.value, tt);
+          o.frequency.exponentialRampToValueAtTime(CH[ch][i >> 1], tt + 9 + (i >> 1) * 2);
+        });
+        later(50 + Math.random() * 20, move);
+      };
+      later(45, move);
+    });
+
+    // the order: home, then one of the others, then home again… never the same other twice running
+    const others = [airport, tape, glass, choir];
+    let last = -1;
+    // `?music=airport|tape|glass|choir` begins that piece at once (to hear it), then the order goes on
+    let pick = ["airport", "tape", "glass", "choir"].indexOf(new URLSearchParams(location.search).get("music") ?? "");
+    const homeFor = () => later(pick >= 0 ? 0.5 : 360 + Math.random() * 240, () => {
+      let k = pick >= 0 ? pick : Math.floor(Math.random() * others.length);
+      if (pick < 0 && k === last) k = (k + 1) % others.length;
+      pick = -1;
+      last = k;
+      const p = others[k];
+      fadeTo(home, 0, 40);
+      p.start();
+      later(300 + Math.random() * 180, () => {
+        p.stop();
+        fadeTo(home, 1, 40);
+        homeFor();
+      });
+    });
+    homeFor();
   }
 
   /** The things that come and go over the pad: bowls, chimes, a far bell, the drone. */
-  private startSoundscape(into: AudioNode): void {
+  private startSoundscape(into: AudioNode, home: AudioNode): void {
     const c = this.ctx!;
     const PENTA = [587.33, 659.25, 739.99, 880, 987.77, 1174.66, 1318.51, 1479.98]; // D major pentatonic, high
     const BOWLS = [293.66, 329.63, 369.99, 440, 493.88];
@@ -363,7 +633,7 @@ export class AudioEngine {
     };
     later(90, 180, farBell);
     // the drone: a few minutes, then gone for a while
-    const drone = this.tanpura(into);
+    const drone = this.tanpura(home);
     const droneLoop = (on: boolean) => {
       const t = c.currentTime;
       drone.gain.cancelScheduledValues(t);
