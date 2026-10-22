@@ -66,8 +66,24 @@ function peaks(x: number, z: number): number {
     const t = 1 - d;
     const shape = Math.pow(t, 1.45) * (0.45 + 0.55 * ridged) * (0.8 + 0.3 * spur);
     h += p.h * shape * 1.15 + (vnoise(x * 0.06, z * 0.06) - 0.5) * 7 * t + (vnoise(x * 0.025, z * 0.025) - 0.5) * 12 * t;
+    // eroded ridgelines up high: towers and notches along the crests (50 m and 15 m), so a summit
+    // breaks the sky as rock does, never as a smooth cone
+    const hi = Math.pow(t, 1.3) * (0.4 + 0.6 * ridged);
+    h += (rid(vnoise(x * 0.021 + 3, z * 0.021 - 9)) - 0.55) * p.h * 0.075 * hi + (rid(vnoise(x * 0.068 - 5, z * 0.068 + 2)) - 0.55) * p.h * 0.022 * hi;
   }
   return h;
+}
+
+/** How far onto a massif (0 off it, 1 from about halfway up toward its summit): the regions' soils
+    give way there to alpine ground, scree and rock. */
+export function massifAt(x: number, z: number): number {
+  let k = 0;
+  for (const p of PEAKS) {
+    const dx = x - p.x, dz = z - p.z;
+    if (Math.abs(dx) > p.r || Math.abs(dz) > p.r) continue;
+    k = Math.max(k, smooth(0.95, 0.6, Math.hypot(dx, dz) / p.r));
+  }
+  return k;
 }
 
 function rawHeight(x: number, z: number): number {
@@ -1226,6 +1242,8 @@ const C = {
   stone: new THREE.Color("#4b4563"),
   snow: new THREE.Color("#bcb9da"),
   granite: new THREE.Color("#3b3942"), // the mountains' bare rock, dark under the snow
+  alpine: new THREE.Color("#3e3f31"), // a massif's lower slopes: thin tussock
+  scree: new THREE.Color("#4a4846"), // and the scree between
   snowHigh: new THREE.Color("#e2e4f2"), // the high snowfields, whiter
   earth: new THREE.Color("#5e4a3c"), // bare, warm earth
   loam: new THREE.Color("#46382f"),
@@ -1317,7 +1335,7 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
     const soil = W.y.add(W.z).mul(0.85);
     const regW = [RA.x, RA.y, RA.z, RA.w, float(0), RB.y, RB.z, RB.w].map((r) => r.mul(soil).toVar());
     const keep = float(1).sub(RA.x.add(RA.y).add(RA.z).add(RA.w).add(RB.y).add(RB.z).add(RB.w).mul(0.85)).toVar();
-    return { W, ST, CD, SEA, FD, samp, tri, side, bx, bz, by, bsum, sampR, regW, keep };
+    return { W, ST, CD, SEA, FD, N_, dqx, dqy, samp, tri, side, bx, bz, by, bsum, sampR, regW, keep };
   };
 
   // Crags: the mountains' faces broken into ridges and gullies in the light (ridged noise at two
@@ -1344,8 +1362,11 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
     const out = float(0).toVar();
     If(mtn.greaterThan(L), () => {
       const snowLine = gN(q.mul(0.01).add(3)).sub(0.5).mul(60).add(95);
-      const lieN = gN(q.mul(0.09).add(11)).sub(0.5).mul(0.22).add(gN(q.mul(0.6)).sub(0.5).mul(0.08));
-      out.assign(smoothstep(snowLine, snowLine.add(12), vGW.y).mul(smoothstep(0.6, 0.7, nP.y.add(lieN))).mul(mtn));
+      // it gathers in the hollows and leaves the ribs between them bare (the crags' height), and
+      // its lower edge breaks into tongues and patches rather than fading as a haze
+      const lieN = gN(q.mul(0.09).add(11)).sub(0.5).mul(0.22).add(gN(q.mul(0.6)).sub(0.5).mul(0.08)).add(float(0.45).sub(cragN.x).mul(0.32));
+      const fringe = gN(q.mul(0.035).add(17)).sub(0.5).mul(22).add(gN(q.mul(0.15)).sub(0.5).mul(7));
+      out.assign(smoothstep(snowLine, snowLine.add(4), vGW.y.add(fringe)).mul(smoothstep(0.6, 0.66, nP.y.add(lieN))).mul(mtn));
     });
     return out;
   })();
@@ -1376,7 +1397,7 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
   })();
 
   m.colorNode = Fn(() => {
-    const { W, ST, CD, SEA, FD, samp, tri, side, bx, bz, bsum, sampR, regW, keep } = setup();
+    const { W, ST, CD, SEA, FD, N_, samp, tri, side, bx, bz, bsum, sampR, regW, keep } = setup();
     void sampR;
     const SN = snow.toVar();
     const det0 = vec3(0).toVar(), ao0 = float(0).toVar(), grain = float(1).toVar();
@@ -1421,9 +1442,30 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
         const by = vGW.y.add(gN(q.mul(0.04)).mul(5)).add(gN(q.mul(0.3).add(9)).mul(0.5));
         const bed = fract(by.div(1.6)), bedId = floor(by.div(1.6));
         const strata = tmix(float(0.74), float(1.18), gH(vec2(bedId, 3))).mul(smoothstep(0.0, 0.12, bed).mul(0.35).add(0.65));
-        det0.addAssign(cl.mul(2.3).mul(ST).mul(tmix(float(1), strata, float(1).sub(mtn).mul(0.85))));
+        // on the mountains, beds of a massif's own: tilted (they dip across the range), a few metres
+        // thick with finer layers within, and dark streaks where water and lichen run down the faces
+        const byM = vGW.y.add(dot(q, vec2(0.6, 0.8)).mul(0.17)).add(gN(q.mul(0.011)).mul(16)).add(gN(q.mul(0.08).add(3)).mul(1.4));
+        const bedM = fract(byM.div(6.5)), idM = floor(byM.div(6.5));
+        const fineM = tmix(float(0.9), float(1.08), gH(vec2(floor(byM.div(1.3)), 5)));
+        const strataM = tmix(float(0.68), float(1.25), gH(vec2(idM, 11))).mul(smoothstep(0.0, 0.07, bedM).mul(0.42).add(0.58)).mul(fineM);
+        const faceU = dot(q, normalize(vec2(N_.z.negate(), N_.x).add(vec2(1e-4, 0))));
+        const streak = smoothstep(0.55, 0.82, gN(vec2(faceU.mul(0.42), vGW.y.mul(0.011)).add(19)).mul(0.75).add(gN(vec2(faceU.mul(1.7), vGW.y.mul(0.05))).mul(0.25)));
+        const runK = smoothstep(0.35, 0.7, float(1).sub(N_.y));
+        const sM = strataM.mul(float(1).sub(streak.mul(runK).mul(0.42)));
+        // the cliff scan where the ground is truly steep; on a mountain's gentler ground (rock by
+        // its height, not its slope) the scree scan instead (the cliff's strata, seen from above,
+        // streaked the low light into crescents across whole slopes)
+        const cW = ST.mul(tmix(float(0.2), float(1), smoothstep(0.12, 0.4, float(1).sub(N_.y)))).toVar();
+        const gW = ST.sub(cW).toVar();
+        det0.addAssign(cl.mul(2.3).mul(cW).mul(tmix(tmix(float(1), strata, 0.85), sM, mtn)));
+        If(gW.greaterThan(L), () => {
+          det0.addAssign(samp(rock.diff, 4).rgb.mul(0.6).add(samp(rock.diff, 10.5).rgb.mul(0.4)).mul(2.2).mul(gW));
+        });
         If(withAo, () => {
-            ao0.addAssign(side(cliff.arm, CS, "zy").r.mul(bx).add(side(cliff.arm, CS, "xy").r.mul(bz)).div(bsum).mul(ST));
+            ao0.addAssign(side(cliff.arm, CS, "zy").r.mul(bx).add(side(cliff.arm, CS, "xy").r.mul(bz)).div(bsum).mul(cW));
+            If(gW.greaterThan(L), () => {
+              ao0.addAssign(samp(rock.arm, 4).r.mul(gW));
+            });
           });
       });
       If(SN.greaterThan(L), () => {
@@ -1469,7 +1511,9 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
     });
     // the rock darkens into its crevices (the crags' hollows), the snow keeps its white
     const crev = tmix(float(1), smoothstep(0.15, 0.7, cragN.x).mul(0.5).add(0.62), mtn);
-    const snowC = tmix(vec3(0.5, 0.49, 0.7), vec3(0.76, 0.78, 0.89), smoothstep(150, 230, vGW.y)).mul(grain);
+    // snow is bluer where it lies deep in a hollow out of the light, whiter on what stands up
+    const hollow = smoothstep(0.55, 0.15, cragN.x);
+    const snowC = tmix(vec3(0.5, 0.49, 0.7), vec3(0.76, 0.78, 0.89), smoothstep(150, 230, vGW.y)).mul(grain).mul(tmix(vec3(1.03), vec3(0.8, 0.86, 1.02), hollow));
     const base = ground.mul(T.vertexColor().rgb).toVar();
     // Each region's own ground at a scale the eye reads walking (the scans alone are a fine grain
     // that reads as the same noise everywhere): frost crusts and lichen on the tundra, drifts of
@@ -1538,7 +1582,7 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
 
   // the scans' relief: each surface's normal map, blended as the ground is, and only near
   const dW = Fn(() => {
-    const { W, ST, CD, samp, side, bx, bz, by, bsum, sampR, regW, keep } = setup();
+    const { W, ST, CD, N_, dqx, dqy, samp, side, bx, bz, by, bsum, sampR, regW, keep } = setup();
     const SN = snow.toVar();
     const d = vec3(0).toVar();
     const nm = (t: THREE.Texture, sc: number) => samp(t, sc).xy.mul(2).sub(1);
@@ -1563,7 +1607,7 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
         if (k < 0) return;
         const wt = regW[ri];
         If(wt.greaterThan(L), () => {
-          const n = sampR(k + REGION_LAYERS, REGION_SC).xy.mul(2).sub(1).mul(1.1);
+          const n = sampR(k + REGION_LAYERS, REGION_SC).xy.mul(2).sub(1).mul(0.85);
           d.addAssign(vec3(n.x, 0, n.y.negate()).mul(wt).mul(near));
         });
       });
@@ -1571,9 +1615,23 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
     // on a cliff, each side's normal map turns about its own plane (x-facing: z and y; z-facing: x and y)
     If(CD.lessThan(400).and(ST.greaterThan(L)), () => {
       const nX = side(cliff.nor, CS, "zy").xy.mul(2).sub(1), nZ = side(cliff.nor, CS, "xy").xy.mul(2).sub(1), nY = side(cliff.nor, CS, "xz").xy.mul(2).sub(1);
+      const sK = smoothstep(0.12, 0.4, float(1).sub(N_.y));
       const dc = vec3(0, nX.y, nX.x).mul(bx).add(vec3(nZ.x, nZ.y, 0).mul(bz)).add(vec3(nY.x, 0, nY.y.negate()).mul(by)).div(bsum)
         .mul(float(1).sub(smoothstep(60, 400, CD))).mul(tmix(float(1.6), float(0.5), SN));
-      d.addAssign(dc.mul(ST));
+      d.addAssign(dc.mul(ST).mul(tmix(float(0.2), float(1), sK)));
+      // the mountain's gentler ground: the scree scan's relief, near only
+      If(CD.lessThan(160), () => {
+        const gn = nm(rock.nor, 4).mul(ST).mul(float(1).sub(sK)).mul(float(1).sub(smoothstep(30, 160, CD))).mul(float(1).sub(SN));
+        d.addAssign(vec3(gn.x, 0, gn.y.negate()));
+      });
+    });
+    // wind-carved snow (sastrugi): ridges across the wind, wandering, near only
+    If(SN.greaterThan(L).and(CD.lessThan(400)), () => {
+      const sp = dot(q, vec2(0.6, -0.8)).mul(1.6).add(gN(q.mul(0.07).add(29)).mul(9)).add(gN(q.mul(0.4)).mul(1.5));
+      // (its fineness on screen from the derivatives taken before any branch)
+      const fq = vec2(0.6 * 1.6, -0.8 * 1.6);
+      const aaS = float(1).sub(smoothstep(0.6, 1.6, abs(dot(dqx, fq)).add(abs(dot(dqy, fq)))));
+      d.addAssign(vec3(0.6, 0, -0.8).mul(sin(sp).mul(0.1).mul(aaS)).mul(SN).mul(float(1).sub(smoothstep(80, 400, CD))));
     });
     return d;
   })().add(dRip).add(dCrag).add(gully.xyz);
@@ -1587,6 +1645,11 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
     const dot_ = smoothstep(0.22, 0, length(fract(gq).sub(0.5))); // a point of light, not a fleck
     const glit = step(0.975, gH(cell)).mul(step(0.6, tw)).mul(dot_).mul(gr.y).mul(float(1).sub(smoothstep(4, 30, camD))).mul(step(0, vGW.y));
     const e = vec3(1.0, 0.93, 0.82).mul(glit).mul(2.2).toVar();
+    // and crystals of snow, as you move over it
+    const sq = vGW.xz.mul(30), sc2 = floor(sq);
+    const tw2 = gH(sc2.mul(1.3).add(floor(gv.xz.mul(30).add(gv.y.mul(13)))));
+    const sglit = step(0.982, gH(sc2.add(7))).mul(step(0.65, tw2)).mul(smoothstep(0.2, 0, length(fract(sq).sub(0.5)))).mul(snow).mul(float(1).sub(smoothstep(3, 25, camD)));
+    e.addAssign(vec3(0.85, 0.9, 1.0).mul(sglit).mul(1.6));
     // a soft sheen where the ground faces away toward the moon (light through the haze)
     // Journey's sand: a liquid sheen toward the low sun or the moon, off the rippled surface (soft,
     // broad and faint: never a glare sliding over the ground), and a pale rim at grazing angles
@@ -1802,7 +1865,8 @@ export class Terrain {
       const region = fbm(x * 0.004 + 9, z * 0.004 - 4);
       this.col.copy(C.meadowA).lerp(C.meadowB, smooth(0.35, 0.6, region)).lerp(C.meadowC, smooth(0.6, 0.78, region));
       // out from the shore, the country of the sky above (its colour, shaded within by slow noise)
-      const away = regionWeights(x, z, _fillW);
+      const ms = massifAt(x, z);
+      const away = regionWeights(x, z, _fillW) * (1 - ms);
       rA.setXYZW(v, away * _fillW[0], away * _fillW[1], away * _fillW[2], away * _fillW[3]);
       rB.setXYZW(v, away * _fillW[4], away * _fillW[5], away * _fillW[6], away * _fillW[7]);
       const rg = regionAt(x, z);
@@ -1813,6 +1877,8 @@ export class Terrain {
       this.col.lerp(this.tmp.copy(C.sand), k.sand * (1 - away * 0.85)).lerp(C.stone, k.stone * (1 - away * 0.85));
       // the mountains: bare dark rock on their steep faces (the snow is laid by the ground's shader)
       const up = nor.getY(v);
+      // on a massif's lower slopes alpine ground: thin tussock over scree, olive and grey in patches
+      if (ms > 0) this.col.lerp(this.tmp.copy(C.alpine).lerp(C.scree, smooth(0.35, 0.7, fbm(x * 0.02 + 41, z * 0.02 - 13))), ms * 0.85);
       const mount = smooth(25, 60, h);
       this.col.lerp(C.granite, mount * smooth(0.9, 0.62, up));
       // broad stretches of bare earth, warm and deeply textured
@@ -1827,7 +1893,7 @@ export class Terrain {
       col.setXYZ(v, this.col.r, this.col.g, this.col.b);
       const sandy = Math.min(1, k.sand + smooth(0.45, 0.62, fbm(x * 0.01 - 30, z * 0.01 + 12)) * (1 - k.stone) * 0.6 * (1 - away * 0.7));
       // the earth takes the rock scan's grit and the sand's grain
-      const rocky = Math.min(1 - sandy * (1 - talus), k.stone + smooth(0.5, 1.0, 1 - nor.getY(v)) * 0.8 + earth * 0.55 + talus * 0.85);
+      const rocky = Math.min(1 - sandy * (1 - talus), k.stone + smooth(0.5, 1.0, 1 - nor.getY(v)) * 0.8 + earth * 0.55 + talus * 0.85 + ms * 0.55);
       gr.setXYZ(v, sky, Math.max(0, Math.min(1 - rocky, sandy * (1 - talus) + earth * 0.3)), rocky);
     }
     pos.needsUpdate = nor.needsUpdate = col.needsUpdate = gr.needsUpdate = rA.needsUpdate = rB.needsUpdate = true;
