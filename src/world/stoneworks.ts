@@ -97,11 +97,22 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
       const cH = mix(mix(float(course), float(0.95), inPl), float(0.62), inCo);
       const bL = mix(mix(float(block), float(block * 1.5), inPl), float(block * 2.6), inCo);
       const yy = band ? mix(mix(p.y, band.ly, inPl), band.c0, inCo) : p.y;
-      const row = T.floor(yy.div(cH));
-      const u = along.div(bL).add(row.mul(0.5)).add(h(T.vec2(row, 3.7)).mul(0.35));
+      // courses of uneven height, as a real wall is laid from the blocks the quarry gave: a
+      // repeating set of three (tall, low, middling); the plinth and cornice keep their own
+      const plain = float(1).sub(T.min(inPl.add(inCo), 1));
+      const t3 = T.fract(yy.div(cH.mul(3))).mul(3), set3 = T.floor(yy.div(cH.mul(3)));
+      const k0 = T.step(1.2, t3), k1 = T.step(2.05, t3);
+      const start = mix(mix(float(0), float(1.2), k0), float(2.05), k1);
+      const tall = mix(mix(float(1.2), float(0.85), k0), float(0.95), k1);
+      const rowV = set3.mul(3).add(k0).add(k1), fvV = t3.sub(start).div(tall);
+      const rowU = T.floor(yy.div(cH)), fvU = T.fract(yy.div(cH));
+      const row = mix(rowU, rowV, plain), fv = mix(fvU, fvV, plain);
+      const cHr = cH.mul(mix(float(1), tall, plain));
+      const bLr = bL.mul(mix(float(1), tall.mul(0.6).add(0.45), plain));
+      const u = along.div(bLr).add(row.mul(0.5)).add(h(T.vec2(row, 3.7)).mul(0.35));
       const cellW = T.floor(u);
-      const fu = T.fract(u), fv = T.fract(yy.div(cH));
-      const du = T.min(fu, float(1).sub(fu)).mul(bL), dv = T.min(fv, float(1).sub(fv)).mul(cH);
+      const fu = T.fract(u);
+      const du = T.min(fu, float(1).sub(fu)).mul(bLr), dv = T.min(fv, float(1).sub(fv)).mul(cHr);
       // floors: flagstones in staggered rows, two widths
       const frow = T.floor(p.z.div(flag));
       const fwid = mix(float(flag * 1.1), float(flag * 1.7), h(T.vec2(frow, 9.1)));
@@ -205,7 +216,11 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
     const chip = smoothstep(0.55, 0.75, nz(pw.mul(9).add(id.mul(7))));
     const arris = smoothstep(mortar.mul(5).add(0.02), mortar, cell.e).mul(float(1).sub(joint));
     const tone = mix(float(0.85), float(1.12), id);
-    c = c.mul(tone).mul(mix(float(1), float(0.58), joint)).mul(float(1).add(arris.mul(mix(float(0.1), float(-0.12), chip))));
+    c = c.mul(tone).mul(float(1).add(arris.mul(mix(float(0.1), float(-0.12), chip))));
+    // the joints: some packed with pale sand blown in over the years, some open and dark
+    const filled = smoothstep(0.42, 0.62, nz(pw.mul(2.3).add(3.7))).mul(marble || granite ? 0.3 : 1);
+    const sandC = vec3(0.78, 0.68, 0.52).mul(vec3(...tint)).mul(T.dot(c, vec3(0.3, 0.5, 0.2)).div(0.5).clamp(0.4, 1.4));
+    c = mix(c.mul(mix(float(1), float(0.58), joint)), mix(c, sandC, joint.mul(0.85)), filled);
     c = c.mul(float(1).sub(seenSide.mul(0.25))).mul(float(1).sub(shade.mul(0.35)));
     if (!marble && !granite) {
       // sandstone as it is: each block its own sand (buff, ochre, a few greyer or rosier), laid
@@ -220,7 +235,7 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
       const blur = T.texture(S.diff, ps.zy.div(tile)).level(6).mul(w.x).add(T.texture(S.diff, ps.xz.div(tile)).level(6).mul(w.y)).add(T.texture(S.diff, ps.xy.div(tile)).level(6).mul(w.z));
       const lumC = T.dot(c, vec3(0.3, 0.5, 0.2)), lumB = T.dot(blur.rgb.mul(vec3(...tint)), vec3(0.3, 0.5, 0.2));
       c = c.mul(T.pow(lumB.add(0.02).div(lumC.add(0.02)), 0.55));
-      dn = dn.mul(0.55);
+      dn = dn.mul(0.8);
       c = c.mul(hue3);
       const alongP = T.select(xFace, pw.z, pw.x);
       const slope = T.select(h(T.vec2(id, 11.1)).greaterThan(0.6), h(T.vec2(id, 12.7)).sub(0.5).mul(0.9), float(0));
@@ -231,6 +246,20 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
       const iron = smoothstep(0.58, 0.82, nz(pw.mul(0.55).add(id.mul(4.1))));
       const ring = smoothstep(0.75, 1.0, abs(T.sin(nz(pw.mul(0.8).add(id)).mul(30)))).mul(iron);
       c = mix(c, c.mul(vec3(1.1, 0.84, 0.62)), iron.mul(0.4).add(ring.mul(0.18)));
+      // weathering as on old walls: the edges worn back unevenly (a few centimetres to a hand),
+      // honeycombed pits in patches where the wind has worked a soft bed, softer layers eroded
+      // into darker bands, and sand dust settled on every ledge
+      const ew = nz(pw.mul(2.6).add(id.mul(5.1))).mul(0.06).add(0.012);
+      const worn = smoothstep(ew, 0.0, cell.e).mul(float(1).sub(joint));
+      c = c.mul(float(1).sub(worn.mul(0.12)));
+      const comb = T.mx_worley_noise_float(pw.mul(6.5).add(id.mul(9)));
+      const combPatch = smoothstep(0.6, 0.8, nz(pw.mul(0.42).add(id.mul(2.3)))).mul(wall).mul(dry);
+      const pit = smoothstep(0.62, 0.12, comb), rim = smoothstep(0.55, 0.75, comb).mul(smoothstep(0.95, 0.75, comb));
+      c = c.mul(float(1).sub(pit.mul(combPatch).mul(0.42)).add(rim.mul(combPatch).mul(0.07)));
+      const soft = smoothstep(0.62, 0.86, nz(vec3(bed.mul(3.2), id.mul(0.4), 7.7))).mul(wall);
+      c = c.mul(float(1).sub(soft.mul(0.14)));
+      const ledge = smoothstep(0.55, 0.9, n.y).mul(dry);
+      c = mix(c, sandC, ledge.mul(0.3).mul(smoothstep(0.35, 0.65, nz(pw.mul(1.8)))));
       const near = smoothstep(7, 2, T.length(T.cameraPosition.sub(T.positionWorld)));
       c = c.mul(float(1).add(nz(pw.mul(170)).sub(0.5).mul(0.16).mul(near)));
     }
