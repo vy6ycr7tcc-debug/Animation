@@ -224,6 +224,46 @@ class Pieces {
   gold: THREE.BufferGeometry[] = [];
   ore: THREE.BufferGeometry[] = [];
   lamps: THREE.BufferGeometry[] = [];
+  glass: THREE.BufferGeometry[] = [];
+  flames: THREE.BufferGeometry[] = [];
+  /** A lantern: a cap and a base, four thin bars, a bail, warm glass and a small flame within;
+      hung from `hook` (a bracket to it, or a short chain straight up). */
+  lantern(at: THREE.Vector3, hook?: THREE.Vector3): void {
+    const add = (g: THREE.BufferGeometry, y: number) => {
+      g.translate(at.x, at.y + y, at.z);
+      this.steel.push(g);
+    };
+    add(new THREE.CylinderGeometry(0.075, 0.085, 0.03, 14), -0.13);
+    add(new THREE.ConeGeometry(0.09, 0.08, 14), 0.15);
+    add(new THREE.CylinderGeometry(0.02, 0.02, 0.03, 8), 0.205);
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2 + 0.4;
+      const g = new THREE.CylinderGeometry(0.006, 0.006, 0.24, 5);
+      g.translate(Math.cos(a) * 0.07, 0, Math.sin(a) * 0.07);
+      add(g, 0);
+    }
+    const bail = new THREE.TorusGeometry(0.08, 0.005, 5, 18, Math.PI);
+    bail.rotateY(0.4);
+    add(bail, 0.2);
+    const top = at.clone().setY(at.y + 0.285);
+    const from = hook ?? top.clone().setY(top.y + 0.3);
+    const L = from.distanceTo(top);
+    if (L > 0.01) {
+      const arm = new THREE.CylinderGeometry(0.01, 0.01, L, 6);
+      arm.translate(0, L / 2, 0);
+      arm.rotateX(Math.PI / 2); // (its length along +z, then turned to the hook)
+      arm.lookAt(from.clone().sub(top));
+      arm.translate(top.x, top.y, top.z);
+      this.steel.push(arm);
+    }
+    const gl = new THREE.CylinderGeometry(0.062, 0.068, 0.22, 16, 1, true);
+    gl.translate(at.x, at.y, at.z);
+    this.glass.push(gl);
+    const fl = new THREE.SphereGeometry(0.022, 10, 8);
+    fl.scale(1, 1.9, 1);
+    fl.translate(at.x, at.y - 0.04, at.z);
+    this.flames.push(fl);
+  }
   /** A beam from a to b, `s` square, its own shade of brown. */
   beam(a: THREE.Vector3, b: THREE.Vector3, s: number, shade = 1): void {
     const d = b.clone().sub(a), L = d.length();
@@ -304,11 +344,63 @@ class Pieces {
       const m = new THREE.MeshBasicNodeMaterial({ color: 0xffc274 });
       mk(this.lamps, m, ["position", "normal", "uv"]);
     }
+    if (this.glass.length) {
+      const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
+      const V = T.normalize(T.cameraPosition.sub(T.positionWorld));
+      const rim = T.pow(T.float(1).sub(T.abs(T.dot(T.normalize(T.normalWorld), V))), 2);
+      m.colorNode = T.vec4(T.vec3(1, 0.6, 0.25).mul(rim.mul(0.25).add(0.08)), 1);
+      mk(this.glass, m, ["position", "normal", "uv"]);
+    }
+    if (this.flames.length) {
+      const m = new THREE.MeshBasicNodeMaterial({ fog: false });
+      // each flame its own flicker (from where it hangs)
+      const ph = T.positionWorld.x.mul(1.7).add(T.positionWorld.z.mul(2.3));
+      const fl = T.sin(gpuUniforms.time.mul(11).add(ph)).mul(T.sin(gpuUniforms.time.mul(4.3).add(ph.mul(0.7)))).mul(0.08).add(0.92);
+      m.colorNode = T.vec4(T.vec3(1, 0.78, 0.42).mul(fl).mul(1.1), 1);
+      mk(this.flames, m, ["position", "normal", "uv"]);
+    }
   }
 }
 
 /** A gold mine: its portal in the hillside, and the mine within. */
 export class GoldMine extends Underground {
+  /** The cart at the mouth, which carries you in (its own object, so it can roll). */
+  declare cartOut: THREE.Group;
+  /** Where on the rails outside (metres out from the mouth) the cart rests. */
+  declare cartRest: number;
+  /** A point on the rails outside, `out` metres from the mouth (negative: in the adit). */
+  declare railOut: (out: number) => THREE.Vector3;
+  declare portalYaw: number;
+  /** The cart that rides the rails within (built with the mine, at the start of the rails). */
+  cartIn: THREE.Group | null = null;
+  /** A cart of its own, empty but for a plank to sit on. */
+  private makeCart(L?: MouthLight | null): THREE.Group {
+    const P = new Pieces();
+    this.cart(P, new THREE.Vector3(0, 0.55, 0), 0, false, false);
+    const g = new THREE.Group();
+    P.build((o) => g.add(o), L);
+    return g;
+  }
+  /** The rails within at `s` (a sample index, fractional): where the cart's middle is, and its
+      turn (a rotation about y that lays its length along the rails). */
+  railIn(s: number, out: THREE.Vector3): number {
+    const S = this.samples, O = this.O;
+    const i = Math.max(0, Math.min(S.length - 2, Math.floor(s))), f = Math.min(1, Math.max(0, s - i));
+    const a = S[i], b = S[i + 1];
+    const x = O.x + a.x + (b.x - a.x) * f, z = O.z + a.z + (b.z - a.z) * f;
+    out.set(x, this.floorAt(x, z) + 0.55, z);
+    const tx = a.tx + (b.tx - a.tx) * f, tz = a.tz + (b.tz - a.tz) * f;
+    return -Math.atan2(tz, tx);
+  }
+  /** Metres between two samples of the rails within. */
+  railStep(s: number): number {
+    const S = this.samples;
+    const i = Math.max(0, Math.min(S.length - 2, Math.floor(s)));
+    return Math.max(0.2, Math.hypot(S[i + 1].x - S[i].x, S[i + 1].z - S[i].z));
+  }
+  get railEnd(): number {
+    return this.samples.length - 4;
+  }
   constructor(readonly index: number) {
     const s = MINE_SITES[index];
     const origin = new THREE.Vector3(MINE_ORIGIN_X, 120, index * 3000);
@@ -465,58 +557,11 @@ export class GoldMine extends Underground {
       P.beam(a.clone().setY(base + 2.74).addScaledVector(new THREE.Vector3(lx, 0, lz), -0.2), b.clone().setY(base + 2.74).addScaledVector(new THREE.Vector3(lx, 0, lz), 0.2), 0.26);
     }
     solid.push({ x: pl.x, z: pl.z, r: 0.3, top: base + pH }, { x: pr.x, z: pr.z, r: 0.3, top: base + pH });
-    // a lantern on an iron bracket from the right post: a cap and a base, four thin bars, the
-    // glass, a bail, and a small flame within
+    // a lantern on an iron bracket from the right post
     {
       const bracket = at(0.42, half + 0.02);
       bracket.y = lamp.y + 0.285;
-      const tip = lamp.clone().setY(lamp.y + 0.285);
-      const arm = new THREE.CylinderGeometry(0.012, 0.012, bracket.distanceTo(tip), 6);
-      arm.rotateZ(Math.PI / 2);
-      arm.rotateY(-Math.atan2(tip.z - bracket.z, tip.x - bracket.x));
-      arm.translate((bracket.x + tip.x) / 2, tip.y, (bracket.z + tip.z) / 2);
-      P.steel.push(arm);
-      const add = (g: THREE.BufferGeometry, y: number) => {
-        g.translate(lamp.x, lamp.y + y, lamp.z);
-        P.steel.push(g);
-      };
-      add(new THREE.CylinderGeometry(0.075, 0.085, 0.03, 14), -0.13);
-      add(new THREE.ConeGeometry(0.09, 0.08, 14), 0.15);
-      add(new THREE.CylinderGeometry(0.02, 0.02, 0.03, 8), 0.205);
-      for (let k = 0; k < 4; k++) {
-        const a = (k / 4) * Math.PI * 2 + 0.4;
-        const g = new THREE.CylinderGeometry(0.006, 0.006, 0.24, 5);
-        g.translate(Math.cos(a) * 0.07, 0, Math.sin(a) * 0.07);
-        add(g, 0);
-      }
-      const bail = new THREE.TorusGeometry(0.08, 0.005, 5, 18, Math.PI);
-      bail.rotateY(0.4);
-      add(bail, 0.2);
-      // the glass (faint, warm with the flame) and the flame
-      const glass = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.062, 0.068, 0.22, 16, 1, true),
-        (() => {
-          const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
-          const V = T.normalize(T.cameraPosition.sub(T.positionWorld));
-          const rim = T.pow(T.float(1).sub(T.abs(T.dot(T.normalize(T.normalWorld), V))), 2);
-          m.colorNode = T.vec4(T.vec3(1, 0.6, 0.25).mul(rim.mul(0.25).add(0.08)), 1);
-          return m;
-        })(),
-      );
-      glass.position.copy(lamp);
-      this.world.add(glass);
-      const flame = new THREE.Mesh(
-        new THREE.SphereGeometry(0.022, 10, 8),
-        (() => {
-          const m = new THREE.MeshBasicNodeMaterial({ fog: false });
-          const fl = T.sin(gpuUniforms.time.mul(11)).mul(T.sin(gpuUniforms.time.mul(4.3))).mul(0.08).add(0.92);
-          m.colorNode = T.vec4(T.vec3(1, 0.78, 0.42).mul(fl).mul(1.1), 1);
-          return m;
-        })(),
-      );
-      flame.scale.set(1, 1.9, 1);
-      flame.position.copy(lamp).setY(lamp.y - 0.04);
-      this.world.add(flame);
+      P.lantern(lamp, bracket);
     }
     const halo = new THREE.Mesh(
       new THREE.PlaneGeometry(1.1, 1.1),
@@ -571,7 +616,13 @@ export class GoldMine extends Underground {
       bed.receiveShadow = true;
       this.world.add(bed);
     }
-    this.cart(P, at(railLen - 1.2, 0, 0.55), -f, true);
+    this.cartRest = railLen - 1.2;
+    this.railOut = (o: number) => tb(o, 0, 0.55);
+    this.portalYaw = -f;
+    this.cartOut = this.makeCart(L);
+    this.cartOut.position.copy(this.railOut(this.cartRest));
+    this.cartOut.rotation.y = -f;
+    this.world.add(this.cartOut);
     solid.push({ x: at(railLen - 1.2, 0).x, z: at(railLen - 1.2, 0).z, r: 0.75, top: base + 1.2 });
     // the spoil heap beside the rails' end: pale broken rock
     const heap = new THREE.ConeGeometry(4.6, 2.6, 18, 5);
@@ -597,7 +648,7 @@ export class GoldMine extends Underground {
 
   /** An ore cart on the rails: a timber box bound in iron on four iron wheels, heaped with ore
       (`gold`: a few lumps of gold among it). */
-  private cart(P: Pieces, c: THREE.Vector3, yaw: number, gold: boolean): void {
+  private cart(P: Pieces, c: THREE.Vector3, yaw: number, gold: boolean, ore = true): void {
     const fwd = new THREE.Vector3(Math.cos(-yaw), 0, Math.sin(-yaw)), side = new THREE.Vector3(-fwd.z, 0, fwd.x);
     const corner = (a: number, b: number, y: number) => c.clone().addScaledVector(fwd, a).addScaledVector(side, b).setY(c.y + y);
     // the box: planks on four sides and the floor
@@ -619,9 +670,11 @@ export class GoldMine extends Underground {
         g.translate(p.x, p.y, p.z);
         P.steel.push(g);
       }
+    // a plank across it to sit on, in a cart that carries people
+    if (!ore) P.beam(corner(-0.05, -0.36, 0.22), corner(-0.05, 0.36, 0.22), 0.1);
     // the ore heaped in it
-    for (let k = 0; k < 9; k++) P.lump(P.ore, corner((rnd() - 0.5) * 0.8, (rnd() - 0.5) * 0.5, 0.32 + rnd() * 0.12), 0.12 + rnd() * 0.1);
-    if (gold) for (let k = 0; k < 4; k++) P.lump(P.gold, corner((rnd() - 0.5) * 0.7, (rnd() - 0.5) * 0.4, 0.42 + rnd() * 0.08), 0.05 + rnd() * 0.05);
+    if (ore) for (let k = 0; k < 9; k++) P.lump(P.ore, corner((rnd() - 0.5) * 0.8, (rnd() - 0.5) * 0.5, 0.32 + rnd() * 0.12), 0.12 + rnd() * 0.1);
+    if (gold && ore) for (let k = 0; k < 4; k++) P.lump(P.gold, corner((rnd() - 0.5) * 0.7, (rnd() - 0.5) * 0.4, 0.42 + rnd() * 0.08), 0.05 + rnd() * 0.05);
   }
 
   /* ---------------------------------------------------------------- the workings within */
@@ -661,9 +714,8 @@ export class GoldMine extends Underground {
       // a lantern hung from a cap every dozen metres or so
       if (i - lampAt >= 20) {
         lampAt = i;
-        const lp = pt(i, 0.25, 0).setY(yc - 0.35);
-        P.box(P.lamps, lp, 0.14, 0.2, 0.14, 0);
-        P.box(P.steel, lp.clone().setY(lp.y + 0.14), 0.18, 0.04, 0.18, 0);
+        const lp = pt(i, 0.25, 0).setY(yc - 0.55);
+        P.lantern(lp, lp.clone().setY(yc - 0.12));
         this.sources.push({ p: lp, c: C("#ffb866"), k: 9, r: 13 });
       }
     }
@@ -722,6 +774,12 @@ export class GoldMine extends Underground {
       P.lump(P.gold, pan.clone().setY(pan.y + 0.1), 0.16, 0.7);
     }
     P.build((o) => this.add(o));
+    // a cart to ride, waiting near the start of the rails
+    this.cartIn = this.makeCart();
+    const v = new THREE.Vector3();
+    this.cartIn.rotation.y = this.railIn(4, v);
+    this.cartIn.position.copy(v);
+    this.add(this.cartIn);
     // the way out: daylight in the portal behind you
     const out = new THREE.Mesh(
       new THREE.PlaneGeometry(2.2, 2.6),
