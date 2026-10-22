@@ -119,7 +119,7 @@ export function wetReflections(color: N, colorTex: N, depth: N, wetTex: N, camer
       const reach = float(1).sub(smoothstep(0.55, 1, tHit.div(maxLen)));
       const got = hit.mul(edge).mul(reach).mul(conf);
       // what it meets; where it meets nothing, the air's own colour (never a picture of the sky)
-      const air = fogUniforms.color.mul(0.9).add(fogUniforms.glow.mul(pow(max(dot(r, normalize(T.cameraViewMatrix.mul(vec4(fogUniforms.glowDir, 0)).xyz)), 0), 8).mul(0.25)));
+      const air = fogUniforms.color.mul(0.6).add(fogUniforms.glow.mul(pow(max(dot(r, normalize(T.cameraViewMatrix.mul(vec4(fogUniforms.glowDir, 0)).xyz)), 0), 8).mul(0.25)));
       // (underground there is no air to see: the water there shows the floor under it, darker)
       const miss = mix(out.rgb.mul(0.45), air, wetUniforms.air);
       // (four taps a pixel apart: still water's image, softened a hair, without the stair-steps)

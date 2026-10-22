@@ -1418,18 +1418,23 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
   // the water. The wet is darker, the puddles darker still (what they show is mostly reflection).
   const shoreWet = smoothstep(0.55, 0.05, vGW.y).mul(step(0, vGW.y)).mul(0.32);
   const flatK = smoothstep(0.9, 0.975, nW.y);
-  const puddle = Fn(() => {
-    const out = float(0).toVar();
+  // (puddles are few and small, in the hollows: the owner saw the old ones as a cow's hide, big
+  // mirror-blotches over half the ground. Each has a dark rim of wet mud fading out into the soil.)
+  const puddleRim = Fn(() => {
+    const out = vec2(0).toVar();
     If(wetUniforms.rain.greaterThan(0.01).and(camD.lessThan(140)), () => {
-      const pn = gN(q.mul(0.2).add(5)).mul(0.6).add(gN(q.mul(0.7).add(17)).mul(0.4)).add(smoothstep(1.0, 0.85, gr.x).mul(0.3));
-      out.assign(smoothstep(0.71, 0.735, pn.sub(float(1).sub(wetUniforms.rain).mul(0.25))).mul(flatK).mul(float(1).sub(w.x.mul(0.7))));
+      const pn = gN(q.mul(0.33).add(5)).mul(0.65).add(gN(q.mul(1.1).add(17)).mul(0.35)).add(smoothstep(1.0, 0.85, gr.x).mul(0.08));
+      const thr = float(0.84).sub(wetUniforms.rain.mul(0.06));
+      const k = flatK.mul(float(1).sub(w.x.mul(0.8)));
+      out.assign(vec2(smoothstep(thr, thr.add(0.03), pn).mul(k), smoothstep(thr.sub(0.07), thr, pn).mul(k).mul(wetUniforms.rain)));
     });
     return out;
   })();
-  const wetK = max(max(shoreWet, wetUniforms.rain.mul(0.3).mul(flatK.mul(0.5).add(0.5))), puddle)
+  const puddle = puddleRim.x;
+  const wetK = max(max(max(shoreWet, wetUniforms.rain.mul(0.22).mul(flatK.mul(0.5).add(0.5))), puddle), puddleRim.y.mul(0.55))
     .mul(float(1).sub(snow)).mul(float(1).sub(sea)).mul(float(1).sub(smoothstep(90, 140, camD)));
   setWet(m, wetK, puddle);
-  const wetDark = float(1).sub(wetK.mul(0.42)).sub(puddle.mul(0.2));
+  const wetDark = float(1).sub(wetK.mul(0.42)).sub(puddle.mul(0.2)).sub(puddleRim.y.mul(0.12));
 
   m.colorNode = Fn(() => {
     const { W, ST, CD, SEA, FD, N_, samp, tri, side, bx, bz, bsum, sampR, regW, keep } = setup();
