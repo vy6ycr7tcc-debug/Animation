@@ -181,9 +181,13 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
   const [nx, ny, nzz] = nm(S.nor);
   let dn: N = vec3(0, nx.y, nx.x).mul(w.x).add(vec3(ny.x, 0, ny.y).mul(w.y)).add(vec3(nzz.x, nzz.y, 0).mul(w.z)).mul(0.9);
   if (cellAt && cell) {
-    const mortar = 0.035, depth = 0.05;
-    const jointOf = (k: Cell) => smoothstep(mortar, mortar * 0.35, k.e);
-    const joint = jointOf(cell);
+    // joints as real ashlar's: hairlines a few millimetres across (they were 7 cm and nearly black,
+    // read as hinges), never thinner than a pixel, and fainter where they would be finer than one
+    const fe = T.fwidth(cell.e);
+    const mortar = T.max(float(0.006), fe.mul(0.9)), depth = 0.012;
+    const jointOf = (k: Cell) => smoothstep(mortar, mortar.mul(0.3), k.e);
+    const jFar = mix(float(0.4), float(1), smoothstep(0.03, 0.008, fe));
+    const joint = jointOf(cell).mul(jFar);
     // depth: the joint as a recess seen from where you stand. Where the surface is inside a
     // joint but the view, stepped down the recess, lands back on stone, you are looking at the
     // cut side of the next stone (darker, catching less light). And the key light reaches into
@@ -197,14 +201,43 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
     const lit = float(1).sub(jointOf(cellAt(pw.add(inPlane(Lk).mul(depth)))));
     const shade = joint.mul(float(1).sub(lit)).mul(smoothstep(0.0, 0.25, T.dot(Lk, flatN).add(0.3)));
     const id = cell.id;
-    const arris = smoothstep(0.1, mortar, cell.e).mul(float(1).sub(joint)); // the worn edge of each stone
-    const tone = mix(float(0.84), float(1.12), id);
-    c = c.mul(tone).mul(mix(float(1), float(0.42), joint)).mul(float(1).add(arris.mul(0.16)));
-    c = c.mul(float(1).sub(seenSide.mul(0.3))).mul(float(1).sub(shade.mul(0.45)));
+    // the worn edge of each stone, a few centimetres, chipped here and there
+    const chip = smoothstep(0.55, 0.75, nz(pw.mul(9).add(id.mul(7))));
+    const arris = smoothstep(mortar.mul(5).add(0.02), mortar, cell.e).mul(float(1).sub(joint));
+    const tone = mix(float(0.85), float(1.12), id);
+    c = c.mul(tone).mul(mix(float(1), float(0.58), joint)).mul(float(1).add(arris.mul(mix(float(0.1), float(-0.12), chip))));
+    c = c.mul(float(1).sub(seenSide.mul(0.25))).mul(float(1).sub(shade.mul(0.35)));
+    if (!marble && !granite) {
+      // sandstone as it is: each block its own sand (buff, ochre, a few greyer or rosier), laid
+      // down in beds (fine laminations along each block's bedding, some cross-bedded at a slant),
+      // iron staining in soft patches and faint rings, and the sand's own grain up close
+      const hue = mix(vec3(1.04, 0.97, 0.88), vec3(1.07, 0.9, 0.74), h(T.vec2(id, 7.7)));
+      const hue2 = mix(hue, vec3(0.96, 0.95, 0.93), T.step(0.8, h(T.vec2(id, 3.3))).mul(0.7));
+      const hue3 = mix(hue2, vec3(1.06, 0.87, 0.82), T.step(0.86, h(T.vec2(id, 5.9))).mul(0.6));
+      // the crack scan's network, at full strength, read as crinkled leather: keep its hue but
+      // pull its light and dark toward the stone's own mean (a blurred read of the same scan),
+      // and soften its relief, so the bedding and the grain carry the face
+      const blur = T.texture(S.diff, ps.zy.div(tile)).level(6).mul(w.x).add(T.texture(S.diff, ps.xz.div(tile)).level(6).mul(w.y)).add(T.texture(S.diff, ps.xy.div(tile)).level(6).mul(w.z));
+      const lumC = T.dot(c, vec3(0.3, 0.5, 0.2)), lumB = T.dot(blur.rgb.mul(vec3(...tint)), vec3(0.3, 0.5, 0.2));
+      c = c.mul(T.pow(lumB.add(0.02).div(lumC.add(0.02)), 0.55));
+      dn = dn.mul(0.55);
+      c = c.mul(hue3);
+      const alongP = T.select(xFace, pw.z, pw.x);
+      const slope = T.select(h(T.vec2(id, 11.1)).greaterThan(0.6), h(T.vec2(id, 12.7)).sub(0.5).mul(0.9), float(0));
+      const bed = mix(pw.z.add(pw.x.mul(0.3)), pw.y.add(alongP.mul(slope)), wall);
+      const wob = nz(pw.mul(1.3).add(id.mul(3))).mul(0.06);
+      const lam = nz(vec3(bed.add(wob).mul(26), id.mul(17), 0.5)).mul(0.65).add(nz(vec3(bed.add(wob).mul(71), id.mul(23), 2.5)).mul(0.35));
+      c = c.mul(float(1).add(lam.sub(0.5).mul(mix(float(0.14), float(0.38), wall))));
+      const iron = smoothstep(0.58, 0.82, nz(pw.mul(0.55).add(id.mul(4.1))));
+      const ring = smoothstep(0.75, 1.0, abs(T.sin(nz(pw.mul(0.8).add(id)).mul(30)))).mul(iron);
+      c = mix(c, c.mul(vec3(1.1, 0.84, 0.62)), iron.mul(0.4).add(ring.mul(0.18)));
+      const near = smoothstep(7, 2, T.length(T.cameraPosition.sub(T.positionWorld)));
+      c = c.mul(float(1).add(nz(pw.mul(170)).sub(0.5).mul(0.16).mul(near)));
+    }
     rough = T.clamp(rough.add(id.sub(0.5).mul(0.12)).add(joint.mul(0.1)), marble ? 0.3 : granite ? 0.4 : 0.55, 1);
     // the mortar lies deeper: the stone's face turns away from it toward each joint
     const sU = T.sign(cell.fu.sub(0.5)), sV = T.sign(cell.fv.sub(0.5));
-    const kU = smoothstep(0.08, 0.0, cell.du).mul(0.5), kV = smoothstep(0.08, 0.0, cell.dv).mul(0.5);
+    const kU = smoothstep(0.025, 0.0, cell.du).mul(0.35).mul(jFar), kV = smoothstep(0.025, 0.0, cell.dv).mul(0.35).mul(jFar);
     const wallBend = hAxis.mul(sU.mul(kU)).add(vec3(0, 1, 0).mul(sV.mul(kV)));
     // each flagstone at its own slight tilt, so the floor never reads as one flat sheet
     const tilt = vec3(h(T.vec2(id, 2.1)).sub(0.5), 0, h(T.vec2(id, 4.2)).sub(0.5)).mul(0.12);
