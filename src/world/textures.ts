@@ -26,3 +26,39 @@ export function surface(name: SurfaceName): { diff: THREE.Texture; nor: THREE.Te
   const arm = name === "bark" ? "textures/sand_arm.jpg" : `textures/${name}_arm.jpg`;
   return { diff: tex(`textures/${name}_diff.jpg`, true), nor: tex(`textures/${name}_nor.jpg`, false), arm: tex(arm, false) };
 }
+
+/** The regions' own soils (tools/build-ground-scans.py), one texture array: layers 0–6 the scans'
+    colour (tundra lichen, autumn leaf litter, burnt ash, moor mud and moss, red laterite, mossy
+    leaves, grey chalk ground), 7–13 their normals; 512 px each. Its colour is stored as is (not
+    marked sRGB, since the normals share it): read it through `toLinear`. Grey until loaded. */
+export const REGION_LAYERS = 7;
+let regionTex: THREE.DataArrayTexture | null = null;
+export function regionScans(): THREE.DataArrayTexture {
+  if (regionTex) return regionTex;
+  const S = 512, D = REGION_LAYERS * 2;
+  const data = new Uint8Array(S * S * 4 * D).fill(128);
+  const t = new THREE.DataArrayTexture(data, S, S, D);
+  t.format = THREE.RGBAFormat;
+  t.type = THREE.UnsignedByteType;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.magFilter = THREE.LinearFilter;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.generateMipmaps = true;
+  t.anisotropy = 16;
+  t.needsUpdate = true;
+  regionTex = t;
+  const img = new Image();
+  img.decoding = "async";
+  img.onload = () => {
+    const c = document.createElement("canvas");
+    c.width = S;
+    c.height = S * D;
+    const g = c.getContext("2d", { willReadFrequently: true });
+    if (!g) return;
+    g.drawImage(img, 0, 0);
+    data.set(g.getImageData(0, 0, S, S * D).data);
+    t.needsUpdate = true;
+  };
+  img.src = "textures/regions.jpg";
+  return t;
+}

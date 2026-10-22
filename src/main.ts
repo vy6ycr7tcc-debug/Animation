@@ -34,6 +34,7 @@ import { Landmarks } from "./world/landmarks";
 import { Flowers, Lanterns, LightGrass, Sparks, type LifeFrame } from "./world/life";
 import { Motes } from "./world/motes";
 import { Risers } from "./world/risers";
+import { GroundCover } from "./world/groundCover";
 import { wakeStep } from "./gpu/wake";
 import { Creation, creationUniforms } from "./world/creation";
 import { Beings, type BeingModel } from "./world/beings";
@@ -353,6 +354,9 @@ const flowers = new Flowers(sparks, audio);
 const lanterns = new Lanterns(sparks);
 const blooms = new RisingFlowers();
 const wilds = new Wilds();
+// what grows and lies on the ground round you, each region its own (world/groundCover.ts)
+const cover = new GroundCover();
+scene.add(cover.group);
 (window as unknown as { __palmAt?: () => { x: number; y: number; z: number } | null }).__palmAt = () => wilds.nearestPalm(SPAWN.x, SPAWN.z);
 const landmarks = new Landmarks(scene, audio, wanderer);
 // The archetypes themselves, each at home in its landmark.
@@ -5238,6 +5242,7 @@ function update(dt: number): void {
     flowers.update(life);
     blooms.update(life);
     wilds.update(life);
+    cover.update(wt, player.pos, S.reduced);
     sanct.update(dt, wt, dpr, player.pos, camera);
     garden.update(dt, wt, player.pos);
     lanterns.update(life);

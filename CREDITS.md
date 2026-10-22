@@ -26,4 +26,5 @@
 
 ## Added 2026-09-27
 - Ground scans (CC0, Poly Haven): Coast Sand 01, Forrest Ground 01, Aerial Rocks 02, Cliff Side (colour, normal, AO/roughness), re-encoded and high-passed for tiling.
+- The regions' own soils (CC0, Poly Haven): Aerial Grass Rock, Dry Decay Leaves, Burned Ground 01, Brown Mud Leaves 01, Red Laterite Soil Stones, Forest Leaves 02, Ground Grey (colour and normal, 512 px, high-passed, packed as one texture array by `tools/build-ground-scans.py`).
 - Voice: Piper text-to-speech (MIT, rhasspy/piper) with the "Cori" voice (en_GB-cori-high, from rhasspy/piper-voices; see its model card for its dataset licence).

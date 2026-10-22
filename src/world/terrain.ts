@@ -8,7 +8,7 @@
 import * as THREE from "three/webgpu";
 import { fogUniforms, T, type N } from "../gpu/tsl";
 import { starDirection } from "./fog";
-import { surface } from "./textures";
+import { regionScans, REGION_LAYERS, surface } from "./textures";
 
 export const WATER_Y = 0;
 /** The world's radius: mountains rise at its edge, about 4 km out. */
@@ -162,6 +162,16 @@ function regionExact(x: number, z: number, out: Float64Array): number {
   for (let i = 0; i < REGIONS.length; i++) sum += out[i] = smooth(0.62, 1, Math.cos(a - REGIONS[i].dir));
   for (let i = 0; i < REGIONS.length; i++) out[i] /= sum || 1;
   return away;
+}
+/** The region holding most sway at a point (0 E … 7 SE; −1 the home meadow) and how far out of
+    the home meadow it is (0 … 1). */
+const _ri = new Float64Array(8);
+export function regionIndex(x: number, z: number): { i: number; away: number } {
+  const away = regionWeights(x, z, _ri);
+  if (away <= 0.05) return { i: -1, away };
+  let best = 0;
+  for (let i = 1; i < 8; i++) if (_ri[i] > _ri[best]) best = i;
+  return { i: best, away };
 }
 export function regionAt(x: number, z: number): typeof regionHere {
   const r = regionHere;
@@ -1145,6 +1155,12 @@ const gN = Fn(([p]: N[]) => {
   const i = floor(p), f0 = fract(p), f = f0.mul(f0).mul(float(3).sub(f0.mul(2)));
   return tmix(tmix(gH(i), gH(i.add(vec2(1, 0))), f.x), tmix(gH(i.add(vec2(0, 1))), gH(i.add(vec2(1, 1))), f.x), f.y);
 });
+/** Which layer of the regions' texture array each region (E, NE, N, NW, W, SW, S, SE) wears (−1:
+    none; the dunes keep the sand scan), how large a repeat is, and each scan's gain (to bring
+    their brightness level with the home scans'). */
+const REGION_SCAN = [0, 1, 2, 3, -1, 4, 5, 6];
+const REGION_SC = 2.6;
+const REGION_GAIN = [3.2, 3.6, 2.2, 3.6, 5.0, 2.4, 1.9];
 function groundMaterial(): THREE.MeshStandardNodeMaterial {
   // matte earth: no sheen of sky or moon sliding over it as the camera moves (Samuel: "you
   // don't need to be ray tracing the floor")
@@ -1155,6 +1171,8 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
   const moon = vec3(...starDirection().toArray());
   // x: sky seen (1 open … darker in hollows), y: how sandy, z: how rocky
   const gr = attribute("aGround", "vec3");
+  const regA = attribute("aRegA", "vec4"), regB = attribute("aRegB", "vec4");
+  const regTex = regionScans();
   const vGW = positionWorld;
   const w = vec3(gr.y, gr.z, max(0, float(1).sub(gr.y).sub(gr.z))); // sand, rock, meadow
   const q = vGW.xz;
@@ -1197,7 +1215,18 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
       texture(t, vGW[a].div(sc)).grad(dwx[a].div(sc), dwy[a].div(sc));
     const tri = (t: THREE.Texture, sc: number) =>
       side(t, sc, "zy").mul(bx).add(side(t, sc, "xy").mul(bz)).add(side(t, sc, "xz").mul(by)).div(bsum);
-    return { W, ST, CD, SEA, FD, samp, tri, side, bx, bz, by, bsum };
+    // the regions' own soils, from one texture array (layer, then its normals REGION_LAYERS on)
+    const sampR = (layer: number, sc: number) => {
+      const u = q.div(sc), dx = dqx.div(sc), dy = dqy.div(sc);
+      return tmix(texture(regTex, u.add(offA)).depth(float(layer)).grad(dx, dy), texture(regTex, u.add(offB)).depth(float(layer)).grad(dx, dy), pf);
+    };
+    // how much of the soil each region's scan takes (its share of the non-sand ground), and what
+    // the home scans keep
+    const RA = regA.toVar(), RB = regB.toVar();
+    const soil = W.y.add(W.z).mul(0.85);
+    const regW = [RA.x, RA.y, RA.z, RA.w, float(0), RB.y, RB.z, RB.w].map((r) => r.mul(soil).toVar());
+    const keep = float(1).sub(RA.x.add(RA.y).add(RA.z).add(RA.w).add(RB.y).add(RB.z).add(RB.w).mul(0.85)).toVar();
+    return { W, ST, CD, SEA, FD, samp, tri, side, bx, bz, by, bsum, sampR, regW, keep };
   };
 
   // Crags: the mountains' faces broken into ridges and gullies in the light (ridged noise at two
@@ -1256,7 +1285,8 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
   })();
 
   m.colorNode = Fn(() => {
-    const { W, ST, CD, SEA, FD, samp, tri, side, bx, bz, bsum } = setup();
+    const { W, ST, CD, SEA, FD, samp, tri, side, bx, bz, bsum, sampR, regW, keep } = setup();
+    void sampR;
     const SN = snow.toVar();
     const det0 = vec3(0).toVar(), ao0 = float(0).toVar(), grain = float(1).toVar();
     const withAo = CD.lessThan(260);
@@ -1273,8 +1303,22 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
       };
       If(flat.greaterThan(L), () => {
         layer(W.x, sand, 3, 1.9);
-        layer(W.y, rock, 4, 2.2);
-        layer(W.z, meadow, 2.2, 2.6);
+        layer(W.y.mul(keep), rock, 4, 2.2);
+        layer(W.z.mul(keep), meadow, 2.2, 2.6);
+        // each region's own soil, read only where that region holds sway (its colour is stored
+        // as is: squared, about, into light)
+        REGION_SCAN.forEach((k, ri) => {
+          if (k < 0) return;
+          const wt = regW[ri];
+          If(wt.greaterThan(L), () => {
+            const c = sampR(k, REGION_SC).rgb.mul(0.6).add(sampR(k, REGION_SC * 2.618).rgb.mul(0.4));
+            det0.addAssign(c.mul(c).mul(REGION_GAIN[k]).mul(wt).mul(flat));
+            If(withAo, () => {
+              // no occlusion map of their own: their darker grains stand in for it
+              ao0.addAssign(smoothstep(0.0, 0.5, dot(c, vec3(0.3, 0.5, 0.2))).mul(0.5).add(0.5).mul(wt).mul(flat));
+            });
+          });
+        });
       });
       // steep ground is a cliff: the cliff scan wrapped round it (triplanar), near at its own
       // scale, far much larger so its strata still read from a kilometre away
@@ -1335,7 +1379,61 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
     // the rock darkens into its crevices (the crags' hollows), the snow keeps its white
     const crev = tmix(float(1), smoothstep(0.15, 0.7, cragN.x).mul(0.5).add(0.62), mtn);
     const snowC = tmix(vec3(0.5, 0.49, 0.7), vec3(0.76, 0.78, 0.89), smoothstep(150, 230, vGW.y)).mul(grain);
-    return vec4(tmix(ground.mul(T.vertexColor().rgb).mul(crev).mul(gully.w), snowC, SN).mul(gr.x), 1);
+    const base = ground.mul(T.vertexColor().rgb).toVar();
+    // Each region's own ground at a scale the eye reads walking (the scans alone are a fine grain
+    // that reads as the same noise everywhere): frost crusts and lichen on the tundra, drifts of
+    // fallen leaves in the autumn forest, pale ash blown over black, heather mottling the moor,
+    // the red rock's cracked plates, moss cushions, chalk showing white through the downs.
+    If(CD.lessThan(160).and(SEA.lessThan(0.5)), () => {
+      const nk = float(1).sub(smoothstep(60, 160, CD)).mul(float(1).sub(ST)).toVar();
+      const ptc = (sc: number, a: number, b: number, o: number) => smoothstep(a, b, gN(q.mul(sc).add(o)).mul(0.7).add(gN(q.mul(sc * 3.1).add(o + 3)).mul(0.3)));
+      const g0 = base;
+      // E: frost crusts, pale and blue; lichen spots, yellow-green
+      If(regW[0].greaterThan(L), () => {
+        const frost = ptc(0.35, 0.55, 0.7, 11);
+        const lc = floor(q.mul(3)), lf = fract(q.mul(3)).sub(0.5);
+        const lichen = step(0.72, gH(lc.add(3))).mul(smoothstep(0.32, 0.12, length(lf)));
+        g0.assign(tmix(g0, vec3(0.36, 0.4, 0.5), frost.mul(0.6).mul(regW[0]).mul(nk)));
+        g0.assign(tmix(g0, vec3(0.2, 0.22, 0.06), lichen.mul(0.6).mul(regW[0]).mul(nk)));
+      });
+      // NE: fallen leaves, gathered in drifts, each its own colour
+      If(regW[1].greaterThan(L), () => {
+        const drift = ptc(0.3, 0.42, 0.62, 23);
+        const lc = floor(q.mul(4)), lf = fract(q.mul(4)).sub(0.5);
+        const rot = gH(lc.add(9)).mul(6.283);
+        const lv = vec2(lf.x.mul(T.cos(rot)).sub(lf.y.mul(T.sin(rot))), lf.x.mul(T.sin(rot)).add(lf.y.mul(T.cos(rot))));
+        const leaf = step(0.35, gH(lc)).mul(smoothstep(0.24, 0.12, length(lv.mul(vec2(1, 1.9)))));
+        const lcol = tmix(tmix(vec3(0.32, 0.07, 0.015), vec3(0.42, 0.2, 0.025), gH(lc.add(5))), vec3(0.2, 0.035, 0.02), step(0.8, gH(lc.add(7))));
+        g0.assign(tmix(g0, lcol, leaf.mul(drift.mul(0.75).add(0.2)).mul(regW[1]).mul(nk)));
+      });
+      // N: pale ash blown over black, in long drifts
+      If(regW[2].greaterThan(L), () => {
+        const ash = smoothstep(0.5, 0.75, gN(vec2(q.x.mul(0.25), q.y.mul(0.8)).add(31)));
+        g0.assign(tmix(g0, vec3(0.16, 0.16, 0.17), ash.mul(0.7).mul(regW[2]).mul(nk)));
+      });
+      // NW: heather, purple and brown in mottled cushions
+      If(regW[3].greaterThan(L), () => {
+        const h1 = ptc(0.9, 0.45, 0.62, 41), h2 = ptc(2.6, 0.5, 0.7, 47);
+        g0.assign(tmix(g0, tmix(vec3(0.11, 0.035, 0.09), vec3(0.2, 0.08, 0.15), h2), h1.mul(0.7).mul(regW[3]).mul(nk)));
+      });
+      // SW: the red ground cracked into plates
+      If(regW[5].greaterThan(L), () => {
+        const pc = q.mul(0.9).add(vec2(gN(q.mul(0.7)), gN(q.mul(0.7).add(5))).mul(0.8));
+        const cf = fract(pc).sub(0.5), crack = smoothstep(0.44, 0.49, max(abs(cf.x), abs(cf.y)));
+        g0.assign(g0.mul(tmix(float(1), float(0.45), crack.mul(regW[5]).mul(nk))));
+      });
+      // S: moss cushions, deep and bright green
+      If(regW[6].greaterThan(L), () => {
+        const moss = ptc(0.6, 0.45, 0.6, 61);
+        g0.assign(tmix(g0, tmix(vec3(0.03, 0.09, 0.015), vec3(0.07, 0.17, 0.025), ptc(3, 0.3, 0.7, 63)), moss.mul(0.75).mul(regW[6]).mul(nk)));
+      });
+      // SE: chalk showing white through thin turf
+      If(regW[7].greaterThan(L), () => {
+        const chalk = ptc(0.45, 0.55, 0.68, 71);
+        g0.assign(tmix(g0, vec3(0.55, 0.54, 0.5), chalk.mul(0.65).mul(regW[7]).mul(nk)));
+      });
+    });
+    return vec4(tmix(base.mul(crev).mul(gully.w), snowC, SN).mul(gr.x), 1);
   })();
 
   // Sand, as in Journey: ripples the wind combs across it (two wavelengths, bent by slow noise),
@@ -1349,7 +1447,7 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
 
   // the scans' relief: each surface's normal map, blended as the ground is, and only near
   const dW = Fn(() => {
-    const { W, ST, CD, samp, side, bx, bz, by, bsum } = setup();
+    const { W, ST, CD, samp, side, bx, bz, by, bsum, sampR, regW, keep } = setup();
     const SN = snow.toVar();
     const d = vec3(0).toVar();
     const nm = (t: THREE.Texture, sc: number) => samp(t, sc).xy.mul(2).sub(1);
@@ -1368,8 +1466,16 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
         });
       };
       layer(W.x, sand.nor, 3, 0.9, 0.9);
-      layer(W.y, rock.nor, 4, 1.2, 1.1);
-      layer(W.z, meadow.nor, 2.2, 0.8, 0.7);
+      layer(W.y.mul(keep), rock.nor, 4, 1.2, 1.1);
+      layer(W.z.mul(keep), meadow.nor, 2.2, 0.8, 0.7);
+      REGION_SCAN.forEach((k, ri) => {
+        if (k < 0) return;
+        const wt = regW[ri];
+        If(wt.greaterThan(L), () => {
+          const n = sampR(k + REGION_LAYERS, REGION_SC).xy.mul(2).sub(1).mul(1.1);
+          d.addAssign(vec3(n.x, 0, n.y.negate()).mul(wt).mul(near));
+        });
+      });
     });
     // on a cliff, each side's normal map turns about its own plane (x-facing: z and y; z-facing: x and y)
     If(CD.lessThan(400).and(ST.greaterThan(L)), () => {
@@ -1404,6 +1510,9 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
   void abs;
   return m;
 }
+
+const _fillW = new Float64Array(8);
+const NEUTRAL = new THREE.Color(0.5, 0.5, 0.54);
 
 export class Terrain {
   group = new THREE.Group();
@@ -1546,6 +1655,9 @@ export class Terrain {
     const n = g.attributes.position.count;
     g.setAttribute("color", new THREE.BufferAttribute(new Float32Array(n * 3), 3));
     g.setAttribute("aGround", new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+    // each region's weight there (away × its share): E, NE, N, NW | W, SW, S, SE
+    g.setAttribute("aRegA", new THREE.BufferAttribute(new Float32Array(n * 4), 4));
+    g.setAttribute("aRegB", new THREE.BufferAttribute(new Float32Array(n * 4), 4));
     const m = new THREE.Mesh(g, this.material);
     m.receiveShadow = isNear;
     m.frustumCulled = true;
@@ -1561,6 +1673,7 @@ export class Terrain {
     const nor = g.attributes.normal as THREE.BufferAttribute;
     const col = g.attributes.color as THREE.BufferAttribute;
     const gr = g.attributes.aGround as THREE.BufferAttribute;
+    const rA = g.attributes.aRegA as THREE.BufferAttribute, rB = g.attributes.aRegB as THREE.BufferAttribute;
     const n = L.seg + 1, B = 4; // a border of four cells, for normals and the sky-seen shading
     const W = n + 2 * B;
     const step = L.chunk / L.seg;
@@ -1598,9 +1711,14 @@ export class Terrain {
       const region = fbm(x * 0.004 + 9, z * 0.004 - 4);
       this.col.copy(C.meadowA).lerp(C.meadowB, smooth(0.35, 0.6, region)).lerp(C.meadowC, smooth(0.6, 0.78, region));
       // out from the shore, the country of the sky above (its colour, shaded within by slow noise)
+      const away = regionWeights(x, z, _fillW);
+      rA.setXYZW(v, away * _fillW[0], away * _fillW[1], away * _fillW[2], away * _fillW[3]);
+      rB.setXYZW(v, away * _fillW[4], away * _fillW[5], away * _fillW[6], away * _fillW[7]);
       const rg = regionAt(x, z);
-      const away = rg.away;
-      if (away > 0) this.col.lerp(this.tmp.copy(rg.col).multiplyScalar(0.82 + 0.36 * fbm(x * 0.012 - 3, z * 0.012 + 8)), away * 0.96);
+      // the region's own tint, eased toward a neutral moonlit grey where its own soil scan carries
+      // the colour (all but the dunes, which keep the sand scan and their ochre)
+      if (away > 0)
+        this.col.lerp(this.tmp.copy(rg.col).lerp(NEUTRAL, 0.15 * (1 - _fillW[4])).multiplyScalar(0.82 + 0.36 * fbm(x * 0.012 - 3, z * 0.012 + 8)), away * 0.96);
       this.col.lerp(this.tmp.copy(C.sand), k.sand * (1 - away * 0.85)).lerp(C.stone, k.stone * (1 - away * 0.85));
       // the mountains: bare dark rock on their steep faces (the snow is laid by the ground's shader)
       const up = nor.getY(v);
@@ -1621,7 +1739,7 @@ export class Terrain {
       const rocky = Math.min(1 - sandy * (1 - talus), k.stone + smooth(0.5, 1.0, 1 - nor.getY(v)) * 0.8 + earth * 0.55 + talus * 0.85);
       gr.setXYZ(v, sky, Math.max(0, Math.min(1 - rocky, sandy * (1 - talus) + earth * 0.3)), rocky);
     }
-    pos.needsUpdate = nor.needsUpdate = col.needsUpdate = gr.needsUpdate = true;
+    pos.needsUpdate = nor.needsUpdate = col.needsUpdate = gr.needsUpdate = rA.needsUpdate = rB.needsUpdate = true;
     g.computeBoundingSphere();
     g.computeBoundingBox();
   }
