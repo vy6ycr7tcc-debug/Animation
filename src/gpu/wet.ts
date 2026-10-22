@@ -8,11 +8,12 @@
    Each material says how wet it is through `setWet` (its normal and its wetness, written by the
    scene pass into one extra small target, "wet"); the post chain then marches a short ray across
    the screen from each wet pixel only and lays what it meets over it, by the Fresnel of water.
-   A ray that leaves the screen or meets nothing takes the air's own colour: a plain colour, never a
-   picture of the sky, so nothing slides over the ground (underground, the water's own floor,
-   darker). `?wetdebug` shows what is wet; `?wet=0` turns it all off, to compare in `#stats`. */
+   A ray that leaves the screen or meets nothing sees the sky in its direction, as the lakes mirror
+   it (its colours, the moon's glow, its stars; never the nebulae or galaxies), so a puddle holds
+   the night sky (underground, the water's own floor, darker). `?wetdebug` shows what is wet; `?wet=0` turns it all off, to compare in `#stats`. */
 import * as THREE from "three/webgpu";
-import { fogUniforms, T, type N } from "./tsl";
+import { T, type N } from "./tsl";
+import { mirroredStars, skyColor, skyUniforms } from "../world/sky";
 
 const { Break, clamp, dot, float, Fn, getScreenPosition, getViewPosition, If, length, Loop, max, mix, normalize, perspectiveDepthToViewZ, pow, reference, smoothstep, uniform, uv, vec2, vec4 } = T;
 
@@ -53,6 +54,8 @@ export function wetReflections(color: N, colorTex: N, depth: N, wetTex: N, camer
   const proj = reference("projectionMatrix", "mat4", camera);
   const projInv = reference("projectionMatrixInverse", "mat4", camera);
   const near = reference("near", "float", camera), far = reference("far", "float", camera);
+  // (the post pass draws a quad with its own camera: the scene camera's own matrices are read)
+  const camWorld = reference("matrixWorld", "mat4", camera);
   const STEPS = 36;
   return Fn(() => {
     const out = vec4(color).toVar();
@@ -118,8 +121,14 @@ export function wetReflections(color: N, colorTex: N, depth: N, wetTex: N, camer
       const edge = smoothstep(0, 0.07, huv.x).mul(smoothstep(1, 0.93, huv.x)).mul(smoothstep(0, 0.07, huv.y)).mul(smoothstep(1, 0.93, huv.y));
       const reach = float(1).sub(smoothstep(0.55, 1, tHit.div(maxLen)));
       const got = hit.mul(edge).mul(reach).mul(conf);
-      // what it meets; where it meets nothing, the air's own colour (never a picture of the sky)
-      const air = fogUniforms.color.mul(0.6).add(fogUniforms.glow.mul(pow(max(dot(r, normalize(T.cameraViewMatrix.mul(vec4(fogUniforms.glowDir, 0)).xyz)), 0), 8).mul(0.25)));
+      // what it meets; where it meets nothing, the sky itself in that direction, as the lakes
+      // mirror it (its colours, the moon and the low sun's glow, its stars), never the nebulae or
+      // galaxies, whose blurred blobs once slid over the land
+      const rw = normalize(camWorld.mul(vec4(r, 0)).xyz).toVar();
+      const R = normalize(T.vec3(rw.x, max(rw.y, 0.03), rw.z));
+      const air = skyColor(R).add(T.min(mirroredStars(R).mul(0.9), 0.8))
+        .add(T.vec3(1.0, 0.8, 0.5).mul(pow(max(dot(R, skyUniforms.uStar), 0), 900)).mul(2.2)) // the bright star, kept under bloom
+        .toVar();
       // (underground there is no air to see: the water there shows the floor under it, darker)
       const miss = mix(out.rgb.mul(0.45), air, wetUniforms.air);
       // (four taps a pixel apart: still water's image, softened a hair, without the stair-steps)
