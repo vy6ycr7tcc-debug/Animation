@@ -85,6 +85,8 @@ export interface ShotCtx {
   terrain: { update(x: number, z: number, force?: boolean): void };
   /** The gateway into the telling of Egypt (world). */
   gate?: { x: number; y: number; z: number };
+  /** The temple's pylon (its door, on the ground) and the heading it faces (toward the shore). */
+  templeGate?: { x: number; y: number; z: number; heading: number };
   setInside(inside: boolean): void;
   update(dt: number): void;
   draw(): void;
@@ -409,6 +411,23 @@ export function runShot(ctx: ShotCtx): void {
     base = [px, gy, pz];
     view = { eye: [-ux * 6, 4.5, -uz * 6], look: [ux * 40, heightAt(px + ux * 40, pz + uz * 40) - gy + 0.5, uz * 40] };
     ctx.player.pos.set(px, gy, pz);
+  } else if (id.startsWith("temple-complex-") && ctx.templeGate) {
+    // the temple's precinct, in the pylon's frame (+z toward the shore): a the gateway from the
+    // landing, b the forecourt from a corner, c from the air, d the fountain close, e a side garden
+    const g = ctx.templeGate, c = Math.cos(g.heading), s = Math.sin(g.heading);
+    const L = (x: number, y: number, z: number): XYZ => [x * c + z * s, y, -x * s + z * c];
+    const V: Record<string, [XYZ, XYZ, XYZ]> = {
+      a: [[0, 0, 33], [1.5, 1.7, 6], [0, 4.5, 0]],
+      b: [[19, 0, 21], [3, 1.6, 2], [-6, 3.5, -8]],
+      c: [[0, 0, 10], [38, 46, 62], [0, 0, -14]],
+      d: [[5.5, 0, 17], [1.5, 1.5, 2.5], [-5.5, 1.8, -4.5]],
+      e: [[17.5, 0, -2], [1, 1.7, 3], [1, 2.5, -20]],
+    };
+    const [p, eye, look] = V[id.slice(-1)] ?? V.a;
+    const w = L(p[0], 0, p[2]);
+    base = [g.x + w[0], g.y, g.z + w[2]];
+    view = { eye: L(...eye), look: L(look[0] - p[0], look[1], look[2] - p[2]) };
+    ctx.player.pos.set(base[0], heightAt(base[0], base[2]), base[2]);
   } else if ((id === "egypt-gate" || id === "egypt-gate-near") && ctx.gate) {
     // the gateway on the pyramid's plaza, from the plaza (its opening faces ±z)
     const g = ctx.gate;
