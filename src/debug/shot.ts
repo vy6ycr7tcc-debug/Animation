@@ -4,7 +4,7 @@
 import { SITES } from "../scenes/sites";
 import { DUAT_ORIGIN } from "../world/pyramid";
 import { AREA_SITES, RUIN_SITES, type AreaId } from "../world/depths";
-import { ADEPT_HALL, CAVES, DENSITY_HALL, GLADES, GOBEKLI, GOBEKLI_PLAN, gobekliAt, nanMadolAt, RAPA_NUI, rapaNuiAt, LANDMARK_SITES, MONUMENT, PAST_HALL, PEAKS, PYRAMID, SPAWN, WATERFALLS, fallRiverU, fallRiverW, fallStream, heightAt, riverDist } from "../world/terrain";
+import { ADEPT_HALL, CAVES, DENSITY_HALL, GLADES, GOBEKLI, GOBEKLI_PLAN, gobekliAt, nanMadolAt, RAPA_NUI, rapaNuiAt, LANDMARK_SITES, MONUMENT, NILE, nileCourse, PAST_HALL, PEAKS, PYRAMID, SPAWN, WATERFALLS, fallRiverU, fallRiverW, fallStream, heightAt, riverDist } from "../world/terrain";
 import { JOURNEY_ORIGIN } from "../scenes/journey";
 
 export interface Shot {
@@ -639,6 +639,20 @@ export function runShot(ctx: ShotCtx): void {
     };
     view = V4[id.slice(8)];
     ctx.player.pos.set(P.x + view.eye[0], P.y, P.z + view.eye[2] + 2);
+  } else if (/^nile-[a-e]$/.test(id)) {
+    // the Nile: a over the floodplain from the pyramid's plaza, b on the west bank among the
+    // papyrus, c from the air over the valley, d from the river up to the pyramid
+    const P = PYRAMID, rz = NILE.z + 150;
+    base = [0, 0, 0];
+    const V5: Record<string, { eye: XYZ; look: XYZ }> = {
+      a: { eye: [P.x + 70, P.y + 2.4, P.z - 20], look: [nileCourse(P.z + 40), 1.5, P.z + 40] },
+      b: { eye: [nileCourse(rz) - 34, 2.2, rz], look: [nileCourse(rz + 40) - 8, 1.4, rz + 40] },
+      c: { eye: [NILE.x + 520, 170, NILE.z + 380], look: [P.x + 60, 10, P.z] },
+      d: { eye: [nileCourse(P.z + 60) - 16, 2.4, P.z + 60], look: [P.x, 26, P.z] },
+      e: { eye: [nileCourse(NILE.z - 120) - 26, 2.6, NILE.z - 120], look: [nileCourse(NILE.z - 150) - 5, 2.5, NILE.z - 150] }, // a felucca (about where the second is ~8 s in)
+    };
+    view = V5[id.slice(5)];
+    ctx.player.pos.set(view.eye[0] + 2, heightAt(view.eye[0] + 2, view.eye[2]), view.eye[2]);
   } else if (id === "pyramid" || id === "duat") {
     // camera only: main.ts pre-positions the player before runShot is called
     const o = id === "pyramid" ? PYRAMID : DUAT_ORIGIN;

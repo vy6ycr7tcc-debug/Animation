@@ -148,7 +148,8 @@ function regionWeights(x: number, z: number, out: Float64Array): number {
   const a = rgCorner(ix, iz), b = rgCorner(ix + 1, iz), c = rgCorner(ix, iz + 1), d = rgCorner(ix + 1, iz + 1);
   const wa = (1 - u) * (1 - v), wb = u * (1 - v), wc = (1 - u) * v, wd = u * v;
   for (let i = 0; i < REGIONS.length; i++) out[i] = a[i + 1] * wa + b[i + 1] * wb + c[i + 1] * wc + d[i + 1] * wd;
-  return a[0] * wa + b[0] * wb + c[0] * wc + d[0] * wd;
+  // the Nile's floodplain is green: the dunes give way to the meadow along it
+  return (a[0] * wa + b[0] * wb + c[0] * wc + d[0] * wd) * (1 - nileGreen(x, z));
 }
 const RG = 16;
 const rgCache = new Map<number, Float32Array>();
@@ -667,7 +668,9 @@ export const LANDMARK_KINDS: SiteKind[] = WISHED_SITES.map((w) => w.kind);
 /** The pyramid (world/pyramid.ts), after the Great Pyramid as Ra describes it: its proportions
     (faces at 51.84°, an apex angle near 76° 18′, Ra 56.4), one side parallel to north (58.8,
     north here is −z), on broad level ground 380–900 m from the shore, away from the homes. */
-export const PYRAMID = (() => {
+/** Where the pyramid stood before it went to the Nile (2026-10-22). Every site chosen after it
+    still keeps clear of this place, as it did, so moving the pyramid moved nothing else. */
+export const PYRAMID_FORMER = (() => {
   const HALF = 55, HEIGHT = 70;
   const GA = Math.PI * (3 - Math.sqrt(5));
   let best: { x: number; z: number; h: number } | null = null, bestScore = Infinity;
@@ -700,7 +703,7 @@ export const MONUMENT = (() => {
       const h = rawHeight(x, z);
       if (h < 1.6 || h > 14) continue;
       if (LANDMARK_SITES.some(([lx, lz]) => Math.hypot(x - lx, z - lz) < 45)) continue;
-      if (Math.hypot(x - PYRAMID.x, z - PYRAMID.z) < PYRAMID.half * 2.5) continue;
+      if (Math.hypot(x - PYRAMID_FORMER.x, z - PYRAMID_FORMER.z) < PYRAMID_FORMER.half * 2.5) continue;
       let rough = 0;
       for (let j = 0; j < 8; j++) {
         const b = (j / 8) * Math.PI * 2;
@@ -728,7 +731,7 @@ export function monumentSite(bearing: number, r0: number, r1: number, flat: numb
       const h = rawHeight(x, z);
       if (h < 2.5 || h > 20) continue;
       if (LANDMARK_SITES.some(([lx, lz]) => Math.hypot(x - lx, z - lz) < flat + 60)) continue;
-      if (Math.hypot(x - PYRAMID.x, z - PYRAMID.z) < PYRAMID.half * 2 + flat) continue;
+      if (Math.hypot(x - PYRAMID_FORMER.x, z - PYRAMID_FORMER.z) < PYRAMID_FORMER.half * 2 + flat) continue;
       if (Math.hypot(x - MONUMENT.x, z - MONUMENT.z) < flat + 50) continue;
       if (MONUMENT_SITES.some((m) => Math.hypot(x - m.x, z - m.z) < m.r + flat + 60)) continue;
       let rough = 0;
@@ -751,8 +754,9 @@ export function monumentSite(bearing: number, r0: number, r1: number, flat: numb
 }
 
 /** Places the growing things keep clear of (the pyramid's plaza, the vision's ground). */
+const FORMER_CLEAR = { x: PYRAMID_FORMER.x, z: PYRAMID_FORMER.z, r: PYRAMID_FORMER.half * 1.5 };
 export const KEEP_CLEAR: { x: number; z: number; r: number }[] = [
-  { x: PYRAMID.x, z: PYRAMID.z, r: PYRAMID.half * 1.5 },
+  FORMER_CLEAR,
   { x: MONUMENT.x, z: MONUMENT.z, r: MONUMENT.r + 4 },
 ];
 /** The flower glades (the owner: "spots that are special with them… really well done, not
@@ -787,7 +791,8 @@ const PADS = LANDMARK_SITES.map(([x, z], i) => {
   return { x, z, h, outer, inner };
 });
 // the pyramid's plaza, levelled
-PADS.push({ x: PYRAMID.x, z: PYRAMID.z, h: PYRAMID.y, outer: PYRAMID.half * 2.1, inner: PYRAMID.half * 1.45 });
+const FORMER_PAD = { x: PYRAMID_FORMER.x, z: PYRAMID_FORMER.z, h: PYRAMID_FORMER.y, outer: PYRAMID_FORMER.half * 2.1, inner: PYRAMID_FORMER.half * 1.45 };
+PADS.push(FORMER_PAD);
 PADS.push({ x: MONUMENT.x, z: MONUMENT.z, h: MONUMENT.y, outer: MONUMENT.r * 2.2, inner: MONUMENT.r * 1.3 });
 /** The monument of the densities (scenes/densities/monument.ts): a round of eight standing stones
     about a domed hall, on a stepped platform, its door toward the shore. */
@@ -825,7 +830,7 @@ export const GOBEKLI = (() => {
       if (h < 8 || h > 60) continue;
       if (LANDMARK_SITES.some(([lx, lz]) => Math.hypot(x - lx, z - lz) < 160)) continue;
       if (MONUMENT_SITES.some((m) => Math.hypot(x - m.x, z - m.z) < m.r + 160)) continue;
-      if (Math.hypot(x - PYRAMID.x, z - PYRAMID.z) < 320) continue;
+      if (Math.hypot(x - PYRAMID_FORMER.x, z - PYRAMID_FORMER.z) < 320) continue;
       if (PEAKS.some((p) => Math.hypot(x - p.x, z - p.z) < p.r + 60)) continue;
       let ring = 0, low = Infinity, rough = 0;
       for (let j = 0; j < 12; j++) {
@@ -928,7 +933,7 @@ export const NAN_MADOL = (() => {
       if (lake > -3 || land < 1.2) continue;
       if (LANDMARK_SITES.some(([lx, lz]) => Math.hypot(x - lx, z - lz) < 200)) continue;
       if (MONUMENT_SITES.some((m) => Math.hypot(x - m.x, z - m.z) < m.r + 200)) continue;
-      if (Math.hypot(x - PYRAMID.x, z - PYRAMID.z) < 350 || Math.hypot(x - GOBEKLI.x, z - GOBEKLI.z) < 400) continue;
+      if (Math.hypot(x - PYRAMID_FORMER.x, z - PYRAMID_FORMER.z) < 350 || Math.hypot(x - GOBEKLI.x, z - GOBEKLI.z) < 400) continue;
       if (PEAKS.some((p) => Math.hypot(x - p.x, z - p.z) < p.r + 100)) continue;
       let side = 0;
       for (const s of [-50, 50]) side = Math.max(side, Math.abs(rawHeight(x - oz * s, z + ox * s)));
@@ -973,7 +978,7 @@ export const RAPA_NUI = (() => {
       const clear = (px: number, pz: number, m: number) =>
         !LANDMARK_SITES.some(([lx, lz]) => Math.hypot(px - lx, pz - lz) < m) &&
         !MONUMENT_SITES.some((s) => Math.hypot(px - s.x, pz - s.z) < s.r + m) &&
-        Math.hypot(px - PYRAMID.x, pz - PYRAMID.z) > 350 + m &&
+        Math.hypot(px - PYRAMID_FORMER.x, pz - PYRAMID_FORMER.z) > 350 + m &&
         Math.hypot(px - GOBEKLI.x, pz - GOBEKLI.z) > 300 + m &&
         Math.hypot(px - NAN_MADOL.x, pz - NAN_MADOL.z) > 300 + m &&
         !PEAKS.some((p) => Math.hypot(px - p.x, pz - p.z) < p.r + m);
@@ -1023,6 +1028,8 @@ export const platformRise = (d: number): number => (d < 19.6 ? 1.35 : d < 20.8 ?
 /** Ground height at (x, z). Below WATER_Y means water. */
 /** A place apart, beyond the world's edge (the temple): its own floor. */
 export const floorHook: { fn: ((x: number, z: number) => number) | null } = { fn: null };
+/** The Nile is in the land (wakeTheNile, at the end of this module; read from the first height on). */
+let nileOn = false;
 
 /** The ground's height from a coarse cache (corners every 4 m, bilinear between; bounded): for
     the many queries that need only the lie of the land (the camera's ray against the ground,
@@ -1055,6 +1062,7 @@ export function heightAt(x: number, z: number): number {
     h += relief(x, z, h);
     h = waterways(x, z, h);
   }
+  if (nileOn) h = nileLand(x, z, h);
   for (const p of PADS) {
     if (Math.abs(x - p.x) > p.outer || Math.abs(z - p.z) > p.outer) continue;
     const d = Math.hypot(x - p.x, z - p.z);
@@ -1167,6 +1175,13 @@ export function groundKind(x: number, z: number, h = heightAt(x, z)): { meadow: 
     stone = Math.max(stone, Math.min(1 - sand, rg.rock * rg.away * (0.35 + outcrop * 0.65)));
   }
   let meadow = Math.max(0, 1 - sand - stone) * smooth(0.25, 0.5, fbm(x * 0.02 - 20, z * 0.02 + 40));
+  // the Nile's floodplain: fields, not sand
+  const fk = nileFloodK(x, z);
+  if (fk > 0) {
+    sand *= 1 - fk;
+    stone *= 1 - fk;
+    meadow = Math.max(meadow, fk * 0.9);
+  }
   // Göbekli Tepe's hill: dry soil over the top and its slopes (the stone shows only in its works)
   const gk = smooth(150, 90, Math.hypot(x - GOBEKLI.x, z - GOBEKLI.z));
   if (gk > 0) return { meadow: meadow + (1 - sand - meadow) * gk * 0.9, sand, stone: stone * (1 - gk * 0.9) };
@@ -1886,12 +1901,15 @@ export class Terrain {
       this.tmp.copy(C.earth).lerp(C.loam, smooth(0.3, 0.7, fbm(x * 0.03 - 9, z * 0.03 + 4)));
       this.col.lerp(this.tmp, earth * 0.8);
       if (talus > 0) this.col.lerp(this.tmp.copy(C.stone).lerp(C.granite, 0.5), talus * 0.45);
+      // the Nile's floodplain: a patchwork of fields along the river
+      const fk = nileFields(x, z, this.tmp);
+      if (fk > 0) this.col.lerp(this.tmp, fk * 0.9);
       if (h < 0.1) this.col.lerp(C.wet, smooth(0.1, -0.6, h));
       // the rock behind and beside a waterfall: dark with wet, and moss along its edges
       const wetK = fallWet(x, z, h);
       if (wetK > 0) this.col.lerp(this.tmp.setRGB(0.045, 0.055, 0.06), wetK * 0.7).lerp(this.tmp.setRGB(0.06, 0.1, 0.045), wetK * (1 - wetK) * 1.2);
       col.setXYZ(v, this.col.r, this.col.g, this.col.b);
-      const sandy = Math.min(1, k.sand + smooth(0.45, 0.62, fbm(x * 0.01 - 30, z * 0.01 + 12)) * (1 - k.stone) * 0.6 * (1 - away * 0.7));
+      const sandy = Math.min(1, k.sand + smooth(0.45, 0.62, fbm(x * 0.01 - 30, z * 0.01 + 12)) * (1 - k.stone) * 0.6 * (1 - away * 0.7)) * (1 - fk);
       // the earth takes the rock scan's grit and the sand's grain
       const rocky = Math.min(1 - sandy * (1 - talus), k.stone + smooth(0.5, 1.0, 1 - nor.getY(v)) * 0.8 + earth * 0.55 + talus * 0.85 + ms * 0.55);
       gr.setXYZ(v, sky, Math.max(0, Math.min(1 - rocky, sandy * (1 - talus) + earth * 0.3)), rocky);
@@ -2070,3 +2088,107 @@ export const MINE_SITES: { x: number; z: number; y: number; face: number }[] = (
   for (const m of out) levelGround(m.x + Math.cos(m.face) * 5, m.z + Math.sin(m.face) * 5, m.y, 7, 13);
   return out;
 })();
+
+/* ---------- the Nile (the owner: "a Nile desert type of scene for the pyramid, and move there") ----------
+   Far out in the west, under the sunset, the ochre dunes open into a valley: the Nile running
+   north to south through it, its floodplain a strip of green either side, then a step up to the
+   desert, the dunes rising beyond. The pyramid stands on the desert plateau west of the river,
+   as at Giza, its north face square to the north. Chosen last, and woken (`wakeTheNile`) only
+   after every module has chosen its own sites, so nothing else moved. */
+const NILE_LEN = 660, NILE_HALF = 380; // the valley's half-length (north–south) and half-width
+export const NILE = (() => {
+  let best = { x: -2500, z: 250 }, bestScore = -Infinity;
+  for (let r = 2000; r <= 2900; r += 50)
+    for (let k = -12; k <= 12; k++) {
+      const a = Math.PI + k * 0.03, x = SPAWN.x + Math.cos(a) * r, z = SPAWN.z + Math.sin(a) * r;
+      // clear of everything that stands, by the valley's whole rectangle and a margin
+      const inValley = (px: number, pz: number, m: number) => Math.abs(px - x) < NILE_HALF + 100 + m && Math.abs(pz - z) < NILE_LEN + 250 + m;
+      if (LANDMARK_SITES.some(([lx, lz]) => inValley(lx, lz, 60))) continue;
+      if (CAVES.some((c) => inValley(c.x, c.z, 40)) || MINE_SITES.some((c) => inValley(c.x, c.z, 60))) continue;
+      if (WATERFALLS.some((f) => inValley(f.x, f.z, 120))) continue;
+      if (MONUMENT_SITES.some((m) => inValley(m.x, m.z, m.r + 40))) continue;
+      if (inValley(RAPA_NUI.x, RAPA_NUI.z, 300) || inValley(NAN_MADOL.x, NAN_MADOL.z, 300) || inValley(GOBEKLI.x, GOBEKLI.z, 300)) continue;
+      if (PEAKS.some((p) => Math.hypot(Math.max(0, Math.abs(p.x - x) - NILE_HALF), Math.max(0, Math.abs(p.z - z) - NILE_LEN)) < p.r + 150)) continue;
+      if (Math.hypot(x, z) + NILE_HALF > WORLD_R - 500) continue;
+      const score = -Math.abs(r - 2350) - Math.abs(k) * 20;
+      if (score > bestScore) (bestScore = score), (best = { x, z });
+    }
+  return best;
+})();
+/** The river's middle, in the valley's frame (x across, east +; z along, south +). */
+const nileRx = (lz: number) => 120 + 22 * Math.sin(lz * 0.006) + 10 * Math.sin(lz * 0.017 + 1);
+/** How much of the valley is here (0 outside it … 1 within), and the river's middle near it. */
+function nileFrame(x: number, z: number): { lx: number; lz: number; wv: number; d: number } | null {
+  const lx = x - NILE.x, lz = z - NILE.z;
+  if (Math.abs(lz) > NILE_LEN + 260 || Math.abs(lx) > NILE_HALF + 160) return null;
+  const wv = smooth(NILE_LEN + 250, NILE_LEN, Math.abs(lz)) * smooth(NILE_HALF + 150, NILE_HALF, Math.abs(lx - 40));
+  return { lx, lz, wv, d: Math.abs(lx - nileRx(lz)) };
+}
+/** The pyramid, on the desert plateau west of the river, its north face square to the north. */
+export const PYRAMID = { x: NILE.x - 90, z: NILE.z - 40, y: 7, half: 55, height: 70 };
+/** The valley's land: the river (its bed 3.4 m under the water), the floodplain a little above
+    it, the step up to the desert (higher on the west, where the pyramid's plateau is), and the
+    dunes rising farther out. Blended into the world's land at the valley's edges. */
+function nileLand(x: number, z: number, h: number): number {
+  const f = nileFrame(x, z);
+  if (!f || f.wv <= 0) return h;
+  const { d, lx, lz } = f;
+  const flood = 0.85 + (vnoise(x * 0.02, z * 0.02) - 0.5) * 0.4;
+  const west = lx < nileRx(lz);
+  const r = 1 - Math.abs(vnoise(x * 0.012 + 3, z * 0.02 - 5) * 2 - 1); // ridged: dune crests
+  const desert = (west ? 7 : 4.5) + r * r * 6 * smooth(170, 300, d) + (vnoise(x * 0.06, z * 0.06) - 0.5) * 0.5;
+  let v = flood + (desert - flood) * smooth(85, 165, d);
+  if (d < 26) v = -3.4 + (flood + 3.4) * smooth(13, 26, d);
+  return h + (v - h) * f.wv;
+}
+/** How much of the floodplain's green is here (0 … 1): the regions give way to the meadow there. */
+export function nileGreen(x: number, z: number): number {
+  if (!nileOn) return 0;
+  const f = nileFrame(x, z);
+  return f ? f.wv * smooth(150, 70, f.d) : 0;
+}
+/** How far from the Nile's middle (Infinity away from it), for the reeds and palms on its banks. */
+export function nileDist(x: number, z: number): number {
+  if (!nileOn) return Infinity;
+  const f = nileFrame(x, z);
+  return f && f.wv > 0.6 ? f.d : Infinity;
+}
+/** How much of the floodplain's fields is here (0 … 1): from just above the bank out to where the
+    desert begins. */
+export function nileFloodK(x: number, z: number): number {
+  if (!nileOn) return 0;
+  const f = nileFrame(x, z);
+  return f && f.wv > 0 ? f.wv * smooth(24, 34, f.d) * smooth(150, 100, f.d) : 0;
+}
+// the fields: crops in leaf, young green, flax and wheat, and dark tilled earth
+const FIELDS = ["#4f8a3a", "#6f9a3c", "#4a3a2a", "#a3954a", "#3f7a34", "#5d7f36"].map((c) => new THREE.Color(c));
+/** The floodplain's fields, laid square to the river (strips along it, divided across): the colour
+    of the one this point lies in, and how much of it is here. */
+export function nileFields(x: number, z: number, out: THREE.Color): number {
+  const k = nileFloodK(x, z);
+  if (k <= 0) return 0;
+  const lz = z - NILE.z, ac = x - NILE.x - nileRx(lz);
+  const i = Math.floor(lz / 34 + vnoise(x * 0.01, z * 0.01) * 0.6), j = Math.floor(Math.abs(ac) / 22) * Math.sign(ac);
+  const v = Math.sin(i * 127.1 + j * 311.7) * 43758.5453;
+  out.copy(FIELDS[Math.floor((v - Math.floor(v)) * FIELDS.length)]);
+  return k;
+}
+/** The river's middle (world x) at a world z, and how far along it the valley runs (±NILE_REACH
+    from NILE.z), for the boats. */
+export const nileCourse = (z: number): number => NILE.x + nileRx(z - NILE.z);
+export const NILE_REACH = NILE_LEN;
+/** Wake the Nile: called once by main.ts after every module has chosen its sites. The pyramid's
+    old plaza is let go (its levelled ground and its clearing), the new one is levelled and kept
+    clear, and the valley's land comes into the world. */
+export function wakeTheNile(): void {
+  if (nileOn) return;
+  nileOn = true;
+  const pi = PADS.indexOf(FORMER_PAD);
+  if (pi >= 0) PADS.splice(pi, 1);
+  const ki = KEEP_CLEAR.indexOf(FORMER_CLEAR);
+  if (ki >= 0) KEEP_CLEAR.splice(ki, 1);
+  PADS.push({ x: PYRAMID.x, z: PYRAMID.z, h: PYRAMID.y, outer: PYRAMID.half * 2.1, inner: PYRAMID.half * 1.45 });
+  KEEP_CLEAR.push({ x: PYRAMID.x, z: PYRAMID.z, r: PYRAMID.half * 1.5 });
+  coarse.clear();
+  rgCache.clear();
+}

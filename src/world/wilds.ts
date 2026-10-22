@@ -159,6 +159,43 @@ export function palmGeometry(lean: number): THREE.BufferGeometry {
   return mergeGeometries(parts)!;
 }
 
+/** The same palm drawn cheaply, for groves seen from afar (a few hundred triangles): a plain trunk
+    and a dozen fronds, each one broad blade arching out and down. Tagged as `palmGeometry` is. */
+export function palmFarGeometry(lean: number): THREE.BufferGeometry {
+  const H = 6.4;
+  const trunk = new THREE.CatmullRomCurve3([new V(0, -0.3, 0), new V(lean * 0.15, H * 0.3, 0), new V(lean * 0.62, H * 0.7, 0), new V(lean, H, 0)]);
+  const parts = [tube(trunk, 6, 5, (u) => 0.19 * (1 - u * 0.32) + 0.1 * Math.max(0, 1 - u * 5), (u) => u * u * 0.3)];
+  const crown = trunk.getPoint(1);
+  const up = new V(0, 1, 0);
+  const pos: number[] = [], nor: number[] = [], part: number[] = [], us: number[] = [], xs: number[] = [], sw: number[] = [], idx: number[] = [];
+  for (let k = 0; k < 12; k++) {
+    const a = k * 2.39996 + lean;
+    const dir = new V(Math.cos(a), 0, Math.sin(a)), side = new V(-dir.z, 0, dir.x);
+    const rise = k % 3 === 0 ? 0.6 : 0.25, len = 3 + (k % 4) * 0.2;
+    const base = pos.length / 3;
+    const seg = 5;
+    for (let q = 0; q <= seg; q++) {
+      const u = q / seg, w = 0.62 * Math.sin(Math.PI * (0.1 + u * 0.85));
+      const c = crown.clone().addScaledVector(dir, len * u).addScaledVector(up, len * (rise * Math.sin(u * Math.PI * 0.5) * 0.9 - 0.45 * u * u));
+      for (const e of [-1, 1]) {
+        const v = c.clone().addScaledVector(side, e * w).addScaledVector(up, -0.12 * u);
+        pos.push(v.x, v.y, v.z);
+        nor.push(0, 1, 0);
+        part.push(1);
+        us.push(u);
+        xs.push(0.5);
+        sw.push(0.3 + u * 0.9);
+      }
+    }
+    for (let q = 0; q < seg; q++) {
+      const a0 = base + q * 2;
+      idx.push(a0, a0 + 2, a0 + 1, a0 + 1, a0 + 2, a0 + 3);
+    }
+  }
+  parts.push(tagged(pos, nor, part, us, xs, sw, idx));
+  return mergeGeometries(parts)!;
+}
+
 /** Tag a plain geometry for the palm's shader. */
 function tagGeo(g: THREE.BufferGeometry, part: number, u: number, x: number, sway: number): THREE.BufferGeometry {
   g.deleteAttribute("uv");
