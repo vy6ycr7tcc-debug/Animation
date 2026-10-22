@@ -6,6 +6,7 @@
    `landStone()` lays a scan triplanar in the world, so any shape takes it without stretching;
    `homePlatform()` builds the ground of an archetype's home: a round platform of fitted blocks in
    two courses with a worn step, and a ring of rough standing stones about it, one fallen. */
+import { setWet, wetUniforms } from "../gpu/wet";
 import * as THREE from "three/webgpu";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
@@ -317,6 +318,13 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
   // moss softens the stone's relief under it and takes no sheen
   dn = dn.mul(float(1).sub(mossK.mul(0.55)));
   rough = mix(rough, float(1), mossK);
+  // rain: the stone darkens as it soaks, and its tops and floors shine (gpu/wet.ts); not indoors
+  if (dry) {
+    const up = smoothstep(0.7, 0.95, n.y);
+    const wet = wetUniforms.rain.mul(up.mul(0.55).add(0.22)).mul(float(1).sub(mossK.mul(0.6)));
+    c = c.mul(float(1).sub(wetUniforms.rain.mul(0.32)));
+    setWet(m, wet, up.mul(wetUniforms.rain).mul(0.5));
+  }
   m.colorNode = T.vec4(c, 1);
   m.roughnessNode = rough;
   m.normalNode = T.normalize(T.normalView.add(T.cameraViewMatrix.mul(T.vec4(dn, 0)).xyz));

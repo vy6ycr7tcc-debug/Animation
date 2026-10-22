@@ -1,6 +1,7 @@
 /* Etched light: the ink drawings' linework carried into 3D.
    - etchedStone: dark stone with a faint gold lattice, which wakes when you are still before it.
    - buildMandala: hand-drawn line geometry on the central platform (seven-fold, one ring per island). */
+import { setWet, wetUniforms } from "../gpu/wet";
 import * as THREE from "three/webgpu";
 import { T, skySheen, type N } from "../gpu/tsl";
 import { wakeGlow } from "../gpu/wake";
@@ -168,6 +169,10 @@ export function etchedStone(
     col = mix(col, col.mul(vec3(0.5, 0.66, 0.58)), wet.mul(0.7));
     col = mix(col, vec3(0.24, 0.22, 0.17).mul(dot(det, vec3(0.33)).mul(0.8).add(0.4)).mul(ao), wet.mul(up).mul(0.8));
     col = mix(col, vec3(0.05, 0.11, 0.05).mul(ao), wet.mul(smoothstep(0.5, 0.72, patch)).mul(up.mul(0.5).add(0.35)));
+    // in rain, above the water: darker as it soaks, its tops shining (gpu/wet.ts)
+    const above = smoothstep(-0.2, 0.2, vEW.y);
+    col = col.mul(float(1).sub(wetUniforms.rain.mul(0.35).mul(above)));
+    setWet(m, wetUniforms.rain.mul(above).mul(up.mul(0.5).add(0.22)));
     m.colorNode = col;
   }
   // the scans' relief, then weathered stone: soft pits and swells, strongest up close

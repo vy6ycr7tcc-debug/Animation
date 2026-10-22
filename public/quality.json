@@ -62,7 +62,7 @@
       "ao": false,
       "aoPhone": false,
       "rays": false,
-      "reflection": true,
+      "reflection": false,
       "dprPhone": 2
     },
     {

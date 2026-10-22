@@ -18,6 +18,7 @@ import { gaussianBlur } from "three/examples/jsm/tsl/display/GaussianBlurNode.js
 import { traa } from "three/examples/jsm/tsl/display/TRAANode.js";
 import { smaa } from "three/examples/jsm/tsl/display/SMAANode.js";
 import { gradeUniforms, T, type N } from "./tsl";
+import { materialWet, wetReflections } from "./wet";
 import type { UnderwaterEffect } from "../world/underwater";
 
 const { clamp, dot, exp, float, Fn, fract, If, length, max, min, mix, mrt, output, pass, pow, renderOutput, rtt, screenCoordinate, screenSize, sin, smoothstep, step, uniform, uv, vec2, vec3, vec4, velocity } = T;
@@ -37,6 +38,8 @@ export interface PostOptions {
   bloom: boolean;
   /** Anti-aliasing: SMAA on the finished image (as before the port), temporal (TRAA), or none. */
   aa: "smaa" | "traa" | "none";
+  /** Wet surfaces reflect what is round them (gpu/wet.ts; Best and High). */
+  wet: boolean;
 }
 
 export class Post {
@@ -46,6 +49,13 @@ export class Post {
   /** Ambient occlusion and god rays rest under the water. */
   readonly aoOn = uniform(1);
   readonly raysOn = uniform(1);
+  /** The wet reflections, on the levels that allow them (a uniform: switching never rebuilds). */
+  readonly wetOn = uniform(0);
+  /** Whether the scene pass writes the materials' wetness at all: from the first time a level that
+      allows the reflections is in force, and kept after, so going between levels never recompiles
+      every material again (at most once a session). */
+  private wetCapable = false;
+  private sceneWet = false;
   /** Where the star is on screen (uv, y down) and how much of it is in front of the camera. */
   readonly starUv = uniform(new THREE.Vector2(0.5, 0.2));
   readonly starVis = uniform(0);
@@ -69,15 +79,26 @@ export class Post {
   /** The scene pass for an anti-aliasing mode (with motion vectors for TRAA). Multisampling is
       not an option: the occlusion, the god rays and the water all read the depth buffer. */
   private scenePass(aa: PostOptions["aa"]): N {
-    if (this.scene && this.sceneAA === aa) return this.scene;
+    if (this.scene && this.sceneAA === aa && this.sceneWet === this.wetCapable) return this.scene;
     this.scene?.dispose();
     this.sceneAA = aa;
+    this.sceneWet = this.wetCapable;
     this.scene = pass(this.sceneObj, this.camera);
-    if (aa === "traa") {
-      const m = mrt({ output, velocity });
+    const outs: Record<string, N> = { output };
+    if (aa === "traa") outs.velocity = velocity;
+    if (this.wetCapable) outs.wet = materialWet();
+    if (Object.keys(outs).length > 1) {
+      const m = mrt(outs);
       // glows drawn over the world must not blend into the motion vectors
-      m.setBlendMode("velocity", new THREE.BlendMode(THREE.NoBlending));
+      if (aa === "traa") m.setBlendMode("velocity", new THREE.BlendMode(THREE.NoBlending));
+      if (this.wetCapable) {
+        // each material's own blending: a glow (additive, writing nothing here) leaves the wet
+        // ground under it as it was
+        m.setBlendMode("wet", new THREE.BlendMode(THREE.MaterialBlending));
+        m.setClearColor("wet", 0x000000, 0);
+      }
       this.scene.setMRT(m);
+      if (this.wetCapable) this.scene.getTexture("wet").type = THREE.UnsignedByteType;
     }
     return this.scene;
   }
@@ -95,8 +116,11 @@ export class Post {
   configure(o: PostOptions): void {
     this.wanted = { ...o };
     if (!this.ready) return;
+    const becameWet = o.wet && !this.wetCapable;
+    if (becameWet) this.wetCapable = true;
+    this.wetOn.value = o.wet ? 1 : 0;
     const p = this.opts;
-    if (p && p.ao === o.ao && p.rays === o.rays && p.bloom === o.bloom && p.aa === o.aa) return;
+    if (!becameWet && p && p.ao === o.ao && p.rays === o.rays && p.bloom === o.bloom && p.aa === o.aa) return;
     this.opts = { ...o };
     this.rayPasses = [];
     const scene = this.scenePass(o.aa);
@@ -114,6 +138,14 @@ export class Post {
       // the occlusion is tinted with the night (as the old pass was), never pure black
       const k = mix(vec3(0.043, 0.039, 0.11), vec3(1), a);
       c = vec4(c.rgb.mul(mix(vec3(1), k, this.aoOn)), c.a);
+    }
+
+    // wet things reflect what is round them (puddles, wet stone, the caves' floors)
+    if (this.wetCapable) c = wetReflections(c, color, depth, scene.getTextureNode("wet"), this.camera, this.wetOn, this.under);
+    // `?wetdebug`: what the materials say is wet (its normal, by how wet), instead of the picture
+    if (this.wetCapable && /[?&]wetdebug\b/.test(location.search)) {
+      const w = scene.getTextureNode("wet").sample(uv());
+      c = vec4(w.rgb.mul(w.a), 1);
     }
 
     // under the water: absorption, shafts of moonlight, the orb's glow in the murk
