@@ -42,7 +42,6 @@ import { Joints, type JointForm } from "./joints";
 const { float, vec3, vec4, abs, max, min, smoothstep, sin, pow, dot, normalize, clamp, fract, length, mix, fwidth } = T;
 
 /** The sanctuary's terrace (the place on the map, where the first forms were drawn). */
-const TOP = 0.3; // its floor above the levelled ground
 /** The page round where building opens: forms are drawn and carried within it. */
 const PLOT_R = 14;
 const KEY = "inward-journey:sanctuary";
@@ -450,6 +449,49 @@ function maxLay(line: V2[], lay: Lay): number {
   for (const [x, z] of line) m = Math.max(m, lay(x, z));
   return Math.max(0, m);
 }
+/** A few chips of the form's own stone fallen at its foot, half sunk in the earth (none on a
+    floating island or stairs): what was cut away when it was raised, so it stands in the land. */
+function rubbleGeometry(s: SavedForm, line: V2[], half: number, lay: Lay): THREE.BufferGeometry | null {
+  if (s.kind === "base" || s.kind === "orb" || s.kind === "stairs") return null;
+  let k = (Math.floor(s.x * 73.1) ^ Math.floor(s.z * 191.7) ^ 0x9e3779b9) >>> 0;
+  const rnd = () => ((k = (Math.imul(k ^ (k >>> 15), 0x2c1b3c6d) + 0x6d2b79f5) >>> 0) / 4294967296);
+  const at: [number, number, number][] = [];
+  const sc = s.sc ?? 1;
+  if (s.kind === "wall" || s.kind === "ring") {
+    for (let i = 0; i < line.length - 1 && at.length < 40; i++) {
+      const [x0, z0] = line[i], [x1, z1] = line[i + 1];
+      const L = Math.hypot(x1 - x0, z1 - z0);
+      if (L < 1e-3) continue;
+      for (let d = rnd() * 1.6; d < L; d += 0.9 + rnd() * 1.8) {
+        const t = d / L, side = rnd() < 0.5 ? -1 : 1, off = half + 0.12 + rnd() * rnd() * 0.7;
+        at.push([x0 + (x1 - x0) * t - ((z1 - z0) / L) * off * side, z0 + (z1 - z0) * t + ((x1 - x0) / L) * off * side, 0.05 + rnd() * rnd() * 0.16]);
+      }
+    }
+  } else {
+    const R = s.kind === "pyramid" ? ((s.w ?? 6) * sc) / 2 : s.kind === "arch" ? ((s.w ?? 2) * sc) / 2 + half : (s.r ?? 0.4) * sc;
+    const n = s.kind === "pyramid" ? 16 : s.kind === "arch" ? 8 : 5;
+    for (let i = 0; i < n; i++) {
+      const a = rnd() * Math.PI * 2, r = R * (s.kind === "pyramid" ? 1.05 + rnd() * 0.15 : 1) + 0.15 + rnd() * rnd() * 0.8;
+      // a pyramid's foot is a square
+      const q = s.kind === "pyramid" ? r / Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a))) : r;
+      at.push([Math.cos(a) * q, Math.sin(a) * q, 0.05 + rnd() * rnd() * 0.18]);
+    }
+  }
+  if (!at.length) return null;
+  const parts: THREE.BufferGeometry[] = [];
+  const e = new THREE.Euler();
+  for (const [x, z, r] of at) {
+    const g = new THREE.IcosahedronGeometry(r, 0);
+    g.scale(1 + rnd() * 0.5, 0.45 + rnd() * 0.35, 0.7 + rnd() * 0.5);
+    g.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(e.set((rnd() - 0.5) * 0.6, rnd() * 6.28, (rnd() - 0.5) * 0.6)));
+    g.translate(x, lay(x, z) + r * 0.12, z);
+    parts.push(g);
+  }
+  const g = mergeGeometries(parts)!;
+  g.computeVertexNormals();
+  return g;
+}
+
 /** The gold of a memory: warm bright metal in the world's own light, its sheen drawn by hand (the
     game mirrors nothing), hammered, glowing a little from within so it reads as gold even by
     night (it was mistaken for stone), and now and then a slow line of light rising through it. */
@@ -458,17 +500,23 @@ function goldMaterial(): THREE.MeshStandardNodeMaterial {
   const ham = T.mx_noise_float(T.positionWorld.mul(9)).mul(0.5).add(0.5);
   // deeper amber low, paler gold high, fine brushed streaks along the grain, so a slab isn't one tan
   const brush = T.mx_noise_float(vec3(T.positionWorld.x.add(T.positionWorld.z).mul(2.2), T.positionWorld.y.mul(46), 3.1)).mul(0.5).add(0.5);
-  const grad = mix(vec3(0.92, 0.5, 0.12), vec3(1, 0.78, 0.34), smoothstep(0, 1, T.fract(T.positionWorld.y.mul(0.5))));
+  const grad = mix(vec3(0.8, 0.4, 0.08), vec3(0.95, 0.66, 0.24), smoothstep(0, 1, T.fract(T.positionWorld.y.mul(0.5))));
   m.colorNode = grad.mul(float(0.82).add(ham.mul(0.2)).add(brush.mul(0.14)));
   m.roughnessNode = float(0.2).add(ham.mul(0.14));
   const v = normalize(T.cameraPosition.sub(T.positionWorld));
   const r = T.reflect(v.negate(), T.normalWorld);
-  const sky = mix(vec3(0.3, 0.14, 0.03), vec3(1, 0.74, 0.34), smoothstep(-0.35, 0.7, r.y));
+  // what polished metal would hold, drawn by hand: dark earth below, a bright band where the
+  // horizon would be, a dimmer sky above; worn edges (where the surface turns fast) a little paler
+  const below = mix(vec3(0.06, 0.03, 0.01), vec3(0.5, 0.27, 0.07), smoothstep(-0.5, -0.02, r.y));
+  const above = mix(vec3(0.82, 0.46, 0.12), vec3(0.3, 0.15, 0.04), smoothstep(0.02, 0.6, r.y));
+  const band = mix(below, above, smoothstep(-0.03, 0.03, r.y));
+  const wear = smoothstep(0.15, 0.6, length(T.fwidth(T.normalWorld)).mul(6));
+  const sky = band.mul(float(0.85).add(wear.mul(0.5)));
   const hi = pow(max(dot(r, fogUniforms.glowDir), 0), 18).mul(1.1);
   const ndv = abs(dot(T.normalView, normalize(T.positionView.negate())));
   const fres = float(0.32).add(pow(float(1).sub(ndv), 3).mul(0.7));
   const rise = pow(fract(T.positionWorld.y.mul(0.22).sub(T.time.mul(0.045)).add(T.positionWorld.x.mul(0.013))), 30).mul(0.4);
-  m.emissiveNode = sky.mul(fres.mul(0.62)).add(vec3(1, 0.85, 0.6).mul(hi)).add(vec3(1, 0.6, 0.2).mul(rise.add(0.09)));
+  m.emissiveNode = sky.mul(fres.mul(0.36)).add(vec3(1, 0.8, 0.5).mul(hi.mul(0.7))).add(vec3(1, 0.55, 0.15).mul(rise.add(0.05)));
   return solid(m);
 }
 
@@ -794,13 +842,14 @@ export class Sanctuary {
   constructor(private hooks: SanctuaryHooks, opts: { persist?: boolean } = {}) {
     this.persist = opts.persist !== false;
     const S = SANCTUARY;
-    this.root.position.set(S.x, S.y + TOP, S.z);
+    // (the terrace is gone: its old place stands on the land as it is now)
+    this.root.position.set(S.x, heightAt(S.x, S.z), S.z);
     this.root.rotation.y = S.face;
     this.group.add(this.root, this.world);
 
     // the inks
-    const stone = landStone("sandstone_cracks", 0, 1.6, [0.95, 0.9, 0.84], { course: 0.32, block: 0.66 });
-    const paving = landStone("sandstone_cracks", 0, 2.4, [0.9, 0.86, 0.8], { flag: 0.9 });
+    const stone = landStone("sandstone_cracks", 0, 1.6, [0.95, 0.9, 0.84], { course: 0.46, block: 0.95, rise: true });
+    const paving = landStone("sandstone_cracks", 0, 2.4, [0.9, 0.86, 0.8], { flag: 0.9, rise: true });
     const aura = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
     {
       const ndv = abs(dot(T.normalView, normalize(T.positionView.negate())));
@@ -924,9 +973,9 @@ export class Sanctuary {
     let m = this.finishes.get(f);
     if (!m) {
       m =
-        f === "field" ? landStone("sandstone_blocks_05", 0, 1.4, [0.78, 0.74, 0.7], { course: 0.26, block: 0.4 }) :
-        f === "marble" ? landStone("sandstone_cracks", 0, 2.4, [1, 1, 1], { course: 0.5, block: 1.2 }, "marble") :
-        f === "granite" ? landStone("sandstone_cracks", 0, 2.0, [1, 1, 1], { course: 0.42, block: 0.9 }, "granite") :
+        f === "field" ? landStone("sandstone_blocks_05", 0, 1.4, [0.78, 0.74, 0.7], { course: 0.3, block: 0.48, rise: true }) :
+        f === "marble" ? landStone("sandstone_cracks", 0, 2.4, [1, 1, 1], { course: 0.5, block: 1.2, rise: true }, "marble") :
+        f === "granite" ? landStone("sandstone_cracks", 0, 2.0, [1, 1, 1], { course: 0.48, block: 1.05, rise: true }, "granite") :
         f === "earth" ? surfaceWall("meadow", 1.6, [1.05, 0.86, 0.7], true) :
         surfaceWall("cliff", 2.5, [0.95, 0.92, 0.9]);
       this.finishes.set(f, m);
@@ -1240,7 +1289,7 @@ export class Sanctuary {
     return Math.hypot(p.x - SANCTUARY.x, p.z - SANCTUARY.z);
   }
   get centre(): { x: number; y: number; z: number; face: number } {
-    return { x: SANCTUARY.x, y: SANCTUARY.y + TOP, z: SANCTUARY.z, face: SANCTUARY.face };
+    return { x: SANCTUARY.x, y: heightAt(SANCTUARY.x, SANCTUARY.z), z: SANCTUARY.z, face: SANCTUARY.face };
   }
   /** The page over the land round the plot: rings of points laid on the earth. */
   private layPage(): void {
@@ -1979,6 +2028,11 @@ export class Sanctuary {
     f.base = s.ab ?? groundAt(s.x, s.z);
     const lay = this.layOf(s, f.base);
     const mesh = (g: THREE.BufferGeometry, m: THREE.Material) => {
+      // how high each point stands above the land under it: the stone weathers, darkens and
+      // gathers moss toward its foot (a floating island's stone stands on nothing)
+      const p = g.getAttribute("position"), a = new Float32Array(p.count);
+      for (let i = 0; i < p.count; i++) a[i] = s.kind === "base" ? 99 : p.getY(i) - lay(p.getX(i), p.getZ(i));
+      g.setAttribute("aRise", new THREE.BufferAttribute(a, 1));
       const x = new THREE.Mesh(g, m);
       x.castShadow = x.receiveShadow = true;
       f.body.add(x);
@@ -2055,6 +2109,10 @@ export class Sanctuary {
     f.line = line;
     f.half = half;
     f.H = H;
+    if (s.ink === "stone") {
+      const rb = rubbleGeometry(s, line, half, lay);
+      if (rb) mesh(rb, mat).castShadow = false;
+    }
     if (s.note != null && s.kind !== "orb" && s.kind !== "stairs") this.carveOn(f, s.note, lay);
     // its soft footprint: a feathered shade along a wall, a round one under the others
     if (s.kind === "wall" || s.kind === "ring") {

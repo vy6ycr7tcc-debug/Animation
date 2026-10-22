@@ -66,6 +66,8 @@ function postGeometry(): THREE.BufferGeometry {
     }
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  // how high above the land (the stone weathers toward its foot): a post is ~1.3 m
+  g.setAttribute("aRise", new THREE.Float32BufferAttribute(pos.filter((_, i) => i % 3 === 1).map((y) => y * 1.3), 1));
   g.setIndex(idx);
   g.computeVertexNormals();
   return g;
