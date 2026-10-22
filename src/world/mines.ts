@@ -14,7 +14,7 @@
    Walk back up out of the portal to come out. */
 import { setWet } from "../gpu/wet";
 import * as THREE from "three/webgpu";
-import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { mergeGeometries, mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
 import { T, gpuUniforms, type N } from "../gpu/tsl";
 import { Underground } from "./cavern";
 import { etchedStone } from "./etching";
@@ -124,18 +124,71 @@ function mineRock(origin: THREE.Vector3): THREE.MeshStandardNodeMaterial {
   m.normalNode = T.normalize(T.normalView.add(T.cameraViewMatrix.mul(T.vec4(dn, 0)).xyz));
   return m;
 }
-/** Old timber: each piece its own brown, the grain running along it, darker and greyer with
-    age at the ends, a little rot near the floor. */
-function timberMaterial(): THREE.MeshStandardNodeMaterial {
-  const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.9, metalness: 0, vertexColors: true });
+/** The light at a mine's mouth (outside, where no real light is lit): the lantern's warmth on
+    what is near it, falling off with distance, flickering; and the dark of the adit, everything
+    fading to black the deeper into the hill it stands. */
+export interface MouthLight {
+  lamp: THREE.Vector3;
+  mouth: THREE.Vector3;
+  inward: THREE.Vector3;
+}
+function mouthLit(m: THREE.MeshStandardNodeMaterial, L: MouthLight | null | undefined): void {
+  if (!L) return;
+  const pw = T.positionWorld;
+  const lamp = T.vec3(L.lamp.x, L.lamp.y, L.lamp.z);
+  const dz = T.dot(pw.sub(T.vec3(L.mouth.x, L.mouth.y, L.mouth.z)), T.vec3(L.inward.x, L.inward.y, L.inward.z));
+  const fade = T.float(1).sub(T.smoothstep(-0.1, 3.0, dz).mul(0.97));
+  const toL = lamp.sub(pw);
+  const d2 = T.dot(toL, toL);
+  const face = T.clamp(T.dot(T.normalize(T.normalWorld), T.normalize(toL)).mul(0.75).add(0.25), 0, 1);
+  const flick = T.sin(gpuUniforms.time.mul(9.1)).mul(T.sin(gpuUniforms.time.mul(3.7))).mul(0.06).add(0.94);
+  const col = m.colorNode as N;
+  const warm = col.rgb.mul(T.vec3(1, 0.6, 0.28)).mul(face).mul(flick).mul(T.float(1.3).div(T.float(1).add(d2.mul(1.1))));
+  m.colorNode = T.vec4(col.rgb.mul(fade), 1);
+  m.emissiveNode = m.emissiveNode ? (m.emissiveNode as N).mul(fade).add(warm) : warm;
+}
+/** Old timber: the scanned weathered wood (Poly Haven rough_wood), its grain running along each
+    piece, each piece its own warm brown gone silver with weather, end grain darker, a little damp
+    and rot toward the ground. */
+function timberMaterial(L?: MouthLight | null): THREE.MeshStandardNodeMaterial {
+  const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.9, metalness: 0 });
+  const W = surface("wood");
   const col = T.attribute("color", "vec3");
-  const g = T.attribute("aGrain", "vec3"); // the direction the grain runs
-  const p = T.positionWorld;
-  const along = T.dot(p, g), across = T.length(p.sub(g.mul(along)));
-  const grain = T.mx_noise_float(T.vec3(along.mul(0.8), across.mul(18), 0.3)).mul(0.5).add(0.5);
-  const ring = T.sin(across.mul(60).add(grain.mul(6))).mul(0.5).add(0.5);
-  const c = col.mul(T.float(0.72).add(grain.mul(0.38)).add(ring.mul(0.08)));
-  m.colorNode = T.vec4(c, 1);
+  const uv = T.uv();
+  const d = T.texture(W.diff, uv), arm = T.texture(W.arm, uv);
+  const grey = T.dot(d.rgb, T.vec3(0.33, 0.33, 0.34));
+  // the scan's own grey takes each piece's brown (more brown in the newer, more silver in the old)
+  const warm = d.rgb.mul(col).mul(2.5);
+  let c: N = T.mix(warm, T.vec3(grey).mul(T.vec3(0.95, 0.92, 0.86)), T.fract(T.dot(col, T.vec3(31.7, 17.3, 7.1))).mul(0.35).add(0.15));
+  // end grain darker
+  const ends = T.smoothstep(0.6, 0.9, T.abs(T.dot(T.normalize(T.normalWorldGeometry), T.attribute("aGrain", "vec3"))));
+  c = c.mul(T.float(1).sub(ends.mul(0.35)));
+  // damp toward the ground
+  const low = T.smoothstep(0.9, 0.0, T.positionWorld.y.sub(T.attribute("aFoot", "float")));
+  c = c.mul(T.float(1).sub(low.mul(0.3)));
+  m.colorNode = T.vec4(c.mul(T.mix(T.float(0.55), T.float(1), arm.r)), 1);
+  m.roughnessNode = T.clamp(arm.g.mul(1.05), 0.55, 1);
+  m.normalMap = W.nor;
+  m.normalScale = new THREE.Vector2(1.3, 1.3);
+  mouthLit(m, L);
+  return m;
+}
+/** Iron gone to rust (the scanned coarse rust), worn back to grey steel where wheels and boots
+    rub: the rails' heads, the top edges. */
+function ironMaterial(L?: MouthLight | null): THREE.MeshStandardNodeMaterial {
+  const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.8, metalness: 0.3 });
+  const R = surface("rust");
+  const pw = T.positionWorld;
+  const n = T.normalWorldGeometry;
+  const wp = T.pow(T.abs(n), T.vec3(4));
+  const w = wp.div(wp.x.add(wp.y).add(wp.z));
+  const tri = (t: THREE.Texture, sc: number) => T.texture(t, pw.zy.div(sc)).mul(w.x).add(T.texture(t, pw.xz.div(sc)).mul(w.y)).add(T.texture(t, pw.xy.div(sc)).mul(w.z));
+  const d = tri(R.diff, 0.6), arm = tri(R.arm, 0.6);
+  const worn = T.smoothstep(0.65, 0.9, n.y).mul(T.smoothstep(0.35, 0.6, T.mx_noise_float(pw.mul(2.3)).mul(0.5).add(0.5)).mul(0.6).add(0.4));
+  m.colorNode = T.vec4(T.mix(d.rgb.mul(0.75), T.vec3(0.42, 0.41, 0.4), worn), 1);
+  m.roughnessNode = T.mix(T.clamp(arm.g, 0.6, 1), T.float(0.32), worn);
+  m.metalnessNode = T.mix(T.float(0.15), T.float(0.85), worn);
+  mouthLit(m, L);
   return m;
 }
 function goldMaterial(): THREE.MeshStandardNodeMaterial {
@@ -150,7 +203,19 @@ function goldMaterial(): THREE.MeshStandardNodeMaterial {
   m.emissiveNode = T.vec3(0.6, 0.4, 0.12).mul(fres.mul(0.3).add(0.12)).add(T.vec3(1, 0.8, 0.45).mul(glint.mul(0.6)));
   return m;
 }
-const iron = () => new THREE.MeshStandardNodeMaterial({ color: 0x3a3632, metalness: 0.75, roughness: 0.55 });
+
+/** Broken stone (the rails' bed, the spoil heap): the scanned rocky ground seen from above,
+    greyed to waste rock, its pebbles in shade. */
+function gravel(light = 1): THREE.MeshStandardNodeMaterial {
+  const m = new THREE.MeshStandardNodeMaterial({ roughness: 1 });
+  const R = surface("rock");
+  const pw = T.positionWorld;
+  const d = T.texture(R.diff, pw.xz.div(0.9)), arm = T.texture(R.arm, pw.xz.div(0.9));
+  const lum = T.dot(d.rgb, T.vec3(0.33, 0.34, 0.33));
+  const nz = T.mx_noise_float(pw.mul(1.3)).mul(0.5).add(0.5);
+  m.colorNode = T.vec4(T.mix(T.vec3(0.2, 0.18, 0.16), T.vec3(0.5, 0.46, 0.4), lum).mul(T.mix(T.float(0.6), T.float(1), arm.r)).mul(nz.mul(0.3).add(0.8)).mul(light), 1);
+  return m;
+}
 
 /* ---- built pieces, merged ---- */
 class Pieces {
@@ -162,13 +227,29 @@ class Pieces {
   /** A beam from a to b, `s` square, its own shade of brown. */
   beam(a: THREE.Vector3, b: THREE.Vector3, s: number, shade = 1): void {
     const d = b.clone().sub(a), L = d.length();
-    const g = new THREE.BoxGeometry(s * (0.9 + rnd() * 0.2), L, s * (0.9 + rnd() * 0.2));
+    const sx = s * (0.9 + rnd() * 0.2), sz = s * (0.9 + rnd() * 0.2);
+    const g = new THREE.BoxGeometry(sx, L, sz);
+    // the scan laid along the piece (its grain along the length), its own stretch of it; and the
+    // corners a little off true, as hewn timber is
+    const pos = g.getAttribute("position"), nor = g.getAttribute("normal"), uv = g.getAttribute("uv");
+    const TILE = 1.3, ou = rnd() * 7, ov = rnd() * 7;
+    const jit = new Map<string, [number, number, number]>();
+    for (let k = 0; k < pos.count; k++) {
+      const x = pos.getX(k), y = pos.getY(k), z = pos.getZ(k);
+      const nx = Math.abs(nor.getX(k)), ny = Math.abs(nor.getY(k));
+      const [u, v] = nx > 0.5 ? [z, y] : ny > 0.5 ? [x, z] : [x, y];
+      uv.setXY(k, (u + ou) / TILE, (v + ov) / TILE);
+      const key = `${Math.sign(x)}${Math.sign(y)}${Math.sign(z)}`;
+      if (!jit.has(key)) jit.set(key, [(rnd() - 0.5) * s * 0.12, (rnd() - 0.5) * 0.03, (rnd() - 0.5) * s * 0.12]);
+      const j = jit.get(key)!;
+      pos.setXYZ(k, x + j[0], y + j[1], z + j[2]);
+    }
     const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
     g.applyQuaternion(q);
     g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
     const c = new THREE.Color().setHSL(0.07 + rnd() * 0.02, 0.35 + rnd() * 0.15, (0.2 + rnd() * 0.1) * shade);
     const n = g.getAttribute("position").count;
-    const cols = new Float32Array(n * 3), gr = new Float32Array(n * 3);
+    const cols = new Float32Array(n * 3), gr = new Float32Array(n * 3), foot = new Float32Array(n).fill(Math.min(a.y, b.y) - 0.2);
     const dn = d.normalize();
     for (let k = 0; k < n; k++) {
       cols.set([c.r, c.g, c.b], k * 3);
@@ -176,6 +257,7 @@ class Pieces {
     }
     g.setAttribute("color", new THREE.BufferAttribute(cols, 3));
     g.setAttribute("aGrain", new THREE.BufferAttribute(gr, 3));
+    g.setAttribute("aFoot", new THREE.BufferAttribute(foot, 1));
     this.timber.push(g);
   }
   box(list: THREE.BufferGeometry[], c: THREE.Vector3, sx: number, sy: number, sz: number, yaw: number): void {
@@ -195,7 +277,7 @@ class Pieces {
     g.translate(c.x, c.y, c.z);
     list.push(g.toNonIndexed());
   }
-  build(add: (o: THREE.Object3D) => void): void {
+  build(add: (o: THREE.Object3D) => void, L?: MouthLight | null): void {
     const mk = (list: THREE.BufferGeometry[], mat: THREE.Material, keep: string[]) => {
       if (!list.length) return;
       const g = mergeGeometries(
@@ -210,8 +292,8 @@ class Pieces {
       mesh.castShadow = false;
       add(mesh);
     };
-    mk(this.timber, timberMaterial(), ["position", "normal", "uv", "color", "aGrain"]);
-    mk(this.steel, iron(), ["position", "normal", "uv"]);
+    mk(this.timber, timberMaterial(L), ["position", "normal", "uv", "color", "aGrain", "aFoot"]);
+    mk(this.steel, ironMaterial(L), ["position", "normal", "uv"]);
     mk(this.gold, goldMaterial(), ["position", "normal", "uv"]);
     mk(
       this.ore,
@@ -267,24 +349,103 @@ export class GoldMine extends Underground {
     const solid: { x: number; z: number; r: number; top: number }[] = [];
     // the rock face the adit is driven into: a broken headwall over the portal, in the world's
     // own etched rock
-    const head = new THREE.SphereGeometry(1, 56, 36);
+    // (a broken outcrop, not a round boulder: lumps at three scales, flat shear faces where the
+    // rock has split, ledges, the foot sunk into the bench)
+    const head = new THREE.IcosahedronGeometry(1, 5);
     const hp = head.getAttribute("position");
+    const h3 = (x: number, y: number, z: number) => {
+      const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+      const fx2 = x - xi, fy2 = y - yi, fz2 = z - zi;
+      const u = fx2 * fx2 * (3 - 2 * fx2), v = fy2 * fy2 * (3 - 2 * fy2), w = fz2 * fz2 * (3 - 2 * fz2);
+      const H = (a: number, b: number, c: number) => {
+        const n = Math.sin((xi + a) * 127.1 + (yi + b) * 311.7 + (zi + c) * 74.7 + s.x * 0.013) * 43758.5453;
+        return n - Math.floor(n);
+      };
+      const l = (a: number, b: number, t: number) => a + (b - a) * t;
+      return l(l(l(H(0, 0, 0), H(1, 0, 0), u), l(H(0, 1, 0), H(1, 1, 0), u), v), l(l(H(0, 0, 1), H(1, 0, 1), u), l(H(0, 1, 1), H(1, 1, 1), u), v), w);
+    };
     for (let k = 0; k < hp.count; k++) {
       const x = hp.getX(k), y = hp.getY(k), z = hp.getZ(k);
-      // broad swells, crags and a rougher skin, the foot sunk into the bench
-      const f = 0.82 + Math.sin(x * 2.3 + z * 1.7) * 0.06 + Math.sin(y * 4.1 + x * 3.3) * 0.05 + Math.sin(z * 7.7 - y * 5.1) * 0.025 + rnd() * 0.03;
+      let f = 0.78 + (h3(x * 1.6, y * 1.6, z * 1.6) - 0.5) * 0.34 + (h3(x * 4.2 + 7, y * 4.2, z * 4.2) - 0.5) * 0.14 + (h3(x * 11 + 3, y * 11, z * 11) - 0.5) * 0.04;
+      // split faces: the surface pulled flat in places, and ledges stepped across it
+      const cut = h3(x * 2.4 + 11, y * 2.4, z * 2.4);
+      if (cut > 0.62) f = f * 0.9 + 0.074;
+      const ledge = Math.round(y * 5) / 5;
+      f += (ledge - y) * 0.05;
       hp.setXYZ(k, x * 6.8 * f, Math.max(-0.25, y) * 6 * f, z * 5.2 * f);
     }
-    head.computeVertexNormals();
-    const rock = new THREE.Mesh(head, etchedStone("#5a4a3d", "#8a6a44", 6));
+    head.deleteAttribute("normal");
+    head.deleteAttribute("uv");
+    const headS = mergeVertices(head); // (shared corners: smooth, not faceted)
+    headS.computeVertexNormals();
+    // the mouth's light (no real light lit out here): the lantern's warmth and the adit's dark
+    const pH = 2.9, half = 1.15, DEEP = 3.6;
+    const lamp = at(0.62, half + 0.22);
+    lamp.y = base + 2.05;
+    const L: MouthLight = { lamp, mouth: new THREE.Vector3(s.x + fx * 0.25, base, s.z + fz * 0.25), inward: new THREE.Vector3(-fx, 0, -fz) };
+    const stone = etchedStone("#6b5240", "#000000", 6); // (no drawn lattice on a mine's rock)
+    // (the rock is cut away where the adit runs into it)
+    {
+      const rel = T.positionWorld.sub(T.vec3(s.x, base, s.z));
+      const dIn = T.dot(rel, T.vec3(-fx, 0, -fz)), acr = T.abs(T.dot(rel, T.vec3(lx, 0, lz)));
+      const inside = T.step(-0.6, dIn).mul(T.step(acr, half - 0.02)).mul(T.step(rel.y, pH - 0.08)).mul(T.step(-1, rel.y));
+      stone.maskNode = inside.lessThan(0.5);
+    }
+    const rock = new THREE.Mesh(headS, stone);
     // set back so its face rises round and over the portal (the mouth itself kept open)
     rock.position.set(s.x - fx * 5.2, base - 0.9, s.z - fz * 5.2);
     rock.rotation.y = -f - Math.PI / 2; // its width across the mouth, its depth into the hill
     rock.castShadow = rock.receiveShadow = true;
     this.world.add(rock);
     solid.push({ x: rock.position.x, z: rock.position.z, r: 3.6, top: base + 5 });
-    // the timber set at the mouth: two posts, a cap, braces, lagging over it
-    const pH = 2.9, half = 1.15;
+    // the adit: a short drift of the mine's own rock running into the hill and into the dark
+    {
+      const sec: [number, number][] = [[-1.18, 0.02], [-1.26, 0.9], [-1.24, 1.9], [-1.1, 2.62], [-0.6, 2.96], [0, 3.02], [0.6, 2.96], [1.1, 2.62], [1.24, 1.9], [1.26, 0.9], [1.18, 0.02], [0.4, 0.03], [-0.4, 0.03]];
+      const rings: THREE.Vector3[][] = [];
+      for (let d = 0.05; d <= DEEP + 0.01; d += 0.45) {
+        rings.push(sec.map(([x, y]) => {
+          const j = y > 0.1 ? 0.07 : 0.01;
+          const X = x * (1 + (rnd() - 0.5) * 0.08) + (rnd() - 0.5) * j, Y = y + (rnd() - 0.5) * j;
+          return new THREE.Vector3(s.x - fx * d + lx * X, base + Y, s.z - fz * d + lz * X);
+        }));
+      }
+      const pos: number[] = [], up: number[] = [];
+      const cl = (r: number) => new THREE.Vector3(s.x - fx * (r * 0.45 + 0.05), base + 1.5, s.z - fz * (r * 0.45 + 0.05));
+      for (let r = 0; r < rings.length - 1; r++)
+        for (let k = 0; k < sec.length; k++) {
+          const k2 = (k + 1) % sec.length;
+          const quad = [rings[r][k], rings[r + 1][k], rings[r + 1][k2], rings[r][k2]];
+          for (const [a, b, c] of [[0, 1, 2], [0, 2, 3]]) {
+            let A = quad[a], B = quad[b], Cc = quad[c];
+            const nrm = new THREE.Vector3().subVectors(B, A).cross(new THREE.Vector3().subVectors(Cc, A));
+            const mid = A.clone().add(B).add(Cc).divideScalar(3);
+            if (nrm.dot(cl(r).sub(mid)) < 0) [B, Cc] = [Cc, B]; // faces turned in, toward its middle
+            for (const v of [A, B, Cc]) {
+              pos.push(v.x, v.y, v.z);
+              up.push((v.y - base) / 3);
+            }
+          }
+        }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute("aUp", new THREE.Float32BufferAttribute(up, 1));
+      g.setAttribute("aZone", new THREE.Float32BufferAttribute(new Float32Array(up.length), 1));
+      g.computeVertexNormals();
+      const rm = mineRock(new THREE.Vector3(s.x, base, s.z));
+      // (under the hill: little of the sky reaches in)
+      rm.colorNode = T.vec4((rm.colorNode as N).rgb.mul(0.55), 1);
+      mouthLit(rm, L);
+      const tun = new THREE.Mesh(g, rm);
+      tun.castShadow = tun.receiveShadow = true;
+      this.world.add(tun);
+      // and beyond, the dark
+      const dark = new THREE.Mesh(new THREE.PlaneGeometry(3, 3.4), new THREE.MeshBasicNodeMaterial({ color: 0x020100 }));
+      dark.position.set(s.x - fx * DEEP, base + 1.5, s.z - fz * DEEP);
+      dark.rotation.y = Math.atan2(fx, fz);
+      this.world.add(dark);
+    }
+    // the timber sets: at the mouth two posts, a cap, braces, lagging over it; two more sets
+    // going in, fading into the dark
     const pl = at(0.3, -half), pr = at(0.3, half);
     pl.y = pr.y = base;
     P.beam(pl, pl.clone().setY(base + pH), 0.3);
@@ -296,24 +457,73 @@ export class GoldMine extends Underground {
     }
     P.beam(pl.clone().setY(base + 0.6).addScaledVector(new THREE.Vector3(fx, 0, fz), 0.7), pl.clone().setY(base + 2.2), 0.14);
     P.beam(pr.clone().setY(base + 0.6).addScaledVector(new THREE.Vector3(fx, 0, fz), 0.7), pr.clone().setY(base + 2.2), 0.14);
+    for (const dIn of [1.3, 2.7]) {
+      const a = new THREE.Vector3(s.x - fx * dIn - lx * 1.02, base, s.z - fz * dIn - lz * 1.02);
+      const b = new THREE.Vector3(s.x - fx * dIn + lx * 1.02, base, s.z - fz * dIn + lz * 1.02);
+      P.beam(a, a.clone().setY(base + 2.62), 0.24);
+      P.beam(b, b.clone().setY(base + 2.62), 0.24);
+      P.beam(a.clone().setY(base + 2.74).addScaledVector(new THREE.Vector3(lx, 0, lz), -0.2), b.clone().setY(base + 2.74).addScaledVector(new THREE.Vector3(lx, 0, lz), 0.2), 0.26);
+    }
     solid.push({ x: pl.x, z: pl.z, r: 0.3, top: base + pH }, { x: pr.x, z: pr.z, r: 0.3, top: base + pH });
-    // the dark of the adit within
-    const dark = new THREE.Mesh(new THREE.PlaneGeometry(2.3, pH), new THREE.MeshBasicNodeMaterial({ color: 0x050302 }));
-    const dc = at(0.1, 0); // just behind the posts, before the rock's face
-    dark.position.set(dc.x, base + pH / 2, dc.z);
-    dark.rotation.y = Math.atan2(fx, fz);
-    this.world.add(dark);
-    // a lantern on the right post
-    const lamp = at(0.55, half + 0.1);
-    lamp.y = base + 2.1;
-    P.box(P.lamps, lamp, 0.16, 0.22, 0.16, -f);
-    P.box(P.steel, lamp.clone().setY(lamp.y + 0.15), 0.2, 0.04, 0.2, -f);
+    // a lantern on an iron bracket from the right post: a cap and a base, four thin bars, the
+    // glass, a bail, and a small flame within
+    {
+      const bracket = at(0.42, half + 0.02);
+      bracket.y = lamp.y + 0.285;
+      const tip = lamp.clone().setY(lamp.y + 0.285);
+      const arm = new THREE.CylinderGeometry(0.012, 0.012, bracket.distanceTo(tip), 6);
+      arm.rotateZ(Math.PI / 2);
+      arm.rotateY(-Math.atan2(tip.z - bracket.z, tip.x - bracket.x));
+      arm.translate((bracket.x + tip.x) / 2, tip.y, (bracket.z + tip.z) / 2);
+      P.steel.push(arm);
+      const add = (g: THREE.BufferGeometry, y: number) => {
+        g.translate(lamp.x, lamp.y + y, lamp.z);
+        P.steel.push(g);
+      };
+      add(new THREE.CylinderGeometry(0.075, 0.085, 0.03, 14), -0.13);
+      add(new THREE.ConeGeometry(0.09, 0.08, 14), 0.15);
+      add(new THREE.CylinderGeometry(0.02, 0.02, 0.03, 8), 0.205);
+      for (let k = 0; k < 4; k++) {
+        const a = (k / 4) * Math.PI * 2 + 0.4;
+        const g = new THREE.CylinderGeometry(0.006, 0.006, 0.24, 5);
+        g.translate(Math.cos(a) * 0.07, 0, Math.sin(a) * 0.07);
+        add(g, 0);
+      }
+      const bail = new THREE.TorusGeometry(0.08, 0.005, 5, 18, Math.PI);
+      bail.rotateY(0.4);
+      add(bail, 0.2);
+      // the glass (faint, warm with the flame) and the flame
+      const glass = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.062, 0.068, 0.22, 16, 1, true),
+        (() => {
+          const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
+          const V = T.normalize(T.cameraPosition.sub(T.positionWorld));
+          const rim = T.pow(T.float(1).sub(T.abs(T.dot(T.normalize(T.normalWorld), V))), 2);
+          m.colorNode = T.vec4(T.vec3(1, 0.6, 0.25).mul(rim.mul(0.25).add(0.08)), 1);
+          return m;
+        })(),
+      );
+      glass.position.copy(lamp);
+      this.world.add(glass);
+      const flame = new THREE.Mesh(
+        new THREE.SphereGeometry(0.022, 10, 8),
+        (() => {
+          const m = new THREE.MeshBasicNodeMaterial({ fog: false });
+          const fl = T.sin(gpuUniforms.time.mul(11)).mul(T.sin(gpuUniforms.time.mul(4.3))).mul(0.08).add(0.92);
+          m.colorNode = T.vec4(T.vec3(1, 0.78, 0.42).mul(fl).mul(1.1), 1);
+          return m;
+        })(),
+      );
+      flame.scale.set(1, 1.9, 1);
+      flame.position.copy(lamp).setY(lamp.y - 0.04);
+      this.world.add(flame);
+    }
     const halo = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.6, 1.6),
+      new THREE.PlaneGeometry(1.1, 1.1),
       (() => {
         const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
-        const a = T.smoothstep(0.5, 0, T.length(T.uv().sub(0.5))).pow(2).mul(T.sin(gpuUniforms.time.mul(7)).mul(0.04).add(0.96));
-        m.colorNode = T.vec4(T.vec3(1, 0.62, 0.25).mul(a).mul(0.45), 1);
+        const a = T.smoothstep(0.5, 0, T.length(T.uv().sub(0.5))).pow(3).mul(T.sin(gpuUniforms.time.mul(7)).mul(0.04).add(0.96));
+        m.colorNode = T.vec4(T.vec3(1, 0.62, 0.25).mul(a).mul(0.35), 1);
         return m;
       })(),
     );
@@ -322,15 +532,45 @@ export class GoldMine extends Underground {
     this.world.add(halo);
     // rails out of the mouth to the spoil heap, and a cart standing at their end
     const railLen = 15;
-    for (let t = 0; t < railLen; t += 0.7) P.beam(at(t + 0.2, -0.55, 0.05), at(t + 0.2, 0.55, 0.05), 0.12, 0.8);
+    const tb = (t: number, side: number, y: number) => (t < 0 ? new THREE.Vector3(s.x + fx * t + lx * side, base + y, s.z + fz * t + lz * side) : at(t, side, y));
+    for (let t = -DEEP + 0.3; t < railLen; t += 0.7) P.beam(tb(t + 0.2, -0.6, 0.03), tb(t + 0.2, 0.6, 0.03), 0.13, 0.8);
     for (const side of [-0.32, 0.32])
-      for (let t = 0; t < railLen; t += 1) {
-        const a = at(t, side, 0.13), b = at(t + 1, side, 0.13);
-        const g = new THREE.BoxGeometry(0.05, 0.07, a.distanceTo(b) + 0.02);
-        g.lookAt(b.clone().sub(a));
-        g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
-        P.steel.push(g);
+      for (let t = -DEEP; t < railLen; t += 1) {
+        const a = tb(t, side, 0.12), b = tb(t + 1, side, 0.12);
+        const len = a.distanceTo(b) + 0.02;
+        for (const [w, h, y] of [[0.06, 0.035, 0.0], [0.016, 0.06, 0.045], [0.12, 0.012, -0.03]]) {
+          // the rail's head, its web and its foot
+          const g = new THREE.BoxGeometry(w, h, len);
+          g.translate(0, y as number, 0);
+          g.lookAt(b.clone().sub(a));
+          g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+          P.steel.push(g);
+        }
       }
+    // the bed of broken stone they lie on
+    {
+      const pos: number[] = [];
+      const W = 1.0, step = 0.5;
+      const pt = (t: number, sd: number) => {
+        const v = tb(t, sd, 0);
+        v.y += Math.max(0, 0.09 - Math.max(0, Math.abs(sd) - 0.75) * 0.35) + (rnd() - 0.5) * 0.02;
+        return v;
+      };
+      for (let t = -DEEP; t < railLen + 0.5; t += step)
+        for (let k = 0; k < 6; k++) {
+          const s0 = -W + (k / 6) * 2 * W, s1 = -W + ((k + 1) / 6) * 2 * W;
+          const a = pt(t, s0), b = pt(t, s1), c = pt(t + step, s1), d = pt(t + step, s0);
+          pos.push(a.x, a.y, a.z, c.x, c.y, c.z, b.x, b.y, b.z, a.x, a.y, a.z, d.x, d.y, d.z, c.x, c.y, c.z);
+        }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+      g.computeVertexNormals();
+      const m = gravel();
+      mouthLit(m, L);
+      const bed = new THREE.Mesh(g, m);
+      bed.receiveShadow = true;
+      this.world.add(bed);
+    }
     this.cart(P, at(railLen - 1.2, 0, 0.55), -f, true);
     solid.push({ x: at(railLen - 1.2, 0).x, z: at(railLen - 1.2, 0).z, r: 0.75, top: base + 1.2 });
     // the spoil heap beside the rails' end: pale broken rock
@@ -344,20 +584,14 @@ export class GoldMine extends Underground {
     heap.computeVertexNormals();
     const spoil = new THREE.Mesh(
       heap,
-      (() => {
-        const m = new THREE.MeshStandardNodeMaterial({ roughness: 1 });
-        const nz = T.mx_noise_float(T.positionWorld.mul(4)).mul(0.5).add(0.5);
-        const big = T.mx_noise_float(T.positionWorld.mul(0.9)).mul(0.5).add(0.5);
-        m.colorNode = T.vec4(T.mix(T.vec3(0.42, 0.37, 0.3), T.vec3(0.62, 0.55, 0.45), nz).mul(big.mul(0.3).add(0.8)), 1);
-        return m;
-      })(),
+      gravel(1.25),
     );
     const hc = at(railLen + 2.6, 2.6);
     spoil.position.set(hc.x, hc.y + 0.6, hc.z);
     spoil.castShadow = spoil.receiveShadow = true;
     this.world.add(spoil);
     solid.push({ x: hc.x, z: hc.z, r: 3.6, top: hc.y + 2.5 });
-    P.build((o) => this.world.add(o));
+    P.build((o) => this.world.add(o), L);
     for (const c of solid) colliders.push(c);
   }
 
