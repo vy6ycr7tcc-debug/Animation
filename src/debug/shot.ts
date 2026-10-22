@@ -364,6 +364,13 @@ export function runShot(ctx: ShotCtx): void {
     base = [px, gy, pz];
     view = { eye: [f.dx * 3, 2.2, f.dz * 3], look: [f.x - px, f.top * 0.55 - gy, f.z - pz] };
     ctx.player.pos.set(px, gy, pz);
+  } else if (id === "palm") {
+    // the palm nearest the shore, from a few metres off its beach, the water behind it
+    const pa = (window as unknown as { __palmAt?: () => { x: number; y: number; z: number } | null }).__palmAt?.();
+    const px = (pa?.x ?? SPAWN.x) + 7, pz = (pa?.z ?? SPAWN.z) + 5, gy = Math.max(heightAt(px, pz), 0.2);
+    base = [px, gy, pz];
+    view = { eye: [0, 1.7, 0], look: [(pa?.x ?? px) - px, (pa?.y ?? gy) + 3.2 - gy, (pa?.z ?? pz) - pz] };
+    ctx.player.pos.set(px + 2, gy, pz + 2);
   } else if (/^region-\d$/.test(id)) {
     // a region's country (0 E, 1 NE, 2 N, 3 NW, 4 W, 5 SW, 6 S, 7 SE), from dry ground ~1 km out,
     // looking on outward over it
