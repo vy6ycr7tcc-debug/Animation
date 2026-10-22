@@ -29,6 +29,7 @@ function hash(i: number, j: number, salt: number): number {
 const PCELL = 16;
 const PRING = 6; // ~100 m each way
 const MAX_PALMS = 160;
+const PALM_NEAR = 45; // (cells change every 16 m, so a near palm is at most ~60 m off)
 
 /** A tube along a curve, its radius `r(u)`, tagged for the palm's shader. */
 function tube(curve: THREE.Curve<THREE.Vector3>, segs: number, sides: number, r: (u: number) => number, sway: (u: number) => number): THREE.BufferGeometry {
@@ -307,6 +308,8 @@ export class Wilds {
   group = new THREE.Group();
   private uT = uniform(0);
   private palmMeshes: THREE.InstancedMesh[] = [];
+  // beyond ~45 m each palm is its cheap likeness (~230 triangles, was ~10k), casting no shadow
+  private palmFar: THREE.InstancedMesh[] = [];
   private palms = new Map<string, Palm[]>();
   private palmSolid: Collider[] = [];
   private cx = Infinity;
@@ -324,6 +327,11 @@ export class Wilds {
       mesh.castShadow = true;
       this.palmMeshes.push(mesh);
       this.group.add(mesh);
+      const far = new THREE.InstancedMesh(palmFarGeometry(lean), mat, MAX_PALMS);
+      far.count = 0;
+      far.frustumCulled = false;
+      this.palmFar.push(far);
+      this.group.add(far);
     }
     this.buildCaves();
   }
@@ -464,7 +472,7 @@ export class Wilds {
     if (cx === this.cx && cz === this.cz) return;
     this.cx = cx;
     this.cz = cz;
-    const counts = [0, 0];
+    const counts = [0, 0], farCounts = [0, 0];
     const s = new V();
     // the palms near you stand solid at their foot (they had no colliders)
     for (const c of this.palmSolid) {
@@ -475,16 +483,22 @@ export class Wilds {
     for (let i = -PRING; i <= PRING; i++)
       for (let j = -PRING; j <= PRING; j++)
         for (const p of this.palmsAt(cx + i, cz + j)) {
-          const mesh = this.palmMeshes[p.variant];
-          if (counts[p.variant] >= MAX_PALMS) continue;
+          const near = Math.hypot(p.x - f.player.x, p.z - f.player.z) < PALM_NEAR;
+          const mesh = (near ? this.palmMeshes : this.palmFar)[p.variant];
+          const cnt = near ? counts : farCounts;
+          if (cnt[p.variant] >= MAX_PALMS) continue;
           this.q.setFromAxisAngle(new V(0, 1, 0), p.rot);
           this.m.compose(new V(p.x, p.y, p.z), this.q, s.setScalar(p.scale));
-          mesh.setMatrixAt(counts[p.variant]++, this.m);
-          this.palmSolid.push({ x: p.x, z: p.z, r: 0.3 * p.scale, top: p.y + 5 * p.scale });
+          mesh.setMatrixAt(cnt[p.variant]++, this.m);
+          if (near) this.palmSolid.push({ x: p.x, z: p.z, r: 0.3 * p.scale, top: p.y + 5 * p.scale });
         }
     colliders.push(...this.palmSolid);
     this.palmMeshes.forEach((m, k) => {
       m.count = counts[k];
+      m.instanceMatrix.needsUpdate = true;
+    });
+    this.palmFar.forEach((m, k) => {
+      m.count = farCounts[k];
       m.instanceMatrix.needsUpdate = true;
     });
   }
