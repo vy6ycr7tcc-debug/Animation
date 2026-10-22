@@ -80,6 +80,8 @@
   <div id="map-frame">
     <canvas id="map-canvas" aria-label="Map of the world. Drag to move, pinch to zoom, tap a place to choose it."></canvas>
     <div id="map-zoom">
+      <button id="map-key" type="button" aria-pressed="false" aria-label="Show what the marks mean">Key</button>
+      <button id="map-me" type="button" aria-label="Back to where you are">◎</button>
       <button id="map-out" type="button" aria-label="See more of the map">−</button>
       <button id="map-all" type="button" aria-label="See the whole world">All</button>
       <button id="map-in" type="button" aria-label="Come closer">+</button>
@@ -87,7 +89,7 @@
   </div>
   <div id="map-pick" hidden aria-live="polite"><p id="map-pick-name"></p><button id="map-go" type="button">Wake here</button></div>
   <div id="map-places"></div>
-  <p class="note">Drag to move · pinch to come closer · tap a place, or open land, to go there</p>
+  <p class="note">Drag to move · pinch to come closer · ◎ where you are · tap a place, or open land, to go there</p>
   <div class="map-foot">
     <button id="map-guide" type="button" hidden>Ask the guide</button>
     <button id="map-close" type="button" hidden>Stay where I am</button>

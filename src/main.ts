@@ -4768,7 +4768,7 @@ $("#map-open").addEventListener("click", () => {
   input.enabled = false;
   startMap.tours = [...WALKS.map((w) => ({ id: w.id, label: w.label, walked: walked.has(w.id) })), { id: "duat", label: "The Duat, hour by hour", walked: walked.has("duat") }];
   startMap.whispers = whispers.list().map((w) => ({ id: w.id, label: w.title, note: w.where }));
-  void startMap.open(places(), { x: player.pos.x, z: player.pos.z }, true).then((c) => {
+  void startMap.open(places(), { x: player.pos.x, z: player.pos.z, heading: player.heading }, true).then((c) => {
     input.enabled = true;
     if (c) arrive(c, false);
   });
@@ -5514,7 +5514,9 @@ function frame(now: number): void {
   // a frame is drawn only when its time has come: the cap (⋮ → Frame rate), and a crawl behind the
   // map, whose near-opaque sheet hides the world (a film keeps every frame)
   // under the meditation's dark the world is hidden: drawn slowly (the dark draws its own frames)
-  const gap = FILM ? 0 : startMap.isOpen || med.covered ? 1000 / 10 : frameCap ? 1000 / frameCap : 0;
+  // the open map's sheet all but hides the world: it draws a few times a second, and the map's
+  // own tiles take the time between
+  const gap = FILM ? 0 : startMap.isOpen ? 1000 / 4 : med.covered ? 1000 / 10 : frameCap ? 1000 / frameCap : 0;
   if (gap && now - last < gap - 4) return;
   const ms = now - last;
   last = now;

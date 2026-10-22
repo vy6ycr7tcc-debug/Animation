@@ -1,14 +1,19 @@
-/* The map you begin from, and travel by. It is drawn from the world's own height function, in
-   the style of the drawings: dark ground, fine gold contour lines, a pearl shoreline, and the
-   homes of the twenty-two archetypes marked with their numerals.
-   - Drag to move the map; pinch, scroll or use − / + to come closer or see it all.
+/* The map you travel by, drawn from the world's own land as a real map would show it: the water
+   by its depth, each country in its own colours (the meadow, the frost tundra, the autumn wood,
+   the ash fields, the heather moor, the ochre dunes, the red rocks, the mossland, the chalk downs)
+   with its name written across it, forests, bare rock, snow on the massifs with their heights,
+   rivers, shaded relief lit from the north-west, faint contours, north up and a compass, a scale.
+   It is drawn in tiles, kept once drawn, so it moves and zooms at once.
+   - Drag to move the map; pinch, scroll or use − / + to come closer or see it all; ◎ comes back
+     to where you are (the small wedge shows which way you face); Key says what the marks mean.
    - Tap a place (or its name below the map) and you go there. Tapping open land takes you to
      that spot, and the nearest archetype's voice comes first.
    - Each group has its own mark, so nothing depends on colour alone: the Mind a circle, the
      Body a diamond, the Spirit a triangle, the Choice a star. The archive's vessels have small pale
-   marks: a round tree for a grove, a tall diamond for a crystal garden, a ringed disc for a planet, a four-pointed sparkle for a star. A wave beneath a mark means its
-     home is in the deep: you wake on the water above it. */
-import { heightAt, WATER_Y } from "../world/terrain";
+     marks: a round tree for a grove, a tall diamond for a crystal garden, a ringed disc for a
+     planet, a four-pointed sparkle for a star. A wave beneath a mark means its home is in the
+     deep: you wake on the water above it. */
+import { fbm, heightAt, PEAKS, regionAt, regionIndex, riverDist, smooth, SPAWN, WATER_Y } from "../world/terrain";
 
 export type Group = "Shore" | "Mind" | "Body" | "Spirit" | "Choice" | "Deep";
 /** Where a place is listed below the map: by kind, the ancient worlds by era. */
@@ -38,7 +43,8 @@ export interface Choice {
   heading: number;
 }
 
-const RES = 360;
+/** Map tiles: TILE_M metres across at the finest level, doubling each level; TILE_PX pixels. */
+const TILE_M = 256, TILE_PX = 128, TILE_LEVELS = 7, TILE_CACHE = 220;
 const GROUPS: { g: Group; title: string }[] = [
   { g: "Shore", title: "" },
   { g: "Mind", title: "The Mind" },
@@ -63,6 +69,106 @@ const SECTION_INK: Partial<Record<Section, string>> = {
   Deep: INK.Deep,
 };
 const SERIF = '"Iowan Old Style", Palatino, Georgia, serif';
+
+/* ---- the ground's colours, as a map would have them (sRGB) ---- */
+type RGB = [number, number, number];
+const lerp = (a: RGB, b: RGB, t: number): RGB => {
+  const k = Math.min(1, Math.max(0, t));
+  return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+};
+const MEADOW: RGB = [92, 116, 68], SAND: RGB = [212, 190, 142], ROCK: RGB = [112, 104, 100], HIGH: RGB = [132, 118, 98], SNOW: RGB = [238, 241, 248];
+const RIVER: RGB = [74, 132, 182], CONTOUR: RGB = [52, 38, 28], COAST: RGB = [236, 228, 206];
+const MARSH: RGB = [74, 104, 92], SHALLOW: RGB = [78, 132, 150], MIDWATER: RGB = [32, 70, 110], DEEP: RGB = [12, 24, 58];
+/** The regions' names, each in its own country (terrain.ts REGIONS: E, NE, N, NW, W, SW, S, SE). */
+const REGION_NAMES = ["Frost Tundra", "Autumn Wood", "Ash Fields", "Heather Moor", "Ochre Dunes", "Red Rocks", "Mossland", "Chalk Downs"];
+const REGION_DIRS = [0, -1, -2, -3, 4, 3, 2, 1].map((k) => (k * Math.PI) / 4);
+const toSRGB = (c: number) => 255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
+const contourStep = (size: number) => [5, 10, 20, 25, 50].find((m) => size / m < 260) ?? 50;
+function groundColour(x: number, z: number, v: number, vr: number, vd: number, step: number, ci: number): RGB {
+  const gx = (vr - v) / step, gz = (vd - v) / step, slope = Math.max(1e-4, Math.hypot(gx, gz));
+  // shaded relief: light from the north-west and high, as maps are lit; steeper the farther out
+  const ex = Math.min(5, Math.max(1.6, step / 3));
+  const nx = -gx * ex, nz = -gz * ex, nl = Math.hypot(nx, 1, nz);
+  const shade = (-nx * 0.5 + 0.72 - nz * 0.5) / (nl * 1.0198); // L = normalize(-0.5, 0.72, -0.5)
+  const edge = v / (slope * step); // pixels from the shoreline
+  let col: RGB;
+  if (v < WATER_Y) {
+    const d = -v;
+    col = lerp(lerp(SHALLOW, MIDWATER, d / 5), DEEP, (d - 5) / 30);
+    // the shallowest water, a hand deep, reads as marsh: wet ground among reeds, not a lake
+    col = lerp(MARSH, col, smooth(0.15, 0.7, d));
+    col = col.map((c) => c * (0.8 + 0.25 * shade)) as RGB;
+  } else {
+    const rg = regionAt(x, z);
+    col = rg.away > 0 ? lerp(MEADOW, [toSRGB(rg.col.r), toSRGB(rg.col.g), toSRGB(rg.col.b)], rg.away * 0.85) : MEADOW;
+    // forests where the trees stand thick (the world's own groves and each country's density)
+    const dense = 1 + (rg.trees - 1) * rg.away;
+    const grove = smooth(0.46, 0.64, fbm(x * 0.008 + 71, z * 0.008 - 33));
+    const forest = Math.min(1, grove * dense * 1.1) * smooth(0.7, 2, v) * (1 - smooth(24, 32, v)) * (1 - smooth(0.5, 0.9, slope));
+    if (forest > 0.02) {
+      const leafC: RGB = rg.away > 0.5 && rg.leaf >= 0 ? (rg.leaf < 0.9 ? [150, 92, 38] : [118, 130, 122]) : [38, 72, 44];
+      col = lerp(col, leafC, forest * 0.7);
+      // a stipple of crowns
+      const hsh = Math.abs(Math.sin(Math.floor(x / 6) * 127.1 + Math.floor(z / 6) * 311.7) * 43758.5453) % 1;
+      if (hsh < forest * 0.55) col = col.map((c) => c * 0.72) as RGB;
+    }
+    col = lerp(col, SAND, smooth(1.4, 0.35, v));
+    col = lerp(col, HIGH, smooth(30, 90, v) * 0.55);
+    col = lerp(col, ROCK, smooth(0.6, 1.3, slope));
+    const snowLine = 100 + (fbm(x * 0.004 + 3, z * 0.004) - 0.5) * 50;
+    col = lerp(col, SNOW, smooth(snowLine, snowLine + 10, v) * (1 - smooth(1.0, 1.7, slope) * 0.7));
+    col = col.map((c) => c * (0.42 + 0.8 * shade)) as RGB;
+    // rivers: a fine blue line, never thinner than a pixel
+    const rd = riverDist(x, z);
+    if (rd < Infinity) col = lerp(col, RIVER, 1.2 - (rd - Math.max(5, step * 0.4)) / step);
+    // contours, every fifth stronger
+    const f = v / ci, line = (Math.abs(f - Math.round(f)) * ci) / (slope * step);
+    const index = Math.round(f) % 5 === 0;
+    col = lerp(col, CONTOUR, (index ? 0.34 : 0.16) * Math.min(1, Math.max(0, 1 - line)));
+  }
+  // the shoreline, a fine pale line where land and water meet
+  // (only where the map is fine enough to show a shore as a line: far out it is a speckle)
+  col = lerp(col, COAST, 0.6 * (1.1 - Math.abs(edge)) * smooth(14, 5, step) * smooth(0.1, 0.6, Math.abs(v) + (v > 0 ? 1 : 0)));
+  return col.map((c) => Math.min(255, c * 0.92)) as RGB;
+}
+/** Where each region's name is written: the middle of its country along its bearing, about
+    `r` metres out (farther when the map shows more of the world). */
+const regionSpots = new Map<number, { name: string; x: number; z: number; ink: string }[]>();
+function regionLabels(r0: number): { name: string; x: number; z: number; ink: string }[] {
+  const R = Math.round(Math.min(2600, Math.max(620, r0)) / 200) * 200;
+  const known = regionSpots.get(R);
+  if (known) return known;
+  const spots = REGION_NAMES.map((name, i) => {
+    let sx = 0, sz = 0, n = 0;
+    for (let r = R * 0.75; r <= R * 1.25; r += R * 0.05)
+      for (let a = -0.4; a <= 0.4; a += 0.08) {
+        const x = SPAWN.x + Math.cos(REGION_DIRS[i] + a) * r, z = SPAWN.z + Math.sin(REGION_DIRS[i] + a) * r;
+        const ri = regionIndex(x, z);
+        if (ri.i === i && ri.away > 0.6) (sx += x), (sz += z), n++;
+      }
+    const x = n ? sx / n : SPAWN.x + Math.cos(REGION_DIRS[i]) * R, z = n ? sz / n : SPAWN.z + Math.sin(REGION_DIRS[i]) * R;
+    const rg = regionAt(x, z);
+    const c = [toSRGB(rg.col.r), toSRGB(rg.col.g), toSRGB(rg.col.b)].map((v) => Math.round(Math.min(255, v * 0.35 + 175)));
+    return { name, x, z, ink: `rgba(${c[0]},${c[1]},${c[2]},0.9)` };
+  });
+  regionSpots.set(R, spots);
+  return spots;
+}
+/** Each massif's summit and its height. */
+let summits: { x: number; z: number; h: number }[] | null = null;
+function peakSummits(): { x: number; z: number; h: number }[] {
+  if (summits) return summits;
+  summits = PEAKS.map((p) => {
+    let best = { x: p.x, z: p.z, h: -Infinity };
+    for (let j = -10; j <= 10; j++)
+      for (let i = -10; i <= 10; i++) {
+        const x = p.x + i * p.r * 0.03, z = p.z + j * p.r * 0.03, y = heightAt(x, z);
+        if (y > best.h) best = { x, z, h: y };
+      }
+    return best;
+  });
+  return summits;
+}
 
 interface View {
   cx: number;
@@ -94,9 +200,6 @@ export class StartMap {
   private you: { x: number; z: number; heading?: number } | null = null;
   private view: View = { cx: 0, cz: 0, size: 1000 };
   private all: View = { cx: 0, cz: 0, size: 1000 };
-  /** The ground, drawn for some stretch of the world: re-drawn sharper after you zoom. */
-  private base: { img: HTMLCanvasElement; box: View } | null = null;
-  private baseTimer = 0;
   private selected: { place: Place; x: number; z: number } | null = null;
   private resolve: ((c: Choice | null) => void) | null = null;
   private pointers = new Map<number, { x: number; y: number }>();
@@ -143,6 +246,19 @@ export class StartMap {
     document.getElementById("map-in")!.addEventListener("click", () => (this.zoomBy(0.6), this.changed()));
     document.getElementById("map-out")!.addEventListener("click", () => (this.zoomBy(1 / 0.6), this.changed()));
     document.getElementById("map-all")!.addEventListener("click", () => ((this.view = { ...this.all }), this.changed()));
+    // ◎: back to where you are, close enough to find your way
+    document.getElementById("map-me")!.addEventListener("click", () => {
+      const y = this.you ?? this.places.find((q) => q.label === "The shore");
+      if (!y) return;
+      this.view = { cx: y.x, cz: y.z, size: Math.min(this.view.size, 900) };
+      this.changed();
+    });
+    const keyBtn = document.getElementById("map-key")!;
+    keyBtn.addEventListener("click", () => {
+      this.keyOn = !this.keyOn;
+      keyBtn.setAttribute("aria-pressed", String(this.keyOn));
+      this.draw();
+    });
     this.goBtn.addEventListener("click", () => this.go());
     this.continueBtn.addEventListener("click", () => {
       const y = this.you;
@@ -184,13 +300,11 @@ export class StartMap {
     this.all = { cx: (x0 + x1) / 2, cz: (z0 + z1) / 2, size: Math.max(x1 - x0, z1 - z0) * 1.25 + 300 };
     // travelling: begin close around where you are; the first time: see it all
     this.view = you ? { cx: you.x, cz: you.z, size: Math.min(this.all.size, 1600) } : { ...this.all };
-    this.base = null;
     this.list.replaceChildren(...this.buildList());
     this.el.hidden = false;
     document.body.classList.add("mapping");
     requestAnimationFrame(() => this.el.classList.add("on"));
     this.layout();
-    this.renderBase();
     // focus the open tab (focusing the first place chose it, and drew a box round the shore)
     (this.continueBtn.hidden ? (this.list.querySelector('.map-tabs [aria-selected="true"]') as HTMLButtonElement | null) : this.continueBtn)?.focus({ preventScroll: true, focusVisible: false } as FocusOptions);
     return new Promise((res) => (this.resolve = res));
@@ -430,9 +544,6 @@ export class StartMap {
     this.view.cx = Math.min(Math.max(this.view.cx, this.all.cx - lim), this.all.cx + lim);
     this.view.cz = Math.min(Math.max(this.view.cz, this.all.cz - lim), this.all.cz + lim);
     this.draw();
-    // once the view rests, draw the ground again, sharp at this scale
-    window.clearTimeout(this.baseTimer);
-    this.baseTimer = window.setTimeout(() => this.renderBase(), 220);
   }
   private inView(x: number, z: number): boolean {
     return Math.abs(x - this.view.cx) < this.view.size * 0.42 && Math.abs(z - this.view.cz) < this.view.size * 0.42;
@@ -503,43 +614,110 @@ export class StartMap {
     return best;
   }
 
-  /** The ground as the drawings would have it, for the stretch of world in view (and a margin). */
-  private renderBase(): void {
-    const box: View = { cx: this.view.cx, cz: this.view.cz, size: this.view.size * 1.35 };
-    const x0 = box.cx - box.size / 2, z0 = box.cz - box.size / 2;
-    const n = RES + 1;
-    const h = new Float32Array(n * n);
-    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) h[j * n + i] = heightAt(x0 + (i / RES) * box.size, z0 + (j / RES) * box.size);
-    const c = document.createElement("canvas");
-    c.width = c.height = RES;
-    const g = c.getContext("2d")!;
-    const img = g.createImageData(RES, RES);
-    const mix = (a: number[], b: number[], t: number) => a.map((v, k) => v + (b[k] - v) * Math.min(1, Math.max(0, t)));
-    // contour lines in gold, spaced to suit the map's scale. Lines are drawn by their distance in
-    // pixels from the level (height over the slope), so they come out smooth, never stair-stepped.
-    const ci = Math.max(3, Math.round(box.size / 220));
-    const clamp01 = (t: number) => Math.min(1, Math.max(0, t));
-    for (let j = 0; j < RES; j++)
-      for (let i = 0; i < RES; i++) {
-        const v = h[j * n + i], vr = h[j * n + i + 1], vd = h[(j + 1) * n + i];
-        const slope = Math.max(1e-3, Math.hypot(vr - v, vd - v));
-        const wet = mix([26, 30, 78], [7, 8, 26], -v / 40);
-        let col: number[] = mix([44, 37, 72], [86, 72, 104], v / 40);
-        const shade = Math.max(-1, Math.min(1, (v - vr + (v - vd)) * 0.35 * (RES / box.size) * 8)); // light from the north-west
-        col = col.map((x) => x * (0.85 + shade * 0.25));
-        if (v >= WATER_Y) {
-          const f = v / ci, line = (Math.abs(f - Math.round(f)) * ci) / slope;
-          col = mix(col, [226, 184, 110], 0.32 * clamp01(1 - line));
+  /** The ground as it is: a map you could find your way by. Water by its depth, the land in the
+      colours of its own country (the meadow, the tundra, the autumn wood, the ash…), sand along
+      the shores, forests where the trees stand thick, bare rock on the steep, snow on the high
+      massifs, rivers as fine blue lines, shaded relief lit from the north-west as maps are, and
+      faint contours. Drawn first coarse (at once), then sharp in slices over a few frames, so
+      the map never freezes while it is moved. */
+  /** The ground in tiles, as map apps draw it: square tiles at a ladder of scales (256 m across
+      at the finest, twice as wide each step up), each 128 pixels, drawn once and kept, so the
+      map moves and zooms back at once. Tiles in view are painted nearest the middle first, a slice
+      at a time between the game's frames; until one is ready, its coarser parent stands in. */
+  private tiles = new Map<string, HTMLCanvasElement>();
+  private queue: { L: number; i: number; j: number; key: string }[] = [];
+  private painting: { L: number; i: number; j: number; key: string; row: number; h: Float32Array; img: ImageData; c: HTMLCanvasElement } | null = null;
+  private pump = 0;
+  private levelFor(): number {
+    for (let L = 0; L < TILE_LEVELS; L++) if ((TILE_M * 2 ** L) / TILE_PX >= this.mpp * 1.4) return L;
+    return TILE_LEVELS - 1;
+  }
+  private drawTiles(g: CanvasRenderingContext2D): void {
+    const L = this.levelFor(), T = TILE_M * 2 ** L;
+    const W = this.canvas.width, H = this.canvas.height;
+    const x0 = this.toWorldX(0), x1 = this.toWorldX(W), z0 = this.toWorldZ(0), z1 = this.toWorldZ(H);
+    const want: { L: number; i: number; j: number; key: string; d: number }[] = [];
+    g.imageSmoothingEnabled = true;
+    g.imageSmoothingQuality = "high";
+    for (let j = Math.floor(z0 / T); j <= Math.floor(z1 / T); j++)
+      for (let i = Math.floor(x0 / T); i <= Math.floor(x1 / T); i++) {
+        const key = `${L}:${i}:${j}`;
+        const px = this.toMapX(i * T), py = this.toMapY(j * T), ps = T / this.mpp;
+        const have = this.tiles.get(key);
+        if (have) {
+          // freshly used: to the end of the cache's order
+          this.tiles.delete(key);
+          this.tiles.set(key, have);
+          g.drawImage(have, px, py, ps + 0.5, ps + 0.5);
+          continue;
         }
-        // land and water meet softly, and the shoreline is a fine line of pearl along that meeting
-        const d = (v - WATER_Y) / slope;
-        col = mix(wet, col, clamp01(d + 0.5));
-        col = mix(col, [236, 226, 206], 0.9 * clamp01(1.1 - Math.abs(d)));
-        img.data.set([col[0], col[1], col[2], 255], (j * RES + i) * 4);
+        // a coarser tile stands in, the part of it that covers this one
+        for (let up = 1; L + up < TILE_LEVELS; up++) {
+          const f = 2 ** up, pi = Math.floor(i / f), pj = Math.floor(j / f), parent = this.tiles.get(`${L + up}:${pi}:${pj}`);
+          if (!parent) continue;
+          const sub = TILE_PX / f;
+          g.drawImage(parent, (i - pi * f) * sub, (j - pj * f) * sub, sub, sub, px, py, ps + 0.5, ps + 0.5);
+          break;
+        }
+        want.push({ L, i, j, key, d: Math.hypot((i + 0.5) * T - this.view.cx, (j + 0.5) * T - this.view.cz) });
       }
-    g.putImageData(img, 0, 0);
-    this.base = { img: c, box };
-    this.draw();
+    want.sort((a, b) => a.d - b.d);
+    // the coarsest level for the whole world first (a stand-in everywhere), then the view two
+    // levels coarser (quick, a quarter of the work), then the view itself
+    const rough: typeof want = [];
+    if (want.length && L + 2 < TILE_LEVELS) {
+      const T2 = T * 4;
+      for (let j = Math.floor(z0 / T2); j <= Math.floor(z1 / T2); j++)
+        for (let i = Math.floor(x0 / T2); i <= Math.floor(x1 / T2); i++) {
+          const key = `${L + 2}:${i}:${j}`;
+          if (!this.tiles.has(key) && this.painting?.key !== key) rough.push({ L: L + 2, i, j, key, d: 0 });
+        }
+    }
+    this.queue = [...rough, ...want];
+    for (let i = -1; i <= 0; i++) for (let j = -1; j <= 0; j++) {
+      const key = `${TILE_LEVELS - 1}:${i}:${j}`;
+      if (!this.tiles.has(key) && this.painting?.key !== key) this.queue.unshift({ L: TILE_LEVELS - 1, i, j, key });
+    }
+    if (this.queue.length && !this.pump) this.pump = window.setTimeout(() => this.paintSome(), 0);
+  }
+  private paintSome(): void {
+    this.pump = 0;
+    if (this.el.hidden) return;
+    const t0 = performance.now();
+    let finished = false;
+    while (performance.now() - t0 < 10) {
+      if (!this.painting) {
+        const next = this.queue.shift();
+        if (!next) break;
+        if (this.tiles.has(next.key)) continue;
+        const c = document.createElement("canvas");
+        c.width = c.height = TILE_PX;
+        const img = c.getContext("2d")!.createImageData(TILE_PX, TILE_PX);
+        const h = new Float32Array((TILE_PX + 1) * (TILE_PX + 1));
+        this.painting = { ...next, row: -1, h, img, c };
+      }
+      const t = this.painting, T = TILE_M * 2 ** t.L, step = T / TILE_PX, n = TILE_PX + 1;
+      const x0 = t.i * T, z0 = t.j * T;
+      const fill = (j: number) => {
+        for (let i = 0; i < n; i++) t.h[j * n + i] = heightAt(x0 + i * step, z0 + j * step);
+      };
+      if (t.row < 0) fill(0), (t.row = 0);
+      fill(t.row + 1);
+      const ci = contourStep(step * 360);
+      for (let i = 0; i < TILE_PX; i++) {
+        const col = groundColour(x0 + (i + 0.5) * step, z0 + (t.row + 0.5) * step, t.h[t.row * n + i], t.h[t.row * n + i + 1], t.h[(t.row + 1) * n + i], step, ci);
+        t.img.data.set([col[0], col[1], col[2], 255], (t.row * TILE_PX + i) * 4);
+      }
+      if (++t.row >= TILE_PX) {
+        t.c.getContext("2d")!.putImageData(t.img, 0, 0);
+        this.tiles.set(t.key, t.c);
+        if (this.tiles.size > TILE_CACHE) this.tiles.delete(this.tiles.keys().next().value!);
+        this.painting = null;
+        finished = true;
+      }
+    }
+    if (finished) this.draw();
+    if (this.painting || this.queue.length) this.pump = window.setTimeout(() => this.paintSome(), 0);
   }
 
   private mark(g: CanvasRenderingContext2D, group: Group, x: number, y: number, r: number): void {
@@ -575,23 +753,94 @@ export class StartMap {
     } else g.arc(x, y, r, 0, Math.PI * 2);
   }
 
+  /** North, at the map's corner (north is up: the deep night lies that way). */
+  private compass(g: CanvasRenderingContext2D, x: number, y: number, k: number): void {
+    g.save();
+    g.fillStyle = "rgba(11,10,28,0.55)";
+    g.beginPath();
+    g.arc(x, y, 15 * k, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = "rgba(244,239,230,0.45)";
+    g.lineWidth = 0.8 * k;
+    g.stroke();
+    g.fillStyle = "rgba(255,226,170,0.95)";
+    g.beginPath();
+    g.moveTo(x, y - 11 * k);
+    g.lineTo(x + 3.6 * k, y + 1 * k);
+    g.lineTo(x - 3.6 * k, y + 1 * k);
+    g.closePath();
+    g.fill();
+    g.fillStyle = "rgba(244,239,230,0.5)";
+    g.beginPath();
+    g.moveTo(x, y + 11 * k);
+    g.lineTo(x + 3.6 * k, y - 1 * k);
+    g.lineTo(x - 3.6 * k, y - 1 * k);
+    g.closePath();
+    g.fill();
+    g.fillStyle = "rgba(255,240,214,0.95)";
+    g.font = `${9 * k}px ${SERIF}`;
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.fillText("N", x, y - 21 * k);
+    g.restore();
+  }
+  /** The key: what each mark and colour means (Key under the map's corner turns it on). */
+  keyOn = false;
+  private key(g: CanvasRenderingContext2D, k: number, H: number): void {
+    const rows: [string, (x: number, y: number) => void][] = [];
+    const ring = (ink: string, group: Group) => (x: number, y: number) => {
+      g.fillStyle = "rgba(11,10,28,0.8)";
+      g.strokeStyle = ink;
+      g.lineWidth = 1.2 * k;
+      this.mark(g, group, x, y, 5 * k);
+      g.fill();
+      g.stroke();
+    };
+    const dot = (ink: string) => (x: number, y: number) => {
+      g.fillStyle = ink;
+      g.beginPath();
+      g.arc(x, y, 3 * k, 0, Math.PI * 2);
+      g.fill();
+    };
+    const swatch = (c: string) => (x: number, y: number) => {
+      g.fillStyle = c;
+      g.fillRect(x - 6 * k, y - 4 * k, 12 * k, 8 * k);
+    };
+    rows.push(["The Mind", ring(INK.Mind, "Mind")], ["The Body", ring(INK.Body, "Body")], ["The Spirit", ring(INK.Spirit, "Spirit")], ["The Choice", ring(INK.Choice, "Choice")]);
+    rows.push(["Monuments", dot(SECTION_INK.Monuments!)], ["Ancient worlds", dot(SECTION_INK.Ancient!)], ["Lessons", dot(SECTION_INK.Lessons!)], ["Beneath the water", ring(INK.Deep, "Deep")]);
+    rows.push(["Forest", swatch("rgb(40,70,44)")], ["Rivers and lakes", swatch("rgb(50,96,140)")], ["Rock", swatch("rgb(104,98,96)")], ["Snow", swatch("rgb(232,236,244)")]);
+    const lh = 15 * k, w = 128 * k, h = rows.length * lh + 12 * k, x0 = 10 * k, y0 = H - 34 * k - h;
+    g.save();
+    g.fillStyle = "rgba(11,10,28,0.96)";
+    g.strokeStyle = "rgba(244,239,230,0.25)";
+    g.lineWidth = 0.8 * k;
+    g.beginPath();
+    g.roundRect(x0, y0, w, h, 8 * k);
+    g.fill();
+    g.stroke();
+    g.font = `italic ${10 * k}px ${SERIF}`;
+    g.textAlign = "left";
+    g.textBaseline = "middle";
+    rows.forEach(([t, icon], i) => {
+      const y = y0 + 6 * k + lh * (i + 0.5);
+      icon(x0 + 14 * k, y);
+      g.fillStyle = "rgba(244,239,230,0.88)";
+      g.fillText(t, x0 + 28 * k, y);
+    });
+    g.restore();
+  }
+
   private draw(): void {
     const g = this.canvas.getContext("2d")!;
     const W = this.canvas.width, H = this.canvas.height;
     const k = W / 400;
     g.fillStyle = "#0b0a1c";
     g.fillRect(0, 0, W, H);
-    if (this.base) {
-      const b = this.base.box;
-      g.imageSmoothingEnabled = true;
-      g.imageSmoothingQuality = "high";
-      const x = this.toMapX(b.cx - b.size / 2), y = this.toMapY(b.cz - b.size / 2), s = b.size / this.mpp;
-      g.drawImage(this.base.img, x, y, s, s);
-    }
+    this.drawTiles(g);
     // a soft vignette, so the map fades at its edges like old paper in the dark
     const v = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.72);
     v.addColorStop(0, "rgba(11,10,28,0)");
-    v.addColorStop(1, "rgba(11,10,28,0.9)");
+    v.addColorStop(1, "rgba(11,10,28,0.6)");
     g.fillStyle = v;
     g.fillRect(0, 0, W, H);
 
@@ -599,15 +848,25 @@ export class StartMap {
     const metres = [100, 250, 500, 1000, 2000].find((m) => m / this.mpp > W * 0.12) ?? 2000;
     g.strokeStyle = "rgba(244,239,230,0.6)";
     g.lineWidth = 1 * k;
+    // (top left: the controls sit along the foot)
+    g.save();
+    g.shadowColor = "rgba(0,0,0,0.9)";
+    g.shadowBlur = 4 * k;
+    g.lineWidth = 1.4 * k;
     g.beginPath();
-    g.moveTo(14 * k, H - 14 * k);
-    g.lineTo(14 * k + metres / this.mpp, H - 14 * k);
+    g.moveTo(14 * k, 30 * k);
+    g.lineTo(14 * k + metres / this.mpp, 30 * k);
+    g.moveTo(14 * k, 26 * k);
+    g.lineTo(14 * k, 34 * k);
+    g.moveTo(14 * k + metres / this.mpp, 26 * k);
+    g.lineTo(14 * k + metres / this.mpp, 34 * k);
     g.stroke();
-    g.fillStyle = "rgba(244,239,230,0.7)";
+    g.fillStyle = "rgba(244,239,230,0.85)";
     g.font = `italic ${10 * k}px ${SERIF}`;
     g.textAlign = "left";
     g.textBaseline = "bottom";
-    g.fillText(metres >= 1000 ? `${metres / 1000} km` : `${metres} m`, 14 * k, H - 17 * k);
+    g.fillText(metres >= 1000 ? `${metres / 1000} km` : `${metres} m`, 14 * k, 24 * k);
+    g.restore();
 
     g.textBaseline = "middle";
     if (this.you) {
@@ -620,6 +879,18 @@ export class StartMap {
       g.beginPath();
       g.arc(x, y, 8 * k, 0, Math.PI * 2);
       g.stroke();
+      if (this.you.heading !== undefined) {
+        // which way you face: a small wedge (the wanderer looks along (−sin h, −cos h))
+        const h = this.you.heading, fx = -Math.sin(h), fy = -Math.cos(h);
+        g.fillStyle = "rgba(255,244,220,0.95)";
+        g.beginPath();
+        g.moveTo(x + fx * 15 * k, y + fy * 15 * k);
+        g.lineTo(x + fy * 5 * k + fx * 8 * k, y - fx * 5 * k + fy * 8 * k);
+        g.lineTo(x - fy * 5 * k + fx * 8 * k, y + fx * 5 * k + fy * 8 * k);
+        g.closePath();
+        g.fill();
+        g.fillStyle = "rgba(244,239,230,0.95)";
+      }
       g.font = `italic ${11 * k}px ${SERIF}`;
       g.textAlign = "left";
       g.fillText(this.continueBtn.hidden ? "you" : "where you were", x + 11 * k, y);
@@ -630,6 +901,48 @@ export class StartMap {
     const labels: { text: string; x: number; y: number; align: CanvasTextAlign; font: string; fill: string; rank: number }[] = [];
     // every mark's own room, so no name is written across a mark
     const marks: [number, number, number, number][] = [];
+    // the countries' names, written large and faint across them, under every mark and name
+    if (this.view.size > 450 && this.view.size < 12000) {
+      const fs = Math.min(16, Math.max(10, 10000 / this.view.size)) * k;
+      const spaced = (t: string) => t.toUpperCase().split("").join("\u2009");
+      g.save();
+      g.textAlign = "center";
+      g.shadowColor = "rgba(0,0,0,0.85)";
+      g.shadowBlur = 5 * k;
+      g.font = `${fs}px ${SERIF}`;
+      g.lineJoin = "round";
+      g.lineWidth = 3.2 * k;
+      g.strokeStyle = "rgba(12,10,24,0.7)";
+      for (const r of regionLabels(this.view.size * 0.32)) {
+        const x = this.toMapX(r.x), y = this.toMapY(r.z);
+        g.strokeText(spaced(r.name), x, y);
+        g.fillStyle = r.ink;
+        g.fillText(spaced(r.name), x, y);
+      }
+      if (this.view.size < 2600) {
+        g.fillStyle = "rgba(206,226,180,0.8)";
+        g.font = `${fs * 0.85}px ${SERIF}`;
+        g.fillText(spaced("The Meadow"), this.toMapX(SPAWN.x), this.toMapY(SPAWN.z - 120));
+      }
+      g.restore();
+    }
+    // the massifs' summits: a small triangle and the height
+    for (const pk of peakSummits()) {
+      const x = this.toMapX(pk.x), y = this.toMapY(pk.z);
+      if (x < -20 || y < -20 || x > W + 20 || y > H + 20) continue;
+      g.fillStyle = "rgba(250,250,255,0.95)";
+      g.strokeStyle = "rgba(20,18,30,0.8)";
+      g.lineWidth = 1 * k;
+      g.beginPath();
+      g.moveTo(x, y - 6 * k);
+      g.lineTo(x + 5.5 * k, y + 4 * k);
+      g.lineTo(x - 5.5 * k, y + 4 * k);
+      g.closePath();
+      g.fill();
+      g.stroke();
+      marks.push([x - 6 * k, y - 7 * k, x + 6 * k, y + 5 * k]);
+      labels.push({ text: `${Math.round(pk.h)} m`, x: x + 9 * k, y, align: "left", font: `italic ${10 * k}px ${SERIF}`, fill: "rgba(240,242,250,0.85)", rank: 4 });
+    }
     // the planets and stars overhead: a ringed disc, a four-pointed sparkle
     for (const m of this.sky) {
       const x = this.toMapX(m.x), y = this.toMapY(m.z);
@@ -809,6 +1122,8 @@ export class StartMap {
       g.fillText(l.text, l.x, l.y);
       g.shadowBlur = 0;
     }
+    this.compass(g, W - 26 * k, 28 * k, k);
+    if (this.keyOn) this.key(g, k, H);
     // a chosen spot on open land
     const s = this.selected;
     if (s && !(s.x === s.place.x && s.z === s.place.z)) {
