@@ -4,7 +4,7 @@
 import { SITES } from "../scenes/sites";
 import { DUAT_ORIGIN } from "../world/pyramid";
 import { AREA_SITES, RUIN_SITES, type AreaId } from "../world/depths";
-import { ADEPT_HALL, DENSITY_HALL, GLADES, GOBEKLI, GOBEKLI_PLAN, gobekliAt, nanMadolAt, RAPA_NUI, rapaNuiAt, LANDMARK_SITES, MONUMENT, PAST_HALL, PEAKS, PYRAMID, SPAWN, WATERFALLS, heightAt, riverDist } from "../world/terrain";
+import { ADEPT_HALL, DENSITY_HALL, GLADES, GOBEKLI, GOBEKLI_PLAN, gobekliAt, nanMadolAt, RAPA_NUI, rapaNuiAt, LANDMARK_SITES, MONUMENT, PAST_HALL, PEAKS, PYRAMID, SPAWN, WATERFALLS, fallRiverU, fallRiverW, fallStream, heightAt, riverDist } from "../world/terrain";
 import { JOURNEY_ORIGIN } from "../scenes/journey";
 
 export interface Shot {
@@ -364,6 +364,27 @@ export function runShot(ctx: ShotCtx): void {
     base = [px, gy, pz];
     view = { eye: [f.dx * 3, 2.2, f.dz * 3], look: [f.x - px, f.top * 0.55 - gy, f.z - pz] };
     ctx.player.pos.set(px, gy, pz);
+  } else if (/^fallriver-\d+$/.test(id)) {
+    // the river feeding a waterfall: from the air beyond the plunge pool looking up its course
+    // (default), or `&bank` from its bank partway up, looking down the water toward the lip
+    const f = WATERFALLS[Number(id.slice(10))] ?? WATERFALLS[0];
+    const st = fallStream(f), mid = st - f.rl * 0.45, { u } = fallRiverU(f, mid);
+    const W = (s: number, uu: number) => [f.x + f.dx * s - f.dz * uu, f.z + f.dz * s + f.dx * uu];
+    const [mx, mz] = W(mid, u);
+    if (new URLSearchParams(location.search).has("bank")) {
+      const [px, pz] = W(mid + 6, u + fallRiverW(f, mid) + 6.5);
+      const gy = heightAt(px, pz);
+      base = [px, gy, pz];
+      const [lx, lz] = W(-2, 0);
+      view = { eye: [0, 1.7, 0], look: [lx - px, f.top - 1.2 - gy, lz - pz] };
+      ctx.player.pos.set(px, gy, pz);
+    } else {
+      const [px, pz] = W(60 * f.sc, 18);
+      const py = f.top + 34 * f.sc;
+      base = [px, py, pz];
+      view = { eye: [0, 0, 0], look: [mx - px, heightAt(mx, mz) - py, mz - pz] };
+      ctx.player.pos.set(px, py, pz);
+    }
   } else if (id === "palm") {
     // the palm nearest the shore, from a few metres off its beach, the water behind it
     const pa = (window as unknown as { __palmAt?: () => { x: number; y: number; z: number } | null }).__palmAt?.();
