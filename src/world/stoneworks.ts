@@ -37,6 +37,10 @@ export interface Masonry {
   origin?: THREE.Vector3;
   /** Indoors: no lichen on what faces up, no rain streaks. */
   interior?: boolean;
+  /** The ground under each vertex comes with the geometry (`aRise`: its height above the land
+      there), for stone that stands anywhere (what the wanderer builds): its foot darkens with soil
+      and damp, and moss gathers along it, wherever it stands. */
+  rise?: boolean;
 }
 /** Each scan's colour over the grain scan's (their mean colours), so a swap keeps the tone. */
 const GRAIN_TINT: Record<string, [number, number, number]> = {
@@ -155,8 +159,13 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
   const lichen = up.mul(smoothstep(0.55, 0.78, nz(pw.mul(1.3).add(3.1)))).mul(marble || finish === "granite" ? 0.12 : 0.7).mul(dry);
   c = mix(c, vec3(0.34, 0.38, 0.24).mul(nz(pw.mul(7)).mul(0.5).add(0.7)), lichen);
   // soil and damp at the foot, streaks where rain runs down the faces
-  const above = pw.y.sub(base);
+  const above = masonry?.rise ? T.attribute("aRise", "float") : pw.y.sub(base);
   const foot = smoothstep(0.9, 0.0, above).mul(0.55);
+  if (masonry?.rise && dry) {
+    // moss and soil along the foot, in patches, where it has stood in the earth a while
+    const moss = smoothstep(0.42, 0.0, above.add(nz(pw.mul(1.7).add(5.3)).mul(0.25).sub(0.12))).mul(smoothstep(0.35, 0.7, nz(pw.mul(0.9).add(1.1))));
+    c = mix(c, vec3(0.16, 0.19, 0.09).mul(nz(pw.mul(9)).mul(0.5).add(0.6)), moss.mul(0.55));
+  }
   const streak = smoothstep(0.6, 0.85, nz(vec3(pw.x.mul(3.1), pw.y.mul(0.2), pw.z.mul(3.1)))).mul(float(1).sub(up)).mul(0.3 * dry);
   c = c.mul(float(1).sub(foot)).mul(float(1).sub(streak));
   // contact and occlusion: shadowed where the stone meets the ground, under every overhang
