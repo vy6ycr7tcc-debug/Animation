@@ -715,6 +715,51 @@ export class AudioEngine {
     this.hum.gain.setTargetAtTime(k * 0.035, c.currentTime, 0.5);
   }
 
+  private rainBus: GainNode | null = null;
+  /** Rain (0–1): a soft hiss of many drops, and a band of patter over it whose level stirs quickly
+      and unevenly (drops never fall in step); kept well above the phone's lost low end. */
+  rain(k: number): void {
+    if (!this.ctx) return;
+    const c = this.ctx;
+    if (!this.rainBus) {
+      if (k < 0.01) return;
+      this.rainBus = c.createGain();
+      this.rainBus.gain.value = 0;
+      this.rainBus.connect(this.worldDry);
+      const hiss = c.createBufferSource();
+      hiss.buffer = this.noise;
+      hiss.loop = true;
+      const hp = c.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 600;
+      const lp = c.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 6500;
+      hiss.connect(hp).connect(lp).connect(this.rainBus);
+      hiss.start();
+      const pat = c.createBufferSource();
+      pat.buffer = this.noise;
+      pat.loop = true;
+      pat.playbackRate.value = 0.83;
+      const bp = c.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = 2600;
+      bp.Q.value = 0.9;
+      const stir = c.createGain();
+      stir.gain.value = 0.55;
+      for (const [f, g] of [[3.7, 0.22], [7.9, 0.16], [0.31, 0.12]] as const) {
+        const o = c.createOscillator(), og = c.createGain();
+        o.frequency.value = f;
+        og.gain.value = g;
+        o.connect(og).connect(stir.gain);
+        o.start();
+      }
+      pat.connect(bp).connect(stir).connect(this.rainBus);
+      pat.start();
+    }
+    this.rainBus.gain.setTargetAtTime(k * 0.06, c.currentTime, 1.2);
+  }
+
   private surfBus: GainNode | null = null;
   /** Surf breaking softly on a seawall far off (0–1): low noise in slow swells, each set rising
       and falling over some seconds, kept above the phone's lost low end. */

@@ -12,7 +12,7 @@ const {
   sin, smoothstep, uniform, uniformArray, vec2, vec3, vec4,
 } = T;
 
-const MAX_RIPPLES = 10;
+const MAX_RIPPLES = 16;
 /** Objects on this layer (the sky) are seen by the camera but never mirrored. */
 export const NO_MIRROR_LAYER = 1;
 

@@ -27,6 +27,8 @@ const fbm5 = Fn(([p0]: unknown[]) => {
 export const cloudUniforms = {
   shade: uniform(new THREE.Color(0.13, 0.12, 0.26)),
   light: uniform(new THREE.Color(0.62, 0.54, 0.52)),
+  /** How overcast (0 … 1, weather.ts): the billows fill out and darken into a heavy sky. */
+  cover: uniform(0),
 };
 
 export class Clouds {
@@ -59,17 +61,18 @@ export class Clouds {
     const bodyHigh = float(1).sub(length(vec2(q.x.mul(0.9), q.y.mul(1.6))));
     const body = mix(body0, bodyHigh, vHigh);
     const f = fbm5(vUv.mul(mix(vec2(3, 2), vec2(7, 1.1), vHigh)).add(vSeed.mul(17)).add(vec2(U.uT.mul(0.004), 0)));
-    const d0 = smoothstep(0, 0.9, body.add(f.sub(0.5).mul(mix(float(1.1), float(1.6), vHigh))));
+    const d0 = smoothstep(0, 0.9, body.add(f.sub(0.5).mul(mix(float(1.1), float(1.6), vHigh))).add(cloudUniforms.cover.mul(0.32)));
     const d = d0.mul(d0).mul(mix(float(1), float(0.55), vHigh));
     // shade it as a volume: a normal as if it were a rounded mass
     const viewDir = normalize(cameraPosition.sub(vW));
     const nrm = normalize(vRight.mul(q.x).add(up.mul(q.y).mul(0.8)).add(viewDir.mul(max(0.2, body))));
     const lit = max(dot(nrm, U.uMoon), 0).mul(0.55).add(0.45);
     const behind = pow(max(dot(viewDir.negate(), U.uMoon), 0), 5);
-    let c = mix(cloudUniforms.shade, cloudUniforms.light, lit.mul(lit).mul(0.8));
+    let c = mix(cloudUniforms.shade, cloudUniforms.light, lit.mul(lit).mul(mix(float(0.8), float(0.35), cloudUniforms.cover)));
+    c = c.mul(mix(float(1), float(0.62), cloudUniforms.cover));
     c = c.add(cloudUniforms.light.mul(1.4).mul(behind).mul(float(1).sub(d)).mul(d).mul(1.6)); // a silver lining when the moon is behind
     mat.colorNode = mix(c, withFog(c, vW), 0.7);
-    mat.opacityNode = d.mul(0.9);
+    mat.opacityNode = d.mul(mix(float(0.9), float(0.97), cloudUniforms.cover));
     mat.alphaTest = 0.009;
     this.mesh = new THREE.Mesh(geo, mat);
     this.mesh.frustumCulled = false;

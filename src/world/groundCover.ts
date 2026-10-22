@@ -164,7 +164,7 @@ function stone(): THREE.BufferGeometry {
   }
   g.setAttribute("aY", new THREE.Float32BufferAttribute(ys, 1));
   g.deleteAttribute("uv");
-  const out = g.toNonIndexed();
+  const out = g.index ? g.toNonIndexed() : g;
   out.computeVertexNormals();
   return out;
 }
