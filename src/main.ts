@@ -35,6 +35,8 @@ import { Flowers, Lanterns, LightGrass, Sparks, type LifeFrame } from "./world/l
 import { Motes } from "./world/motes";
 import { Risers } from "./world/risers";
 import { GroundCover } from "./world/groundCover";
+import { Weather } from "./world/weather";
+import { cloudUniforms } from "./world/atmosphere";
 import { wakeStep } from "./gpu/wake";
 import { Creation, creationUniforms } from "./world/creation";
 import { Beings, type BeingModel } from "./world/beings";
@@ -299,6 +301,18 @@ const terrain = new Terrain();
 scene.add(terrain.group);
 const clouds = new Clouds(MOBILE ? 60 : 80);
 scene.add(clouds.mesh);
+// showers that pass now and then (world/weather.ts); ⋮ → "Rain now and then"
+const weather = new Weather(MOBILE ? 1400 : 2400);
+scene.add(weather.mesh);
+{
+  const q = new URLSearchParams(location.search).get("rain");
+  if (q !== null) weather.forced = Number(q);
+  try {
+    weather.enabled = localStorage.getItem("inward-journey:rain") !== "0";
+  } catch {
+    /* private mode */
+  }
+}
 
 // A flat stone where the wanderer wakes, etched with the seven-fold figure.
 const spawnY = heightAt(SPAWN.x, SPAWN.z);
@@ -4901,6 +4915,19 @@ freeBox.addEventListener("change", () => {
     /* fine */
   }
 });
+// Rain now and then (⋮): showers pass every so often (on by default)
+{
+  const box = $<HTMLInputElement>("#rainy");
+  box.checked = weather.enabled;
+  box.addEventListener("change", () => {
+    weather.enabled = box.checked;
+    try {
+      localStorage.setItem("inward-journey:rain", box.checked ? "1" : "0");
+    } catch {
+      /* fine */
+    }
+  });
+}
 // Auto jump (⋮): walking into a ledge too tall to step over hops up it (on by default)
 {
   const KEY = "inward-journey:autojump";
@@ -5364,6 +5391,18 @@ function update(dt: number): void {
       gradeUniforms.contrast.value *= 1 - 0.08 * med.hush;
       gradeUniforms.high.value.multiplyScalar(1 + 0.05 * med.hush);
     }
+    // a shower: the haze closes in, the moon and the sky dim a little, the clouds darken
+    {
+      const c = weather.cloud;
+      cloudUniforms.cover.value = c;
+      if (c > 0.002) {
+        fogUniforms.density.value *= 1 + 0.55 * c;
+        fogUniforms.glow.value.multiplyScalar(1 - 0.45 * c);
+        hemi.intensity *= 1 - 0.18 * c;
+        star.intensity *= 1 - 0.45 * c;
+        gradeUniforms.sat.value *= 1 - 0.15 * c;
+      }
+    }
     worldLit.hemi = hemi.intensity;
     worldLit.star = star.intensity;
   }
@@ -5413,6 +5452,13 @@ function update(dt: number): void {
   motes.update(wt, center, dpr, S.reduced, dt, heartPos, player.vel, medK);
   wakeStep(S.t, player.pos, player.speed, !player.flying && !player.swimming);
   clouds.update(wt, camera.position);
+  {
+    const open = !apart() && camera.position.y > WATER_Y + 0.05;
+    weather.update(realDt || dt, camera.position, open, S.reduced, (x, z) => {
+      if (heightAt(x, z) < WATER_Y - 0.05) water.ripple(x, z, 0.18, S.t);
+    });
+    audio.rain(open ? weather.rain : 0);
+  }
 
   // The starlight's shadow follows the wanderer, and stays on the land below them when they fly
   // high (up there its small box hung in the air, and the ground beneath went dark and speckled).
