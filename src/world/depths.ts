@@ -8,12 +8,13 @@
      question to sit with rises (written for the game; Samuel's own may replace them).
    - Caves: arches of stone in the steep underwater slopes, light at their back. Swim through
      one and you come into the Archive of the Heart, a place apart (like the temple): a great
-     grotto under the water whose dome holds every note you have written in My Heart as a star,
-     the stars joined to one another like constellations; a touch on one reads its note again.
+     grotto under the water, pitch dark, where every note you have written in My Heart is a node
+     of light in a network of thoughts you move through, each showing its date; a touch on one
+     reads its note again.
      At its centre, a ring of stillness. Swim back out through the way you came. */
 import * as THREE from "three/webgpu";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { T, worldPoints, type N } from "../gpu/tsl";
+import { glimmer, gpuUniforms, nearLens, pointR, softDot, softPoints, spriteCloud, T, worldPoints, type N } from "../gpu/tsl";
 import { columnGeometry, scan, type ScanName } from "./temple";
 import { surface } from "./textures";
 import { colliders, heightAt, LANDMARK_KINDS, LANDMARK_SITES, levelGround, SPAWN, WATER_Y } from "./terrain";
@@ -21,7 +22,7 @@ import { solid } from "./solidity";
 import { ribbonGeometry, ribbonMaterial } from "../gpu/ribbons";
 import type { HeartNote } from "../ui/heart";
 
-const { abs, atan, cos, float, fract, length, max, mix, positionGeometry, sin, smoothstep, uniform, uv, vec2, vec3, vec4 } = T;
+const { abs, atan, attribute, cos, float, fract, length, max, mix, positionGeometry, sin, smoothstep, step, uniform, uv, vec2, vec3, vec4 } = T;
 const V = THREE.Vector3;
 
 function hash(i: number, j: number, salt: number): number {
@@ -641,7 +642,6 @@ export class Depths {
   private exitDoor!: THREE.MeshBasicNodeMaterial;
   readonly exitAt = new THREE.Vector3();
   private local = new THREE.Vector3();
-  private col = new THREE.Color();
   private ray = new THREE.Raycaster();
   private lastReflection = -1;
   private uT = uniform(0);
@@ -709,8 +709,9 @@ export class Depths {
       const vein = smoothstep(0.025, 0, abs(fract(n.mul(0.7)).sub(0.5)).sub(0.004)).mul(0.5);
       const flow = sin(n.mul(3).sub(uT.mul(0.4))).mul(0.5).add(0.5);
       const h = p.y.div(GH).clamp(0, 1);
-      const rock = mix(vec3(0.03, 0.035, 0.05), vec3(0.012, 0.018, 0.035), h);
-      domeM.colorNode = vec4(rock.add(vec3(0.45, 0.62, 0.8).mul(vein).mul(flow.mul(0.7).add(0.15)).mul(0.22)), 1);
+      // pitch dark (the owner): only the faintest ghost of its veins, so the network is all you see
+      const rock = mix(vec3(0.004, 0.005, 0.008), vec3(0.002, 0.003, 0.005), h);
+      domeM.colorNode = vec4(rock.add(vec3(0.45, 0.62, 0.8).mul(vein).mul(flow.mul(0.7).add(0.15)).mul(0.012)), 1);
     }
     const dome = new THREE.Mesh(new THREE.SphereGeometry(GR, 64, 24, 0, Math.PI * 2, 0, Math.PI / 2), domeM);
     dome.scale.set(1, GH / GR, 1);
@@ -722,8 +723,8 @@ export class Depths {
       const line = (d: ReturnType<typeof float>, w: number) => smoothstep(w, 0, abs(d));
       const rings = line(fract(r.div(3)).sub(0.5).mul(3), 0.05).mul(smoothstep(4.5, 5, r)).mul(smoothstep(GR - 2, GR - 4, r));
       const spokes = line(fract(a.div(6.28318).mul(22)).sub(0.5).mul(r).mul(0.285), 0.04).mul(smoothstep(4, 6, r)).mul(smoothstep(GR - 3, GR - 6, r));
-      const sand = vec3(0.05, 0.05, 0.06).mul(sin(q.x.mul(1.3).add(sin(q.y.mul(0.7)).mul(2))).mul(0.15).add(0.9));
-      floorM.colorNode = vec4(sand.add(vec3(0.7, 0.62, 0.45).mul(rings.add(spokes.mul(0.6)).mul(0.22))), 1);
+      const sand = vec3(0.004, 0.004, 0.006).mul(sin(q.x.mul(1.3).add(sin(q.y.mul(0.7)).mul(2))).mul(0.15).add(0.9));
+      floorM.colorNode = vec4(sand.add(vec3(0.7, 0.62, 0.45).mul(rings.add(spokes.mul(0.6)).mul(0.004))), 1);
     }
     const floor = new THREE.Mesh(new THREE.CircleGeometry(GR, 64), floorM);
     floor.rotation.x = -Math.PI / 2;
@@ -751,78 +752,146 @@ export class Depths {
       const a = R() * Math.PI * 2, rr = Math.sqrt(R()) * (GR - 2), y = 0.5 + R() * (GH - 3);
       motes.set([Math.cos(a) * rr, y, Math.sin(a) * rr], i * 3);
     }
-    this.grotto.add(worldPoints(motes, { color: new THREE.Color(0.7, 0.9, 1.0), size: 0.07, opacity: 0.6 }).sprite);
+    this.grotto.add(worldPoints(motes, { color: new THREE.Color(0.7, 0.9, 1.0), size: 0.05, opacity: 0.18 }).sprite);
   }
 
-  /** The heart's notes, laid out as stars on the dome: the oldest low, the newest at the crown,
-      each joined to the nearest of those before it (so all are one web) and to its next nearest
-      neighbour, as constellations are drawn. */
+  /** The heart's notes as a network of thoughts in the dark (the owner: "pitch dark and you walk
+      thru a network of thoughts where you see the date and tap to access the memory"). Each note
+      is a node of light on a winding way from the entrance in to the heart of the grotto, the
+      oldest first; each is joined to the one before it (the thread of time) and to its nearest
+      others (a web), fine threads along which pulses of light pass, as through a mind. Near you
+      the nodes and threads wake, and each shows its date; a touch reads the memory again. */
   setNotes(notes: HeartNote[]): void {
     for (const c of [...this.sky.children]) {
       this.sky.remove(c);
       (c as THREE.Mesh).geometry?.dispose();
     }
     this.stars = null;
+    this.nodeAt.length = 0;
+    for (const el of this.thoughtEls) el.remove();
+    this.thoughtEls.length = 0;
     const list = notes.slice(0, 240).sort((x, y) => x.createdAt - y.createdAt);
     this.starNotes = list;
     const n = list.length;
     if (!n) return;
+    // the way: a spiral from beside the entrance (west) in toward the heart, wavering in height
     const pts: THREE.Vector3[] = list.map((nt, i) => {
-      const h1 = hash(nt.createdAt % 9973, i, 3), h2 = hash(nt.createdAt % 7919, i, 8);
-      const u = (i + 0.5) / n;
-      const a = i * 2.39996 + h1 * 0.9;
-      const e = 0.14 + 1.0 * Math.sqrt(u) + (h2 - 0.5) * 0.12;
-      const rr = 0.86, ce = Math.cos(e);
-      return new V(Math.cos(a) * ce * GR * rr, Math.sin(e) * GH * rr, Math.sin(a) * ce * GR * rr);
+      const h1 = hash(nt.createdAt % 9973, i, 3), h2 = hash(nt.createdAt % 7919, i, 8), h3 = hash(nt.createdAt % 6151, i, 5);
+      const u = n === 1 ? 0.15 : (i / (n - 1)) * 0.92 + 0.04;
+      const a = Math.PI - u * Math.PI * 2 * 2.2;
+      const r = (GR - 5.5) * (1 - 0.86 * u) + (h1 - 0.5) * 2.6;
+      const y = 1.9 + Math.sin(u * 17 + h2 * 2) * 1.0 + (h3 - 0.5) * 1.2;
+      return new V(Math.cos(a) * r, THREE.MathUtils.clamp(y, 0.7, GH - 4), Math.sin(a) * r);
     });
+    this.nodeAt.push(...pts);
     const edge = new Set<string>();
-    const segs: number[] = [];
-    const link = (i: number, j: number) => {
-      const k = i < j ? `${i}-${j}` : `${j}-${i}`;
-      if (i === j || edge.has(k)) return;
-      edge.add(k);
-      segs.push(pts[i].x, pts[i].y, pts[i].z, pts[j].x, pts[j].y, pts[j].z);
+    const segs: number[] = [], kind: number[] = [];
+    const link = (i: number, j: number, k: number) => {
+      const key = i < j ? `${i}-${j}` : `${j}-${i}`;
+      if (i === j || edge.has(key)) return;
+      edge.add(key);
+      // from the older to the newer (pulses run forward in time)
+      const [a, b] = i < j ? [i, j] : [j, i];
+      segs.push(pts[a].x, pts[a].y, pts[a].z, pts[b].x, pts[b].y, pts[b].z);
+      kind.push(k);
     };
-    for (let i = 1; i < n; i++) {
-      let b1 = 0, d1 = Infinity;
-      for (let j = 0; j < i; j++) {
-        const d = pts[i].distanceToSquared(pts[j]);
-        if (d < d1) (d1 = d), (b1 = j);
-      }
-      link(i, b1);
-    }
+    for (let i = 1; i < n; i++) link(i, i - 1, 1);
     for (let i = 0; i < n; i++) {
-      let b2 = -1, d2 = Infinity;
-      for (let j = 0; j < n; j++) {
-        if (j === i || edge.has(i < j ? `${i}-${j}` : `${j}-${i}`)) continue;
-        const d = pts[i].distanceToSquared(pts[j]);
-        if (d < d2) (d2 = d), (b2 = j);
-      }
-      if (b2 >= 0 && d2 < 90) link(i, b2);
+      const near: [number, number][] = [];
+      for (let j = 0; j < n; j++) if (j !== i) near.push([pts[i].distanceToSquared(pts[j]), j]);
+      near.sort((x, y) => x[0] - y[0]);
+      for (const [d, j] of near.slice(0, 3)) if (d < 64) link(i, j, 0.55);
     }
     if (segs.length) {
-      const thread = new THREE.Mesh(ribbonGeometry(segs), ribbonMaterial(vec3(0.95, 0.8, 0.52).mul(0.55), 0.5, false));
+      const g = ribbonGeometry(segs);
+      const segN = segs.length / 6, at = new Float32Array(segN * 4 * 3);
+      for (let s = 0; s < segN; s++) {
+        const seed = hash(s, 7, 11);
+        for (let c = 0; c < 4; c++) at.set([c < 2 ? 0 : 1, seed, kind[s]], (s * 4 + c) * 3);
+      }
+      g.setAttribute("aT", new THREE.BufferAttribute(at, 3));
+      const thread = new THREE.Mesh(g, this.threadMat(1.1));
       thread.frustumCulled = false;
       this.sky.add(thread);
     }
-    // each star: a small bright body (tappable) in a soft halo
-    const body = new THREE.InstancedMesh(new THREE.SphereGeometry(0.26, 14, 10), new THREE.MeshBasicMaterial({ fog: false }), n);
-    const m4 = new THREE.Matrix4(), halo = new Float32Array(n * 3);
+    // the nodes: soft points of light that wake as you come near
+    const m = softPoints();
+    const cloud = spriteCloud(n, { aP: 3, aK: 2 }, m);
+    {
+      const { aP, aK } = cloud.nodes;
+      m.positionNode = aP;
+      const near = float(1).sub(smoothstep(2.5, 11, length(aP.sub(this.uMe))));
+      const g = glimmer(aK.x, this.uT, 0.8);
+      // a node's own breath, and the wave of waking that passes along the way of time
+      const wave = smoothstep(0.85, 1, fract(aK.y.mul(3).sub(this.uT.mul(0.035))));
+      const wp = aP.add(vec3(ARCHIVE_ORIGIN.x, ARCHIVE_ORIGIN.y, ARCHIVE_ORIGIN.z));
+      const d = max(length(wp.sub(T.cameraPosition)), 0.3);
+      m.sizeNode = mix(float(0.22), float(0.42), near).mul(gpuUniforms.px).div(d).clamp(1.5, 90).div(gpuUniforms.dpr);
+      const k = mix(float(0.16), float(1.1), near).add(wave.mul(0.35)).mul(g).mul(nearLens());
+      m.colorNode = vec4(mix(vec3(1.0, 0.8, 0.52), vec3(0.96, 0.92, 1.0), near.mul(0.5)).mul(softDot(pointR())).mul(k).mul(1.6), 1);
+    }
+    const P = cloud.attrs.aP.array as Float32Array, K = cloud.attrs.aK.array as Float32Array;
     pts.forEach((p, i) => {
-      m4.makeTranslation(p.x, p.y, p.z);
-      body.setMatrixAt(i, m4);
-      const w = hash(list[i].createdAt % 6151, i, 1);
-      body.setColorAt(i, this.col.setRGB(1.0, 0.86 + w * 0.1, 0.62 + w * 0.3).multiplyScalar(1.5));
-      halo.set([p.x, p.y, p.z], i * 3);
+      P.set([p.x, p.y, p.z], i * 3);
+      K.set([hash(list[i].createdAt % 4099, i, 2), i / Math.max(1, n - 1)], i * 2);
     });
+    cloud.setCount(n);
+    this.sky.add(cloud.sprite);
+    // what a touch finds: a sphere a little larger than each node, never drawn
+    const body = new THREE.InstancedMesh(new THREE.SphereGeometry(0.75, 8, 6), new THREE.MeshBasicMaterial(), n);
+    const m4 = new THREE.Matrix4();
+    pts.forEach((p, i) => body.setMatrixAt(i, m4.makeTranslation(p.x, p.y, p.z)));
     body.instanceMatrix.needsUpdate = true;
-    if (body.instanceColor) body.instanceColor.needsUpdate = true;
     body.computeBoundingSphere();
+    body.visible = false;
     this.stars = body;
-    this.sky.add(body, worldPoints(halo, { color: new THREE.Color(1, 0.84, 0.58), size: 1.7, opacity: 0.5 }).sprite);
+    this.sky.add(body);
+    // their dates
+    const fmt = (ms: number) => new Date(ms).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+    for (const nt of list) {
+      const el = document.createElement("div");
+      el.className = "vlabel thought";
+      el.innerHTML = `<b>${fmt(nt.createdAt)}</b>`;
+      el.style.opacity = "0";
+      this.thoughtLayer().append(el);
+      this.thoughtEls.push(el);
+    }
   }
 
-  /** A tap in the grotto: a star (its note). */
+  private nodeAt: THREE.Vector3[] = [];
+  private thoughtEls: HTMLDivElement[] = [];
+  private thoughtDiv: HTMLDivElement | null = null;
+  private thoughtLayer(): HTMLDivElement {
+    if (!this.thoughtDiv) {
+      const d = document.createElement("div");
+      d.id = "thoughts";
+      document.body.append(d);
+      this.thoughtDiv = d;
+    }
+    return this.thoughtDiv;
+  }
+  private uMe = uniform(new THREE.Vector3());
+  private threadMat(px: number): THREE.MeshBasicNodeMaterial {
+    const m = ribbonMaterial(vec3(1), px, true);
+    const at = attribute("aT", "vec3");
+    const wp = positionGeometry;
+    const near = float(1).sub(smoothstep(3, 14, length(wp.sub(this.uMe))));
+    // pulses running forward in time along each thread, a few at once through the web
+    const pulse = smoothstep(0.88, 1, fract(at.x.sub(this.uT.mul(0.18)).add(at.y.mul(7)))).mul(step(0.55, fract(at.y.mul(13.7).add(this.uT.mul(0.021)))));
+    const base = mix(float(0.05), float(0.42), near).mul(at.z);
+    const col = vec3(0.95, 0.78, 0.5).mul(base).add(vec3(1.0, 0.9, 0.7).mul(pulse).mul(near.mul(0.8).add(0.15)).mul(at.z));
+    const sd = attribute("aSide", "float");
+    m.colorNode = vec4(col.mul(float(1).sub(sd.mul(sd)).mul(1.8).min(1)), 1);
+    return m;
+  }
+
+  /** Where the i-th node stands, in the world (for still frames). */
+  nodeWorld(i: number, out: THREE.Vector3): THREE.Vector3 | null {
+    const p = this.nodeAt[i];
+    return p ? out.copy(p).add(ARCHIVE_ORIGIN) : null;
+  }
+
+  /** A tap in the grotto: a node (its note). */
   pick(x: number, y: number, camera: THREE.Camera): { note: HeartNote } | null {
     if (!this.inside || !this.stars) return null;
     this.ray.setFromCamera(new THREE.Vector2((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1), camera);
@@ -830,6 +899,44 @@ export class Depths {
     if (!h || h.instanceId === undefined) return null;
     const note = this.starNotes[h.instanceId];
     return note ? { note } : null;
+  }
+
+  /** Each frame inside: the dates of the nodes near you and in view (at most ten), where each
+      stands on the screen. */
+  private lastSeen = -1e9;
+  private seenIdx: number[] = [];
+  private seenK: number[] = [];
+  thoughts(camera: THREE.Camera, player: THREE.Vector3, show: boolean): void {
+    const layer = this.thoughtDiv;
+    if (layer) layer.hidden = !show || !this.inside;
+    if (!show || !this.inside || !this.nodeAt.length) return;
+    this.uMe.value.copy(player).sub(ARCHIVE_ORIGIN);
+    const now = performance.now();
+    if (now - this.lastSeen > 120) {
+      this.lastSeen = now;
+      for (const i of this.seenIdx) this.thoughtEls[i].style.opacity = "0";
+      const me = this.uMe.value;
+      const cand: [number, number][] = [];
+      this.nodeAt.forEach((p, i) => {
+        const d = p.distanceTo(me);
+        if (d < 11) cand.push([d, i]);
+      });
+      cand.sort((a, b) => a[0] - b[0]);
+      this.seenIdx = cand.slice(0, 10).map((c) => c[1]);
+      this.seenK = cand.slice(0, 10).map((c) => THREE.MathUtils.clamp((11 - c[0]) / 4, 0, 1));
+    }
+    this.seenIdx.forEach((i, k) => {
+      const el = this.thoughtEls[i];
+      const v = this.local.copy(this.nodeAt[i]).add(ARCHIVE_ORIGIN);
+      v.y += 0.45;
+      v.project(camera);
+      if (v.z > 1 || Math.abs(v.x) > 1.1 || Math.abs(v.y) > 1.1) {
+        el.style.opacity = "0";
+        return;
+      }
+      el.style.opacity = this.seenK[k].toFixed(2);
+      el.style.transform = `translate(-50%,-100%) translate(${((v.x * 0.5 + 0.5) * innerWidth).toFixed(1)}px,${((-v.y * 0.5 + 0.5) * innerHeight).toFixed(1)}px)`;
+    });
   }
 
   /** A cave mouth the wanderer is swimming through, if any. */
