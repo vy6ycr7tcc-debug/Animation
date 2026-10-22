@@ -98,6 +98,8 @@ import { VeilDoor } from "./scenes/afterVeil/door";
 import { createAfterVeil, veilConfine, veilFloor, VEIL_EXIT } from "./scenes/afterVeil/area";
 import { WandererPortal } from "./scenes/wanderer/portal";
 import { MindMazePortal } from "./scenes/mindMaze/portal";
+import { WaitingHall, chooseWaitingSite } from "./scenes/kafka/hall";
+import { K1_TRACK, createWaitingRoom, waitingConfine, waitingFloor, waitingState, WAITING_START } from "./scenes/kafka/waitingRoom";
 import { createMindMaze, maze, mazeConfine, mazeFloor, MAZE_AIR, MAZE_EXIT, MAZE_OUTER, MAZE_START } from "./scenes/mindMaze/area";
 import { MazeMap } from "./ui/mazeMap";
 import { createLongDescent, wandererConfine, wandererFloor, WANDERER_EXIT } from "./scenes/wanderer/area";
@@ -401,6 +403,9 @@ const temple = new Temple(sparks, {
   },
 });
 scene.add(temple.group, temple.gate);
+// the waiting room (K1, scenes/kafka): its ground chosen now, after every other site and once the
+// temple's gate stands, before the trees and stones are laid (they keep clear of it)
+const waitingHall = new WaitingHall(chooseWaitingSite([{ x: temple.gateAt.x, z: temple.gateAt.z, r: 70 }]));
 let hallsReady = false; // the halls are made further down; until then their floor is level
 floorHook.fn = (x, z) => (x > 55000 ? (under()?.floorAt(x, z) ?? 0) : inJourney(x) ? (hallsReady ? (inHall()?.journey.floorAt(x, z) ?? 0) : 0) : x > 45000 ? pyramid.floorAt(x, z) : x > 35000 ? depths.floorAt() : temple.floorAt(x, z));
 /** The figure the beings wear, once loaded (the mind's maze dresses its archetypes in it too). */
@@ -2719,7 +2724,7 @@ const veilHall = new VeilDoor(narration);
 const descentHall = new WandererPortal();
 // the way into the mind's maze (scenes/mindMaze): two leaning monoliths holding a curtain of light
 const mazeHall = new MindMazePortal();
-scene.add(densityHall.world, adeptHall.world, pastHall.world, veilHall.world, descentHall.world, mazeHall.world);
+scene.add(densityHall.world, adeptHall.world, pastHall.world, veilHall.world, descentHall.world, mazeHall.world, waitingHall.world);
 /** `sky`: the place keeps the world's real sky and clouds (the long descent tells its story
     through them). */
 function journeyHost(hall: Hall, withSky = false): JourneyHost {
@@ -2755,6 +2760,11 @@ function journeyHost(hall: Hall, withSky = false): JourneyHost {
         stopAuto();
         standUp();
       }
+      // the waiting room: near-silence, the water bed very low (K1)
+      if (hall === waitingHall) {
+        audio.setWaiting(on);
+        return;
+      }
       // the mind's maze: the temple's far chant (plainchant voices on one mode) under the stone's
       // own sounds, and an om now and then; the other places apart keep their silence
       audio.setTemple(on, hall === mazeHall);
@@ -2776,6 +2786,7 @@ function journeyHost(hall: Hall, withSky = false): JourneyHost {
     seated: () => sitting.phase === "seated",
   };
 }
+let waitingJourney: Journey | null = null;
 let hallPresence = 1; // a room's own say in how much of the wanderer is there (the seventh fades it)
 const halls: { hall: Hall; journey: Journey; lit: number }[] = [];
 {
@@ -2847,7 +2858,30 @@ const halls: { hall: Hall; journey: Journey; lit: number }[] = [];
     journeyHost(mazeHall),
   );
   mj.white = true;
-  halls.push({ hall: densityHall, journey: dj, lit: -1 }, { hall: adeptHall, journey: aj, lit: -1 }, { hall: pastHall, journey: pj, lit: -1 }, { hall: veilHall, journey: vj, lit: -1 }, { hall: descentHall, journey: wj, lit: -1 }, { hall: mazeHall, journey: mj, lit: -1 });
+  // the waiting room (K1): one round room, its door opening only at its turn (the room lets you
+  // out itself); a seated stage, its recording begun by the room on arrival, not by the seat
+  const kj: Journey = new Journey(
+    "waiting",
+    [
+      {
+        id: "waitingRoom",
+        title: "",
+        make: async (sc, nar, wh) => createWaitingRoom(sc, nar, wh, audio),
+        floor: waitingFloor,
+        start: WAITING_START,
+        exits: [],
+        confine: waitingConfine,
+        ownAir: true,
+        seated: true,
+        track: K1_TRACK,
+        focus: [[0, 1.8, -6.6], [2.45, 1.2, -5.45]],
+        centre: [1.1, 1.5, -5.4],
+      },
+    ],
+    journeyHost(waitingHall, true),
+  );
+  waitingJourney = kj;
+  halls.push({ hall: densityHall, journey: dj, lit: -1 }, { hall: adeptHall, journey: aj, lit: -1 }, { hall: pastHall, journey: pj, lit: -1 }, { hall: veilHall, journey: vj, lit: -1 }, { hall: descentHall, journey: wj, lit: -1 }, { hall: mazeHall, journey: mj, lit: -1 }, { hall: waitingHall, journey: kj, lit: -1 });
 }
 /** The journey you are in (null out in the world). */
 hallsReady = true;
@@ -2861,6 +2895,8 @@ hearAgain.addEventListener("pointerdown", (e) => {
 /** Each frame: the monuments' doors, and within one, its journey. */
 function journeyFrame(dt: number): void {
   egyptGate.update(S.t);
+  // the waiting room's door, once open, is warm light: walking out through it goes white
+  if (waitingJourney) waitingJourney.white = waitingJourney.inside && waitingState.open;
   veilHall.update(dt, S.t, player.pos, S.reduced, !!inHall() || apart());
   if (!apart() && S.mode === "play" && Math.hypot(player.pos.x - egyptGate.at.x, player.pos.z - egyptGate.at.z) < 9) tellPyr("egypt-gate", "The telling of Egypt", 4500);
   const at = inHall();
@@ -3177,7 +3213,9 @@ function lessonUxFrame(dt: number): void {
     }
   }
   // the maze's seat plays nothing: it is only for sitting
-  const hintWord = hint && inHall()?.hall === mazeHall ? "Sit at the still centre" : "Sit to listen";
+  // and the waiting room's low seat is only for waiting: one word (K1)
+  const hallNow = hint ? inHall()?.hall : null;
+  const hintWord = hallNow === mazeHall ? "Sit at the still centre" : hallNow === waitingHall ? "sit" : "Sit to listen";
   if (seatHint.textContent !== hintWord) seatHint.textContent = hintWord;
   seatHint.classList.toggle("on", hint);
   // sitting: the view turns to the stage, gently
@@ -3890,7 +3928,7 @@ function arrivalFrame(): void {
     if (!walk && !duatTour && !j.via) {
       if (k >= 0 && k < HALL_WALKS.length) {
         if (j.at === 0) walkStart(HALL_WALKS[k]);
-      } else if (at && at.hall !== mazeHall) areaTourStart(j, at.hall.label);
+      } else if (at && at.hall !== mazeHall && at.hall !== waitingHall) areaTourStart(j, at.hall.label);
     }
   }
   if (areaTour && !tourHeld && !narration.paused) {
@@ -6268,6 +6306,37 @@ renderer
           const eye = at.clone().addScaledVector(dir, -5.5).add(new THREE.Vector3(dir.z * 1.6, 2.6, -dir.x * 1.6));
           return { eye: [o.x + eye.x, o.y + eye.y, o.z + eye.z], look: [o.x + look.x, o.y + look.y, o.z + look.z] };
         },
+        waiting: async (n) => {
+          if (n === 0) {
+            // its building in the world, from the way home
+            const d = waitingHall.door, f = waitingHall.face;
+            const px = d.x + Math.sin(f) * 7, pz = d.z + Math.cos(f) * 7;
+            player.pos.set(px, heightAt(px, pz), pz);
+            player.heading = f;
+            terrain.update(px, pz, true);
+            const eye = [d.x + Math.sin(f) * 18 + Math.cos(f) * 6, d.y + 3.2, d.z + Math.cos(f) * 18 - Math.sin(f) * 6] as [number, number, number];
+            return { eye, look: [d.x, d.y + 2.6, d.z] as [number, number, number] };
+          }
+          const j = waitingJourney!;
+          await j.jump(0);
+          const room = j.room as unknown as { debugHold(w: "a" | "b"): void };
+          room.debugHold(n === 2 || n === 4 ? "b" : "a");
+          const o = JOURNEY_ORIGIN, F = waitingFloor();
+          const L = (x: number, y: number, z: number) => [o.x + x, o.y + F + y, o.z + z] as [number, number, number];
+          if (n === 2) {
+            player.pos.set(o.x - 1.7, F, o.z - 2.6);
+            player.heading = Math.atan2(-1.7, 4.4);
+            return { eye: L(-3.0, 2.0, 2.6), look: L(0.8, 1.3, -6.0) };
+          }
+          if (n === 3 || n === 4) {
+            // the keeper, close (checking its pose: looking up as you arrive, 3; bowing, 4)
+            player.pos.set(o.x - 0.5, F, o.z + 1.0);
+            return { eye: L(0.9, 1.35, -2.6), look: L(2.45, 0.95, -5.45) };
+          }
+          player.pos.set(o.x + WAITING_START.x, F, o.z + WAITING_START.z);
+          player.heading = WAITING_START.heading;
+          return { eye: L(1.3, 2.5, 6.1), look: L(0.9, 1.5, -5.3) };
+        },
         maze: async (n) => {
           if (n === 0) {
             // the door: its leaning monoliths and curtain, from a little way off on the home side
@@ -6725,5 +6794,5 @@ addX(document.getElementById("next-up"), () => nextUp.hide(), "Stay here");
   new MutationObserver(sync).observe($("#map-close"), { attributes: true, attributeFilter: ["hidden"] });
   sync();
 }
-Object.assign(window, { __ij: { canoes, boardCanoe, boardCart, rideAction, rideState: () => ride, cavern, setCavern, mines, setUnder, med, sanct, garden, canTouch, beginBuild, beginHoverBuild, groundPoint, solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, nile, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, myHeart, oracle, oracleVision, stepFrames: (n: number, dt = 1 / 60) => { realDt = dt; for (let i = 0; i < n; i++) update(dt); post.render(); }, heartFrame, maze: () => maze, tourInfo: () => tourBar().info() } });
+Object.assign(window, { __ij: { canoes, boardCanoe, boardCart, rideAction, rideState: () => ride, cavern, setCavern, mines, setUnder, med, sanct, garden, canTouch, beginBuild, beginHoverBuild, groundPoint, solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, nile, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, waitingHall, myHeart, oracle, oracleVision, stepFrames: (n: number, dt = 1 / 60) => { realDt = dt; for (let i = 0; i < n; i++) update(dt); post.render(); }, heartFrame, maze: () => maze, tourInfo: () => tourBar().info() } });
 Object.assign((window as unknown as { __ij: object }).__ij, { whispers, hearWhisper, rapaNui });

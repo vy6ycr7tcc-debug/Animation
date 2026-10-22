@@ -30,6 +30,9 @@ export type Room = SceneModule & {
   /** A guided walk's next place (its frame): where the guide is going, or null while it speaks
       (and once the way is walked). Set by rooms walked as one path (the veil, the descent). */
   lead?: () => { x: number; z: number } | null;
+  /** The room lets you out itself (a door that opens only at its turn, K1): true while you are
+      walking out through it. */
+  leaving?: () => boolean;
 };
 /** Something solid in a room (its own frame): a circle (`r`) or a box (`hx`, `hz`, turned by
     `ang`), `h` metres tall from the floor. The journey makes it a collider while the room stands. */
@@ -472,6 +475,10 @@ export class Journey {
     s.confine(l);
     pos.x = JOURNEY_ORIGIN.x + l.x;
     pos.z = JOURNEY_ORIGIN.z + l.z;
+    if (r.leaving?.()) {
+      void this.leave();
+      return true;
+    }
     for (const e of s.exits)
       if (Math.hypot(l.x - e.x, l.z - e.z) < e.r) {
         if (e.to === "out" || (this.via && e.to === 0)) void this.leave();
