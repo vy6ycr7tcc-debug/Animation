@@ -80,7 +80,7 @@ import { Ancients } from "./world/ancient";
 import { Pyramid, DUAT_ORIGIN } from "./world/pyramid";
 import { Cavern, type Underground } from "./world/cavern";
 import { GoldMine } from "./world/mines";
-import { MINE_SITES } from "./world/terrain";
+import { MINE_SITES, wakeTheNile } from "./world/terrain";
 import { FalseDoors } from "./world/falseDoors";
 import { Gobekli } from "./world/ancient/gobekli";
 import { NanMadol } from "./world/ancient/nanMadol";
@@ -108,6 +108,7 @@ import { MOOD_NAMES, Moods } from "./world/moods";
 import { Forest } from "./world/forest";
 import { RisingFlowers } from "./world/blooms";
 import { Wilds } from "./world/wilds";
+import { Nile } from "./world/nile";
 import { lessonDark } from "./scenes/enacted";
 import { initTourScenes, tourPlaces, type TourScenes } from "./scenes/integration";
 import { bodyForms } from "./world/forms";
@@ -120,6 +121,9 @@ import { downloadAssets, requestPersistentStorage, downloadedBefore, fetchAssetL
 // return to the game (iOS checks rarely on its own, and a Home Screen game is only ever resumed).
 // A newer one installs and takes over at once (sw.js skips waiting); if that happens before the
 // journey has begun, the page loads again on it, once, so all of it is the new build.
+// the Nile and the pyramid's new place come into the land now, after every module has chosen its
+// own sites (terrain.ts wakeTheNile), so that nothing else moved
+wakeTheNile();
 const hadWorker = "serviceWorker" in navigator && !!navigator.serviceWorker.controller;
 registerSW({
   immediate: true,
@@ -371,6 +375,9 @@ const flowers = new Flowers(sparks, audio);
 const lanterns = new Lanterns(sparks);
 const blooms = new RisingFlowers();
 const wilds = new Wilds();
+// the Nile's palms, papyrus and boats, in the valley the pyramid now stands above (world/nile.ts)
+const nile = new Nile(MOBILE);
+scene.add(nile.group);
 // what grows and lies on the ground round you, each region its own (world/groundCover.ts)
 const cover = new GroundCover();
 scene.add(cover.group);
@@ -5384,6 +5391,7 @@ function update(dt: number): void {
     flowers.update(life);
     blooms.update(life);
     wilds.update(life);
+    nile.update(life);
     cover.update(wt, player.pos, S.reduced);
     sanct.update(dt, wt, dpr, player.pos, camera);
     garden.update(dt, wt, player.pos);
@@ -6439,5 +6447,5 @@ addX(document.getElementById("next-up"), () => nextUp.hide(), "Stay here");
   new MutationObserver(sync).observe($("#map-close"), { attributes: true, attributeFilter: ["hidden"] });
   sync();
 }
-Object.assign(window, { __ij: { cavern, setCavern, mines, setUnder, med, sanct, garden, canTouch, beginBuild, beginHoverBuild, groundPoint, solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, myHeart, oracle, oracleVision, stepFrames: (n: number, dt = 1 / 60) => { realDt = dt; for (let i = 0; i < n; i++) update(dt); post.render(); }, heartFrame, maze: () => maze, tourInfo: () => tourBar().info() } });
+Object.assign(window, { __ij: { cavern, setCavern, mines, setUnder, med, sanct, garden, canTouch, beginBuild, beginHoverBuild, groundPoint, solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, nile, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, myHeart, oracle, oracleVision, stepFrames: (n: number, dt = 1 / 60) => { realDt = dt; for (let i = 0; i < n; i++) update(dt); post.render(); }, heartFrame, maze: () => maze, tourInfo: () => tourBar().info() } });
 Object.assign((window as unknown as { __ij: object }).__ij, { whispers, hearWhisper, rapaNui });
