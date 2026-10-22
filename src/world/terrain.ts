@@ -38,6 +38,8 @@ export const smooth = (a: number, b: number, x: number) => {
   return t * t * (3 - 2 * t);
 };
 const mix = (a: number, b: number, t: number) => a + (b - a) * t;
+/** Rectangular level grounds (`levelRect`), declared first: `heightAt` reads them from the start. */
+const RECTS: { x: number; z: number; h: number; c: number; s: number; hx: number; hz: number; blend: number; reach: number }[] = [];
 
 /** Snow-capped mountains standing within the world (Samuel: "mountains with snow"), each a
     massif of ridges running down from its summit, well away from the archetypes' homes. */
@@ -817,6 +819,13 @@ export function levelGround(x: number, z: number, h: number, inner: number, oute
   PADS.push({ x, z, h, outer, inner });
   coarse.clear();
 }
+/** Rectangular level grounds (the temple's precinct): flat to `h` within a rectangle `hx` × `hz`
+    (half-sizes) about (x, z), turned by heading `ang` (its local z along the heading), blending out
+    over `blend` metres. Called while the world is being made, before any ground is built. */
+export function levelRect(x: number, z: number, h: number, ang: number, hx: number, hz: number, blend: number): void {
+  RECTS.push({ x, z, h, c: Math.cos(ang), s: Math.sin(ang), hx, hz, blend, reach: Math.hypot(hx, hz) + blend });
+  coarse.clear();
+}
 /** Göbekli Tepe (world/ancient/gobekli.ts): the highest dry hill toward the golden hour (east by
     north-east, 1–1.9 km out, where the sky is the low warm sun), its ground above the plain all
     round and clear of every home, monument, the pyramid and the peaks. Its top is levelled, its
@@ -1068,6 +1077,13 @@ export function heightAt(x: number, z: number): number {
     if (Math.abs(x - p.x) > p.outer || Math.abs(z - p.z) > p.outer) continue;
     const d = Math.hypot(x - p.x, z - p.z);
     if (d < p.outer) h = mix(h, p.h, smooth(p.outer, p.inner, d));
+  }
+  for (const q of RECTS) {
+    const dx = x - q.x, dz = z - q.z;
+    if (Math.abs(dx) > q.reach || Math.abs(dz) > q.reach) continue;
+    const ex = Math.abs(dx * q.c - dz * q.s) - q.hx, ez = Math.abs(dx * q.s + dz * q.c) - q.hz;
+    const d = Math.hypot(Math.max(ex, 0), Math.max(ez, 0));
+    if (d < q.blend) h = mix(h, q.h, smooth(q.blend, 0, d));
   }
   return h;
 }

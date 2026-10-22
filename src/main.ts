@@ -70,6 +70,7 @@ import { StartMap, type Choice, type Place } from "./ui/map";
 import { buildSky, skyUniforms, starDirection } from "./world/sky";
 import { floorHook, GOBEKLI, gobekliAt, NAN_MADOL, nanMadolAt, RAPA_NUI, rapaNuiAt, groundUniforms, heightAt, heightCoarse, LANDMARK_SITES, MONUMENT, PEAKS, SPAWN, standAt, Terrain, WATER_Y } from "./world/terrain";
 import { Temple } from "./world/temple";
+import { TempleComplex } from "./world/templeComplex";
 import { Autofly } from "./player/autofly";
 import { Autorun } from "./player/autorun";
 import { BreathGuide } from "./world/breath";
@@ -401,6 +402,9 @@ const temple = new Temple(sparks, {
   },
 });
 scene.add(temple.group, temple.gate);
+// the temple's precinct round the pylon: its walls, gateway, forecourt garden and fountain; it levels
+// its ground and keeps the wild growth off it, so it is made before any ground or tree
+const templeComplex = new TempleComplex(temple.gate, temple.gateHeading);
 let hallsReady = false; // the halls are made further down; until then their floor is level
 floorHook.fn = (x, z) => (x > 55000 ? (under()?.floorAt(x, z) ?? 0) : inJourney(x) ? (hallsReady ? (inHall()?.journey.floorAt(x, z) ?? 0) : 0) : x > 45000 ? pyramid.floorAt(x, z) : x > 35000 ? depths.floorAt() : temple.floorAt(x, z));
 /** The figure the beings wear, once loaded (the mind's maze dresses its archetypes in it too). */
@@ -1468,6 +1472,7 @@ function choiceFrame(): void {
 }
 function templeFrame(dt: number): void {
   temple.update(S.wt, dt, player.pos, S.reduced);
+  templeComplex.update(S.wt, player.pos, !apart());
   // the view never stands behind a wall (the temple's walls as they are now: it is rebuilt per visit)
   follow.blockers = temple.inside ? temple.blockers : apart() ? apartBlockers() : NO_BLOCKERS;
   if (S.mode !== "play") return;
@@ -4852,7 +4857,7 @@ function deepFrame(dt: number, wt: number, inWater: boolean): void {
   else rapaNui.group.visible = rapaNui.live.visible = false;
   audio.surf(apart() ? 0 : Math.max(nanMadol.surf, rapaNui.surf));
   waterfalls.update(player.pos, apart());
-  audio.falls(waterfalls.roar);
+  audio.falls(Math.max(waterfalls.roar, templeComplex.trickle * 0.3));
   // the whispers: what answers a visitor who is still, or near
   {
     const outdoors = !apart() && S.mode === "play";
@@ -6193,6 +6198,7 @@ renderer
         S,
         terrain,
         gate: egyptGate.at,
+        templeGate: { x: temple.gateAt.x, y: temple.gateAt.y, z: temple.gateAt.z, heading: temple.gateHeading },
         setInside,
         ready: bodyForms(),
         settle:
