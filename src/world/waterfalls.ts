@@ -1,7 +1,8 @@
 /* The waterfalls (terrain.ts WATERFALLS shapes their land: an escarpment with a stream along it, a
    cliff curving round a plunge pool; a tiered fall a ledge with its own pool between two drops).
    Here the water itself, after how falling water looks and moves:
-   - the streams along the top, quickening toward the lip;
+   - the river from its spring pool on a hill head, meandering down to the lip and quickening
+     toward it (terrain.ts `fallRiver`);
    - each drop's curtain on the real arc of water leaving a lip (carried on a little, then falling
      ever faster): glassy where it slides over the edge, a bright line where it bends, then
      whitening into strands that pull apart as they fall, the edges ragged; a fainter sheet behind
@@ -14,7 +15,7 @@
 import * as THREE from "three/webgpu";
 import { vnoise as gN, fogUniforms, gpuUniforms, nearLens, outOfTheWay, pointR, softDot, softPoints, spriteCloud, T, viewDepth } from "../gpu/tsl";
 import { skyUniforms } from "./sky";
-import { fallDrops, fallLedge, fallStream, WATERFALLS, type Fall, type FallDrop } from "./terrain";
+import { fallDrops, fallLedge, fallRiverU, fallRiverW, fallRiverY, fallSource, fallStream, WATERFALLS, type Fall, type FallDrop } from "./terrain";
 
 const { attribute, clamp, cos, exp, float, Fn, fract, length, max, min, mix, sin, smoothstep, uv, vec2, vec3, vec4 } = T;
 
@@ -76,24 +77,41 @@ function curtainGeometry(f: Fall, d: FallDrop, back: boolean): THREE.BufferGeome
   return g;
 }
 
-/** A stream: a strip along its bed from `s0` to `s1`, at height `y`. */
-function streamGeometry(f: Fall, s0: number, s1: number, y: number, w: number): THREE.BufferGeometry {
-  const NS = 40;
-  const pos: number[] = [], uvs: number[] = [], idx: number[] = [];
+/** Running water: a strip from `s0` down to `s1` (the lip), following the fall's river where it
+    has one (its middle, width and falling level), else straight at `y` and half-width `w`. Its uv:
+    across (0–1), and the water's travel time (s) from the strip's head, so the ripples ride the
+    water at its own speed (slow up the river, quickening over the last ~22 m to the lip) and
+    never bunch up as the clock runs. `aRiv.x`: how near the lip (0–1). */
+function waterGeometry(f: Fall, s0: number, s1: number, y: number | null, w: number | null): THREE.BufferGeometry {
+  const NS = Math.max(12, Math.ceil((s1 - s0) / 2));
+  const pos: number[] = [], uvs: number[] = [], riv: number[] = [], idx: number[] = [];
+  const st = fallStream(f);
+  let tau = 0, prev = s0;
   for (let j = 0; j <= NS; j++) {
-    const v = j / NS, s = s0 + (s1 - s0) * v;
-    for (const [i, u] of [[0, -w], [1, w]] as const) {
-      pos.push(...at(f, s, u, y).toArray());
-      uvs.push(i, v);
+    const s = s0 + ((s1 - s0) * j) / NS;
+    const v = 0.8 + 1.8 * THREE.MathUtils.smoothstep(s, s1 - 22, s1);
+    tau += (s - prev) / v;
+    prev = s;
+    const { u, du } = y === null ? fallRiverU(f, s) : { u: 0, du: 0 };
+    const n = Math.sqrt(1 + du * du);
+    // the river's water reaches over its bed and up onto the banks, where the land takes its edge
+    const half = w ?? fallRiverW(f, Math.min(s, st)) + 2.6 * (1 - THREE.MathUtils.smoothstep(s, s1 - 30, s1 - 4));
+    const yy = y ?? fallRiverY(f, s);
+    for (const side of [-1, 1]) {
+      pos.push(...at(f, s - (du / n) * half * side, u + (half * side) / n, yy).toArray());
+      uvs.push(side < 0 ? 0 : 1, tau);
+      riv.push(THREE.MathUtils.smoothstep(s, s1 - 26, s1), 0);
     }
   }
   for (let j = 0; j < NS; j++) {
     const a = j * 2;
-    idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+    // wound to face up (the old stream's faced down, and was never seen from above)
+    idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+  g.setAttribute("aRiv", new THREE.Float32BufferAttribute(riv, 2));
   g.setIndex(idx);
   return g;
 }
@@ -151,12 +169,14 @@ export class Waterfalls {
     const streamMat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
     streamMat.colorNode = Fn(() => {
       const p = uv();
-      // ripples carried toward the lip, quickening as they near it, whitening over the last metres
-      const flow = p.y.mul(28).sub(t.mul(mix(float(1.1), float(2.6), p.y)));
-      const r = gN(vec2(p.x.mul(3).add(sin(flow.mul(0.3)).mul(0.4)), flow));
-      const glint = smoothstep(0.62, 0.9, r).mul(0.5).add(smoothstep(0.8, 1, p.y).mul(smoothstep(0.35, 0.8, r)).mul(0.5));
+      const k = attribute("aRiv", "vec2").x;
+      // ripples carried on the water (its travel time less the clock), whitening over the last metres
+      const flow = p.y.sub(t).mul(1.05);
+      const r = gN(vec2(p.x.mul(8).add(sin(flow.mul(0.3)).mul(0.6)), flow.mul(1.6)));
+      const r2 = gN(vec2(p.x.mul(19).sub(1.7), flow.mul(3.7).add(5)));
+      const glint = smoothstep(0.7, 0.95, r.mul(0.6).add(r2.mul(0.4))).mul(0.28).add(smoothstep(0.75, 1, k).mul(smoothstep(0.35, 0.8, r)).mul(0.5));
       const edge = smoothstep(0, 0.2, p.x).mul(smoothstep(1, 0.8, p.x));
-      return vec4(mix(deep.mul(0.7), white, glint), edge.mul(0.9));
+      return vec4(mix(deep.mul(0.62), white, glint), edge.mul(0.9));
     })();
 
     // the boil and the foam on the pool, in the fall's own frame (uv.y downstream): white water
@@ -256,12 +276,19 @@ export class Waterfalls {
       const g = new THREE.Group(), near = new THREE.Group();
       const drops = fallDrops(f);
       const yaw = Math.atan2(-f.dx, -f.dz); // a plane's uv.y downstream
-      // the stream along the top, from its spring to the first lip
-      g.add(new THREE.Mesh(streamGeometry(f, fallStream(f), drops[0].lip + 0.3, drops[0].from, f.w * 0.75 + 0.7), streamMat));
+      // the river from its spring pool on the hill head down to the first lip (or, with no river,
+      // the stream from its spring)
+      if (f.rl > 0) {
+        g.add(new THREE.Mesh(waterGeometry(f, fallSource(f), drops[0].lip + 0.3, null, null), streamMat));
+        const sf = fallSource(f), su = fallRiverU(f, sf).u;
+        const spring = new THREE.Mesh(new THREE.CircleGeometry(fallRiverW(f, sf) * 2.1 + 3.2, 40).rotateX(-Math.PI / 2), ledgeMat);
+        spring.position.copy(at(f, sf, su, fallRiverY(f, sf) + 0.01));
+        g.add(spring);
+      } else g.add(new THREE.Mesh(waterGeometry(f, fallStream(f), drops[0].lip + 0.3, drops[0].from, f.w * 0.75 + 0.7), streamMat));
       // a tiered fall: its ledge, a pool where the upper water lands, a lane on to the lower lip
       if (f.mid > 0) {
         const L = fallLedge(f);
-        g.add(new THREE.Mesh(streamGeometry(f, L + 0.6, drops[1].lip + 0.3, drops[0].to + 0.005, f.w + 0.4), streamMat));
+        g.add(new THREE.Mesh(waterGeometry(f, L + 0.6, drops[1].lip + 0.3, drops[0].to + 0.005, f.w + 0.4), streamMat));
         const pool = new THREE.Mesh(new THREE.CircleGeometry(f.w + 2.6, 40).rotateX(-Math.PI / 2), ledgeMat);
         pool.position.copy(at(f, L + 2.5, 0, drops[0].to + 0.01));
         g.add(pool);

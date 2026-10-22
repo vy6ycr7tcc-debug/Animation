@@ -388,8 +388,32 @@ function waterways(x: number, z: number, h: number): number {
     downstream; `w` is the curtain's half-width at the lip; `sc` scales the height of land (the
     great falls stand on broader ground). */
 export type FallKind = "single" | "ribbon" | "tiered" | "great";
-export interface Fall { x: number; z: number; dx: number; dz: number; top: number; seed: number; w: number; mid: number; sc: number; kind: FallKind }
+export interface Fall { x: number; z: number; dx: number; dz: number; top: number; seed: number; w: number; mid: number; sc: number; kind: FallKind; rl: number; bend: number; reach: number }
 export let WATERFALLS: Fall[] = [];
+/* The river that feeds each fall (the owner: "rivers leading to those waterfalls"): it rises in a
+   spring pool on a hill head `rl` metres upstream of the old spring, and runs down a long tongue of
+   upland to the lip, its water falling `RIVER_GRADE` a metre, meandering, bending away by `bend`
+   (the slope of its course at its head, chosen so it keeps to dry, open land). Its line is a curve
+   of s (it never doubles back), so its distance is cheap: |u − u(s)| / √(1 + u′²). */
+export const RIVER_GRADE = 0.03;
+/** The river's middle across the fall's frame at s (and its slope du/ds). */
+export function fallRiverU(f: Fall, s: number): { u: number; du: number } {
+  const st = fallStream(f), m = st - s;
+  if (m <= 0 || f.rl <= 0) return { u: 0, du: 0 };
+  const t = m / f.rl;
+  const A = 7 * f.sc, ramp = Math.min(1, m / 50);
+  const ph = m * 0.042 + f.seed;
+  // u grows as s falls, so du/ds is minus du/dm
+  const u = f.bend * f.rl * 0.5 * t * t + Math.sin(ph) * A * ramp + Math.sin(m * 0.017 + f.seed * 2.3) * A * 0.6 * ramp;
+  const dm = f.bend * t + Math.cos(ph) * 0.042 * A * ramp + (m < 50 ? (Math.sin(ph) * A) / 50 : 0) + Math.cos(m * 0.017 + f.seed * 2.3) * 0.017 * A * 0.6 * ramp;
+  return { u, du: -dm };
+}
+/** The river's water level at s (level over the escarpment, rising upstream of the old spring). */
+export const fallRiverY = (f: Fall, s: number) => f.top - 0.45 + RIVER_GRADE * Math.max(0, fallStream(f) - s);
+/** Its half-width at s: as wide as the stream at the lip, narrowing toward the spring. */
+export const fallRiverW = (f: Fall, s: number) => (f.w * 0.75 + 0.7) * (0.6 + 0.4 * smooth(fallSource(f), fallSource(f) + 70, s));
+/** Where it rises (s of the spring pool). */
+export const fallSource = (f: Fall) => fallStream(f) - f.rl;
 /** A waterfall's frame: s along the stream (0 at the cliff's foot line, + downstream), u across. */
 export const fallLocal = (f: Fall, x: number, z: number) => {
   const px = x - f.x, pz = z - f.z;
@@ -409,9 +433,76 @@ export function fallDrops(f: Fall): FallDrop[] {
 }
 function falls(x: number, z: number, h: number): number {
   for (const f of WATERFALLS) {
-    const sc = f.sc, R = 110 * sc;
-    if (Math.abs(x - f.x) > R || Math.abs(z - f.z) > R) continue;
+    if (Math.abs(x - f.x) > f.reach || Math.abs(z - f.z) > f.reach) continue;
     const { s, u } = fallLocal(f, x, z);
+    // the river's upland first, then the escarpment, then the river's channel cut through both
+    if (f.rl > 0) h = fallRiver(f, s, u, x, z, h, false);
+    const R = 110 * f.sc;
+    if (Math.abs(x - f.x) <= R && Math.abs(z - f.z) <= R) h = escarp(f, s, u, x, z, h);
+    if (f.rl > 0) h = fallRiver(f, s, u, x, z, h, true);
+  }
+  return h;
+}
+/** The river that feeds a fall. Raising (`carve` false): a long tongue of upland carrying it, a
+    little above its water and falling gently away to either side over ~55 m, and a hill head where
+    it rises. Carving: its channel (half a metre deep, as wide as the stream at the lip) in a valley
+    that opens wider where it cuts higher ground, and the spring pool at its head. */
+function fallRiver(f: Fall, s: number, u: number, x: number, z: number, h: number, carve: boolean): number {
+  const st = fallStream(f), sf = st - f.rl;
+  if (s > st + 6 || s < sf - 90 * f.sc) return h;
+  const yw = fallRiverY(f, s);
+  const src = fallRiverU(f, sf);
+  const dSrc = Math.hypot(s - sf, u - src.u);
+  if (!carve) {
+    if (s < st + 2) {
+      const c = fallRiverU(f, Math.max(s, sf));
+      const d = Math.abs(u - c.u) / Math.sqrt(1 + c.du * c.du);
+      const rw = fallRiverW(f, Math.max(s, sf));
+      const hw = 18 * f.sc + rw;
+      const along = smooth(st + 2, st - 22, s) * smooth(sf - 40, sf - 4, s);
+      // its sides fall away broad and lumpy, as a spur of the hills does
+      const lump = (qnoise(x * 0.02 + f.seed, z * 0.02) - 0.5) * 26 + (qnoise(x * 0.008 - f.seed, z * 0.008 + 3) - 0.5) * 40;
+      const k = smooth(hw + 85, hw, d + lump) * along;
+      if (k > 0) {
+        // level with the escarpment where it meets it, a little higher upstream
+        const lift = 0.45 + 0.7 * smooth(st, st - 45, s);
+        const bank = yw + lift + Math.max(0, d - rw) * 0.04 + (qnoise(x * 0.06, z * 0.06 - f.seed) - 0.5) * 1.4 * smooth(rw + 4, rw + 14, d);
+        h = Math.max(h, h + (bank - h) * k);
+      }
+    }
+    // the hill head it rises from
+    const R = 62 * f.sc;
+    if (dSrc < R) {
+      const head = fallRiverY(f, sf) + 6.5 * f.sc * (1 - (dSrc / R) ** 2) + (qnoise(x * 0.04 - f.seed, z * 0.04) - 0.5) * 2.5;
+      h = Math.max(h, h + (head - h) * smooth(R, R * 0.45, dSrc));
+    }
+    return h;
+  }
+  // the spring pool
+  const pr = fallRiverW(f, sf) * 2.2 + 3.5;
+  if (dSrc < pr + 8) {
+    const bed = fallRiverY(f, sf) - 1.3;
+    const target = bed + Math.max(0, h - bed) * Math.pow(smooth(pr * 0.55, pr + 8, dSrc), 1.25);
+    h = Math.min(h, target);
+  }
+  if (s < sf || s > st + 4) return h;
+  const c = fallRiverU(f, s);
+  const d = Math.abs(u - c.u) / Math.sqrt(1 + c.du * c.du);
+  const rw = fallRiverW(f, s);
+  // a bed broad enough for the ground's 2 m grid to draw (the water reaches over it and up onto the
+  // banks, its edge where they rise out of it)
+  const bankW = 3.5 + Math.max(0, h - yw) * 1.2;
+  const flat = rw + 1.6;
+  if (d > flat + bankW) return h;
+  const bed = yw - 0.55;
+  const target = bed + Math.max(0, h - bed) * Math.pow(smooth(flat, flat + bankW, d), 1.25);
+  const k = smooth(st + 4, st - 4, s);
+  return Math.min(h, h + (target - h) * k);
+}
+/** The escarpment of a fall (see Fall). */
+function escarp(f: Fall, s: number, u: number, x: number, z: number, h: number): number {
+  {
+    const sc = f.sc;
     const au = Math.abs(u);
     // the escarpment: wide across, fading toward its ends, rising gently from behind, its front a
     // cliff (its line broken by noise, so it is crags rather than a smooth wall)
@@ -434,7 +525,7 @@ function falls(x: number, z: number, h: number): number {
     const pool = dp < 16 * Math.sqrt(sc) ? smooth(15 * Math.sqrt(sc), 7, dp) * smooth(-1.5 + rw / 2 - 2, 1.5 + rw / 2 - 2, sl) : 0;
     if (mask <= 0) {
       if (pool > 0) h = Math.min(h, h + (-2.8 - h) * pool);
-      continue;
+      return h;
     }
     // a tiered fall: the land steps down at its upper cliff onto a ledge, then falls again
     let level = f.top;
@@ -1784,16 +1875,71 @@ WATERFALLS = (() => {
       const top = h + (kind === "great" ? 27 + roll * 6 : kind === "tiered" ? 19 + roll * 6 : kind === "ribbon" ? 15 + roll * 6 : 10 + roll * 7);
       const w = kind === "great" ? 3.4 : kind === "ribbon" ? 0.75 + roll * 0.3 : kind === "tiered" ? 1.5 : 1.2 + ihash(i, 3, 17) * 2.2;
       const mid = kind === "tiered" ? h + (top - h) * 0.48 : 0;
-      out.push({ x, z, dx: Math.cos(best), dz: Math.sin(best), top, seed, w, mid, sc, kind });
+      const f: Fall = { x, z, dx: Math.cos(best), dz: Math.sin(best), top, seed, w, mid, sc, kind, rl: 0, bend: 0, reach: 110 * sc };
+      riverFor(f, out);
+      out.push(f);
       got++;
     }
   }
   for (const f of out) {
     const at = (s: number) => ({ x: f.x + f.dx * s, z: f.z + f.dz * s });
     for (const [s, r] of [[FALL_POOL, 18], [0, 10 + f.w], [-12, 6], [-26, 6], [-40, 6]] as const) KEEP_CLEAR.push({ ...at(s * f.sc), r: r * f.sc });
+    // trees and stones keep off the river and its spring
+    const st = fallStream(f);
+    for (let s = st - 12; s > st - f.rl - 1; s -= 13) {
+      const { u } = fallRiverU(f, s);
+      KEEP_CLEAR.push({ x: f.x + f.dx * s - f.dz * u, z: f.z + f.dz * s + f.dx * u, r: fallRiverW(f, s) + 5.5 });
+    }
+    if (f.rl > 0) {
+      const sf = st - f.rl, { u } = fallRiverU(f, sf);
+      KEEP_CLEAR.push({ x: f.x + f.dx * sf - f.dz * u, z: f.z + f.dz * sf + f.dx * u, r: fallRiverW(f, sf) * 2.2 + 9 });
+    }
   }
   return out;
 })();
+/** Find the course for a fall's river: the longest (up to ~210 m, more for the great fall) and
+    straightest that keeps to dry, open land, clear of every site, cave, glade, the shore, the
+    world's rivers and the other falls. None fits: the stream rises from its spring as before. */
+function riverFor(f: Fall, others: Fall[]): void {
+  const want = f.kind === "great" ? 260 : 210;
+  const bends = [0, 0.3, -0.3, 0.6, -0.6, 0.9, -0.9, 1.25, -1.25];
+  const flip = ihash(Math.floor(f.x), Math.floor(f.z), 23) < 0.5 ? -1 : 1;
+  for (const [len, clear] of [want, want * 0.8, want * 0.62, want * 0.46, 75, 55, want * 0.62, 110, 75, 55].map((l, i) => [l, i < 6 ? 34 : 15])) {
+    for (const b of bends) {
+      f.rl = len;
+      f.bend = b * flip;
+      let ok = true;
+      const st = fallStream(f);
+      for (let s = st - 8; s >= st - len - 30 && ok; s -= 10) {
+        const { u } = fallRiverU(f, Math.max(s, st - len));
+        const x = f.x + f.dx * s - f.dz * u, z = f.z + f.dz * s + f.dx * u;
+        const h = rawHeight(x, z);
+        if (h < 0.9 || h > fallRiverY(f, s) + 26) ok = false;
+        else if (Math.hypot(x - SPAWN.x, z - SPAWN.z) < 210) ok = false;
+        else if (riverDist(x, z) < clear) ok = false;
+        else if (PADS.some((p) => Math.hypot(p.x - x, p.z - z) < p.outer + 45)) ok = false;
+        else if (keptClear(x, z, 26) || CAVE_SITES.some((c) => Math.hypot(c.x - x, c.z - z) < 90)) ok = false;
+        else if (GLADES.some((g) => Math.hypot(g.x - x, g.z - z) < g.r + 30)) ok = false;
+        else if (others.some((o) => Math.hypot(o.x - x, o.z - z) < 140 * o.sc || (o.rl > 0 && riverNear(o, x, z, 90)))) ok = false;
+      }
+      if (ok) {
+        f.reach = Math.max(110 * f.sc, len + 26 * f.sc + 100 * f.sc, Math.abs(f.bend) * len * 0.5 + 12 * f.sc + 110);
+        return;
+      }
+    }
+  }
+  f.rl = 0;
+  f.bend = 0;
+}
+/** Whether a point lies within `r` of a fall's river. */
+function riverNear(f: Fall, x: number, z: number, r: number): boolean {
+  const st = fallStream(f);
+  for (let s = st; s >= st - f.rl; s -= 15) {
+    const { u } = fallRiverU(f, s);
+    if (Math.hypot(f.x + f.dx * s - f.dz * u - x, f.z + f.dz * s + f.dx * u - z) < r) return true;
+  }
+  return false;
+}
 
 // the regions' landforms, now that every site of this module has been chosen on the land as it was
 reliefOn = true;
