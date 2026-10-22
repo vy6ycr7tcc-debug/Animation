@@ -66,9 +66,11 @@ export class UnderwaterEffect {
         dist.assign(min(dist, uDepth.add(0.02).div(ray.y)));
       });
       // absorption (red first) and the glow of the water itself, darker the deeper you are
-      const Tr = exp(vec3(0.075, 0.021, 0.014).negate().mul(dist)); // clear, open water: forms read to ~60 m
+      // (under the archive's roof: neutral and dark, no water glow, so it stays pitch black and its
+      // gold stays gold)
+      const Tr = exp(mix(vec3(0.075, 0.021, 0.014), vec3(0.012), uRoof).negate().mul(dist)); // clear, open water: forms read to ~60 m
       const deep = smoothstep(0, 60, uDepth);
-      const glowW = mix(vec3(0.045, 0.13, 0.17), vec3(0.01, 0.03, 0.06), deep).mul(uTint).mul(max(0, ray.y).mul(float(1).sub(deep.mul(0.6))).mul(0.9).add(0.55));
+      const glowW = mix(vec3(0.045, 0.13, 0.17), vec3(0.01, 0.03, 0.06), deep).mul(uTint).mul(max(0, ray.y).mul(float(1).sub(deep.mul(0.6))).mul(0.9).add(0.55)).mul(float(1).sub(uRoof.mul(0.97)));
       const c = color.rgb.mul(Tr).add(glowW.mul(float(1).sub(Tr))).toVar();
       // the sky through the surface: a bright window straight overhead (Snell's window),
       // rippling, with a brighter rim, fading as you go deeper

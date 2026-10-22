@@ -431,6 +431,11 @@ export function runShot(ctx: ShotCtx): void {
     if (id.startsWith("meditation")) w.__medShot?.(id);
     base = f?.base ?? [0, 0, 0];
     view = f?.view ?? { eye: [0, 3, 8], look: [0, 1, 0] };
+  } else if (id === "archive") {
+    // the archive of the heart, with sample notes (main.ts lays them)
+    const f = (window as unknown as { __archiveShot?: () => { base: XYZ; view: { eye: XYZ; look: XYZ } } }).__archiveShot?.();
+    base = f?.base ?? [0, 0, 0];
+    view = f?.view ?? { eye: [0, 1, 4], look: [0, 1, 0] };
   } else if (id === "reading") {
     // a readable artifact, from a few steps away (main.ts places it; `&id=` names which)
     const id2 = new URLSearchParams(location.search).get("id") ?? "sample";

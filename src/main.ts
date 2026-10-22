@@ -1779,6 +1779,17 @@ input.onHoldEnd = null;
 addEventListener("pointerdown", () => med.wake(), { capture: true });
 /* stills: `?shot=meditation` (the inner body in the dark, its lungs mid-breath),
    `meditation-after` (the quiet view just after: the wanderer by its rock, hushed, no controls) */
+// the archive of the heart in a still (`?shot=archive`): forty sample notes over a year, the view
+// among them a third of the way in
+(window as unknown as { __archiveShot?: () => { base: [number, number, number]; view: { eye: [number, number, number]; look: [number, number, number] } } }).__archiveShot = () => {
+  setDeep(true);
+  const t0 = Date.UTC(2025, 9, 1);
+  depths.setNotes(Array.from({ length: 40 }, (_, i) => ({ text: `A sample memory, the ${i + 1}th.`, createdAt: t0 + i * 9.1 * 86400e3 + (i % 3) * 3600e3, scene: "the shore" })));
+  const a = depths.nodeWorld(11, new THREE.Vector3())!, b = depths.nodeWorld(15, new THREE.Vector3())!;
+  const base: [number, number, number] = [a.x, a.y - 0.6, a.z];
+  player.pos.set(...base);
+  return { base, view: { eye: [-(b.x - a.x) * 0.35, 0.5, -(b.z - a.z) * 0.35], look: [b.x - a.x, b.y - a.y + 0.2, b.z - a.z] } };
+};
 (window as unknown as { __medShot?: (id: string) => void }).__medShot = (id) => {
   if (id === "meditation") med.hold("inner", 2.6);
   else {
@@ -2562,8 +2573,9 @@ const ancients = new Ancients();
 scene.add(ancients.group);
 {
   // inside the grotto the scene's own lights rest with the world: its stone has its own
-  const hemi = new THREE.HemisphereLight(0x9fc4ff, 0x1a1420, 0.9);
-  const warm = new THREE.PointLight(0xffc98a, 30, 30, 1.6);
+  // (pitch dark: only enough light for the wanderer's own form)
+  const hemi = new THREE.HemisphereLight(0x9fc4ff, 0x1a1420, 0.14);
+  const warm = new THREE.PointLight(0xffc98a, 2, 30, 1.6);
   warm.position.set(0, 6, 0);
   depths.grotto.add(hemi, warm);
 }
@@ -2612,7 +2624,7 @@ function crossDeep(inside: boolean): void {
   window.setTimeout(async () => {
     setDeep(inside);
     await compileInDark();
-    if (inside) whisper(heartNotes().length ? "The Archive of the Heart. Every note you have written is a star here. Touch one to read it again." : "The Archive of the Heart. Nothing is gathered yet: each note you write becomes a star here.", 8000);
+    if (inside) whisper(heartNotes().length ? "The Archive of the Heart. Every note you have written is a light here, joined to the others. Move among them; touch one to read it again." : "The Archive of the Heart. Nothing is gathered yet: each note you write becomes a light here.", 8000);
     window.setTimeout(() => {
       fadeEl.classList.remove("on");
       crossing = false;
@@ -4420,6 +4432,7 @@ function pyramidFrame(dt: number): void {
 function deepFrame(dt: number, wt: number, inWater: boolean): void {
   const nearWater = heightAt(player.pos.x, player.pos.z) < WATER_Y - 2 && player.pos.y < 12;
   const ring = depths.update(wt, player.pos, inWater, nearWater);
+  depths.thoughts(camera, player.pos, !reader.open && !document.body.classList.contains("recording"));
   // the drowned cities: each begins its telling the first time you come into it, and it plays
   // on wherever you go (not while the voices rest, nor over an archive narration)
   if (!depths.inside)
@@ -4475,9 +4488,9 @@ function deepFrame(dt: number, wt: number, inWater: boolean): void {
     if (!player.swimming) player.placeUnder();
     if (depths.confine(player.pos) && !crossing) crossDeep(false);
     // the still water of the grotto: clear, blue-dark, a little warm light from the centre
-    fogUniforms.color.value.setRGB(0.02, 0.04, 0.06);
+    fogUniforms.color.value.setRGB(0.002, 0.003, 0.005);
     fogUniforms.density.value = 0.01;
-    gradeUniforms.shadow.value.setRGB(0.0, 0.01, 0.025);
+    gradeUniforms.shadow.value.setRGB(0, 0, 0);
     gradeUniforms.high.value.setRGB(1.0, 0.98, 0.94);
     gradeUniforms.sat.value = 1.0;
     gradeUniforms.contrast.value = 1.05;
