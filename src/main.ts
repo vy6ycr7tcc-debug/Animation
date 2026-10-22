@@ -353,6 +353,7 @@ const flowers = new Flowers(sparks, audio);
 const lanterns = new Lanterns(sparks);
 const blooms = new RisingFlowers();
 const wilds = new Wilds();
+(window as unknown as { __palmAt?: () => { x: number; y: number; z: number } | null }).__palmAt = () => wilds.nearestPalm(SPAWN.x, SPAWN.z);
 const landmarks = new Landmarks(scene, audio, wanderer);
 // The archetypes themselves, each at home in its landmark.
 const beings = new Beings(landmarks.list, sparks);

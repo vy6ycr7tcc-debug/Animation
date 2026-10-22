@@ -1,20 +1,23 @@
 /* The wilder places (Samuel: "caves, mountains with snow, palm trees, tall grass"):
-   - Palms on the beaches, where the sand meets the water. Round and curving as every living
-     thing here: a leaning trunk ringed with growth, fronds that arch out and fall away, each
-     curling into a spiral at its tip, and a few seed-lights under the crown. They sway.
+   - Palms on the beaches, where the sand meets the water: real coconut palms (the owner: the old
+     balloon fronds looked "odd" beside the realistic trees). A leaning, gently swollen trunk in
+     grey-brown bark scarred with old leaf rings; a crown of feathery fronds, each a midrib with
+     dozens of narrow leaflets drooping more toward its tip; a few dead fronds hanging brown
+     against the trunk; a cluster of coconuts. Lit by the moon, they sway.
    - Caves in the steep hillsides (placed in terrain.ts): a hollow of etched stone running into
      the hill, crystals glowing at the back, glow-worm lights on the ceiling. The rock dissolves
      wherever it would hide the wanderer from the camera.
    (The tall grass grows in life.ts; the snowy mountains rise in terrain.ts.) */
 import * as THREE from "three/webgpu";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { outOfTheWay, T, withFog, worldPoints } from "../gpu/tsl";
+import { outOfTheWay, T, worldPoints } from "../gpu/tsl";
+import { surface } from "./textures";
 import { crystalMaterial, prismGeometry } from "./creation";
 import { etchedStone } from "./etching";
 import type { LifeFrame } from "./life";
 import { CAVE_SITES, colliders, type Collider, fbm, groundKind, heightAt, keptClear, LANDMARK_SITES, SPAWN, WATER_Y } from "./terrain";
 
-const { attribute, cos, dot, float, fract, Fn, mix, normalWorld, positionLocal, positionWorld, sin, smoothstep, abs, screenCoordinate, step, uniform, vec2, vec3, vec4 } = T;
+const { attribute, cos, dot, float, fract, Fn, If, mix, positionLocal, positionWorld, sin, smoothstep, abs, screenCoordinate, step, texture, uniform, vec2, vec3 } = T;
 const V = THREE.Vector3;
 
 function hash(i: number, j: number, salt: number): number {
@@ -44,7 +47,7 @@ function tube(curve: THREE.Curve<THREE.Vector3>, segs: number, sides: number, r:
       nor.push(d.x, d.y, d.z);
       part.push(0);
       us.push(u);
-      xs.push(0);
+      xs.push(k / sides);
       sw.push(sway(u));
     }
   }
@@ -68,85 +71,149 @@ function tagged(pos: number[], nor: number[], part: number[], us: number[], xs: 
   return g;
 }
 
-/** One palm, about 6 m tall, leaning by `lean` metres at the crown. */
+/** One palm, about 6.5 m tall, leaning by `lean` metres at the crown. Parts (`aPart`): 0 trunk,
+    1 green leaflet, 2 coconut, 3 midrib, 4 dead frond. `aU` runs along the trunk or the frond,
+    `aX` around the trunk or out along a leaflet. */
 export function palmGeometry(lean: number): THREE.BufferGeometry {
-  const H = 6.2;
-  const trunk = new THREE.CatmullRomCurve3([new V(0, 0, 0), new V(lean * 0.2, H * 0.35, 0), new V(lean * 0.7, H * 0.72, 0), new V(lean, H, 0)]);
-  const parts = [tube(trunk, 18, 7, (u) => 0.19 * (1 - u * 0.4) + 0.12 * Math.max(0, 1 - u * 5), (u) => u * u * 0.3)];
+  const H = 6.4;
+  const trunk = new THREE.CatmullRomCurve3([new V(0, -0.3, 0), new V(lean * 0.15, H * 0.3, 0), new V(lean * 0.62, H * 0.7, 0), new V(lean, H, 0)]);
+  // a swollen foot, a slight bulge low, narrowing to the crown
+  const parts = [tube(trunk, 30, 12, (u) => 0.17 * (1 - u * 0.32) + 0.16 * Math.max(0, 1 - u * 7) + 0.015 * Math.sin(u * 9), (u) => u * u * 0.3)];
   const crown = trunk.getPoint(1);
   const up = new V(0, 1, 0);
-  for (let k = 0; k < 9; k++) {
-    const a = (k / 9) * Math.PI * 2 + (k % 2) * 0.25;
-    const dir = new V(Math.cos(a), 0, Math.sin(a)), side = new V(-Math.sin(a), 0, Math.cos(a));
-    const len = 2.5 + (k % 3) * 0.4;
+  // the crown's boot where the fronds spring from
+  {
+    const g = new THREE.SphereGeometry(0.24, 12, 8).scale(1, 1.35, 1).translate(crown.x, crown.y + 0.05, crown.z);
+    parts.push(tagGeo(g, 0, 1, 0.5, 0.3));
+  }
+  const rnd = (k: number) => {
+    const v = Math.sin(k * 91.7 + lean * 13.1) * 43758.5453;
+    return v - Math.floor(v);
+  };
+  const fronds = 16;
+  for (let k = 0; k < fronds; k++) {
+    const dead = k >= 13; // the last few hang dead against the trunk
+    const a = (k / 13) * Math.PI * 2 * 1.618 + rnd(k) * 0.4;
+    const dir = new V(Math.cos(a), 0, Math.sin(a));
+    const rise = dead ? -1 : k % 3 === 0 ? 0.55 : 0.2 + rnd(k + 3) * 0.3; // some reach up, most arch over
+    const len = dead ? 1.9 : 2.8 + rnd(k + 7) * 0.8;
     const pts: THREE.Vector3[] = [];
-    // out and a little up, then arching over and down
-    for (let i = 0; i <= 14; i++) {
-      const u = i / 14;
-      pts.push(crown.clone().addScaledVector(dir, len * u).addScaledVector(up, 0.9 * Math.sin(u * Math.PI * 0.55) - 1.7 * u * u));
+    for (let i = 0; i <= 16; i++) {
+      const u = i / 16;
+      if (dead) pts.push(crown.clone().addScaledVector(dir, 0.45 * Math.sin(u * 1.5)).addScaledVector(up, -len * u - 0.1));
+      else pts.push(crown.clone().addScaledVector(dir, len * u).addScaledVector(up, len * (rise * Math.sin(u * Math.PI * 0.5) * 0.9 - 0.42 * u * u)));
     }
-    // the tip curls into a small spiral, forward, down and back under
-    const tip = pts[pts.length - 1], r0 = 0.2, c = tip.clone().addScaledVector(up, -r0);
-    for (let i = 1; i <= 9; i++) {
-      const s = i / 9, th = Math.PI / 2 - s * Math.PI * 1.7, r = r0 * (1 - s * 0.72);
-      pts.push(c.clone().addScaledVector(dir, Math.cos(th) * r).addScaledVector(up, Math.sin(th) * r));
-    }
-    // a ribbon folded along its midrib, its leaflets drooping to either side
+    const rach = new THREE.CatmullRomCurve3(pts);
+    parts.push(retag(tube(rach, 14, 4, (u) => 0.032 * (1 - u * 0.75), (u) => 0.3 + u * 0.9), dead ? 4 : 3));
+    // the leaflets: narrow blades either side of the midrib, longest at the middle, drooping more
+    // toward the tip; a dead frond's hang folded close
     const pos: number[] = [], nor: number[] = [], part: number[] = [], us: number[] = [], xs: number[] = [], sw: number[] = [], idx: number[] = [];
-    pts.forEach((p, i) => {
-      const u = i / (pts.length - 1);
-      const w = 0.44 * Math.pow(Math.sin(Math.min(1, u * 1.25) * Math.PI), 0.6) * (1 - u * 0.55) + 0.02;
-      for (const x of [-1, 0, 1]) {
-        const q = p.clone().addScaledVector(side, x * w).addScaledVector(up, x === 0 ? 0.05 : -w * 0.4);
-        pos.push(q.x, q.y, q.z);
-        nor.push(0, 1, 0);
-        part.push(1);
-        us.push(u);
-        xs.push(x);
-        sw.push(0.35 + u * 0.9);
+    const N = dead ? 20 : 34;
+    const p = new V(), t = new V(), side = new V(), d = new V(), wv = new V(), n = new V();
+    for (let i = 1; i <= N; i++) {
+      const u = 0.06 + (i / N) * 0.92;
+      rach.getPoint(u, p);
+      rach.getTangent(u, t);
+      side.crossVectors(t, up);
+      if (side.lengthSq() < 1e-4) side.set(-dir.z, 0, dir.x);
+      side.normalize();
+      for (const sgn of [-1, 1]) {
+        const j = rnd(k * 97 + i * 7 + (sgn > 0 ? 1 : 0));
+        const droop = dead ? 1.35 : 0.25 + u * 0.85 + (j - 0.5) * 0.35;
+        d.copy(side).multiplyScalar(sgn * Math.cos(droop)).addScaledVector(up, -Math.sin(droop)).addScaledVector(t, 0.45).normalize();
+        const L = (dead ? 0.55 : 0.95) * Math.sin(Math.PI * (0.12 + u * 0.8)) * (0.85 + j * 0.3);
+        const W = dead ? 0.04 : 0.055;
+        wv.crossVectors(d, side).normalize();
+        if (wv.y < 0) wv.negate();
+        n.copy(wv);
+        // a blade: wide at its root, narrowing to a point, bowed a little along its length
+        const base = pos.length / 3;
+        const seg = 3;
+        for (let q = 0; q <= seg; q++) {
+          const f = q / seg, w = W * (1 - f * 0.85);
+          const c = p.clone().addScaledVector(d, L * f).addScaledVector(up, -0.06 * Math.sin(f * Math.PI) * L);
+          for (const e of [-1, 1]) {
+            const v = c.clone().addScaledVector(t, e * w);
+            pos.push(v.x, v.y, v.z);
+            nor.push(n.x, n.y, n.z);
+            part.push(dead ? 4 : 1);
+            us.push(u);
+            xs.push(f);
+            sw.push(0.3 + u * 0.9 + f * 0.25);
+          }
+        }
+        for (let q = 0; q < seg; q++) {
+          const a0 = base + q * 2;
+          idx.push(a0, a0 + 2, a0 + 1, a0 + 1, a0 + 2, a0 + 3);
+        }
       }
-    });
-    for (let i = 0; i < pts.length - 1; i++)
-      for (let x = 0; x < 2; x++) {
-        const a = i * 3 + x, b = a + 3;
-        idx.push(a, b, a + 1, b, b + 1, a + 1);
-      }
+    }
     parts.push(tagged(pos, nor, part, us, xs, sw, idx));
   }
-  // seed-lights hanging under the crown
-  for (let k = 0; k < 3; k++) {
-    const a = (k / 3) * Math.PI * 2 + 0.4;
-    const g = new THREE.SphereGeometry(0.09, 8, 6).translate(crown.x + Math.cos(a) * 0.17, crown.y - 0.28, crown.z + Math.sin(a) * 0.17);
-    g.deleteAttribute("uv");
-    const n = g.attributes.position.count;
-    g.setAttribute("aPart", new THREE.Float32BufferAttribute(new Array(n).fill(2), 1));
-    g.setAttribute("aU", new THREE.Float32BufferAttribute(new Array(n).fill(1), 1));
-    g.setAttribute("aX", new THREE.Float32BufferAttribute(new Array(n).fill(0), 1));
-    g.setAttribute("aSway", new THREE.Float32BufferAttribute(new Array(n).fill(0.3), 1));
-    parts.push(g);
+  // coconuts clustered under the crown
+  for (let k = 0; k < 6; k++) {
+    const a = (k / 6) * Math.PI * 2 + 0.4, r = 0.2 + (k % 2) * 0.06;
+    const g = new THREE.SphereGeometry(0.12, 10, 8).scale(1, 1.12, 1).translate(crown.x + Math.cos(a) * r, crown.y - 0.3 - (k % 3) * 0.08, crown.z + Math.sin(a) * r);
+    parts.push(tagGeo(g, 2, 1, 0, 0.3));
   }
   return mergeGeometries(parts)!;
 }
 
-export function palmMaterial(uT: ReturnType<typeof uniform>): THREE.MeshBasicNodeMaterial {
-  const m = new THREE.MeshBasicNodeMaterial({ side: THREE.DoubleSide, fog: false });
+/** Tag a plain geometry for the palm's shader. */
+function tagGeo(g: THREE.BufferGeometry, part: number, u: number, x: number, sway: number): THREE.BufferGeometry {
+  g.deleteAttribute("uv");
+  const n = g.attributes.position.count;
+  g.setAttribute("aPart", new THREE.Float32BufferAttribute(new Array(n).fill(part), 1));
+  g.setAttribute("aU", new THREE.Float32BufferAttribute(new Array(n).fill(u), 1));
+  g.setAttribute("aX", new THREE.Float32BufferAttribute(new Array(n).fill(x), 1));
+  g.setAttribute("aSway", new THREE.Float32BufferAttribute(new Array(n).fill(sway), 1));
+  return g;
+}
+/** A tube made for the trunk, tagged as another part. */
+function retag(g: THREE.BufferGeometry, part: number): THREE.BufferGeometry {
+  const a = g.getAttribute("aPart") as THREE.BufferAttribute;
+  for (let i = 0; i < a.count; i++) a.setX(i, part);
+  return g;
+}
+
+export function palmMaterial(uT: ReturnType<typeof uniform>): THREE.MeshStandardNodeMaterial {
+  const bark = surface("bark");
+  const m = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide, roughness: 0.85, metalness: 0 });
   const aSway = attribute("aSway", "float");
-  // the wind: slow, and strongest at the fronds' tips (positionLocal here is the placed palm)
+  // the wind: slow, and strongest at the fronds' tips (positionLocal here is the placed palm);
+  // the leaflets flutter a little on their own
   const ph = positionLocal.x.mul(0.07).add(positionLocal.z.mul(0.05));
-  m.positionNode = positionLocal.add(vec3(sin(uT.mul(0.9).add(ph)), 0, cos(uT.mul(0.7).add(ph.mul(1.3)))).mul(aSway).mul(0.14));
+  const flutter = sin(uT.mul(3.1).add(attribute("aU", "float").mul(23)).add(ph)).mul(attribute("aX", "float")).mul(0.035);
+  m.positionNode = positionLocal.add(vec3(sin(uT.mul(0.9).add(ph)), 0, cos(uT.mul(0.7).add(ph.mul(1.3)))).mul(aSway).mul(0.14)).add(vec3(0, flutter, 0));
+  const part = attribute("aPart", "float"), u = attribute("aU", "float"), x = attribute("aX", "float");
   m.colorNode = Fn(() => {
-    const part = attribute("aPart", "float"), u = attribute("aU", "float"), x = attribute("aX", "float");
-    const shade = normalWorld.y.abs().mul(0.3).add(0.7);
-    // the trunk: rings of old growth, paler toward the crown
-    const bands = smoothstep(0.55, 1, sin(u.mul(70)).mul(0.5).add(0.5));
-    const trunk = mix(vec3(0.045, 0.038, 0.048), vec3(0.13, 0.11, 0.125), bands.mul(0.6).add(u.mul(0.3)));
-    // the fronds: dark sea-green, paler along the midrib, with a thread of moonlight on it
-    const frond = mix(vec3(0.012, 0.022, 0.03), vec3(0.04, 0.066, 0.08), float(1).sub(abs(x)).mul(0.7).add(0.15))
-      .add(vec3(0.4, 0.5, 0.56).mul(smoothstep(0.2, 0, abs(x))).mul(0.09));
-    const seed = vec3(1.0, 0.82, 0.52).mul(1.1);
-    const c = mix(mix(trunk, frond, step(0.5, part)), seed, step(1.5, part)).mul(mix(shade, 1, step(1.5, part)));
-    return vec4(withFog(c, positionWorld), 1);
+    // the trunk: grey-brown bark, scarred in rings where old fronds fell, darker at the foot
+    const bk = texture(bark.diff, vec2(x.mul(3), u.mul(16))).rgb;
+    const ring = smoothstep(0.1, 0.0, abs(fract(u.mul(40)).sub(0.5)).sub(0.38));
+    const trunk = bk.mul(vec3(0.62, 0.55, 0.48)).mul(float(1).sub(ring.mul(0.5))).mul(mix(0.7, 1, smoothstep(0, 0.15, u)));
+    // the leaflets: deep green, yellower toward their tips and on the older outer fronds
+    const h = fract(sin(positionWorld.x.mul(12.9).add(positionWorld.z.mul(78.2))).mul(43758.5));
+    const leaf = mix(vec3(0.03, 0.068, 0.028), vec3(0.1, 0.15, 0.05), x.mul(0.6).add(u.mul(0.3)).add(h.mul(0.15)));
+    const rib = vec3(0.24, 0.23, 0.13);
+    const nut = vec3(0.16, 0.12, 0.06);
+    const dead = vec3(0.3, 0.22, 0.12).mul(h.mul(0.3).add(0.8));
+    const c = trunk.toVar();
+    If(part.greaterThan(0.5), () => {
+      c.assign(leaf);
+    });
+    If(part.greaterThan(1.5), () => {
+      c.assign(nut);
+    });
+    If(part.greaterThan(2.5), () => {
+      c.assign(rib);
+    });
+    If(part.greaterThan(3.5), () => {
+      c.assign(dead);
+    });
+    return c;
   })();
+  // the leaflets let a little of the moon through, and the glossy upper side catches it
+  m.roughnessNode = mix(float(0.88), float(0.62), step(0.5, part).mul(step(part, 1.5)));
   return m;
 }
 
@@ -206,6 +273,22 @@ export class Wilds {
       this.group.add(mesh);
     }
     this.buildCaves();
+  }
+
+  /** The palm nearest (x, z) within ~600 m (for still frames). */
+  nearestPalm(x: number, z: number): { x: number; y: number; z: number } | null {
+    const ci = Math.floor(x / PCELL), cj = Math.floor(z / PCELL);
+    let best: Palm | null = null, bd = Infinity;
+    for (let r = 0; r <= 38 && !best; r++)
+      for (let i = -r; i <= r; i++)
+        for (let j = -r; j <= r; j++) {
+          if (Math.max(Math.abs(i), Math.abs(j)) !== r) continue;
+          for (const p of this.palmsAt(ci + i, cj + j)) {
+            const d = Math.hypot(p.x - x, p.z - z);
+            if (d < bd) (bd = d), (best = p);
+          }
+        }
+    return best;
   }
 
   private palmsAt(i: number, j: number): Palm[] {
