@@ -47,7 +47,8 @@ const rnd = () => ((seed = (Math.imul(seed, 16807) + 11) % 2147483647), (seed & 
 
 /* ---- the way down: control points (x, z, floor y, half-width, height, zone) ----
    zone: 0 rock, 1 quartz, 2 geode, 3 fluorite, 4 selenite, 5 heart */
-const CTRL: [number, number, number, number, number, number][] = [
+type Ctrl = [number, number, number, number, number, number];
+const CTRL: Ctrl[] = [
   [0, 6, 0.6, 1.4, 2.6, 0],
   [0, 0, 0, 2.2, 3.2, 0],
   [0.5, -22, -3, 2.4, 3.2, 0],
@@ -95,7 +96,7 @@ interface Sample {
   tx: number;
   tz: number;
 }
-function samplePath(): Sample[] {
+function samplePath(CTRL: Ctrl[]): Sample[] {
   const pts = CTRL.map(([x, z]) => new THREE.Vector3(x, 0, z));
   const attr = CTRL.map(([, , y, w, h, zone]) => new THREE.Vector4(y, w, h, zone));
   const curve = new THREE.CatmullRomCurve3(pts, false, "catmullrom", 0.5);
@@ -115,16 +116,16 @@ function samplePath(): Sample[] {
 /** How far the rock swells in (−) or out (+) of the round section at a point, as a fraction: broad
     swells and hollows and a finer roughness, gentler in the narrow passages (the crown stays
     over your head there). */
-const rockSwell = (x: number, y: number, z: number, r: number) =>
+export const rockSwell = (x: number, y: number, z: number, r: number) =>
   ((fbm3(x * 0.13, y * 0.13, z * 0.13) - 0.5) * 0.95 + (vn3(x * 0.55, y * 0.55, z * 0.55) - 0.5) * 0.28 + (vn3(x * 2.1, y * 2.1, z * 2.1) - 0.5) * 0.06) * Math.min(1, Math.max(0.3, r / 4));
 /** The floor's own small unevenness (the same for the mesh and for your feet). */
-const floorBump = (x: number, z: number) => (vn3(x * 0.45, 0.5, z * 0.45) - 0.5) * 0.28 + (vn3(x * 1.6, 3.5, z * 1.6) - 0.5) * 0.06;
+export const floorBump = (x: number, z: number) => (vn3(x * 0.45, 0.5, z * 0.45) - 0.5) * 0.28 + (vn3(x * 1.6, 3.5, z * 1.6) - 0.5) * 0.06;
 
 /* ---- the rock ---- */
-function rockMaterial(crust = true): THREE.MeshStandardNodeMaterial {
+function rockMaterial(crust = true, origin = CAVERN_ORIGIN): THREE.MeshStandardNodeMaterial {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.8, metalness: 0 });
   const S = surface("cliff");
-  const pw = T.positionWorld.sub(T.vec3(CAVERN_ORIGIN.x, CAVERN_ORIGIN.y, CAVERN_ORIGIN.z));
+  const pw = T.positionWorld.sub(T.vec3(origin.x, origin.y, origin.z));
   const n = T.normalWorldGeometry;
   const wp = T.pow(T.abs(n), T.vec3(4));
   const w = wp.div(wp.x.add(wp.y).add(wp.z));
@@ -342,35 +343,66 @@ function unitCrystal(): THREE.BufferGeometry {
 
 const C = (hex: string, k = 1) => new THREE.Color(hex).multiplyScalar(k);
 
-/** The crystal caverns: the place apart, and its fissure in the world. */
-export class Cavern {
+/** One underground place: its way down (control points: x, z, floor y, half-width, height, zone),
+    its chambers, where it opens in the world, how its section is cut and what is built in it. */
+export interface UndergroundSpec {
+  /** Its name (the map, whispers, where you are). */
+  label: string;
+  /** What is said as you come in. */
+  greeting: string;
+  origin: THREE.Vector3;
+  ctrl: Ctrl[];
+  chambers: { name: string; at: number }[];
+  /** The hollow in the world it opens from (its mouth faces `face`), and the doorway itself. */
+  site: { x: number; y: number; z: number; face: number };
+  door: THREE.Vector3;
+  doorReach: number;
+  /** "arch": a cave's rough arch over a level floor; "drift": a mine's squared tunnel. */
+  section: "arch" | "drift";
+  /** How much the rock swells and hollows (1 a cave; less in a cut tunnel). */
+  swell: number;
+  rock: (crust: boolean) => THREE.MeshStandardNodeMaterial;
+  speleothems: boolean;
+  hemi: [number, number, number];
+  /** Builds its doorway in the world (into `u.world`). */
+  exterior: (u: Underground) => void;
+  /** Builds what fills it (crystals, timbers…), its lights and solids, after the rock. */
+  decorate: (u: Underground) => void;
+  /** Where you stand coming out, from the site toward its mouth (metres), facing out. */
+  outsideAt: number;
+}
+
+/** A place apart underground (the crystal caverns, the gold mines): one long way down, swept as a
+    tube along a path whose plan never crosses itself. */
+export class Underground {
   readonly group = new THREE.Group(); // the cave (built on going in, freed on coming out)
   readonly world = new THREE.Group(); // the fissure at the back of the cave by the shore
   inside = false;
-  /** The cave in the world it opens from, the fissure, where you stand coming out. */
+  /** The hollow in the world it opens from, the doorway, where you stand coming out. */
   readonly site: { x: number; y: number; z: number; face: number };
   readonly door = new THREE.Vector3();
-  private samples: Sample[] = [];
+  readonly O: THREE.Vector3;
+  samples: Sample[] = [];
   private grid = new Map<number, number[]>();
   private lights: THREE.PointLight[] = [];
-  private sources: { p: THREE.Vector3; c: THREE.Color; k: number; r: number }[] = [];
-  private hemi = new THREE.HemisphereLight(0x5a5070, 0x1a140f, 0.9);
-  private solids: Collider[] = [];
+  /** Its lights (the nearest four are lit), and what stands solid in it, filled by `decorate`. */
+  sources: { p: THREE.Vector3; c: THREE.Color; k: number; r: number }[] = [];
+  private hemi: THREE.HemisphereLight;
+  solids: Collider[] = [];
   private builtParts: THREE.Object3D[] = [];
   private told = new Set<number>();
-  /** The heart's crystal (its light breathes; you can lay your hands on it). */
+  /** Its heart (the crystal caverns' great crystal), if it has one: heard near. */
   readonly heart = new THREE.Vector3();
+  hasHeart = false;
+  private heartK = 0;
 
-  constructor() {
-    // the cave nearest the shore, its fissure at the back of the hollow (wilds.ts builds the cave)
-    let best = CAVE_SITES[0];
-    for (const c of CAVE_SITES) if (Math.hypot(c.x - SPAWN.x, c.z - SPAWN.z) < Math.hypot(best.x - SPAWN.x, best.z - SPAWN.z)) best = c;
-    this.site = best;
-    const R = 7.5;
-    const bx = best.x - Math.cos(best.face) * R * 0.74, bz = best.z - Math.sin(best.face) * R * 0.74;
-    this.door.set(bx, heightAt(bx, bz), bz);
-    this.buildFissure();
-    this.samples = samplePath();
+  constructor(readonly spec: UndergroundSpec) {
+    this.O = spec.origin;
+    this.site = spec.site;
+    this.door.copy(spec.door);
+    this.hemi = new THREE.HemisphereLight(spec.hemi[0], spec.hemi[1], spec.hemi[2]);
+    spec.exterior(this);
+    this.samples = samplePath(spec.ctrl);
     this.samples.forEach((s, i) => {
       const k = this.key(s.x, s.z);
       (this.grid.get(k) ?? this.grid.set(k, []).get(k)!).push(i);
@@ -385,6 +417,21 @@ export class Cavern {
     this.group.add(this.hemi);
   }
 
+  /** The section's shape at angle θ (0 the floor's middle, π the crown): a round arch, or a
+      squared drift (a superellipse), half-width a, half-height b. */
+  private ring(th: number, a: number, b: number): [number, number] {
+    if (this.spec.section === "arch") return [a * Math.sin(th), -b * Math.cos(th)];
+    const sn = Math.sin(th), cs = Math.cos(th);
+    return [a * Math.sign(sn) * Math.pow(Math.abs(sn), 0.5), -b * Math.sign(cs) * Math.pow(Math.abs(cs), 0.5)];
+  }
+  /** How high the section's centre stands over the floor (of its half-height), and how much of
+      its width is level floor. */
+  private get ycK(): number {
+    return this.spec.section === "arch" ? 0.75 : 0.9;
+  }
+  private get floorFrac(): number {
+    return this.spec.section === "arch" ? 0.6 : 0.8;
+  }
   private key(x: number, z: number): number {
     return (Math.floor(x / 4) + 5000) * 10007 + (Math.floor(z / 4) + 5000);
   }
@@ -413,73 +460,73 @@ export class Cavern {
 
   /** The floor under a point inside. */
   floorAt(x: number, z: number): number {
-    const lx = x - CAVERN_ORIGIN.x, lz = z - CAVERN_ORIGIN.z;
+    const lx = x - this.O.x, lz = z - this.O.z;
     const s = this.samples[this.nearest(lx, lz)];
-    return CAVERN_ORIGIN.y + s.y + floorBump(lx, lz);
+    return this.O.y + s.y + floorBump(lx, lz);
   }
   /** Keep the wanderer on the cave's floor; true when it has walked back out of the fissure. */
   confine(p: THREE.Vector3): boolean {
-    const lx = p.x - CAVERN_ORIGIN.x, lz = p.z - CAVERN_ORIGIN.z;
+    const lx = p.x - this.O.x, lz = p.z - this.O.z;
     const i = this.nearest(lx, lz), s = this.samples[i];
     const dx = lx - s.x, dz = lz - s.z;
     const along = dx * s.tx + dz * s.tz, lat = dx * -s.tz + dz * s.tx;
     if (i <= 1 && along < -0.4) return true;
-    const lim = Math.max(0.5, s.w * 0.6 - 0.45);
+    const lim = Math.max(0.5, s.w * this.floorFrac - 0.45);
     let nl = lat, na = along;
     if (Math.abs(lat) > lim) nl = Math.sign(lat) * lim;
     if (i >= this.samples.length - 4) na = Math.min(along, 0);
     if (nl !== lat || na !== along) {
-      p.x = CAVERN_ORIGIN.x + s.x + s.tx * na - s.tz * nl;
-      p.z = CAVERN_ORIGIN.z + s.z + s.tz * na + s.tx * nl;
+      p.x = this.O.x + s.x + s.tx * na - s.tz * nl;
+      p.z = this.O.z + s.z + s.tz * na + s.tx * nl;
     }
     return false;
   }
   /** Standing at the fissure, on foot. */
   atDoor(p: THREE.Vector3): boolean {
     // (the cave's own crystals stand solid just before the fissure: its reach comes out past them)
-    return Math.hypot(p.x - this.door.x, p.z - this.door.z) < 2.3 && Math.abs(p.y - this.door.y) < 2.5;
+    return Math.hypot(p.x - this.door.x, p.z - this.door.z) < this.spec.doorReach && Math.abs(p.y - this.door.y) < 2.5;
   }
   /** Where you stand coming in: a few steps in, facing down the way. */
   entry(): { x: number; y: number; z: number; heading: number } {
     const s = this.samples[6];
-    const x = CAVERN_ORIGIN.x + s.x, z = CAVERN_ORIGIN.z + s.z;
+    const x = this.O.x + s.x, z = this.O.z + s.z;
     return { x, y: this.floorAt(x, z), z, heading: Math.atan2(-s.tx, -s.tz) };
   }
   /** A place along the way (0 the fissure … 1 the end), facing on down it: for stills. */
   spot(f: number): { x: number; y: number; z: number; heading: number } {
     const s = this.samples[Math.round(f * (this.samples.length - 1))];
-    const x = CAVERN_ORIGIN.x + s.x, z = CAVERN_ORIGIN.z + s.z;
+    const x = this.O.x + s.x, z = this.O.z + s.z;
     return { x, y: this.floorAt(x, z), z, heading: Math.atan2(-s.tx, -s.tz) };
   }
   /** A few steps before chamber `i`, looking into it: for stills. */
   chamberSpot(i: number, back = 14): { x: number; y: number; z: number; heading: number } {
-    const [cx, cz] = CTRL[CHAMBERS[i].at];
+    const [cx, cz] = this.spec.ctrl[this.spec.chambers[i].at];
     let k = 0, bd = Infinity;
     this.samples.forEach((s, j) => {
       const d = Math.hypot(s.x - cx, s.z - cz);
       if (d < bd) (bd = d), (k = j);
     });
     const sp = this.spot(Math.max(0, k - back) / (this.samples.length - 1));
-    if (back > 0) sp.heading = Math.atan2(-(CAVERN_ORIGIN.x + cx - sp.x), -(CAVERN_ORIGIN.z + cz - sp.z));
+    if (back > 0) sp.heading = Math.atan2(-(this.O.x + cx - sp.x), -(this.O.z + cz - sp.z));
     return sp;
   }
   /** Where you stand coming out: in the cave by the shore, turned toward its mouth. */
   outside(): { x: number; z: number; heading: number } {
-    const f = this.site.face, x = this.site.x - Math.cos(f) * 1.5, z = this.site.z - Math.sin(f) * 1.5;
+    const f = this.site.face, x = this.site.x + Math.cos(f) * this.spec.outsideAt, z = this.site.z + Math.sin(f) * this.spec.outsideAt;
     return { x, z, heading: Math.atan2(-Math.cos(f), -Math.sin(f)) };
   }
   /** The chamber you are in (its name), or null in a passage. */
   chamber(p: THREE.Vector3): { name: string; depth: number; i: number } | null {
-    const lx = p.x - CAVERN_ORIGIN.x, lz = p.z - CAVERN_ORIGIN.z;
+    const lx = p.x - this.O.x, lz = p.z - this.O.z;
     let best = -1, bd = Infinity;
-    CHAMBERS.forEach((c, i) => {
-      const [x, z] = CTRL[c.at];
+    this.spec.chambers.forEach((c, i) => {
+      const [x, z] = this.spec.ctrl[c.at];
       const d = Math.hypot(lx - x, lz - z);
       if (d < bd) (bd = d), (best = i);
     });
-    const c = CHAMBERS[best], w = CTRL[c.at][3];
+    const c = this.spec.chambers[best], w = this.spec.ctrl[c.at][3];
     if (bd > Math.max(5, w * 0.9)) return null;
-    return { name: c.name, depth: Math.round(-CTRL[c.at][2] + 6), i: best };
+    return { name: c.name, depth: Math.round(-this.spec.ctrl[c.at][2] + 6), i: best };
   }
   /** Say a chamber's name the first time you come into it (once a visit). */
   arrived(p: THREE.Vector3): string | null {
@@ -518,8 +565,7 @@ export class Cavern {
       const breath = 0.88 + 0.12 * Math.sin(t * 0.5 + i * 1.7);
       l.intensity = r.s.k * breath * (r.d < r.s.r * 1.3 ? 1 : 0);
     });
-    const dh = this.heart.distanceTo(player);
-    cavernUniforms.uHeart.value = THREE.MathUtils.clamp(1 - (dh - 4) / 18, 0, 1);
+    this.heartK = this.hasHeart ? THREE.MathUtils.clamp(1 - (this.heart.distanceTo(player) - 4) / 18, 0, 1) : 0;
   }
   /** What the gaze rests on in contemplation: the nearest of the crystals' lights. */
   focus(player: THREE.Vector3): THREE.Vector3[] {
@@ -532,56 +578,15 @@ export class Cavern {
   }
   /** How near the heart's crystal (0 far … 1 beside it), for its hum. */
   get heartNear(): number {
-    return cavernUniforms.uHeart.value as number;
-  }
-
-  /* ---------------------------------------------------------------- the world's fissure */
-  private buildFissure(): void {
-    const f = this.site.face;
-    // a tall jagged crack, black within, cold violet light standing in it
-    const sh = new THREE.Shape();
-    const hgt = 2.9, wid = 0.75;
-    const pts: [number, number][] = [];
-    for (let k = 0; k <= 10; k++) pts.push([wid * Math.sin((k / 10) * Math.PI) * (0.7 + ((k * 7) % 5) * 0.08), (k / 10) * hgt]);
-    for (let k = 10; k >= 0; k--) pts.push([-wid * Math.sin((k / 10) * Math.PI) * (0.65 + ((k * 3) % 4) * 0.1), (k / 10) * hgt]);
-    sh.moveTo(pts[0][0], pts[0][1]);
-    for (const [x, y] of pts.slice(1)) sh.lineTo(x, y);
-    const crack = new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshBasicNodeMaterial({ color: 0x020104 }));
-    const glow = new THREE.Mesh(
-      new THREE.PlaneGeometry(2.4, 3.6),
-      (() => {
-        const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
-        const uv = T.uv().sub(0.5);
-        const a = T.smoothstep(0.5, 0.0, T.length(uv.mul(T.vec2(1.6, 1)))).mul(T.sin(gpuUniforms.time.mul(0.6)).mul(0.15).add(0.85));
-        m.colorNode = T.vec4(T.vec3(0.32, 0.22, 0.6).mul(a).mul(0.6), 1);
-        return m;
-      })(),
-    );
-    glow.position.set(0, 1.4, 0.06);
-    const g = new THREE.Group();
-    g.add(crack, glow);
-    // a few crystals at its foot, the first of what lies within
-    seed = 99;
-    const b = new CrystalBuilder();
-    for (let k = 0; k < 9; k++) {
-      const side = k % 2 ? 1 : -1;
-      const base = new THREE.Vector3(side * (0.5 + rnd() * 0.7), 0, 0.15 + rnd() * 0.5);
-      const dir = new THREE.Vector3(side * (0.2 + rnd() * 0.5), 1, rnd() * 0.4);
-      const len = 0.25 + rnd() * 0.55;
-      b.prism(base, dir, len, len * 0.16, len * 0.25, C("#cdd6ff", 0.9), 0.8);
-    }
-    g.add(new THREE.Mesh(b.build(), crystalMaterial()));
-    g.position.copy(this.door);
-    g.rotation.y = Math.PI / 2 - f; // facing the mouth (+face)
-    this.world.add(g);
+    return this.heartK;
   }
 
   /* ---------------------------------------------------------------- the cave, built on going in */
   private build(): void {
     if (this.builtParts.length) return;
     seed = 7;
-    const S = this.samples, O = CAVERN_ORIGIN;
-    const rock = rockMaterial();
+    const S = this.samples, O = this.O;
+    const rock = this.spec.rock(true);
     rock.side = THREE.FrontSide;
     // the tube, in chunks (so the camera's walls test only what is near)
     const CH = 48;
@@ -590,17 +595,17 @@ export class Cavern {
       const pos: number[] = [], zone: number[] = [], upA: number[] = [], idx: number[] = [];
       for (let i = c0; i <= c1; i++) {
         const s = S[i], nx = -s.tz, nz = s.tx;
-        const a = s.w, b = s.h / 2, yc = s.y + b * 0.75;
+        const a = s.w, b = s.h / 2, yc = s.y + b * this.ycK;
         for (let j = 0; j <= RING; j++) {
           const th = (j / RING) * Math.PI * 2;
-          let lat = a * Math.sin(th), up = -b * Math.cos(th);
+          let [lat, up] = this.ring(th, a, b);
           const wx = s.x + nx * lat, wz = s.z + nz * lat;
           let y = yc + up;
           const floor = s.y + floorBump(wx, wz);
           if (y <= floor + 0.02) y = floor;
           else {
             // the rock's own shape: swells and hollows, larger in the great chambers
-            const k = rockSwell(wx, y, wz, Math.min(a, b));
+            const k = rockSwell(wx, y, wz, Math.min(a, b)) * this.spec.swell;
             const rise = Math.min(1, (y - floor) / 0.8);
             lat *= 1 + k * rise;
             up = (y - yc) * (1 + k * rise * 0.8);
@@ -658,7 +663,7 @@ export class Cavern {
       g.computeVertexNormals();
       return g;
     };
-    for (let i = 10; i < S.length - 8; i += 3) {
+    for (let i = 10; i < S.length - 8 && this.spec.speleothems; i += 3) {
       const s = S[i];
       if (s.h < 3.6 || rnd() > 0.5) continue;
       // a stalactite hanging from near the crown
@@ -679,7 +684,7 @@ export class Cavern {
         parts.push(tag(m, s.zone, 0.1));
       }
     }
-    for (let i = 12; i < S.length - 8; i += 5) {
+    for (let i = 12; i < S.length - 8; i += this.spec.speleothems ? 5 : 9) {
       const s = S[i];
       if (rnd() > 0.45) continue;
       // fallen blocks at the floor's edges, never on the way itself
@@ -702,7 +707,7 @@ export class Cavern {
     if (parts.length) {
       const merged = mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g)));
       merged.computeBoundingSphere();
-      const sp = new THREE.Mesh(merged, rockMaterial(false));
+      const sp = new THREE.Mesh(merged, this.spec.rock(false));
       this.add(sp);
     }
     // the way out: daylight, faint, beyond the fissure behind you
@@ -719,9 +724,9 @@ export class Cavern {
     this.add(out);
     this.sources = [];
     this.solids = [];
-    this.buildCrystals();
+    this.spec.decorate(this);
   }
-  private add(o: THREE.Object3D): void {
+  add(o: THREE.Object3D): void {
     this.group.add(o);
     this.builtParts.push(o);
   }
@@ -743,15 +748,15 @@ export class Cavern {
 
   /** A point on the wall of sample i at angle θ (0 the floor's middle, π the crown), with the
       direction into the cave there. */
-  private wallAt(i: number, th: number): { p: THREE.Vector3; n: THREE.Vector3 } {
-    const s = this.samples[i], O = CAVERN_ORIGIN;
-    const a = s.w, b = s.h / 2, yc = s.y + b * 0.75;
-    const lat = a * Math.sin(th), up = -b * Math.cos(th);
+  wallAt(i: number, th: number): { p: THREE.Vector3; n: THREE.Vector3 } {
+    const s = this.samples[i], O = this.O;
+    const a = s.w, b = s.h / 2, yc = s.y + b * this.ycK;
+    const [lat, up] = this.ring(th, a, b);
     let y = yc + up;
     const wx = s.x - s.tz * lat, wz = s.z + s.tx * lat;
     const floor = s.y + floorBump(wx, wz);
     y = Math.max(floor, y);
-    const k = rockSwell(wx, y, wz, Math.min(a, b));
+    const k = rockSwell(wx, y, wz, Math.min(a, b)) * this.spec.swell;
     const rise = Math.min(1, (y - floor) / 0.8);
     const L = lat * (1 + k * rise), U = (y - yc) * (1 + k * rise * 0.8);
     const p = new THREE.Vector3(O.x + s.x - s.tz * L, O.y + Math.max(floor, yc + U), O.z + s.z + s.tx * L);
@@ -760,8 +765,80 @@ export class Cavern {
     if (y <= floor + 0.05) n.set(0, 1, 0);
     return { p, n };
   }
-  private buildCrystals(): void {
-    const S = this.samples, O = CAVERN_ORIGIN;
+}
+
+/** The crystal caverns: their fissure in the cave nearest the shore, and their crystals. */
+export class Cavern extends Underground {
+  constructor() {
+    // the cave nearest the shore, its fissure at the back of the hollow (wilds.ts builds the cave)
+    let best = CAVE_SITES[0];
+    for (const c of CAVE_SITES) if (Math.hypot(c.x - SPAWN.x, c.z - SPAWN.z) < Math.hypot(best.x - SPAWN.x, best.z - SPAWN.z)) best = c;
+    const R = 7.5;
+    const bx = best.x - Math.cos(best.face) * R * 0.74, bz = best.z - Math.sin(best.face) * R * 0.74;
+    super({
+      label: "The crystal caverns",
+      greeting: "The crystal caverns. The way winds down a long way into the dark: walk on, and back up to this fissure to come out.",
+      origin: CAVERN_ORIGIN,
+      ctrl: CTRL,
+      chambers: CHAMBERS,
+      site: best,
+      door: new THREE.Vector3(bx, heightAt(bx, bz), bz),
+      // (the cave's own crystals stand solid just before the fissure: its reach comes out past them)
+      doorReach: 2.3,
+      section: "arch",
+      swell: 1,
+      rock: (crust) => rockMaterial(crust),
+      speleothems: true,
+      hemi: [0x5a5070, 0x1a140f, 0.9],
+      exterior: (u) => (u as Cavern).buildFissure(),
+      decorate: (u) => (u as Cavern).buildCrystals(),
+      outsideAt: -1.5,
+    });
+  }
+
+  /* ---------------------------------------------------------------- the world's fissure */
+  buildFissure(): void {
+    const f = this.site.face;
+    // a tall jagged crack, black within, cold violet light standing in it
+    const sh = new THREE.Shape();
+    const hgt = 2.9, wid = 0.75;
+    const pts: [number, number][] = [];
+    for (let k = 0; k <= 10; k++) pts.push([wid * Math.sin((k / 10) * Math.PI) * (0.7 + ((k * 7) % 5) * 0.08), (k / 10) * hgt]);
+    for (let k = 10; k >= 0; k--) pts.push([-wid * Math.sin((k / 10) * Math.PI) * (0.65 + ((k * 3) % 4) * 0.1), (k / 10) * hgt]);
+    sh.moveTo(pts[0][0], pts[0][1]);
+    for (const [x, y] of pts.slice(1)) sh.lineTo(x, y);
+    const crack = new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshBasicNodeMaterial({ color: 0x020104 }));
+    const glow = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.4, 3.6),
+      (() => {
+        const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
+        const uv = T.uv().sub(0.5);
+        const a = T.smoothstep(0.5, 0.0, T.length(uv.mul(T.vec2(1.6, 1)))).mul(T.sin(gpuUniforms.time.mul(0.6)).mul(0.15).add(0.85));
+        m.colorNode = T.vec4(T.vec3(0.32, 0.22, 0.6).mul(a).mul(0.6), 1);
+        return m;
+      })(),
+    );
+    glow.position.set(0, 1.4, 0.06);
+    const g = new THREE.Group();
+    g.add(crack, glow);
+    // a few crystals at its foot, the first of what lies within
+    seed = 99;
+    const b = new CrystalBuilder();
+    for (let k = 0; k < 9; k++) {
+      const side = k % 2 ? 1 : -1;
+      const base = new THREE.Vector3(side * (0.5 + rnd() * 0.7), 0, 0.15 + rnd() * 0.5);
+      const dir = new THREE.Vector3(side * (0.2 + rnd() * 0.5), 1, rnd() * 0.4);
+      const len = 0.25 + rnd() * 0.55;
+      b.prism(base, dir, len, len * 0.16, len * 0.25, C("#cdd6ff", 0.9), 0.8);
+    }
+    g.add(new THREE.Mesh(b.build(), crystalMaterial()));
+    g.position.copy(this.door);
+    g.rotation.y = Math.PI / 2 - f; // facing the mouth (+face)
+    this.world.add(g);
+  }
+
+  buildCrystals(): void {
+    const S = this.samples, O = this.O;
     const b = new CrystalBuilder();
     const light = (i: number, c: THREE.Color, k: number, r: number, lift = 0.6) => {
       const s = S[i];
@@ -870,6 +947,7 @@ export class Cavern {
     // the heart: one great crystal in a still pool, a crown of smaller ones round it
     const hi = n - 18, hs = S[hi];
     this.heart.set(O.x + hs.x, O.y + hs.y, O.z + hs.z);
+    this.hasHeart = true;
     for (let k = 0; k < 12; k++) {
       const ang = (k / 12) * Math.PI * 2 + rnd() * 0.3;
       const base = this.heart.clone().add(new THREE.Vector3(Math.cos(ang) * 0.6, -0.3, Math.sin(ang) * 0.6));
