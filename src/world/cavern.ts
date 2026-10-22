@@ -223,6 +223,8 @@ class CrystalBuilder {
   bary: number[] = [];
   /** 0 a prism face, 1 a termination face, 2 a cube's face. */
   kind: number[] = [];
+  /** Each vertex's crystal axis (its length), so a shader need not guess it from derivatives. */
+  axis: number[] = [];
   /** The crystal's middle (its axis, or a cube's centre): every face is turned to look away from it. */
   private axisA = new THREE.Vector3();
   private axisD: THREE.Vector3 | null = null;
@@ -244,6 +246,8 @@ class CrystalBuilder {
       for (let q = 0; q < 3; q++) this.bary.push(q === vi || offs[q] ? 1 : 0);
       vi++;
       this.kind.push(kind);
+      const ad = this.axisD;
+      this.axis.push(ad ? ad.x : 0, ad ? ad.y : 1, ad ? ad.z : 0);
       this.pos.push(p.x, p.y, p.z);
       this.nor.push(nrm.x, nrm.y, nrm.z);
       this.col.push(colr.r, colr.g, colr.b);
@@ -281,6 +285,53 @@ class CrystalBuilder {
       this.tri(r1[k], apex, r1[j], uTop, 1, uTop, colr, glow, s, 1);
     }
   }
+  /** A blade of selenite (gypsum, as the beams of Naica grow): tabular, wide and flat, its long
+      edges bevelled, hardly narrowing, ending in a short chisel rather than a point; `w` is its half
+      width, `th` its half thickness. Its foot is sunk into the rock. */
+  blade(base: THREE.Vector3, dir: THREE.Vector3, len: number, w: number, th: number, colr: THREE.Color, glow: number, sink = 0.9): void {
+    const d = dir.clone().normalize();
+    const a = Math.abs(d.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+    const e1 = new THREE.Vector3().crossVectors(d, a).normalize(), e2 = new THREE.Vector3().crossVectors(d, e1).normalize();
+    const turn = rnd() * Math.PI * 2;
+    const c = Math.cos(turn), sn = Math.sin(turn);
+    const s = rnd();
+    // the section: a flat rectangle with bevelled long edges, each corner a little its own
+    const sec = [
+      [1, 0.5], [0.78, 1], [-0.8, 1], [-1, 0.46], [-1, -0.52], [-0.76, -1], [0.82, -1], [1, -0.48],
+    ].map(([x, y]) => [x * w * (0.96 + rnd() * 0.08), y * th * (0.92 + rnd() * 0.16)]);
+    const ring = (along: number, k: number) =>
+      sec.map(([x, y]) => {
+        const X = (x * c - y * sn) * k, Y = (x * sn + y * c) * k;
+        return base.clone().addScaledVector(d, along).addScaledVector(e1, X).addScaledVector(e2, Y);
+      });
+    this.axisA.copy(base);
+    this.axisD = d;
+    const tip = w * (0.45 + rnd() * 0.35);
+    const shaft = Math.max(0.05, len - tip);
+    const r0 = ring(-sink, 1.02), r1 = ring(shaft, 0.94 + rnd() * 0.04);
+    // the chisel: two faces meeting in an edge across the blade's thickness, set off toward one
+    // long side (gypsum ends so, never in a point)
+    const off = (rnd() - 0.5) * 0.9 * w;
+    const ridge = (sy: number) => {
+      const x = off, y = sy * th * 0.8;
+      return base.clone().addScaledVector(d, len).addScaledVector(e1, x * c - y * sn).addScaledVector(e2, x * sn + y * c);
+    };
+    const Rp = ridge(1), Rm = ridge(-1);
+    const uTop = shaft / len;
+    const lo = -sink / len;
+    for (let k = 0; k < 8; k++) {
+      const j = (k + 1) % 8;
+      this.tri(r0[k], r1[k], r1[j], lo, uTop, uTop, colr, glow, s, 0, [0, 1, 0]);
+      this.tri(r0[k], r1[j], r0[j], lo, uTop, lo, colr, glow, s, 0, [0, 0, 1]);
+      const pk = sec[k][1] > 0, pj = sec[j][1] > 0;
+      if (pk === pj) this.tri(r1[k], pk ? Rp : Rm, r1[j], uTop, 1, uTop, colr, glow, s, 1);
+      else {
+        const A = pk ? Rp : Rm, B = pj ? Rp : Rm;
+        this.tri(r1[k], A, B, uTop, 1, 1, colr, glow, s, 1, [0, 0, 1]);
+        this.tri(r1[k], B, r1[j], uTop, 1, uTop, colr, glow, s, 1, [0, 1, 0]);
+      }
+    }
+  }
   /** A cube (fluorite), sitting on the rock. */
   cube(c: THREE.Vector3, size: number, colr: THREE.Color, glow: number): void {
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rnd() * 6, rnd() * 6, rnd() * 6));
@@ -305,6 +356,7 @@ class CrystalBuilder {
     g.setAttribute("aSeed", new THREE.Float32BufferAttribute(this.seedA, 1));
     g.setAttribute("aBary", new THREE.Float32BufferAttribute(this.bary, 3));
     g.setAttribute("aKind", new THREE.Float32BufferAttribute(this.kind, 1));
+    g.setAttribute("aAxis", new THREE.Float32BufferAttribute(this.axis, 3));
     g.computeBoundingSphere();
     return g;
   }
@@ -408,6 +460,67 @@ function crystalMaterial(instanced = false): THREE.MeshStandardNodeMaterial {
   m.normalNode = T.normalize(T.cameraViewMatrix.mul(T.vec4(nB, 0)).xyz);
   return m;
 }
+/** Selenite as it is at Naica: milky gypsum, translucent (light seems to come through its thin
+    edges and from within), a silky sheen along fine striations running its length, now and then a
+    growth step or a cleavage crack across it, dusted brown where it faces up, its foot darker
+    where it grew from the rock. Never glassy or metallic. */
+function seleniteMaterial(): THREE.MeshStandardNodeMaterial {
+  const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.4, metalness: 0 });
+  const u = T.attribute("aU", "float");
+  const col = T.attribute("color", "vec3");
+  const s = T.attribute("aSeed", "float");
+  const kindA = T.attribute("aKind", "float"), bary = T.attribute("aBary", "vec3");
+  const termF = T.step(0.5, kindA);
+  const pw = T.positionWorld;
+  const V = T.normalize(T.cameraPosition.sub(pw));
+  const nG = T.normalize(T.normalWorld);
+  const ndv = T.abs(T.dot(nG, V));
+  // its length (stored with each vertex), and across it on the face
+  const ax = T.normalize(T.attribute("aAxis", "vec3"));
+  const side = T.normalize(T.cross(ax, nG).add(T.vec3(0, 1e-5, 2e-5)));
+  const along = T.dot(pw, ax), across = T.dot(pw, side);
+  // fine striations along its length (fading where finer than a pixel)
+  const sq = across.mul(13).add(s.mul(50));
+  const aaS = T.float(1).sub(T.smoothstep(0.25, 0.6, T.fwidth(sq)));
+  const stri = T.mx_noise_float(T.vec3(sq, along.mul(0.25), s.mul(9))).mul(aaS).mul(0.7).mul(T.float(1).sub(termF));
+  // a few growth steps across it, and here and there a cleavage crack
+  const ph = along.mul(0.4).add(T.mx_noise_float(pw.mul(0.5).add(s.mul(7))).mul(0.3)).add(s.mul(11));
+  const aaP = T.float(1).sub(T.smoothstep(0.1, 0.3, T.fwidth(ph)));
+  const lip = T.smoothstep(0.8, 0.97, T.fract(ph)).mul(aaP).mul(T.step(0.7, T.fract(s.mul(5.7))));
+  const cq = along.mul(0.3).add(T.mx_noise_float(pw.mul(0.9).add(s.mul(3))).mul(0.12)).add(s.mul(17));
+  const cd = T.abs(T.fract(cq).sub(0.5));
+  const crack = T.float(1).sub(T.smoothstep(0, T.fwidth(cq).mul(1.4).add(0.004), cd)).mul(T.step(0.8, T.mx_noise_float(T.vec3(T.floor(cq), s.mul(31), 0.5)).mul(0.5).add(0.5)));
+  // dust settled on what faces up, in drifts; more toward the foot
+  const dustN = T.mx_noise_float(pw.mul(0.7).add(s.mul(13))).mul(0.5).add(0.5);
+  const dust = T.clamp(T.smoothstep(0.1, 0.7, nG.y).mul(T.smoothstep(0.2, 0.85, dustN)).add(T.smoothstep(0.25, 0.0, u).mul(0.35)), 0, 0.92);
+  // milky within: cloudy veils seen a little under the face
+  const deep = pw.sub(V.mul(0.25));
+  const cloud = T.mx_noise_float(deep.mul(T.vec3(1.6, 1.6, 1.6)).add(s.mul(23))).mul(0.5).add(0.5);
+  const tint = T.mix(T.vec3(1.04, 0.99, 0.92), T.vec3(0.97, 0.98, 1.02), T.fract(s.mul(13.7))).mul(T.fract(s.mul(29.3)).mul(0.18).add(0.9));
+  const cream = col.mul(tint);
+  const root = T.smoothstep(-0.05, 0.22, u);
+  const body = cream.mul(T.mix(T.float(0.36), T.float(0.58), cloud)).mul(root.mul(0.4).add(0.6)).mul(T.float(1).sub(crack.mul(0.28)));
+  const dustCol = T.vec3(0.3, 0.24, 0.17);
+  m.colorNode = T.vec4(T.mix(body, dustCol, dust), 1);
+  // light through it: brightest at its thin bevelled edges and seen at a slant, a warm glow from
+  // within where the veils thin; under bloom (contained)
+  const edgeD = T.min(bary.x, T.min(bary.y, bary.z));
+  const thinEdge = T.smoothstep(0.18, 0.0, edgeD).mul(T.float(1).sub(termF.mul(0.5)));
+  const through = T.float(0.03)
+    .add(T.pow(T.float(1).sub(ndv), 2).mul(0.07))
+    .add(thinEdge.mul(0.05))
+    .mul(T.float(1.25).sub(cloud.mul(0.5)))
+    .mul(root)
+    .mul(T.float(1).sub(dust.mul(0.8)));
+  const near = T.smoothstep(8, 1.5, T.length(pw.sub(gpuUniforms.player)));
+  m.emissiveNode = cream.mul(cream).mul(through).mul(T.float(1).add(near.mul(0.5)));
+  // silky along its striations, satin where clean, matte under dust
+  m.roughnessNode = T.mix(T.float(0.28).add(stri.mul(0.12)), T.float(0.9), dust).add(termF.mul(0.08));
+  const nB = T.normalize(nG.add(side.mul(stri.mul(0.14))).add(ax.mul(lip.mul(0.22).sub(crack.mul(0.15)))).mul(1));
+  m.normalNode = T.normalize(T.cameraViewMatrix.mul(T.vec4(T.mix(nB, nG, dust.mul(0.6)), 0)).xyz);
+  return m;
+}
+
 /* The dense crusts (the geode's lining, the gallery's walls) are one small crystal drawn many
    times over, each turned, sized and coloured on its own. */
 let iColAttr = new THREE.InstancedBufferAttribute(new Float32Array(3), 3);
@@ -515,7 +628,7 @@ export class Underground {
     return (Math.floor(x / 4) + 5000) * 10007 + (Math.floor(z / 4) + 5000);
   }
   /** The path sample nearest a point (local frame). */
-  private nearest(lx: number, lz: number): number {
+  protected nearest(lx: number, lz: number): number {
     const cx = Math.floor(lx / 4), cz = Math.floor(lz / 4);
     let best = -1, bd = Infinity;
     for (let r = 1; r <= 6 && best < 0; r += 2)
@@ -987,32 +1100,33 @@ export class Cavern extends Underground {
     // lean toward the open cave, as crystals grow toward the space they have.
     const up = new THREE.Vector3(0, 1, 0);
     const mounds: THREE.BufferGeometry[] = [];
+    const mound = (i: number, p: THREE.Vector3, nn: THREE.Vector3, mr: number, th: number) => {
+      const g = new THREE.IcosahedronGeometry(1, 3);
+      const pp = g.getAttribute("position");
+      const sx = 1.1 + rnd() * 0.4, sy = 0.42 + rnd() * 0.18;
+      for (let k = 0; k < pp.count; k++) {
+        const vx = pp.getX(k), vy = pp.getY(k), vz = pp.getZ(k);
+        // broken, knobbly rock: two scales of lumps, a few sharp facets
+        const f = 0.7 + vn3(vx * 1.6 + i, vy * 1.6, vz * 1.6 + th) * 0.5 + (vn3(vx * 5.3 - i, vy * 5.3 + 2, vz * 5.3) - 0.5) * 0.22;
+        pp.setXYZ(k, vx * f * sx, vy * f * sy, vz * f * sx);
+      }
+      g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(up, nn));
+      g.scale(mr, mr, mr);
+      g.translate(p.x - nn.x * mr * 0.25, p.y - nn.y * mr * 0.25, p.z - nn.z * mr * 0.25);
+      g.computeVertexNormals();
+      const c = g.getAttribute("position").count;
+      g.setAttribute("aZone", new THREE.Float32BufferAttribute(new Float32Array(c).fill(S[i].zone), 1));
+      g.setAttribute("aUp", new THREE.Float32BufferAttribute(new Float32Array(c).fill(0.05), 1));
+      g.deleteAttribute("uv");
+      mounds.push(g);
+    };
     const formation = (i: number, th: number, L: number, col: () => THREE.Color, glow: number, o: { lift?: number; flat?: number; mound?: boolean } = {}) => {
       const { p, n: nn } = this.anchor(i, th);
       const d0 = nn.clone().addScaledVector(up, o.lift ?? 0.4).normalize();
       const a = Math.abs(nn.y) < 0.9 ? up : new THREE.Vector3(1, 0, 0);
       const t1 = new THREE.Vector3().crossVectors(nn, a).normalize(), t2 = new THREE.Vector3().crossVectors(nn, t1);
       const mr = L * 0.26 + 0.12;
-      if (o.mound !== false) {
-        const g = new THREE.IcosahedronGeometry(1, 3);
-        const pp = g.getAttribute("position");
-        const sx = 1.1 + rnd() * 0.4, sy = 0.42 + rnd() * 0.18;
-        for (let k = 0; k < pp.count; k++) {
-          const vx = pp.getX(k), vy = pp.getY(k), vz = pp.getZ(k);
-          // broken, knobbly rock: two scales of lumps, a few sharp facets
-          const f = 0.7 + vn3(vx * 1.6 + i, vy * 1.6, vz * 1.6 + th) * 0.5 + (vn3(vx * 5.3 - i, vy * 5.3 + 2, vz * 5.3) - 0.5) * 0.22;
-          pp.setXYZ(k, vx * f * sx, vy * f * sy, vz * f * sx);
-        }
-        g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(up, nn));
-        g.scale(mr, mr, mr);
-        g.translate(p.x - nn.x * mr * 0.25, p.y - nn.y * mr * 0.25, p.z - nn.z * mr * 0.25);
-        g.computeVertexNormals();
-        const c = g.getAttribute("position").count;
-        g.setAttribute("aZone", new THREE.Float32BufferAttribute(new Float32Array(c).fill(S[i].zone), 1));
-        g.setAttribute("aUp", new THREE.Float32BufferAttribute(new Float32Array(c).fill(0.05), 1));
-        g.deleteAttribute("uv");
-        mounds.push(g);
-      }
+      if (o.mound !== false) mound(i, p, nn, mr, th);
       const fan = (count: number, lo: number, hi: number, lean: number, ring: number) => {
         for (let k = 0; k < count; k++) {
           const ang = rnd() * Math.PI * 2, rr = Math.sqrt(rnd()) * ring * mr;
@@ -1033,6 +1147,40 @@ export class Cavern extends Underground {
       fan(2 + Math.floor(rnd() * 2), 0.42, 0.72, 0.32, 0.55);
       fan(5 + Math.floor(rnd() * 6), 0.12, 0.36, 0.75, 1.05);
       if (L > 1.2 && nn.y > 0.25) this.solids.push({ x: p.x, z: p.z, r: mr + 0.25, top: p.y + L });
+    };
+    // Selenite (its own geometry and material: milky gypsum, never glass)
+    const bs = new CrystalBuilder();
+    const cream = () => C("#f2e3c6").multiplyScalar(0.9 + rnd() * 0.18).lerp(C("#e6e4dc"), rnd() * 0.4);
+    const seleniteCluster = (i: number, th: number, L: number, toward?: THREE.Vector3, spans = false) => {
+      const { p, n: nn } = this.anchor(i, th);
+      const a = Math.abs(nn.y) < 0.9 ? up : new THREE.Vector3(1, 0, 0);
+      const t1 = new THREE.Vector3().crossVectors(nn, a).normalize(), t2 = new THREE.Vector3().crossVectors(nn, t1);
+      const w = Math.min(1.05, Math.max(0.16, L * (0.06 + rnd() * 0.03)));
+      const mr = Math.min(2.6, w * 2.2 + 0.4);
+      mound(i, p, nn, mr, th);
+      const dir = toward ? toward.clone() : nn.clone().addScaledVector(up, 0.35).addScaledVector(t1, (rnd() - 0.5) * 0.8).normalize();
+      const foot = this.onRock(i, p.clone(), nn) ?? p.clone();
+      const col = cream();
+      bs.blade(foot, dir, L, w, w * (0.36 + rnd() * 0.2), col, 1, spans ? w * 1.4 + 0.5 : w * 1.3 + 0.4);
+      // lesser blades about its foot, fanned outward, each its own size
+      const count = 3 + Math.floor(rnd() * 5);
+      for (let k = 0; k < count; k++) {
+        const ang = rnd() * Math.PI * 2, rr = (0.3 + rnd() * 0.8) * mr;
+        const out = t1.clone().multiplyScalar(Math.cos(ang)).addScaledVector(t2, Math.sin(ang));
+        const d2 = dir.clone().multiplyScalar(0.5 + rnd() * 0.5).add(nn.clone().multiplyScalar(0.6)).addScaledVector(out, 0.6 + rnd() * 0.6).normalize();
+        const l2 = Math.max(0.5, L * (0.08 + Math.pow(rnd(), 1.6) * 0.32));
+        const w2 = Math.max(0.07, l2 * (0.07 + rnd() * 0.04));
+        const f2 = p.clone().addScaledVector(out, rr);
+        const on = this.onRock(i, f2, nn);
+        if (on) f2.copy(on);
+        bs.blade(f2, d2, l2, w2, w2 * (0.35 + rnd() * 0.25), col.clone().multiplyScalar(0.94 + rnd() * 0.12), 1, w2 * 1.3 + 0.12);
+      }
+      // what stands on the floor below head height is solid
+      for (let t = 0; t < L; t += 0.8) {
+        const q = foot.clone().addScaledVector(dir, t);
+        if (q.y - this.floorAt(q.x, q.z) < 2.2) this.solids.push({ x: q.x, z: q.z, r: w + 0.15, top: q.y + w * 0.5 });
+      }
+      if (nn.y > 0.25) this.solids.push({ x: p.x, z: p.z, r: mr * 0.8, top: p.y + mr * 0.5 });
     };
     // one colour to a formation, each crystal a little its own
     const pick = (c: THREE.Color) => () => c.clone().multiplyScalar(0.9 + rnd() * 0.2);
@@ -1071,37 +1219,50 @@ export class Cavern extends Underground {
           for (let k = 0; k < 4; k++) b.cube(p.clone().add(new THREE.Vector3(rnd() - 0.5, rnd() - 0.5, rnd() - 0.5).multiplyScalar(0.4)), 0.12 + rnd() * 0.22, col, 0.6);
         }
       } else if (z === 4) {
-        // small selenite blades on the walls between the great beams
-        if (rnd() < 0.3) {
-          const th = (rnd() < 0.5 ? 1 : -1) * (1 + rnd() * 1.8);
-          formation(i, th, 0.9 + rnd() * 0.8, pick(C("#f2ead8")), 0.45, { flat: 0.55, lift: 0.2 });
-        }
+        // lesser clusters of selenite on the walls between the great beams
+        if (rnd() < 0.16) seleniteCluster(i, (rnd() < 0.5 ? 1 : -1) * (1 + rnd() * 1.6), 1.2 + rnd() * 1.8);
       } else if (z === 0 && rnd() < 0.035) {
         // here and there in the rock of the passages, a few points glinting
         const th = (rnd() < 0.5 ? 1 : -1) * (0.9 + rnd() * 1.8);
         formation(i, th, 0.7 + rnd() * 0.5, quartzKind(), 0.7);
       }
     }
-    // the cathedral: beams of selenite ten and more metres long, crossing the chamber from wall to wall
+    // the cathedral (after the Cave of the Crystals at Naica): great blades of selenite, five to
+    // fourteen metres, each growing from its own lump of rock on the walls or the floor's edge with
+    // lesser blades about its foot, crossing the chamber at every angle; a few reach the far wall and
+    // run into it. None crosses the way below head height.
     const cat = S.map((s, i) => ({ s, i })).filter(({ s }) => s.zone === 4 && s.w > 15);
-    for (let k = 0; k < 26 && cat.length; k++) {
-      const a = cat[Math.floor(rnd() * cat.length)].i, bI = Math.min(n - 1, Math.max(0, a + Math.floor((rnd() - 0.5) * 50)));
-      const A = this.anchor(a, (rnd() < 0.5 ? 1 : -1) * (1.2 + rnd() * 1.2)).p;
-      const B = this.anchor(bI, (rnd() < 0.5 ? 1 : -1) * (1.2 + rnd() * 1.4)).p;
-      const dir = B.clone().sub(A);
-      // keep them over your head, but for a few that lie fallen across the floor
-      const low = k % 9 === 0;
-      if (!low && Math.min(A.y, B.y) - (O.y + S[a].y) < 3) continue;
-      const len = Math.min(dir.length() * (0.55 + rnd() * 0.35), 18);
-      const thick = 0.45 + rnd() * 0.75;
-      b.prism(A, dir, len, thick, thick * 1.5, C("#fff3dc", 1.05), 1.1, 0.55, 0.96, 0.62);
-      if (low) {
-        const d = dir.clone().normalize();
-        for (let t = 0; t < len; t += 1.2) {
-          const q = A.clone().addScaledVector(d, t);
-          this.solids.push({ x: q.x, z: q.z, r: thick + 0.3, top: q.y + thick });
-        }
+    let made = 0;
+    for (let k = 0; k < 140 && made < 17 && cat.length; k++) {
+      const a = cat[Math.floor(rnd() * cat.length)].i;
+      const floorBorn = rnd() < 0.45;
+      const sideA = rnd() < 0.5 ? 1 : -1;
+      const th = sideA * (floorBorn ? 0.55 + rnd() * 0.3 : 1.15 + rnd() * 1.1);
+      const { p } = this.anchor(a, th);
+      // toward a point across the chamber, higher or lower
+      const bI = Math.min(n - 1, Math.max(0, a + Math.floor((rnd() - 0.5) * 30)));
+      const B = this.anchor(bI, -sideA * (0.9 + rnd() * 1.4)).p;
+      const toward = B.clone().sub(p);
+      const dist = toward.length();
+      if (dist < 6) continue;
+      toward.normalize();
+      if (floorBorn && toward.y < 0.45) toward.y = 0.45 + rnd() * 0.3, toward.normalize();
+      let L = Math.min(14, dist * (0.5 + rnd() * 0.55));
+      const spans = L > dist - 1.2;
+      if (spans) L = dist + 0.8;
+      if (L < 5) continue;
+      // keep the way clear: no blade lower than head height over the walk
+      let blocks = false;
+      for (let t = 0; t < L; t += 0.6) {
+        const q = p.clone().addScaledVector(toward, t);
+        const lx = q.x - O.x, lz = q.z - O.z;
+        const si = this.nearest(lx, lz), ss = S[si];
+        const lat = (lx - ss.x) * -ss.tz + (lz - ss.z) * ss.tx;
+        if (Math.abs(lat) < ss.w * 0.5 && q.y - (O.y + ss.y) < 2.8) { blocks = true; break; }
       }
+      if (blocks) continue;
+      seleniteCluster(a, th, L, toward, spans);
+      made++;
     }
     // the heart: one great crystal in a still pool, a crown of smaller ones round it
     const hi = n - 18, hs = S[hi];
@@ -1149,6 +1310,7 @@ export class Cavern extends Underground {
     const mesh = new THREE.Mesh(geo, crystalMaterial());
     mesh.frustumCulled = true;
     this.add(mesh);
+    if (bs.pos.length) this.add(new THREE.Mesh(bs.build(), seleniteMaterial()));
     // the lights: one in every chamber (in its own colour), and along the passages now and then
     const chamberCol: Record<number, THREE.Color> = { 1: C("#cfe0ff"), 2: C("#a86bff"), 3: C("#79e0b0"), 4: C("#ffe8c4"), 5: C("#ffd9a0") };
     for (let i = 10; i < n - 4; i += 34) {
