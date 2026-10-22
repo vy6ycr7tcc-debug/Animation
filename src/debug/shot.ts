@@ -4,7 +4,7 @@
 import { SITES } from "../scenes/sites";
 import { DUAT_ORIGIN } from "../world/pyramid";
 import { AREA_SITES, RUIN_SITES, type AreaId } from "../world/depths";
-import { ADEPT_HALL, DENSITY_HALL, GLADES, GOBEKLI, GOBEKLI_PLAN, gobekliAt, nanMadolAt, RAPA_NUI, rapaNuiAt, LANDMARK_SITES, MONUMENT, PAST_HALL, PEAKS, PYRAMID, SPAWN, WATERFALLS, fallRiverU, fallRiverW, fallStream, heightAt, riverDist } from "../world/terrain";
+import { ADEPT_HALL, CAVES, DENSITY_HALL, GLADES, GOBEKLI, GOBEKLI_PLAN, gobekliAt, nanMadolAt, RAPA_NUI, rapaNuiAt, LANDMARK_SITES, MONUMENT, PAST_HALL, PEAKS, PYRAMID, SPAWN, WATERFALLS, fallRiverU, fallRiverW, fallStream, heightAt, riverDist } from "../world/terrain";
 import { JOURNEY_ORIGIN } from "../scenes/journey";
 
 export interface Shot {
@@ -511,6 +511,33 @@ export function runShot(ctx: ShotCtx): void {
     base = [r.x, r.y, r.z];
     view = { eye: L(v.eye), look: L(v.look) };
     ctx.player.pos.set(r.x + view.eye[0], r.y + v.eye[1] - 1.2, r.z + view.eye[2]);
+  } else if (/^cave-\d+$/.test(id)) {
+    // a cave's mouth from down the slope before it (`&in`: from just inside, looking out)
+    const c = CAVES[Number(id.slice(5))] ?? CAVES[0];
+    const fx = Math.cos(c.face), fz = Math.sin(c.face);
+    const inside = new URLSearchParams(location.search).has("in");
+    const d = inside ? -2.5 : 17;
+    const px = c.x + fx * d, pz = c.z + fz * d;
+    base = [px, heightAt(px, pz), pz];
+    view = inside ? { eye: [0, 1.6, 0], look: [fx * 10, 0.8, fz * 10] } : { eye: [fx * 2, 2.6, fz * 2], look: [c.x - px, heightAt(c.x, c.z) - base[1] + 2.2, c.z - pz] };
+    ctx.player.pos.set(px, heightAt(px, pz), pz);
+  } else if (/^shallows(-\d)?$/.test(id)) {
+    // standing on a shallow lake floor (2–4 m down) near the shore, looking across it
+    const k = Number(id.split("-")[1] ?? 0);
+    let at: [number, number] | null = null, skip = k;
+    search: for (let r = 60; r < 900; r += 12)
+      for (let a = 0; a < 6.283; a += 0.21) {
+        const x = SPAWN.x + Math.cos(a) * r, z = SPAWN.z + Math.sin(a) * r, h = heightAt(x, z);
+        if (h > -2.2 || h < -4 || heightAt(x + Math.cos(a) * 10, z + Math.sin(a) * 10) > -1.5) continue;
+        if (skip-- > 0) continue;
+        at = [x, z];
+        break search;
+      }
+    const [x, z] = at ?? [SPAWN.x + 80, SPAWN.z];
+    const f = Math.atan2(x - SPAWN.x, z - SPAWN.z);
+    base = [x, heightAt(x, z), z];
+    view = { eye: [-Math.sin(f) * 3, 1.4, -Math.cos(f) * 3], look: [Math.sin(f) * 8, 0.3, Math.cos(f) * 8] };
+    ctx.player.pos.set(x, heightAt(x, z), z);
   } else if (/^ruin-\d$/.test(id)) {
     // under the water, standing on the floor before a ruin
     const r = RUIN_SITES[Number(id.slice(5))] ?? RUIN_SITES[0];

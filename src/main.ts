@@ -5463,7 +5463,7 @@ function update(dt: number): void {
   mandala.rotation.y = S.reduced ? 0 : wt * 0.01;
   center.set(camera.position.x, 0, camera.position.z);
   motes.update(wt, center, dpr, S.reduced, dt, heartPos, player.vel, medK);
-  wakeStep(S.t, player.pos, player.speed, !player.flying && !player.swimming);
+  wakeStep(S.t, player.pos, player.speed, !player.flying);
   clouds.update(wt, camera.position);
   {
     const open = !apart() && camera.position.y > WATER_Y + 0.05;

@@ -16,6 +16,7 @@ import * as THREE from "three/webgpu";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { loadBytes } from "../core/assets";
+import { wakeGlow } from "../gpu/wake";
 import { flow, glimmer, gpuUniforms, softPoints, spriteCloud, T, viewDepth, type N, type SpriteCloud } from "../gpu/tsl";
 import { lightBodyMaterial, tickLightBody } from "../player/lightBody";
 import { heightAt, WATER_Y } from "./terrain";
@@ -122,6 +123,10 @@ export class UnderwaterEffect {
 const TILE = 14;
 const RING = 3;
 const RIBBONS_PER_TILE = 3; // sparse, low sea-grass: open water, not a forest of kelp
+const MEADOW_TUFTS = 6; // seagrass: tufts a tile, in drifts over the shallow floors
+const TUFT_BLADES = 7;
+const PLANKTON = 900; // light in the water that wakes where you pass
+const PLANKTON_BOX = 16;
 const SNOW = 260;
 const SNOW_BOX = 22; // metres: the drift wraps around the camera in a box this wide
 const BUBBLES = 80;
@@ -140,6 +145,7 @@ export class SeaLife {
   private rParams: THREE.InstancedBufferAttribute;
   private glowPts: SpriteCloud;
   private snow: THREE.Sprite;
+  private plankton: THREE.Sprite;
   private bub: SpriteCloud;
   /** each bubble: where it is, its rise (and the rise it is coming to), its size where it was
       born and how deep that was, its wobble's phase, rate and width, and whether it lives */
@@ -163,7 +169,7 @@ export class SeaLife {
     this.rGeo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
     this.rGeo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
     this.rGeo.setIndex(idx);
-    const maxR = RIBBONS_PER_TILE * (RING * 2 + 1) ** 2;
+    const maxR = (RIBBONS_PER_TILE + MEADOW_TUFTS * TUFT_BLADES) * (RING * 2 + 1) ** 2;
     this.rBase = new THREE.InstancedBufferAttribute(new Float32Array(maxR * 3), 3);
     this.rParams = new THREE.InstancedBufferAttribute(new Float32Array(maxR * 3), 3); // height, rotation, hue
     this.rGeo.setAttribute("aBase", this.rBase);
@@ -174,7 +180,7 @@ export class SeaLife {
       const mat = new THREE.MeshBasicNodeMaterial({ side: THREE.DoubleSide, fog: false });
       const aBase = attribute("aBase", "vec3"), aParams = attribute("aParams", "vec3");
       const vy = uv().y, y2 = vy.mul(vy);
-      const p0 = positionGeometry.mul(vec3(1, aParams.x, 1)); // its own shape (also read by the varyings)
+      const p0 = positionGeometry.mul(vec3(mix(float(1), float(0.4), step(1.5, aParams.z)), aParams.x, 1)); // its own shape (also read by the varyings)
       const c = cos(aParams.y), sn = sin(aParams.y);
       // a sway that travels up the stalk
       const sway = aParams.x.mul(0.25).mul(y2);
@@ -191,7 +197,7 @@ export class SeaLife {
       const w = vec3(w0.x.add(push.x), w0.y, w0.z.add(push.y));
       mat.positionNode = w;
       const vNear = varying(near), vCamD = varying(distance(w, U.uCam)), vD = varying(viewDepth(w));
-      const vHue = varying(aParams.z);
+      const vHue = varying(fract(aParams.z)), vGrass = varying(step(1.5, aParams.z));
       const kH = (q: N): N => fract(sin(dot(q, vec2(127.1, 311.7))).mul(43758.5453));
       mat.colorNode = Fn(() => {
         // near the lens a blade thins away to nothing, so none ever fills the view
@@ -202,12 +208,14 @@ export class SeaLife {
         const edge = float(1).sub(abs(vUv.x.mul(2).sub(1)));
         const hue = mix(vec3(0.25, 0.9, 0.8), vec3(0.6, 0.5, 1.0), vHue);
         // a dark, living blade: deep green at the root, a little light through it near the top
-        const col = mix(vec3(0.008, 0.03, 0.03), vec3(0.03, 0.09, 0.08), vUv.y).mul(edge.mul(0.5).add(0.5)).toVar();
+        // (seagrass: a living green, lighter toward its tip where the light comes through it)
+        const leaf = mix(mix(vec3(0.008, 0.03, 0.03), vec3(0.03, 0.09, 0.08), vUv.y), mix(vec3(0.012, 0.04, 0.015), mix(vec3(0.06, 0.15, 0.05), vec3(0.11, 0.17, 0.06), vHue), vUv.y), vGrass);
+        const col = leaf.mul(edge.mul(0.5).add(0.5)).toVar();
         // specks of light rising slowly up the blade, and a soft glow at the tip
         const ly = vUv.y.mul(28).sub(U.uT.mul(0.6));
         const cell = vec2(floor(vUv.x.mul(3)), floor(ly));
         const speck = step(0.93, kH(cell.add(vHue.mul(17)))).mul(smoothstep(0.35, 0, abs(fract(ly).sub(0.5))));
-        col.addAssign(hue.mul(speck.mul(0.5).add(smoothstep(0.85, 1, vUv.y).mul(0.35)).add(vNear.mul(0.35))));
+        col.addAssign(hue.mul(speck.mul(0.5).add(smoothstep(0.85, 1, vUv.y).mul(0.35)).mul(float(1).sub(vGrass)).add(vNear.mul(0.35))));
         return vec4(col.mul(float(1).sub(smoothstep(30, 55, vD))), 1);
       })();
       this.ribbons = new THREE.Mesh(this.rGeo, mat);
@@ -252,6 +260,28 @@ export class SeaLife {
       this.snow = cloud.sprite;
     }
 
+    // plankton: a faint drift of life in the water, dark until you pass, then waking blue-green
+    // in your wake (the same points of presence the land reads) and fading behind you
+    {
+      const mat = softPoints();
+      const cloud = spriteCloud(PLANKTON, { aSeed: 4 }, mat);
+      const seed = cloud.attrs.aSeed.array as Float32Array;
+      for (let i = 0; i < PLANKTON * 4; i++) seed[i] = Math.random();
+      const aSeed = cloud.nodes.aSeed, B = PLANKTON_BOX;
+      const drift = vec3(U.uT.mul(0.03), U.uT.mul(0.01).mul(aSeed.w.sub(0.5)), U.uT.mul(-0.02));
+      const w0 = U.uCam.add(fract(aSeed.xyz.mul(B).add(drift).sub(U.uCam).div(B)).sub(0.5).mul(B));
+      const p = w0.add(flow(w0.div(2.2), U.uT.mul(0.06)).mul(0.5));
+      mat.positionNode = p;
+      const dCam = distance(p, U.uCam);
+      const lit = smoothstep(0.05, 0.9, wakeGlow(p)).mul(glimmer(aSeed.x, U.uT, 4).mul(0.6).add(0.55));
+      const vA = lit.mul(float(1).sub(smoothstep(B * 0.32, B * 0.5, dCam))).mul(smoothstep(0.4, 1.4, dCam)).mul(step(p.y, -0.3));
+      mat.sizeNode = clamp(aSeed.w.mul(0.025).add(0.02).mul(U.uPx).div(max(viewDepth(p), 0.3)), 1, 9).div(dpr);
+      const r = length(pointUV.sub(0.5)).mul(2);
+      const hue = mix(vec3(0.25, 0.85, 1.0), vec3(0.3, 1.0, 0.7), aSeed.y);
+      mat.colorNode = vec4(hue.mul(exp(r.mul(r).mul(-5))).mul(vA).mul(0.75), 1);
+      this.plankton = cloud.sprite;
+    }
+
     // bubbles from your strokes, wobbling up to the surface
     {
       const mat = softPoints();
@@ -267,7 +297,7 @@ export class SeaLife {
     }
     for (let i = 0; i < BUBBLES; i++) this.bubState.push({ p: new THREE.Vector3(), v: 0, vt: 0, r0: 0, d0: 0, wob: Math.random() * 6, wr: 0, wa: 0, life: 0 });
 
-    this.group.add(this.ribbons, this.glowPts.sprite, this.snow, this.bub.sprite);
+    this.group.add(this.ribbons, this.glowPts.sprite, this.snow, this.plankton, this.bub.sprite);
     this.group.visible = false;
   }
 
@@ -309,6 +339,21 @@ export class SeaLife {
           pr.set([Math.max(0.6, tall), hash(i, j, k + 7) * 6.28, hash(i, j, k + 13)], n * 3);
           n++;
         }
+        // seagrass meadows over the shallow floors (1–5 m down), tuft by tuft, in drifts
+        for (let t = 0; t < MEADOW_TUFTS; t++) {
+          const x0 = (i + hash(i, j, 800 + t)) * TILE, z0 = (j + hash(i, j, 850 + t)) * TILE;
+          if (hash(Math.floor(x0 / 22), Math.floor(z0 / 22), 11) < 0.45) continue;
+          const h0 = heightAt(x0, z0);
+          if (h0 > WATER_Y - 1 || h0 < WATER_Y - 5) continue;
+          const tint = hash(i, j, 900 + t);
+          for (let k = 0; k < TUFT_BLADES; k++) {
+            const a = hash(i, j, 1000 + t * 10 + k) * 6.28, r = Math.sqrt(hash(i, j, 1100 + t * 10 + k)) * 0.45;
+            const x = x0 + Math.cos(a) * r, z = z0 + Math.sin(a) * r;
+            b.set([x, heightAt(x, z) - 0.03, z], n * 3);
+            pr.set([0.35 + hash(i, j, 1200 + t * 10 + k) * 0.5, a + (hash(i, j, 1300 + k) - 0.5), 2 + tint * 0.999], n * 3);
+            n++;
+          }
+        }
         // a cluster of anemone lights
         for (let c = 0; c < 2; c++) {
           const x0 = (i + hash(i, j, 200 + c)) * TILE, z0 = (j + hash(i, j, 300 + c)) * TILE;
@@ -337,7 +382,7 @@ export class SeaLife {
     this.uni.uOrb.value.copy(orb);
     this.uni.uCam.value.copy(cam);
     this.uni.uPx.value = pxPerUnit;
-    this.snow.visible = cam.y < WATER_Y - 0.1;
+    this.snow.visible = this.plankton.visible = cam.y < WATER_Y - 0.1;
     const cx = Math.floor(player.x / TILE), cz = Math.floor(player.z / TILE);
     if (cx !== this.cx || cz !== this.cz) {
       this.cx = cx;

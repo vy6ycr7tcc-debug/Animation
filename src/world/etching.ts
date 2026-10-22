@@ -159,7 +159,16 @@ export function etchedStone(
     // its occlusion deepens the cracks, as in the temple's stone
     const [oa, ob, oc] = tri(rock.arm, 2.5);
     const ao = mix(float(0.35), float(1.05), oa.r.mul(triW.x).add(ob.r.mul(triW.y)).add(oc.r.mul(triW.z)));
-    m.colorNode = T.materialColor.mul(mix(vec3(dot(det, vec3(0.3, 0.5, 0.2))), det, 0.55)).mul(ao);
+    let col: N = T.materialColor.mul(mix(vec3(dot(det, vec3(0.3, 0.5, 0.2))), det, 0.55)).mul(ao);
+    // under the water (its line is y 0): darker and greener, silt settled on what faces up, soft
+    // patches of growth, so a drowned stone reads as lying in the lake
+    const wet = smoothstep(0.1, -0.6, vEW.y);
+    const up = smoothstep(0.15, 0.75, vEN.y);
+    const patch = T.mx_noise_float(vEW.mul(0.9)).mul(0.5).add(0.5);
+    col = mix(col, col.mul(vec3(0.5, 0.66, 0.58)), wet.mul(0.7));
+    col = mix(col, vec3(0.24, 0.22, 0.17).mul(dot(det, vec3(0.33)).mul(0.8).add(0.4)).mul(ao), wet.mul(up).mul(0.8));
+    col = mix(col, vec3(0.05, 0.11, 0.05).mul(ao), wet.mul(smoothstep(0.5, 0.72, patch)).mul(up.mul(0.5).add(0.35)));
+    m.colorNode = col;
   }
   // the scans' relief, then weathered stone: soft pits and swells, strongest up close
   let nView: N = opts.normalMap ? T.normalMap(texture(opts.normalMap), vec2(1.2)) : normalView;
@@ -177,7 +186,8 @@ export function etchedStone(
   m.emissiveNode = Fn(() => {
     const an = abs(vEN);
     const l = an.y.greaterThan(0.6).select(etchLines(vEW.xz, scale), an.x.greaterThan(an.z).select(etchLines(vEW.zy, scale), etchLines(vEW.xy, scale)));
-    const fade = float(1).sub(smoothstep(8, 26, camD));
+    // (under the water no lattice: there it read as a net cast over the drowned stones)
+    const fade = float(1).sub(smoothstep(8, 26, camD)).mul(smoothstep(-0.6, 0.1, vEW.y));
     // the drawings' lattice survives only as a faint trace in the stone
     const e = uLine.mul(l).mul(fade).mul(0.06).mul(E.uEtchGain).mul(sin(E.uEtchT.mul(0.6).add(vEW.y)).mul(0.15).add(0.85)).toVar();
     // vibrating: rings of light race outward over the stone, and its lattice wakes
@@ -187,7 +197,7 @@ export function etchedStone(
     e.addAssign(vec3(1.0, 0.85, 0.6).mul(wave).mul(0.9).add(uLine.mul(l).mul(1.2)).mul(on).mul(V.uVibeK));
     // the wanderer's wake: the stone passed warms faintly and its lattice wakes, then fades
     const wk = wakeGlow(vEW);
-    e.addAssign(vec3(1.0, 0.82, 0.56).mul(0.04).add(uLine.mul(l).mul(fade).mul(0.9)).mul(wk));
+    e.addAssign(mix(vec3(0.15, 0.5, 0.55), vec3(1.0, 0.82, 0.56), smoothstep(-0.6, 0.1, vEW.y)).mul(0.04).add(uLine.mul(l).mul(fade).mul(0.9)).mul(wk));
     // the sky's sheen at its silhouette (gpu/tsl.ts)
     e.addAssign(skySheen(normalize(vEN)));
     return e;

@@ -24,7 +24,7 @@ import { GROVE_SITES } from "./sites";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { floatAttributes, loadBytes } from "../core/assets";
-import { CAVE_SITES, colliders, fbm, keptClear, groundKind, heightAt, regionAt, LANDMARK_SITES, SPAWN, smooth, WATER_Y, type Collider } from "./terrain";
+import { CAVES, colliders, fbm, keptClear, groundKind, heightAt, regionAt, LANDMARK_SITES, SPAWN, smooth, WATER_Y, type Collider } from "./terrain";
 
 /** Shared by every shader here; main.ts copies the scene's fog in. */
 export const creationUniforms = {
@@ -77,7 +77,7 @@ function clearOf(x: number, z: number, spawnR: number, padR: number): boolean {
   if (Math.hypot(x - SPAWN.x, z - SPAWN.z) < spawnR) return false;
   for (const [lx, lz] of LANDMARK_SITES) if (Math.hypot(x - lx, z - lz) < padR) return false;
   for (const g of GROVE_SITES) if (Math.hypot(x - g.x, z - g.z) < padR + 6) return false;
-  for (const c of CAVE_SITES) if (Math.hypot(x - c.x, z - c.z) < 12) return false;
+  for (const c of CAVES) if (Math.hypot(x - c.x, z - c.z) < 12) return false;
   if (keptClear(x, z, 6)) return false;
   return true;
 }
@@ -914,7 +914,8 @@ export class Creation {
         const x = (i + cellHash(i, j, 52 + o)) * RCELL, z = (j + cellHash(i, j, 55 + o)) * RCELL;
         if (!clearOf(x, z, 6, 12)) continue;
         const h = heightAt(x, z);
-        if (h < WATER_Y - 1.5) continue;
+        // on the lake floors, about half of them lie drowned (the first stood only on land)
+        if (h < WATER_Y - 1.5 && cellHash(i, j, 90 + o) < 0.5) continue;
         const big = cellHash(i, j, 58 + o) < 0.12 + talus * 0.25;
         const s = big ? 1.8 + cellHash(i, j, 61 + o) * 1.8 : 0.25 + cellHash(i, j, 61 + o) * 0.9;
         const m = new THREE.Matrix4().compose(

@@ -30,7 +30,7 @@ import * as THREE from "three/webgpu";
 import { glimmer, T, gpuUniforms, outOfTheWay, softDot, pointR, softPoints, spriteCloud, viewDepth, worldPoints } from "../gpu/tsl";
 import { barkMaterial, crownLeaves, foliageCloud, grow, prismGeometry, tubes, type TreeShape } from "./creation";
 import { GROVE_SITES } from "./sites";
-import { CAVE_SITES, GLADES, KEEP_CLEAR, LANDMARK_SITES, SPAWN, WATER_Y, colliders, heightAt, keptClear } from "./terrain";
+import { CAVES, GLADES, KEEP_CLEAR, LANDMARK_SITES, SPAWN, WATER_Y, colliders, heightAt, keptClear } from "./terrain";
 import { SITES } from "../scenes/sites";
 import { halo, planetMaterial } from "./vessels";
 import type { FalseDoors } from "./falseDoors";
@@ -76,7 +76,7 @@ export const LONE_TREE = (() => {
       if (LANDMARK_SITES.some(([lx, lz]) => Math.hypot(x - lx, z - lz) < 160)) continue;
       if (GROVE_SITES.some((g) => Math.hypot(x - g.x, z - g.z) < 130)) continue;
       if (lessons.some((s) => Math.hypot(x - s.x, z - s.z) < 150)) continue;
-      if (CAVE_SITES.some((c) => Math.hypot(x - c.x, z - c.z) < 90)) continue;
+      if (CAVES.some((c) => Math.hypot(x - c.x, z - c.z) < 90)) continue;
       if (GLADES.some((g) => Math.hypot(x - g.x, z - g.z) < g.r + 50)) continue;
       // a knoll: higher than the ground round it, gentle on top
       let ring = 0, rough = 0;
