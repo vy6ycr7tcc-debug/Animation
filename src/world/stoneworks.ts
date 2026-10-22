@@ -165,6 +165,14 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
   }
   // a broad variation over the whole face, so a long wall is never one even tone
   c = c.mul(mix(float(0.86), float(1.08), nz(pw.mul(0.09).add(2.2))));
+  // the surface's height (1 where it stands proud, 0 deep in a joint or crack): the scan's
+  // occlusion, and in cut masonry each stone's worn edge falling away into its joint. What
+  // settles on stone (moss, damp, blown sand) is blended by it, as games blend layers by height
+  // ("height lerp"): it fills the joints and hollows first and reaches the proud faces last.
+  const hgt: N = cell ? arm.r.mul(0.55).add(0.45).mul(smoothstep(0.0, 0.05, cell.e)) : arm.r;
+  const byHeight = (mask: N, k = 0.14) => smoothstep(hgt.sub(k), hgt.add(k), mask);
+  const V0 = T.normalize(T.cameraPosition.sub(T.positionWorld));
+  let mossK: N = float(0), mossCol: N = vec3(0), damp: N = float(0);
   // lichen and moss on what faces the sky, in patches
   const up = smoothstep(0.45, 0.9, n.y);
   const lichen = up.mul(smoothstep(0.55, 0.78, nz(pw.mul(1.3).add(3.1)))).mul(marble || finish === "granite" ? 0.12 : 0.7).mul(dry);
@@ -174,8 +182,21 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
   const foot = smoothstep(0.9, 0.0, above).mul(0.55);
   if (masonry?.rise && dry) {
     // moss and soil along the foot, in patches, where it has stood in the earth a while
-    const moss = smoothstep(0.42, 0.0, above.add(nz(pw.mul(1.7).add(5.3)).mul(0.25).sub(0.12))).mul(smoothstep(0.35, 0.7, nz(pw.mul(0.9).add(1.1))));
-    c = mix(c, vec3(0.16, 0.19, 0.09).mul(nz(pw.mul(9)).mul(0.5).add(0.6)), moss.mul(0.55));
+    // (by height: it creeps up the joints and hollows before it covers a stone's face), and a
+    // little in the joints of every face out of the sun's way, where the damp stays
+    const reach = smoothstep(0.75, 0.0, above.add(nz(pw.mul(1.7).add(5.3)).mul(0.3).sub(0.15)));
+    const patch = smoothstep(0.25, 0.75, nz(pw.mul(0.9).add(1.1)));
+    const shady = smoothstep(0.2, -0.5, T.dot(n, fogUniforms.glowDir)).mul(wall);
+    const moss = byHeight(reach.mul(reach).mul(patch.add(0.4)).mul(1.25).add(shady.mul(smoothstep(0.5, 0.8, nz(pw.mul(0.7).add(9.1)))).mul(0.3)));
+    // moss is soft: its fibres catch the light at a grazing angle (a fuzz, after the moss shading
+    // of Uncharted 4), and it takes up the colour of the moss deep in its tufts
+    const fuzz = T.pow(float(1).sub(abs(T.dot(V0, n))), 2.5);
+    const mossC = vec3(0.16, 0.19, 0.09).mul(nz(pw.mul(9)).mul(0.5).add(0.6)).mul(float(1).add(fuzz.mul(0.9)));
+    mossK = moss;
+    mossCol = mossC;
+    // damp: water wicks up a wall from the earth, higher through the joints and pores than over
+    // the stone's face, and leaves it darker
+    damp = byHeight(smoothstep(1.6, 0.1, above).mul(0.9), 0.2).mul(wall);
   }
   const streak = smoothstep(0.6, 0.85, nz(vec3(pw.x.mul(3.1), pw.y.mul(0.2), pw.z.mul(3.1)))).mul(float(1).sub(up)).mul(0.3 * dry);
   c = c.mul(float(1).sub(foot)).mul(float(1).sub(streak));
@@ -259,7 +280,11 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
       const soft = smoothstep(0.62, 0.86, nz(vec3(bed.mul(3.2), id.mul(0.4), 7.7))).mul(wall);
       c = c.mul(float(1).sub(soft.mul(0.14)));
       const ledge = smoothstep(0.55, 0.9, n.y).mul(dry);
-      c = mix(c, sandC, ledge.mul(0.3).mul(smoothstep(0.35, 0.65, nz(pw.mul(1.8)))));
+      // sand by height: it lies in the joints and pits of a ledge first, over its face only where
+      // it has drifted deep; and the honeycomb's hollows hold a little at their bottoms
+      const sandK = byHeight(ledge.mul(smoothstep(0.2, 0.75, nz(pw.mul(1.8)))).mul(1.3)).add(pit.mul(combPatch).mul(0.35));
+      c = mix(c, sandC, T.clamp(sandK, 0, 1).mul(0.6));
+      dn = dn.mul(float(1).sub(T.clamp(sandK, 0, 1).mul(0.5)));
       const near = smoothstep(7, 2, T.length(T.cameraPosition.sub(T.positionWorld)));
       c = c.mul(float(1).add(nz(pw.mul(170)).sub(0.5).mul(0.16).mul(near)));
     }
@@ -286,6 +311,12 @@ export function landStone(set: ScanName, base: number, tile = 2.4, tint: [number
       c = c.mul(mix(float(1), mix(float(0.5), float(1.3), smoothstep(-0.4, 0.5, prof)), co));
     }
   }
+  // laid last, over everything the stone itself is (its tone is evened out above, which would
+  // wash them back toward the stone's own brightness)
+  c = mix(c.mul(float(1).sub(damp.mul(0.22))), mossCol, mossK.mul(0.75));
+  // moss softens the stone's relief under it and takes no sheen
+  dn = dn.mul(float(1).sub(mossK.mul(0.55)));
+  rough = mix(rough, float(1), mossK);
   m.colorNode = T.vec4(c, 1);
   m.roughnessNode = rough;
   m.normalNode = T.normalize(T.normalView.add(T.cameraViewMatrix.mul(T.vec4(dn, 0)).xyz));

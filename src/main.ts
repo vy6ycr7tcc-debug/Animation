@@ -5748,6 +5748,8 @@ renderer
       stand(-4.2, 6.4, 0.5);
       // `&near`: up close to the arch and its pillar, to read the stone itself
       if (new URLSearchParams(location.search).has("near")) return { base: [c.x, c.y, c.z], view: { eye: L(2.2, 1.9, 6.6), look: L(0.6, 1.6, 3.6) } };
+      // `&foot`: low by the arch's foot, where moss, damp and sand settle
+      if (new URLSearchParams(location.search).has("foot")) return { base: [c.x, c.y, c.z], view: { eye: L(2.6, 0.9, 6.2), look: L(0.9, 0.35, 3.4) } };
       return { base: [c.x, c.y, c.z], view: { eye: L(4.2, 3.0, 14.5), look: L(-0.4, 1.9, -0.6) } };
     };
     if (shot)
