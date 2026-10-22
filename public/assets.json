@@ -439,6 +439,9 @@
 {"p":"textures/rock_arm.jpg","h":"651a98343e94","s":129326},
 {"p":"textures/rock_diff.jpg","h":"d7e49f1c2299","s":214295},
 {"p":"textures/rock_nor.jpg","h":"7b5dd1f6f056","s":336759},
+{"p":"textures/rust_arm.jpg","h":"a17cec0eb8ca","s":29353},
+{"p":"textures/rust_diff.jpg","h":"ee1ee17bbe16","s":38494},
+{"p":"textures/rust_nor.jpg","h":"b9e4d2d0521c","s":13296},
 {"p":"textures/sand_arm.jpg","h":"94e2661543fd","s":57722},
 {"p":"textures/sand_diff.jpg","h":"8c95395ec8a0","s":179338},
 {"p":"textures/sand_nor.jpg","h":"625a7638192a","s":291318},
@@ -453,5 +456,8 @@
 {"p":"textures/temple/sandstone_blocks_08_nor.jpg","h":"1aa8bb282eef","s":25202},
 {"p":"textures/temple/sandstone_cracks_arm.jpg","h":"3b153c0d4383","s":129583},
 {"p":"textures/temple/sandstone_cracks_diff.jpg","h":"fcbe6f09d4ea","s":185455},
-{"p":"textures/temple/sandstone_cracks_nor.jpg","h":"daa1caa99e36","s":364430}
+{"p":"textures/temple/sandstone_cracks_nor.jpg","h":"daa1caa99e36","s":364430},
+{"p":"textures/wood_arm.jpg","h":"6e7b95de2aad","s":28182},
+{"p":"textures/wood_diff.jpg","h":"87efed484e31","s":235276},
+{"p":"textures/wood_nor.jpg","h":"09109879cc3c","s":189674}
 ]

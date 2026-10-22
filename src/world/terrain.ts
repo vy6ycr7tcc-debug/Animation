@@ -2106,6 +2106,8 @@ export const MINE_SITES: { x: number; z: number; y: number; face: number }[] = (
   // a level bench before each adit, as at any mine: cut into the foot of the hill at the mouth's
   // height, so the way in is walked on level ground (the hill rose too steeply to the door)
   for (const m of out) levelGround(m.x + Math.cos(m.face) * 5, m.z + Math.sin(m.face) * 5, m.y, 7, 13);
+  // (and a little way into the hill, where the adit runs: no slope of the hill rises in it)
+  for (const m of out) levelGround(m.x - Math.cos(m.face) * 2, m.z - Math.sin(m.face) * 2, m.y, 3.4, 5.5);
   return out;
 })();
 

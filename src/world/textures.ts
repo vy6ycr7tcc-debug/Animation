@@ -19,7 +19,7 @@ function tex(path: string, colour: boolean): THREE.Texture {
   return t;
 }
 
-export type SurfaceName = "sand" | "meadow" | "rock" | "bark" | "cliff" | "moon";
+export type SurfaceName = "sand" | "meadow" | "rock" | "bark" | "cliff" | "moon" | "wood" | "rust";
 /** A surface's colour map and normal map, and (the ground's scans, like the temple's) its packed
     occlusion / roughness / metal map. */
 export function surface(name: SurfaceName): { diff: THREE.Texture; nor: THREE.Texture; arm: THREE.Texture } {
