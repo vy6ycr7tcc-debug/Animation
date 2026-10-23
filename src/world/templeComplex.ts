@@ -24,6 +24,7 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { instanceSeed, T, vnoise, type N } from "../gpu/tsl";
 import { setWet } from "../gpu/wet";
 import { cavetto, put, wingedSun } from "./egyptGate";
+import { cutLips, signPainter } from "./hieroglyphs";
 import { papyrusGeometry, papyrusMaterial } from "./nile";
 import { skyColor } from "./sky";
 import { contactShade, landStone } from "./stoneworks";
@@ -118,6 +119,112 @@ function flowerClump(): THREE.BufferGeometry {
   g.setAttribute("aKind", new THREE.Float32BufferAttribute(kinds, 1));
   g.computeVertexNormals();
   return g;
+}
+
+/** A carved panel `w` × `h` m at `P` px a metre: R the cut, G its lit lip, B traces of paint. */
+function carving(kind: "jamb" | "hall" | "court", w: number, h: number, P: number, seed: number): THREE.CanvasTexture {
+  const W = Math.round(w * P), H = Math.round(h * P);
+  const c = document.createElement("canvas");
+  c.width = W;
+  c.height = H;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#000";
+  g.fillRect(0, 0, W, H);
+  const R = rng(seed);
+  const S = signPainter(g, R);
+  const m = (v: number) => v * P; // metres → px
+  g.lineWidth = 2;
+  if (kind === "jamb") {
+    // a frame; three registers of signs at the top; below, the figure with its staff facing the
+    // door (right), and four columns of signs before it
+    S.line(3, 6, 6, W - 6, 6, W - 6, H - 6, 6, H - 6, 6, 6);
+    const rh = m(0.42);
+    for (let k = 0; k < 3; k++) S.register(m(0.12), W - m(0.12), m(0.2) + rh * (k + 0.5), rh, 1);
+    const top = m(0.2) + rh * 3 + m(0.12);
+    S.stander(m(0.95), H - m(0.18), H - top - m(0.4), 1);
+    for (let k = 0; k < 4; k++) S.column(m(1.75 + k * 0.42), top, H - m(0.2), m(0.36), -1);
+  } else if (kind === "hall") {
+    // a frieze of signs under a ruled sky; below, a procession of figures walking toward the pylon
+    // (left), a column of signs before each
+    const fr = m(0.62);
+    S.line(3, 0, m(0.08), W, m(0.08));
+    S.register(m(0.2), W - m(0.2), m(0.12) + fr / 2, fr, 1);
+    const top = m(0.12) + fr + m(0.18), foot = H - m(0.16);
+    S.line(3, 0, foot + m(0.06), W, foot + m(0.06));
+    for (let x = m(1.2); x < W - m(1.0); x += m(2.6)) {
+      S.column(x - m(0.55), top, foot - m(0.1), m(0.34), 1);
+      S.stander(x + m(0.35), foot, foot - top - m(0.05), -1);
+    }
+  } else {
+    // two registers of signs over a row of figures facing the pylon (toward −z: left here)
+    const rh = m(0.46);
+    S.line(3, 0, m(0.06), W, m(0.06));
+    for (let k = 0; k < 2; k++) S.register(m(0.15), W - m(0.15), m(0.12) + rh * (k + 0.5), rh, 1);
+    const top = m(0.12) + rh * 2 + m(0.1), foot = H - m(0.12);
+    for (let x = m(0.9); x < W - m(0.6); x += m(1.7)) {
+      S.stander(x, foot, foot - top, -1);
+      S.column(x + m(0.7), top, foot, m(0.3), 1);
+    }
+  }
+  const out = cutLips(g, W, H);
+  // the broad cuts (a figure's body) sunk shallower in their middles than at their edges, as sunk
+  // relief is modelled: deep only along the outline (filled whole, they read as shadows)
+  {
+    const d = out.data, r = 4, keep = new Uint8Array(W * H);
+    for (let i = 0; i < W * H; i++) keep[i] = d[i * 4] > 128 ? 1 : 0;
+    // rows then columns: how many cut pixels within ±r
+    const rowRun = new Uint8Array(W * H);
+    for (let y = 0; y < H; y++) {
+      let n = 0;
+      for (let x = -r; x < W; x++) {
+        if (x + r < W) n += keep[y * W + x + r];
+        if (x - r - 1 >= 0) n -= keep[y * W + x - r - 1];
+        if (x >= 0) rowRun[y * W + x] = n === 2 * r + 1 ? 1 : 0;
+      }
+    }
+    for (let x = 0; x < W; x++) {
+      let n = 0;
+      for (let y = -r; y < H; y++) {
+        if (y + r < H) n += rowRun[(y + r) * W + x];
+        if (y - r - 1 >= 0) n -= rowRun[(y - r - 1) * W + x];
+        if (y >= 0 && n === 2 * r + 1) d[(y * W + x) * 4] = 105;
+      }
+    }
+  }
+  // B: where old paint survives (broad soft patches)
+  for (let y = 0; y < H; y += 2)
+    for (let x = 0; x < W; x += 2) {
+      const n = Math.sin(x * 0.013 + Math.sin(y * 0.011) * 2.4) * Math.cos(y * 0.017 - x * 0.004);
+      const v = Math.round(255 * Math.max(0, Math.min(1, (n - 0.1) * 1.6)));
+      for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) if (x + dx < W && y + dy < H) out.data[((y + dy) * W + x + dx) * 4 + 2] = v;
+    }
+  g.putImageData(out, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.NoColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+/** The carving over the stone: its cut darker and shaded by its own relief, its lip pale, a
+    trace of old paint (ochre red, blue, green by turns) in the cut where it survives. */
+function reliefMaterial(tex: THREE.Texture): THREE.MeshStandardNodeMaterial {
+  const m = new THREE.MeshStandardNodeMaterial({ transparent: true, depthWrite: false, roughness: 0.9, metalness: 0 });
+  m.polygonOffset = true;
+  m.polygonOffsetFactor = -2;
+  m.polygonOffsetUnits = -2;
+  const k = T.texture(tex, uv());
+  const cut = k.r, lip = k.g, paint = k.b;
+  // which paint: by broad cells over the panel
+  const cell = T.floor(uv().mul(vec2(7, 3)));
+  const hc = fract(sin(cell.x.mul(12.9898).add(cell.y.mul(78.233))).mul(43758.5453));
+  const pig = mix(mix(vec3(0.42, 0.14, 0.08), vec3(0.12, 0.24, 0.38), T.step(0.4, hc)), vec3(0.2, 0.32, 0.22), T.step(0.75, hc));
+  // the cut: a shadowed hollow (dark, a little warm), the old paint in it where it survives;
+  // its lip only a little paler than the stone round it
+  const depth = vec3(0.16, 0.11, 0.075);
+  const col = mix(depth, pig.mul(0.7), paint.mul(0.5)).toVar();
+  m.colorNode = vec4(mix(col, vec3(0.74, 0.62, 0.48), lip.div(cut.add(lip).add(1e-3))), 1);
+  m.opacityNode = clamp(cut.mul(0.72).add(lip.mul(0.16)), 0, 0.85);
+  m.normalNode = T.bumpMap(float(1).sub(cut), 2.2);
+  return m;
 }
 
 export class TempleComplex {
@@ -409,6 +516,71 @@ export class TempleComplex {
     }
     this.lotus(R);
     this.beds(R);
+    this.inscriptions();
+  }
+
+  /** The walls carved in sunk relief (the owner: "add hieroglyphs"): the gateway's jambs, both faces,
+      a tall figure with a staff facing the door under columns of signs; the hall's long flanks in
+      two bands of registers, figures walking toward the pylon between columns of signs; the
+      temenos's inner faces along the forecourt, a frieze of signs over a procession. Each is a
+      carving laid a few centimetres over the stone (its cut darker and shaded by its own relief,
+      a pale lip catching the light, traces of old paint in it), leaning with the wall's batter.
+      The signs are real sign shapes (`hieroglyphs.ts`), in a decorative order: no words. */
+  private inscriptions(): void {
+    const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+    /** A panel `w` × `h` m centred at `c`, facing `n` (±x or ±z), its top leaning back by `lean` m
+        over `rise` m; `flip` mirrors it (so figures face the right way). */
+    const panel = (w: number, h: number, c: THREE.Vector3, n: "+x" | "-x" | "+z" | "-z", lean: number, rise: number, flip = false) => {
+      const g = new THREE.PlaneGeometry(w, h, 1, 1);
+      if (flip) {
+        const uv = g.attributes.uv as THREE.BufferAttribute;
+        for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i));
+      }
+      g.rotateX(-Math.atan2(lean, rise));
+      g.rotateY({ "+z": 0, "-z": Math.PI, "+x": Math.PI / 2, "-x": -Math.PI / 2 }[n]);
+      return g.translate(c.x, c.y, c.z);
+    };
+    // the gateway's jambs: front (toward the landing) and back (toward the forecourt)
+    const jamb: THREE.BufferGeometry[] = [];
+    {
+      const yc = 3.55, h = 5.7, lean = 0.12, rise = GH + 0.4, dz = lean * ((yc + 0.4) / rise);
+      for (const s of [-1, 1])
+        for (const fz of [1, -1]) {
+          const x = s * (DX + (GX - DX) / 2);
+          // (the figure faces the door: toward −x on the right jamb seen from in front)
+          jamb.push(panel(3.5, h, V(x, yc, FZ + fz * (GD / 2 - dz + 0.035)), fz > 0 ? "+z" : "-z", lean, rise, (s > 0) === fz > 0));
+        }
+    }
+    // the hall's flanks: two bands, the lower and the upper, between the stone's storey mouldings
+    const hall: THREE.BufferGeometry[] = [];
+    {
+      const rise = HALL.h + 0.4, len = HALL.z0 - HALL.z1 - 3.2, zc = (HALL.z0 + HALL.z1) / 2;
+      for (const s of [-1, 1])
+        for (const [yc, h] of [[2.9, 3.8], [8.3, 4.2]]) {
+          const x = s * (HALL.x - 0.45 * ((yc + 0.4) / rise) + 0.035);
+          hall.push(panel(len, h, V(x, yc, zc), s > 0 ? "+x" : "-x", 0.45, rise, s < 0));
+        }
+    }
+    // the temenos's inner faces along the forecourt (its batter leans away from the court)
+    const court: THREE.BufferGeometry[] = [];
+    {
+      const yc = 2.75, h = 3.3, inset = (WT - WT_TOP) / 2, rise = WH;
+      for (const s of [-1, 1]) {
+        const x = s * (WX - WT + inset * ((yc + 0.4) / rise) - 0.035);
+        court.push(panel(19.5, h, V(x, yc, 11.6), s > 0 ? "-x" : "+x", inset, rise, s < 0));
+      }
+    }
+    const kinds: [THREE.BufferGeometry[], THREE.CanvasTexture][] = [
+      [jamb, carving("jamb", 3.5, 5.7, 120, 71)],
+      [hall, carving("hall", HALL.z0 - HALL.z1 - 3.2, 4, 84, 72)],
+      [court, carving("court", 19.5, 3.3, 96, 73)],
+    ];
+    for (const [list, tex] of kinds) {
+      const mesh = new THREE.Mesh(mergeGeometries(list)!, reliefMaterial(tex));
+      mesh.receiveShadow = true;
+      mesh.renderOrder = 1;
+      this.group.add(mesh);
+    }
   }
 
   /** The flames in the bronze bowls: two crossed sheets of flickering fire each, and a warm pool on the stone. */

@@ -413,7 +413,7 @@ export function runShot(ctx: ShotCtx): void {
     ctx.player.pos.set(px, gy, pz);
   } else if (id.startsWith("temple-complex-") && ctx.templeGate) {
     // the temple's precinct, in the pylon's frame (+z toward the shore): a the gateway from the
-    // landing, b the forecourt from a corner, c from the air, d the fountain close, e a side garden
+    // landing, b the forecourt from a corner, c from the air, d the fountain close, e a side garden, f the gateway's carved jamb, g the hall's carved flank, h the forecourt wall's frieze
     const g = ctx.templeGate, c = Math.cos(g.heading), s = Math.sin(g.heading);
     const L = (x: number, y: number, z: number): XYZ => [x * c + z * s, y, -x * s + z * c];
     const V: Record<string, [XYZ, XYZ, XYZ]> = {
@@ -422,6 +422,9 @@ export function runShot(ctx: ShotCtx): void {
       c: [[0, 0, 10], [38, 46, 62], [0, 0, -14]],
       d: [[5.5, 0, 17], [1.5, 1.5, 2.5], [-5.5, 1.8, -4.5]],
       e: [[17.5, 0, -2], [1, 1.7, 3], [1, 2.5, -20]],
+      f: [[0, 0, 32], [3, 1.7, -1], [-3.85, 3.6, 25.6]],
+      g: [[14, 0, -14], [1.5, 1.7, 4], [9, 4.5, -20]],
+      h: [[-19, 0, 12], [1, 1.7, 3], [-25, 2.8, 7]],
     };
     const [p, eye, look] = V[id.slice(-1)] ?? V.a;
     const w = L(p[0], 0, p[2]);
