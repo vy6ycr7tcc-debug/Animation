@@ -2961,7 +2961,7 @@ let sunStill = false;
 function contemplationFrame(dt: number): void {
   const idle = performance.now() - lastTouch > INWARD_AFTER && Math.hypot(input.move.x, input.move.y) < 0.05 && !input.hold;
   const want = inwardOn && idle && S.mode === "play" && !startMap.isOpen && $("#menu").hidden && !oracle.isOpen && player.speed < 0.3 &&
-    !player.flying && !player.diving && !player.floating && !follow.underwater && !autofly.active && !autorun.active && !crossing && !ride && !boardFor &&
+    !player.flying && !player.diving && !player.floating && !follow.underwater && !autofly.active && !autorun.active && !crossing && (!ride || (ride.kind === "cart" && ride.where === "in")) && !boardFor &&
     (sitting.phase === "none" || lessonSeated()) && !document.body.classList.contains("touring") && !sanct.building && !sanct.formingNow && !med.active;
   inwardK += ((want ? 1 : 0) - inwardK) * Math.min(1, dt * (want ? 0.35 : 3));
   if (inwardK < 0.002 && !want) inwardK = 0;
@@ -2989,8 +2989,18 @@ function contemplationFrame(dt: number): void {
   follow.overheadTilt = mz ? inwardK : 0;
   follow.overheadSun = mz ? (follow.overheadSun ?? new THREE.Vector3()).copy(mz.sunWorld()) : null;
   if (mz && !sunStill) mz.setNourish(inwardK, gzEye.copy(player.pos).setY(player.pos.y + 1.6));
+  // riding a mine car: a rider's eyes (seated, lower), looking on down the tunnel ahead
+  const cart = ride?.kind === "cart" && ride.where === "in" ? ride : null;
+  if (cart) follow.eyeLift = -0.5;
+  follow.gazeRate = cart ? 4 : 0.4;
   if (!want) return void (follow.gaze = null);
   gazeFor += dt;
+  if (cart) {
+    const m = cart.mine, ahead = cart.s + (cart.dir * 9) / m.railStep(cart.s);
+    m.railIn(Math.max(1, Math.min(m.samples.length - 2, ahead)), gazeV);
+    follow.gaze = gazeV.setY(gazeV.y + 0.75);
+    return;
+  }
   if (mz) {
     const s = mz.sunWorld();
     follow.gaze = gazeV.copy(s).add(gpTmp.set(Math.sin(S.t * 0.05), Math.sin(S.t * 0.04 + 2) * 0.4, Math.cos(S.t * 0.045)).multiplyScalar(s.distanceTo(player.pos) * 0.015));
@@ -4464,6 +4474,7 @@ function rideFrame(dt: number, t: number): void {
     }
     const yaw = m.railIn(r.s, rideV);
     m.cartIn.rotation.y = yaw;
+    m.cartIn.rotation.z = m.railPitch(r.s); // (pitched along the rails on the declines)
     spinCart(m.cartIn, m.cartIn.position, rideV);
     m.cartIn.position.copy(rideV);
     m.cartIn.userData.s = r.s;
