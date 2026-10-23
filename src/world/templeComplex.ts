@@ -486,7 +486,7 @@ export class TempleComplex {
     }
     {
       const pm = palmMaterial(this.uT);
-      const palms = new THREE.InstancedMesh(palmGeometry(0.9), pm, palmsAt.length);
+      const palms = new THREE.InstancedMesh(palmGeometry(0.9, "date"), pm, palmsAt.length);
       const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
       palmsAt.forEach(([x, z], i) => {
         const k = 0.95 + R() * 0.32;

@@ -34,7 +34,7 @@ interface Palm {
   variant: number;
 }
 
-const NEAR_R = 230; // palms drawn whole within this
+const NEAR_R = 150; // palms drawn whole within this
 const FAR_R = 1300; // and as likenesses within this; none beyond
 const REED_R = 170;
 
@@ -219,14 +219,14 @@ export class Nile {
     const pm = palmMaterial(this.uT);
     const nearMax = phone ? 70 : 120;
     for (const lean of [0.25, 0.7]) {
-      const mesh = new THREE.InstancedMesh(palmGeometry(lean), pm, nearMax);
+      const mesh = new THREE.InstancedMesh(palmGeometry(lean, "date"), pm, nearMax);
       mesh.count = 0;
       mesh.frustumCulled = false;
       mesh.castShadow = true;
       this.near.push(mesh);
       this.group.add(mesh);
     }
-    this.far = new THREE.InstancedMesh(palmFarGeometry(0.4), pm, this.palms.length);
+    this.far = new THREE.InstancedMesh(palmFarGeometry(0.4, "date"), pm, this.palms.length);
     this.far.count = 0;
     this.far.frustumCulled = false;
     this.group.add(this.far);

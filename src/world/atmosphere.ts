@@ -72,7 +72,15 @@ export class Clouds {
     c = c.mul(mix(float(1), float(0.62), cloudUniforms.cover));
     c = c.add(cloudUniforms.light.mul(1.4).mul(behind).mul(float(1).sub(d)).mul(d).mul(1.6)); // a silver lining when the moon is behind
     mat.colorNode = mix(c, withFog(c, vW), 0.7);
-    mat.opacityNode = d.mul(mix(float(0.9), float(0.97), cloudUniforms.cover));
+    // A billboard can't be flown through or looked down on: as you come within its own size it
+    // thins away (a near one smeared over the whole view from autofly's height), and seen from
+    // above, more than a little below the eye, it fades too (from there it reads as a cut-out).
+    const vC = varying(vec3(cxz.x, aCentre.y, cxz.y)), vW2 = varying(aSize.x);
+    const toC = vC.sub(cameraPosition);
+    const flat = length(toC.xz);
+    const near = smoothstep(vW2.mul(0.45), vW2.mul(1.1), length(toC));
+    const below = smoothstep(-0.12, -0.32, toC.y.div(max(flat, 1))); // its sight line's slope, downward
+    mat.opacityNode = d.mul(mix(float(0.9), float(0.97), cloudUniforms.cover)).mul(near).mul(float(1).sub(below));
     mat.alphaTest = 0.009;
     this.mesh = new THREE.Mesh(geo, mat);
     this.mesh.frustumCulled = false;

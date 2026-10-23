@@ -178,6 +178,7 @@ export class Heart {
     compose.innerHTML = `
       ${ORN}
       <h2 class="title">From the heart</h2>
+      <p class="asked" hidden></p>
       <textarea rows="6" maxlength="4000" placeholder="What is in your heart?" aria-label="Your note"></textarea>
       <p class="note">Kept on this device only.</p>
       <div class="foot"><button class="word cancel" type="button">Cancel</button><button class="word save" type="button">Keep it</button></div>`;
@@ -325,10 +326,18 @@ export class Heart {
     document.body.classList.toggle("hearting", this.open);
   }
 
-  openCompose(): void {
+  /** The question a note answers (from a question to sit with), kept at its head. */
+  private asked = "";
+
+  openCompose(question = ""): void {
     if (!this.compose.hidden) return;
     this.list.hidden = true;
     this.area.value = "";
+    this.asked = question;
+    const a = this.compose.querySelector<HTMLElement>(".asked")!;
+    a.textContent = question;
+    a.hidden = !question;
+    this.area.placeholder = question ? "Write what rises…" : "What is in your heart?";
     this.compose.hidden = false;
     this.mark();
     // focus after the panel shows (a phone raises its keyboard only for a focused field)
@@ -342,8 +351,9 @@ export class Heart {
   }
 
   private save(): void {
-    const text = this.area.value.trim();
-    if (!text) return this.closeCompose();
+    const said = this.area.value.trim();
+    if (!said) return this.closeCompose();
+    const text = this.asked ? `“${this.asked}”\n\n${said}` : said;
     const notes = heartNotes();
     notes.unshift({ text, createdAt: Date.now(), scene: this.place() });
     if (!saveNotes(notes)) {

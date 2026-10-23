@@ -16,6 +16,7 @@ export class NextUp {
   private el: HTMLDivElement;
   private head: HTMLParagraphElement;
   private list: HTMLDivElement;
+  private carry: HTMLParagraphElement;
   private timer = 0;
 
   constructor() {
@@ -24,7 +25,9 @@ export class NextUp {
     this.el.setAttribute("aria-label", "Where next");
     this.head = Object.assign(document.createElement("p"), { className: "head" });
     this.list = Object.assign(document.createElement("div"), { className: "list" });
-    this.el.append(this.head, this.list);
+    // a question to carry from what has ended (ui/reflections.ts), before the ways on
+    this.carry = Object.assign(document.createElement("p"), { className: "carry" });
+    this.el.append(this.head, this.carry, this.list);
     document.body.append(this.el);
   }
 
@@ -33,12 +36,14 @@ export class NextUp {
   }
 
   /** `done`: what came to its end ("The temple, guided"); the options in order; then "Stay here". */
-  show(done: string, options: NextOption[], stay = "Stay here"): void {
+  show(done: string, options: NextOption[], stay = "Stay here", carry = ""): void {
     window.clearTimeout(this.timer);
     this.head.innerHTML = "";
     const d = Object.assign(document.createElement("span"), { className: "done", textContent: done });
     const q = Object.assign(document.createElement("span"), { className: "q", textContent: "Where next?" });
     this.head.append(d, q);
+    this.carry.textContent = carry;
+    this.carry.hidden = !carry;
     this.list.replaceChildren(
       ...options.map((o, i) => this.button(o.label, o.note, i === 0 ? "go first" : "go", () => o.go())),
       this.button(stay, undefined, "stay", () => undefined),

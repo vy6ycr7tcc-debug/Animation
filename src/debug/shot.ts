@@ -39,6 +39,7 @@ const DEFAULT_T: Record<string, number> = {
   duat: 30,
 };
 
+type XYZ3 = { x: number; y: number; z: number };
 type XYZ = [number, number, number];
 /** The lessons told as visions (scenes/visionLesson.ts): framed from behind the seat. */
 const VISION_LESSONS = new Set(["shore", "igloo", "garden", "galaxies", "desert", "tree-station", "atoms", "other-worlds", "greetings"]);
@@ -353,6 +354,16 @@ export function runShot(ctx: ShotCtx): void {
     const lx = Math.cos(along) * 60 - (px - 0) * 0, lz = Math.sin(along) * 60;
     view = { eye: [0, 9, 0], look: [lx, -gy - 2, lz] };
     ctx.player.pos.set(px, gy, pz);
+  } else if (/^far-\d$/.test(id)) {
+    // as autofly sees it: `h` metres over the land (320 its high cruise, 6 its low) along region k's
+    // bearing, `r` out, looking on outward a little below the horizon
+    const a = -Number(id.slice(4)) * (Math.PI / 4), ux = Math.cos(a), uz = Math.sin(a);
+    const qs = new URLSearchParams(location.search);
+    const r = Number(qs.get("r") ?? 400), hh = Number(qs.get("h") ?? 320), pitch = Number(qs.get("pitch") ?? (hh > 60 ? 0.2 : 0.05));
+    const px = ux * r, pz = uz * r, gy = Math.max(heightAt(px, pz), 0) + hh;
+    base = [px, gy, pz];
+    view = { eye: [0, 0, 0], look: [ux * 100, -Math.tan(pitch) * 100, uz * 100] };
+    ctx.player.pos.set(px, gy, pz);
   } else if (/^aerial-\d$/.test(id)) {
     // the land of a region from the air (0 E … 7 SE, as region-k): 140 m up, 500 m out, looking
     // on outward and down over its rivers, craters and landforms
@@ -414,9 +425,12 @@ export function runShot(ctx: ShotCtx): void {
     }
     const ux = Math.cos(a), uz = Math.sin(a), gy = heightAt(px, pz);
     base = [px, gy, pz];
+    const hi = Number(new URLSearchParams(location.search).get("hi") ?? 0);
     view = new URLSearchParams(location.search).has("down")
       ? { eye: [-ux * 2.5, 10, -uz * 2.5], look: [ux * 2, 0, uz * 2] } // the ground from above, as the game's steep view sees it
-      : { eye: [-ux * 6, 4.5, -uz * 6], look: [ux * 40, heightAt(px + ux * 40, pz + uz * 40) - gy + 0.5, uz * 40] };
+      : hi > 0 // from `hi` metres up, over the country 100–400 m off (the far trees)
+        ? { eye: [-ux * 6, hi, -uz * 6], look: [ux * 240, heightAt(px + ux * 240, pz + uz * 240) - gy, uz * 240] }
+        : { eye: [-ux * 6, 4.5, -uz * 6], look: [ux * 40, heightAt(px + ux * 40, pz + uz * 40) - gy + 0.5, uz * 40] };
     ctx.player.pos.set(px, gy, pz);
   } else if (id.startsWith("temple-complex-") && ctx.templeGate) {
     // the temple's precinct, in the pylon's frame (+z toward the shore): a the gateway from the
@@ -668,6 +682,15 @@ export function runShot(ctx: ShotCtx): void {
     };
     view = V4[id.slice(8)];
     ctx.player.pos.set(P.x + view.eye[0], P.y, P.z + view.eye[2] + 2);
+  } else if (/^nile-[fg]$/.test(id)) {
+    // a date palm by the river, close: f lit from the front (the low sun behind you), g against it
+    const at = nileCourse(NILE.z + 150) - 30;
+    const pa = (window as unknown as { __datePalmAt?: (x: number, z: number) => XYZ3 | null }).__datePalmAt?.(at, NILE.z + 150);
+    const px = pa?.x ?? at, pz = pa?.z ?? NILE.z + 150, sgn = id === "nile-f" ? -1 : 1;
+    const ex = px + sgn * 11, ez = pz + 3, gy = Math.max(heightAt(ex, ez), 0.3);
+    base = [ex, gy, ez];
+    view = { eye: [0, 1.7, 0], look: [px - ex, (pa?.y ?? gy) + 4.2 - gy, pz - ez] };
+    ctx.player.pos.set(ex + sgn * 2, gy, ez);
   } else if (/^nile-[a-e]$/.test(id)) {
     // the Nile: a over the floodplain from the pyramid's plaza, b on the west bank among the
     // papyrus, c from the air over the valley, d from the river up to the pyramid

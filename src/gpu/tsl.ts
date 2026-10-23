@@ -97,7 +97,9 @@ export const ijFog = Fn(([p]: N[]) => {
   const k = a.mul(rd.y).mul(d);
   const integ = abs(k).greaterThan(1e-3).select(float(1).sub(exp(k.negate())).div(k), float(1).sub(k.mul(0.5)));
   // the haze thins over high ground, so the mountains keep their rock and snow against the sky
-  const highClear = mix(float(1), float(0.45), smoothstep(40, 260, p.y));
+  // and from high up (autofly's cruise) the land below is seen through clearer air than along the
+  // ground, so its woods and relief keep their contrast instead of going milky
+  const highClear = mix(float(1), float(0.45), smoothstep(40, 260, p.y)).mul(mix(float(1), float(0.6), smoothstep(30, 300, cameraPosition.y)));
   const depth = fogUniforms.density.mul(d).mul(exp(a.negate().mul(max(cameraPosition.y, 0)))).mul(integ).add(float(FOG.haze).mul(d).mul(highClear));
   const f = max(float(1).sub(exp(depth.negate())), smoothstep(1450, 2020, d)); // the far land melts into the haze before its last tiles end (≥ 2048 m away)
   const moon = pow(max(dot(rd, fogUniforms.glowDir), 0), 5);
