@@ -4057,7 +4057,7 @@ function tourOfferFrame(dt: number): void {
     else driveTo(h.hall.door.x, h.hall.door.z, null, pendingArea.since);
   }
   let want: { place: TourPlace; inside: boolean } | null = null;
-  const free = S.mode === "play" && !walk && !duatTour && !areaTour && !pendingArea && !tourScenes.tour.active && !crossing && !nextUp.shown &&
+  const free = S.mode === "play" && !ride && !boardFor && !walk && !duatTour && !areaTour && !pendingArea && !tourScenes.tour.active && !crossing && !nextUp.shown &&
     sitting.phase === "none" && !startMap.isOpen && $("#menu").hidden && !temple.cardsOpen && !inHall()?.journey.crossing;
   if (free) {
     for (const pl of TOUR_PLACES) {
