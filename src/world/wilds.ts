@@ -186,7 +186,7 @@ export function palmGeometry(lean: number, kind: PalmKind = "coconut"): THREE.Bu
       const end = crown.clone().addScaledVector(dir, 0.75).add(new V(0, -0.85, 0));
       const stalk = new THREE.CatmullRomCurve3([crown.clone().addScaledVector(dir, 0.2).add(new V(0, -0.2, 0)), crown.clone().addScaledVector(dir, 0.6).add(new V(0, -0.15, 0)), end]);
       parts.push(retag(tube(stalk, 6, 4, () => 0.03, () => 0.3), 7));
-      const b = new THREE.IcosahedronGeometry(0.2, 2).scale(1, 1.55, 1);
+      const b = new THREE.SphereGeometry(0.2, 14, 10).scale(1, 1.55, 1); // indexed, as every other part
       const bp = b.attributes.position as THREE.BufferAttribute;
       for (let i = 0; i < bp.count; i++) {
         q.fromBufferAttribute(bp, i);
