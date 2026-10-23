@@ -5426,20 +5426,21 @@ function setMenu(open: boolean): void {
   if (open) $<HTMLInputElement>("#vol").focus();
 }
 
-/* Offline play (core/offline.ts): the button says what it would cost. Never downloaded: the whole
-   game's size. Downloaded: "ready" when nothing changed, or the size of the update when a new
-   version brought new or changed files (only those are fetched; a quiet word says so once). */
+/* Offline play (core/offline.ts): a download always fetches the whole game and overwrites the
+   version kept before, so the button always says the whole game's size. Downloaded: "ready" when
+   nothing changed since, or that a new version is waiting (a quiet word says so once). */
 async function offlineLabel(announce = false): Promise<void> {
   const btn = $<HTMLButtonElement>("#offline-btn");
   try {
     const list = await fetchAssetList();
+    const size = megabytes(list.reduce((s, a) => s + a.s, 0));
     if (!downloadedBefore()) {
-      btn.textContent = `Download for offline play (${megabytes(list.reduce((s, a) => s + a.s, 0))})`;
+      btn.textContent = `Download for offline play (${size})`;
       return;
     }
     const p = await plan(list);
-    btn.textContent = p.need.length ? `Update offline play (${megabytes(p.bytes)})` : "Offline play: ready ✓";
-    if (announce && p.need.length) whisper(`An update for offline play is ready (${megabytes(p.bytes)}), in ⋮`, 6000);
+    btn.textContent = p.need.length ? `Download the new version for offline play (${size})` : `Offline play: ready ✓ · download again (${size})`;
+    if (announce && p.need.length) whisper(`A new version for offline play is ready (${size}), in ⋮`, 6000);
   } catch {
     /* off line: keep the label it has */
   }
@@ -5462,12 +5463,12 @@ $("#offline-btn").addEventListener("click", async () => {
       bar.style.width = `${p.percentage}%`;
       text.textContent = `${p.percentage}% (${p.downloaded}/${p.total})`;
     });
-    const got = r.bytes ? `${megabytes(r.bytes)} downloaded.` : "Everything was already here.";
+    const got = `${megabytes(r.bytes)} downloaded, replacing what was kept before.`;
     text.textContent = r.failed
       ? `${r.failed} file${r.failed > 1 ? "s" : ""} could not be fetched; tap again to finish.`
       : `${got} The game now plays without a connection${persisted ? "." : " (the device may clear it if storage runs low)."}`;
     btn.disabled = false;
-    if (!r.failed) btn.textContent = "Offline play: ready ✓";
+    if (!r.failed) void offlineLabel();
   } catch (err) {
     console.error("Offline download failed:", err);
     text.textContent = `Download failed: ${err instanceof Error ? err.message : "Unknown error"}. Please try again.`;

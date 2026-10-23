@@ -1,7 +1,8 @@
 /* Offline play (⋮ → Download for offline play). Every file the game uses (public/, listed with a
-   hash and size in assets.json by generate-assets.js) is kept in one cache that survives
-   updates: a new version of the game downloads only the files that changed, never everything
-   again. What is kept is served by the service worker (public/sw.js) first, on line or off, so
+   hash and size in assets.json by generate-assets.js) is kept in one cache. A download always
+   fetches the whole game fresh from the server and overwrites every kept file with it, then lets
+   go of what the game no longer has, so what is kept is always one whole version, never a mix
+   (the owner: "download offline should always overwrite the previous full version"). What is kept is served by the service worker (public/sw.js) first, on line or off, so
    once downloaded the game uses no data for them; and while you play on line, the recordings,
    models and textures you meet are kept as you go (sw.js), so none is fetched twice. */
 
@@ -93,33 +94,34 @@ export async function plan(list?: AssetEntry[]): Promise<Plan> {
   return { need, bytes: need.reduce((s, a) => s + a.s, 0), stale };
 }
 
-/** Downloads what the plan needs (four at a time), records each, and lets go of what is gone. */
+/** Downloads the whole game fresh (four files at a time), each overwriting its kept copy as it
+    arrives, records each, and lets go of what the game no longer has. A file that fails keeps
+    its old copy, so a broken connection never leaves a hole. */
 export async function downloadAssets(onProgress: (progress: DownloadProgress) => void): Promise<{ failed: number; bytes: number }> {
+  await migrate();
   const assets = await fetchAssetList();
-  const p = await plan(assets);
   const cache = await caches.open(OFFLINE_CACHE_NAME);
-  for (const u of p.stale) await cache.delete(u, { ignoreSearch: true });
+  const listed = new Set(assets.map((a) => url(a.p)));
+  for (const r of await cache.keys()) if (!listed.has(r.url.split("?")[0])) await cache.delete(r, { ignoreSearch: true });
   const rec = record();
   for (const k of Object.keys(rec)) if (!assets.some((a) => a.p === k)) delete rec[k];
-  // what is already current is recorded as it stands
-  const needed = new Set(p.need.map((a) => a.p));
-  for (const a of assets) if (!needed.has(a.p)) rec[a.p] = a.h;
   saveRecord(rec);
-  const total = p.need.reduce((s, a) => s + Math.max(1, a.s), 0);
-  let done = 0, count = 0, failed = 0;
-  const report = () => onProgress({ total: p.need.length, downloaded: count, percentage: total ? Math.floor((done / total) * 100) : 100 });
+  const total = assets.reduce((s, a) => s + Math.max(1, a.s), 0);
+  let done = 0, count = 0, failed = 0, bytes = 0;
+  const report = () => onProgress({ total: assets.length, downloaded: count, percentage: total ? Math.floor((done / total) * 100) : 100 });
   report();
   let i = 0;
   const worker = async () => {
-    while (i < p.need.length) {
-      const a = p.need[i++];
+    while (i < assets.length) {
+      const a = assets[i++];
       try {
-        // `fresh` gets past the worker's cache, to the server
-        const res = await fetch(`./${a.p}?fresh=${a.h || Date.now()}`, { cache: "no-store" });
+        // `fresh` gets past the worker's cache, to the server; no-store past the browser's
+        const res = await fetch(`./${a.p}?fresh=${Date.now()}`, { cache: "no-store" });
         if (res.ok) {
           await cache.put(url(a.p), res);
           rec[a.p] = a.h;
           saveRecord(rec);
+          bytes += a.s;
         } else failed++;
       } catch {
         failed++;
@@ -130,7 +132,7 @@ export async function downloadAssets(onProgress: (progress: DownloadProgress) =>
     }
   };
   await Promise.all([worker(), worker(), worker(), worker()]);
-  return { failed, bytes: p.bytes };
+  return { failed, bytes };
 }
 
 /** On line, once downloaded: the size of the update waiting (null when there is none). */
