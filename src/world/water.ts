@@ -5,7 +5,7 @@
    that once mirrored it is gone. */
 import * as THREE from "three/webgpu";
 import { T, withFog, type N } from "../gpu/tsl";
-import { mirroredStars, skyColor, skyUniforms } from "./sky";
+import { skyColor, skyUniforms } from "./sky";
 
 const {
   abs, cameraPosition, clamp, cos, dot, exp, float, Fn, If, length, Loop, max, mix, normalize, positionWorld, pow, reflect,
@@ -89,9 +89,6 @@ export class Water {
         // pale cyan catches on the ripple slopes
         refl.addAssign(vec3(0.3, 0.6, 0.7).mul(smoothstep(0.02, 0.25, length(g))).mul(0.1));
         const c = mix(vec3(0.012, 0.024, 0.055), refl, clamp(fres.mul(1.25), 0, 1)).toVar();
-        // the stars held in it: faint always, clear where it is still; seen even looking down
-        // (dark water returns a little of a bright point at any angle)
-        c.addAssign(T.min(mirroredStars(R).mul(fres.mul(0.6).add(0.12)).mul(stillW.mul(1.3).add(0.4)), 0.8)); // under bloom's threshold
         // the bright star's path of light across the water
         // (on still water it gathers into a point with a small glow, as in the sky above)
         const dS = max(dot(R, S.uStar), 0);

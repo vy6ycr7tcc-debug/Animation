@@ -25,7 +25,7 @@ import { instanceSeed, T, vnoise, type N } from "../gpu/tsl";
 import { setWet } from "../gpu/wet";
 import { cavetto, put, wingedSun } from "./egyptGate";
 import { papyrusGeometry, papyrusMaterial } from "./nile";
-import { mirroredStars, skyColor } from "./sky";
+import { skyColor } from "./sky";
 import { contactShade, landStone } from "./stoneworks";
 import { colliders, heightAt, KEEP_CLEAR, levelRect } from "./terrain";
 import { palmGeometry, palmMaterial } from "./wilds";
@@ -464,7 +464,7 @@ export class TempleComplex {
     const v = normalize(pw.sub(T.cameraPosition));
     const Rr = T.reflect(v, n);
     const fres = float(0.02).add(float(0.98).mul(pow(float(1).sub(clamp(dot(v.negate(), n), 0, 1)), 5)));
-    const sky = skyColor(normalize(vec3(Rr.x, max(Rr.y, 0.04), Rr.z))).add(T.min(mirroredStars(normalize(vec3(Rr.x, max(Rr.y, 0.04), Rr.z))).mul(0.8), 0.7));
+    const sky = skyColor(normalize(vec3(Rr.x, max(Rr.y, 0.04), Rr.z)));
     m.emissiveNode = sky.mul(fres.mul(0.9).add(0.05));
     setWet(m, float(0.95), float(1));
     this.group.add(new THREE.Mesh(mergeGeometries(geos)!, m));

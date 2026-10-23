@@ -13,7 +13,7 @@
    the night sky (underground, the water's own floor, darker). `?wetdebug` shows what is wet; `?wet=0` turns it all off, to compare in `#stats`. */
 import * as THREE from "three/webgpu";
 import { T, type N } from "./tsl";
-import { mirroredStars, skyColor, skyUniforms } from "../world/sky";
+import { skyColor, skyUniforms } from "../world/sky";
 
 const { Break, clamp, dot, float, Fn, getScreenPosition, getViewPosition, If, length, Loop, max, mix, normalize, perspectiveDepthToViewZ, pow, reference, smoothstep, uniform, uv, vec2, vec4 } = T;
 
@@ -122,11 +122,11 @@ export function wetReflections(color: N, colorTex: N, depth: N, wetTex: N, camer
       const reach = float(1).sub(smoothstep(0.55, 1, tHit.div(maxLen)));
       const got = hit.mul(edge).mul(reach).mul(conf);
       // what it meets; where it meets nothing, the sky itself in that direction, as the lakes
-      // mirror it (its colours, the moon and the low sun's glow, its stars), never the nebulae or
-      // galaxies, whose blurred blobs once slid over the land
+      // mirror it (its colours, the moon and the low sun's glow, the aurora), never its stars,
+      // nebulae or galaxies
       const rw = normalize(camWorld.mul(vec4(r, 0)).xyz).toVar();
       const R = normalize(T.vec3(rw.x, max(rw.y, 0.03), rw.z));
-      const air = skyColor(R).add(T.min(mirroredStars(R).mul(0.9), 0.8))
+      const air = skyColor(R)
         .add(T.vec3(1.0, 0.8, 0.5).mul(pow(max(dot(R, skyUniforms.uStar), 0), 900)).mul(2.2)) // the bright star, kept under bloom
         .toVar();
       // (underground there is no air to see: the water there shows the floor under it, darker)
