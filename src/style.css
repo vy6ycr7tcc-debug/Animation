@@ -401,6 +401,9 @@ body.mapping :is(#joy, #act, #ctx, #auto, #menu-btn, #tp, #tp-mini, #whisper, #k
 #map-pick p { margin: 0; font-style: italic; text-align: center; }
 #map-continue[hidden] { display: none; }
 #map-go, #map-continue { border: 1px solid var(--gold); border-radius: 22px; min-height: 44px; padding: 8px 20px; color: var(--gold); }
+#map-go:disabled { opacity: 0.4; }
+#map-undo { border: 1px solid rgba(244, 239, 230, 0.35); border-radius: 22px; min-height: 44px; padding: 8px 16px; color: inherit; }
+#map-undo[hidden] { display: none; }
 #map-places { display: flex; flex-direction: column; gap: 0.5rem; max-width: 44em; width: 100%; flex: 1 1 0; min-height: 0; }
 #map-places > .map-head { flex: none; }
 /* the names scroll in their own space, so the map and the tabs stay in view and the screen never scrolls */

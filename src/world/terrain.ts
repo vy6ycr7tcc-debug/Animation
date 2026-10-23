@@ -785,8 +785,8 @@ export const gladeAt = (x: number, z: number): number => {
   return k;
 };
 
-/** Lines the growing things keep off as well (the railway): each answers whether (x, z) is
-    within its reach, with `pad` more. */
+/** Lines the growing things keep off as well (none now: the railway's track is gone): each answers
+    whether (x, z) is within its reach, with `pad` more. */
 export const CLEAR_LINES: ((x: number, z: number, pad: number) => boolean)[] = [];
 export const keptClear = (x: number, z: number, pad = 0) => KEEP_CLEAR.some((k) => Math.hypot(x - k.x, z - k.z) < k.r + pad) || CLEAR_LINES.some((f) => f(x, z, pad));
 

@@ -66,7 +66,7 @@ import { allVoices, chosenVoice, onSpeechFail, onSpeechStart, readAloud, sayAlou
 import { Vessels } from "./world/vessels";
 import { TranscriptPlayer } from "./ui/transcriptPlayer";
 import { tourBar, type TourBarOwner } from "./ui/tourBar";
-import { setMapRailway, StartMap, type Choice, type Place } from "./ui/map";
+import { setMapRides, StartMap, type Choice, type Place } from "./ui/map";
 import { buildSky, skyUniforms, starDirection } from "./world/sky";
 import { floorHook, GOBEKLI, gobekliAt, NAN_MADOL, nanMadolAt, RAPA_NUI, rapaNuiAt, groundUniforms, heightAt, heightCoarse, LANDMARK_SITES, MONUMENT, PEAKS, SPAWN, standAt, Terrain, WATER_Y } from "./world/terrain";
 import { Temple } from "./world/temple";
@@ -82,7 +82,7 @@ import { Pyramid, DUAT_ORIGIN } from "./world/pyramid";
 import { Cavern, type Underground } from "./world/cavern";
 import { GoldMine, spinCart } from "./world/mines";
 import { ADEPT_HALL, DENSITY_HALL, MAZE_HALL, MINE_SITES, PAST_HALL, PYRAMID, VEIL_HALL, WANDERER_HALL, wakeTheNile } from "./world/terrain";
-import { Railway, settle, type Station } from "./world/railway";
+import { Railway, Route, settle, type Station } from "./world/railway";
 import { FalseDoors } from "./world/falseDoors";
 import { Gobekli } from "./world/ancient/gobekli";
 import { NanMadol } from "./world/ancient/nanMadol";
@@ -412,8 +412,8 @@ const templeComplex = new TempleComplex(temple.gate, temple.gateHeading);
 // temple's gate and precinct stand (it keeps clear of both), before the railway is planned (which keeps
 // clear of it) and before the trees and stones are laid (they keep clear of it)
 const waitingHall = new WaitingHall(chooseWaitingSite([{ x: temple.gateAt.x, z: temple.gateAt.z, r: 70 }]));
-// the railway: one loop through every gold mine and the great places, a car waiting at each station
-// (planned now, after every site is chosen and before any tree grows, so they keep off it)
+// the floating cars (world/railway.ts): one waits at each of the great places and every gold mine;
+// tapped, it asks on the map where to carry you, and floats along a route drawn through them
 const railway = (() => {
   const g = temple.gate.position, h = temple.gateHeading;
   const W = (lx: number, lz: number) => ({ x: g.x + lx * Math.cos(h) + lz * Math.sin(h), z: g.z - lx * Math.sin(h) + lz * Math.cos(h) });
@@ -439,14 +439,12 @@ const railway = (() => {
       name: `A gold mine, ${compass[(Math.round(Math.atan2(m.x, -m.z) / (Math.PI / 4)) + 8) % 8]}`,
       x: m.x + Math.cos(m.face) * 30,
       z: m.z + Math.sin(m.face) * 30,
-      spur: { x: m.x + Math.cos(m.face) * 15, z: m.z + Math.sin(m.face) * 15 },
     })),
   ];
-  return new Railway(specs.map(settle), `inward-journey:rail:${__BUILD__}`);
+  return new Railway(specs.map(settle));
 })();
 scene.add(railway.group);
-setMapRailway({ px: railway.px, pz: railway.pz, n: railway.n, stations: railway.stations });
-console.info(`railway: ${(railway.length / 1000).toFixed(1)} km, ${railway.stations.length} stations, planned in ${railway.planMs.toFixed(0)} ms`);
+setMapRides({ stations: railway.stations, route: null });
 let hallsReady = false; // the halls are made further down; until then their floor is level
 floorHook.fn = (x, z) => (x > 55000 ? (under()?.floorAt(x, z) ?? 0) : inJourney(x) ? (hallsReady ? (inHall()?.journey.floorAt(x, z) ?? 0) : 0) : x > 45000 ? pyramid.floorAt(x, z) : x > 35000 ? depths.floorAt() : temple.floorAt(x, z));
 /** The figure the beings wear, once loaded (the mind's maze dresses its archetypes in it too). */
@@ -1515,10 +1513,13 @@ function choiceFrame(): void {
 function templeFrame(dt: number): void {
   temple.update(S.wt, dt, player.pos, S.reduced);
   templeComplex.update(S.wt, player.pos, !apart());
-  railway.update(player.pos, !apart(), ride?.kind === "line" ? ride.st : null);
-  // a car left out along the line goes home to its station once you are well away from it
+  railway.update(player.pos, !apart(), ride?.kind === "line" ? ride.s : -1e9, S.t, ride?.kind === "line" ? ride.st : null);
+  // a car left where you stepped out goes home to its place once you are well away from it
   for (const st of railway.stations)
-    if (st.carAt !== st.s && !(ride?.kind === "line" && ride.st === st) && player.pos.distanceTo(st.car.position) > 220) railway.park(st);
+    if (st.away && !(ride?.kind === "line" && ride.st === st) && player.pos.distanceTo(st.car.position) > 220) {
+      railway.park(st);
+      if (railway.route && !railway.stations.some((q) => q.away)) (railway.setRoute(null), setMapRides({ stations: railway.stations, route: null }));
+    }
   // the view never stands behind a wall (the temple's walls as they are now: it is rebuilt per visit)
   follow.blockers = temple.inside ? temple.blockers : apart() ? apartBlockers() : NO_BLOCKERS;
   if (S.mode !== "play") return;
@@ -3073,16 +3074,24 @@ function contemplationFrame(dt: number): void {
   follow.gazeRate = cart || line ? 4 : 0.4;
   if (!want) return void (follow.gaze = null);
   gazeFor += dt;
-  if (line) {
-    // the railway: the rider looks on along the line ahead
-    railway.at(line.s + 14, gazeV);
-    follow.gaze = gazeV.setY(gazeV.y + 0.75);
-    return;
-  }
-  if (cart) {
-    const m = cart.mine, ahead = cart.s + (cart.dir * 9) / m.railStep(cart.s);
-    m.railIn(Math.max(1, Math.min(m.samples.length - 2, ahead)), gazeV);
-    follow.gaze = gazeV.setY(gazeV.y + 0.75);
+  if (line || cart) {
+    // a ride: the rider's eyes turn slowly round, ahead, to the side, behind, the other side
+    const a = rideViewAngle(dt);
+    const eye = gzEye.copy(player.pos).setY(player.pos.y + 1.1);
+    if (line?.route) line.route.at(line.s + 14, gazeV);
+    else if (cart) {
+      const m = cart.mine, ahead = cart.s + (cart.dir * 9) / m.railStep(cart.s);
+      m.railIn(Math.max(1, Math.min(m.samples.length - 2, ahead)), gazeV);
+    } else gazeV.copy(eye).add(gzPeak.set(-Math.sin(player.heading), 0, -Math.cos(player.heading)));
+    // ahead along the way (its curves followed), turned by the view's angle about the rider
+    const fx = gazeV.x - eye.x, fz = gazeV.z - eye.z, fl = Math.hypot(fx, fz) || 1;
+    const c = Math.cos(a), sn = Math.sin(a);
+    const dx = (fx / fl) * c - (fz / fl) * sn, dz = (fz / fl) * c + (fx / fl) * sn;
+    const D = cart ? 7 : 26;
+    // ahead it looks along the way; to the sides and behind a little down onto the land
+    const drop = cart ? 0.25 + 0.35 * (1 - c) * 0.5 : 0.5 + 2.6 * (1 - c * c * Math.max(0, c));
+    const w = Math.max(0, Math.min(1, (c - 0.7) / 0.3)), wk = w * w * (3 - 2 * w);
+    follow.gaze = gazeV.set(eye.x + dx * D, (gazeV.y + 0.75) * wk + (eye.y - drop) * (1 - wk), eye.z + dz * D);
     return;
   }
   if (mz) {
@@ -4329,12 +4338,34 @@ const mines = MINE_SITES.map((_, i) => new GoldMine(i));
 type Ride =
   | { kind: "canoe"; boat: Boat; speed: number; turnV: number; ashore: THREE.Vector3 | null; ripple: number; lap: number }
   | { kind: "cart"; mine: GoldMine; where: "out" | "wait" | "in"; s: number; speed: number; dir: 1 | -1; stop: boolean; clack: number }
-  | { kind: "line"; st: Station; s: number; speed: number; stop: boolean; clack: number; dwell: number; next: Station; left: Station | null };
+  | { kind: "line"; st: Station; route: Route | null; s: number; speed: number; stop: boolean; dwell: number; next: number; yaw: number; done: boolean };
 let ride: Ride | null = null;
 let rideSnap = false; // the view comes round behind once, as you get in
 let boardFor: { kind: "canoe"; boat: Boat } | { kind: "cart"; mine: GoldMine; inside: boolean } | { kind: "line"; st: Station } | null = null;
 const rideV = new THREE.Vector3(), rideScr = new THREE.Vector3();
 const toldRide = { canoe: false, cart: false, line: false };
+/** A ride's quiet view (the owner: "contemplative views should alternate smoothly for all sides,
+    front view gets boring and it's nice to see what you leave behind"): ahead, to the right,
+    behind, to the left, and round again, each held a while and turned to slowly. */
+const rideView = { a: 0, from: 0, to: 0, t: 0, k: 0 };
+const RIDE_HOLD = [22, 16, 16, 16], RIDE_TURN = 6;
+function rideViewAngle(dt: number): number {
+  rideView.t += dt;
+  const e = Math.min(1, rideView.t / RIDE_TURN);
+  rideView.a = rideView.from + (rideView.to - rideView.from) * e * e * (3 - 2 * e);
+  if (rideView.t > RIDE_TURN + RIDE_HOLD[rideView.k]) {
+    rideView.k = (rideView.k + 1) % 4;
+    // round in one direction (right, behind, left), never back the way it came
+    rideView.from = rideView.to % (Math.PI * 2);
+    rideView.to = rideView.from + Math.PI / 2;
+    rideView.a = rideView.from;
+    rideView.t = 0;
+  }
+  return rideView.a;
+}
+function rideViewReset(): void {
+  Object.assign(rideView, { a: 0, from: 0, to: 0, t: RIDE_TURN, k: 0 });
+}
 function seatInRide(): void {
   stopAuto();
   if (sitting.phase !== "none") standUp();
@@ -4365,14 +4396,35 @@ function boardCart(m: GoldMine, inside: boolean): void {
     whisper(MOBILE ? "The cart rolls down the rails by itself. Tap the round button to stop it." : "The cart rolls down the rails by itself. E or Space stops it.", 6500);
   }
 }
-/** Into a station's car: it carries you on round the whole loop, stopping at each station. */
+/** Into a waiting car: you sit, and the map asks where it should carry you (the owner: "tap train >
+    map view where you tap all the destinations to build a route > system follows the route as if
+    it was an auto ride"). Not now, and you step out again. */
 function boardLine(st: Station): void {
   seatInRide();
-  const s = st.carAt;
-  ride = { kind: "line", st, s, speed: 0, stop: false, clack: 0, dwell: 1.2, next: railway.nextStation(s).st, left: null };
+  st.away = true;
+  const r: Ride = { kind: "line", st, route: null, s: 0, speed: 0, stop: false, dwell: 0, next: 0, yaw: st.car.rotation.y, done: false };
+  ride = r;
+  void chooseRoute(r);
+}
+async function chooseRoute(r: Extract<Ride, { kind: "line" }>): Promise<void> {
+  input.enabled = false;
+  const stops = await startMap.route(places(), { x: player.pos.x, z: player.pos.z, heading: player.heading });
+  input.enabled = true;
+  if (ride !== r) return;
+  if (!stops) return leaveRide();
+  // the way is found over the land: the loading mark painted first, then the work
+  busy(1.5);
+  await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+  if (ride !== r) return;
+  const c = r.st.car.position;
+  const route = new Route({ x: c.x, z: c.z }, stops);
+  railway.setRoute(route);
+  setMapRides({ stations: railway.stations, route });
+  Object.assign(r, { route, s: 0, speed: 0, next: 0, dwell: 1.2, done: false });
+  rideViewReset();
   if (!toldRide.line) {
     toldRide.line = true;
-    whisper(MOBILE ? "The railway carries you round all the world's places, stopping at each. Tap the round button to stop." : "The railway carries you round all the world's places, stopping at each. E or Space stops it.", 7500);
+    whisper(MOBILE ? "It carries you through each place you chose. Tap the round button to stop." : "It carries you through each place you chose. E or Space stops it.", 7000);
   }
 }
 /** Out of what carries you: on the land beside it. */
@@ -4385,8 +4437,8 @@ function leaveRide(at?: THREE.Vector3): void {
     const p = at ?? r.boat.pos;
     player.pos.set(p.x, Math.max(heightAt(p.x, p.z), WATER_Y), p.z);
   } else if (r.kind === "line") {
-    // beside the track, on the land; the car waits where it stopped
-    r.st.carAt = r.s;
+    // beside it; the car waits where it stopped (or, never gone anywhere, is simply home)
+    if (!r.route || r.s < 1) railway.park(r.st);
     const c = r.st.car.position;
     const side = new THREE.Vector3(Math.cos(player.heading), 0, -Math.sin(player.heading)).multiplyScalar(1.4);
     const p = c.clone().add(side);
@@ -4421,10 +4473,9 @@ function rideAction(): void {
     if (!ride.ashore) leaveRide();
     else whisper("To the shore", 2200);
   } else if (ride.kind === "line") {
-    ride.stop = true;
-    // (not in the water, nor high on a trestle: on to where the land is under the track)
-    const b = railway.bedAt(ride.s);
-    if (b.ground < WATER_Y + 0.1 || b.bed - b.ground > 1.5) whisper("It stops where the land is under it", 2600);
+    if (!ride.route) return;
+    if (ride.done) leaveRide();
+    else ride.stop = true;
   } else ride.stop = true;
 }
 /** What a tap lands on: a canoe, a mine's cart, or a railway car. */
@@ -4561,49 +4612,46 @@ function rideFrame(dt: number, t: number): void {
     return;
   }
   if (ride.kind === "line") {
-    const r = ride, car = r.st.car;
-    // the station ahead: slow into it, a pause and its name, then on
-    const nx = railway.nextStation(r.s);
-    if (nx.st !== r.next && r.dwell <= 0) r.next = nx.st;
-    const toNext = (((r.next.s - r.s) % railway.length) + railway.length) % railway.length;
-    // round the bends no faster than a gentle sway allows (1.3 m/s² across), and on the level ground
-    const bend = railway.bendAt(r.s, 24);
-    let want = Math.min(10, Math.sqrt(1.3 / Math.max(1e-4, bend)));
-    want = Math.min(want, Math.max(0.6, Math.sqrt(2 * 0.9 * Math.max(0, toNext - 0.4))));
-    if (r.stop) {
-      const b = railway.bedAt(r.s);
-      want = b.ground < WATER_Y + 0.1 || b.bed - b.ground > 1.5 ? Math.min(want, 4) : 0;
+    const r = ride, car = r.st.car, rt = r.route;
+    if (rt) {
+      // the next stop: slow into it, a pause and its name, then on; at the last, it rests there
+      const stop = rt.stops[Math.min(r.next, rt.stops.length - 1)];
+      const toNext = r.next < rt.stops.length ? stop.s - r.s : 0;
+      // round the bends no faster than a gentle sway allows (1.3 m/s² across)
+      let want = Math.min(9, Math.sqrt(1.3 / Math.max(1e-4, rt.bendAt(r.s, 24))));
+      want = Math.min(want, Math.max(0.6, Math.sqrt(2 * 0.9 * Math.max(0, toNext - 0.4))));
+      if (r.stop || r.done) want = 0;
+      if (r.dwell > 0) {
+        want = 0;
+        r.dwell -= dt;
+      } else if (!r.done && toNext < 0.6) {
+        whisper(r.next === rt.stops.length - 1 ? `${stop.name}. The ride ends here.` : stop.name, 3400);
+        audio.bowl(330, 0.025, undefined, 2.5);
+        r.next++;
+        if (r.next >= rt.stops.length) r.done = true;
+        else r.dwell = 4.5;
+      }
+      const acc = want > r.speed ? 0.8 : 2.2;
+      r.speed += Math.max(-acc * dt, Math.min(acc * dt, want - r.speed));
+      if (r.dwell > 0 || r.done) r.speed = Math.min(r.speed, Math.max(0, toNext));
+      r.s = Math.min(rt.length, r.s + r.speed * dt);
+      const yaw = rt.at(r.s, rideV);
+      // it turns onto the way softly (from where it stood), and with the way's curves after
+      let dy = yaw - r.yaw;
+      while (dy > Math.PI) dy -= 2 * Math.PI;
+      while (dy < -Math.PI) dy += 2 * Math.PI;
+      r.yaw += dy * Math.min(1, dt * (r.s < 6 ? 1.6 : 4));
+      car.position.set(rideV.x, rideV.y + Math.sin(t * 0.8) * 0.02, rideV.z);
+      car.rotation.set(0, r.yaw, rt.pitch(r.s) * 0.8);
     }
-    if (r.dwell > 0) {
-      want = 0;
-      r.dwell -= dt;
-    } else if (toNext < 0.6 && !r.stop) {
-      r.dwell = 4.5;
-      r.left = r.next;
-      whisper(r.next.name, 3200);
-      audio.bowl(330, 0.025, undefined, 2.5);
-      r.next = railway.nextStation(r.next.s + 1).st;
-    }
-    const acc = want > r.speed ? 0.8 : 2.2;
-    r.speed += Math.max(-acc * dt, Math.min(acc * dt, want - r.speed));
-    if (r.dwell > 0) r.speed = Math.min(r.speed, Math.max(0, toNext));
-    r.s = (r.s + r.speed * dt) % railway.length;
-    railway.roll(car, r.s);
     player.pos.set(car.position.x, car.position.y + 0.03, car.position.z);
-    const yaw = car.rotation.y;
-    const fx = Math.cos(-yaw), fz = Math.sin(-yaw);
+    const fx = Math.cos(-car.rotation.y), fz = Math.sin(-car.rotation.y);
     player.heading = Math.atan2(-fx, -fz);
     player.vel.set(fx, 0, fz).multiplyScalar(r.speed);
     if (rideSnap) {
       rideSnap = false;
       follow.yaw = player.heading;
       follow.snapTo(player.pos);
-    }
-    // the rails' joints, every nine metres
-    r.clack -= dt * r.speed;
-    if (r.clack <= 0) {
-      r.clack = 9;
-      if (r.speed > 1) audio.step(false);
     }
     if (r.stop && r.speed < 0.05) leaveRide();
     return;
@@ -5778,7 +5826,7 @@ function update(dt: number): void {
     // the one context word: "Land" high in the air, "Dive" on the water, "Surface" under it
     const ctx = $("#ctx");
     const high = player.flying && !player.landing && player.pos.y - Math.max(heightAt(player.pos.x, player.pos.z), WATER_Y) > 2.5;
-    const word = ride ? (ride.kind === "canoe" ? "Ashore" : "Stop") : sitting.phase === "seated" ? "" : high ? "Land" : player.swimming ? (player.seabed || player.sinking ? "Surface" : player.diving ? "Floor" : "Dive") : "";
+    const word = ride ? (ride.kind === "canoe" ? "Ashore" : ride.kind === "line" && ride.done ? "Step out" : "Stop") : sitting.phase === "seated" ? "" : high ? "Land" : player.swimming ? (player.seabed || player.sinking ? "Surface" : player.diving ? "Floor" : "Dive") : "";
     ctx.hidden = !(MOBILE || input.touchUsed) || !word;
     if (ctx.textContent !== word) ctx.textContent = word;
     // on a keyboard there is no button and no word: the keys that matter here, low on the left
