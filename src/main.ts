@@ -3089,7 +3089,7 @@ function contemplationFrame(dt: number): void {
     const dx = (fx / fl) * c - (fz / fl) * sn, dz = (fz / fl) * c + (fx / fl) * sn;
     const D = cart ? 7 : 26;
     // ahead it looks along the way; to the sides and behind a little down onto the land
-    const drop = cart ? 0.25 + 0.35 * (1 - c) * 0.5 : 0.5 + 2.6 * (1 - c * c * Math.max(0, c));
+    const drop = cart ? 0.25 + 0.35 * (1 - c) * 0.5 : 0.5 + 1.2 * (1 - c * c * Math.max(0, c));
     const w = Math.max(0, Math.min(1, (c - 0.7) / 0.3)), wk = w * w * (3 - 2 * w);
     follow.gaze = gazeV.set(eye.x + dx * D, (gazeV.y + 0.75) * wk + (eye.y - drop) * (1 - wk), eye.z + dz * D);
     return;
