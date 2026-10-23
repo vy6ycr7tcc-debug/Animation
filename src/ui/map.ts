@@ -317,6 +317,7 @@ export class StartMap {
     this.places = places;
     this.you = you;
     this.routing = null;
+    this.note("Drag to move · pinch to come closer · ◎ where you are · tap a place, or open land, to go there");
     this.closeBtn.textContent = "Stay where I am";
     this.closeBtn.hidden = !closable;
     document.getElementById("map-title")!.textContent = closable ? "Where would you like to go?" : "Where will you begin?";
@@ -346,6 +347,7 @@ export class StartMap {
   route(places: Place[], you: { x: number; z: number; heading?: number }): Promise<RouteStop[] | null> {
     void this.open(places, you, true);
     this.routing = [];
+    this.note("Tap places, or open land, in the order to visit them · Undo takes the last away · Ride sets off");
     this.closeBtn.textContent = "Not now";
     this.guideBtn.hidden = true;
     document.getElementById("map-title")!.textContent = "Where shall it carry you?";
@@ -353,6 +355,10 @@ export class StartMap {
     this.showPick();
     this.draw();
     return new Promise((res) => (this.routeResolve = res));
+  }
+  private note(t: string): void {
+    const n = this.el.querySelector(".note");
+    if (n) n.textContent = t;
   }
   private addStop(name: string, x: number, z: number): void {
     if (!this.routing) return;
