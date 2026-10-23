@@ -416,6 +416,7 @@ export class Railway {
     if (!out) return;
     this.uS.value = s;
     this.uT.value = t;
+    if (this.track) this.track.visible = !!riding;
     this.stations.forEach((st, i) => {
       // a car resting at its place floats on its pool; the pool shows while the car is home
       this.pools[i].visible = !st.away && Math.hypot(st.x - near.x, st.z - near.z) < 900;

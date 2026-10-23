@@ -4439,6 +4439,8 @@ function leaveRide(at?: THREE.Vector3): void {
   } else if (r.kind === "line") {
     // beside it; the car waits where it stopped (or, never gone anywhere, is simply home)
     if (!r.route || r.s < 1) railway.park(r.st);
+    // the way's light is only for the ride: it goes as you step out
+    if (railway.route) (railway.setRoute(null), setMapRides({ stations: railway.stations, route: null }));
     const c = r.st.car.position;
     const side = new THREE.Vector3(Math.cos(player.heading), 0, -Math.sin(player.heading)).multiplyScalar(1.4);
     const p = c.clone().add(side);
