@@ -1574,6 +1574,12 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
     const hollow = smoothstep(0.55, 0.15, cragN.x);
     const snowC = tmix(vec3(0.5, 0.49, 0.7), vec3(0.76, 0.78, 0.89), smoothstep(150, 230, vGW.y)).mul(grain).mul(tmix(vec3(1.03), vec3(0.8, 0.86, 1.02), hollow));
     const base = ground.mul(T.vertexColor().rgb).toVar();
+    // the mossland's ground is dark leaf litter at any distance: left the scan's own cool grey, it
+    // read between the moss under the moon as grey stains (the owner)
+    If(regW[6].greaterThan(L), () => {
+      const litter = tmix(vec3(0.07, 0.05, 0.03), vec3(0.1, 0.075, 0.045), smoothstep(0.3, 0.7, gN(q.mul(1.7).add(67))));
+      base.assign(tmix(base, base.mul(0.35).add(litter.mul(0.65)), regW[6].mul(0.75)));
+    });
     // Each region's own ground at a scale the eye reads walking (the scans alone are a fine grain
     // that reads as the same noise everywhere): frost crusts and lichen on the tundra, drifts of
     // fallen leaves in the autumn forest, pale ash blown over black, heather mottling the moor,
@@ -1616,10 +1622,10 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
         const cf = fract(pc).sub(0.5), crack = smoothstep(0.44, 0.49, max(abs(cf.x), abs(cf.y)));
         g0.assign(g0.mul(tmix(float(1), float(0.45), crack.mul(regW[5]).mul(nk))));
       });
-      // S: moss cushions, deep and bright green
+      // S: moss cushions, deep and bright green, with soft edges, on the litter laid above
       If(regW[6].greaterThan(L), () => {
-        const moss = ptc(0.6, 0.45, 0.6, 61);
-        g0.assign(tmix(g0, tmix(vec3(0.03, 0.09, 0.015), vec3(0.07, 0.17, 0.025), ptc(3, 0.3, 0.7, 63)), moss.mul(0.75).mul(regW[6]).mul(nk)));
+        const moss = ptc(0.6, 0.38, 0.68, 61);
+        g0.assign(tmix(g0, tmix(vec3(0.03, 0.09, 0.015), vec3(0.07, 0.17, 0.025), ptc(3, 0.3, 0.7, 63)), moss.mul(0.6).mul(regW[6]).mul(nk)));
       });
       // SE: chalk showing white through thin turf
       If(regW[7].greaterThan(L), () => {
@@ -1953,12 +1959,10 @@ export class Terrain {
       const wetK = fallWet(x, z, h);
       if (wetK > 0) this.col.lerp(this.tmp.setRGB(0.045, 0.055, 0.06), wetK * 0.7).lerp(this.tmp.setRGB(0.06, 0.1, 0.045), wetK * (1 - wetK) * 1.2);
       col.setXYZ(v, this.col.r, this.col.g, this.col.b);
-      // sand only where sand lies (shores, dunes): inland patches of the pale coast-sand scan, and
-      // the earth's own share of it, read under the moon as grey stains on the soil (the owner)
-      const sandy = Math.min(1, k.sand) * (1 - fk);
-      // the earth takes only a little of the rock scan's grit (more read as grey blotches too)
-      const rocky = Math.min(1 - sandy * (1 - talus), k.stone + smooth(0.5, 1.0, 1 - nor.getY(v)) * 0.8 + earth * 0.15 + talus * 0.85 + ms * 0.55);
-      gr.setXYZ(v, sky, Math.max(0, Math.min(1 - rocky, sandy * (1 - talus))), rocky);
+      const sandy = Math.min(1, k.sand + smooth(0.45, 0.62, fbm(x * 0.01 - 30, z * 0.01 + 12)) * (1 - k.stone) * 0.6 * (1 - away * 0.7)) * (1 - fk);
+      // the earth takes the rock scan's grit and the sand's grain
+      const rocky = Math.min(1 - sandy * (1 - talus), k.stone + smooth(0.5, 1.0, 1 - nor.getY(v)) * 0.8 + earth * 0.55 + talus * 0.85 + ms * 0.55);
+      gr.setXYZ(v, sky, Math.max(0, Math.min(1 - rocky, sandy * (1 - talus) + earth * 0.3)), rocky);
     }
     pos.needsUpdate = nor.needsUpdate = col.needsUpdate = gr.needsUpdate = rA.needsUpdate = rB.needsUpdate = true;
     g.computeBoundingSphere();
