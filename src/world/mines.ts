@@ -572,16 +572,67 @@ export class GoldMine extends Underground {
     g.userData.axles = axles;
     return g;
   }
+  /** The rails' own height at each sample within: the floor under both rails, eased over a few
+      metres (the floor's small bumps and the nearest sample's steps made the cart rise and fall in
+      jolts every 0.6 m). The rails and their sleepers are laid on it too, so the cart rides them. */
+  private railYs: number[] | null = null;
+  railY(i: number): number {
+    if (!this.railYs) {
+      const S = this.samples, O = this.O;
+      const raw = S.map((s) => {
+        let y = 0;
+        for (const lat of [-0.32, 0.32]) {
+          const x = O.x + s.x - s.tz * lat, z = O.z + s.z + s.tx * lat;
+          y += this.floorAt(x, z) - O.y - s.y;
+        }
+        return y / 2;
+      });
+      // the bumps eased (a window of ±3 samples), the decline itself kept exact
+      this.railYs = S.map((s, k) => {
+        let a = 0, n = 0;
+        for (let j = -3; j <= 3; j++) {
+          const q = raw[Math.max(0, Math.min(S.length - 1, k + j))], w = 4 - Math.abs(j);
+          a += q * w;
+          n += w;
+        }
+        return O.y + s.y + a / n;
+      });
+    }
+    return this.railYs[Math.max(0, Math.min(this.railYs.length - 1, i))];
+  }
   /** The rails within at `s` (a sample index, fractional): where the cart's middle is, and its
-      turn (a rotation about y that lays its length along the rails). */
+      turn (a rotation about y that lays its length along the rails). The height is the rails'
+      own, eased between samples (a smoothstep), so the ride flows. */
   railIn(s: number, out: THREE.Vector3): number {
     const S = this.samples, O = this.O;
     const i = Math.max(0, Math.min(S.length - 2, Math.floor(s))), f = Math.min(1, Math.max(0, s - i));
     const a = S[i], b = S[i + 1];
     const x = O.x + a.x + (b.x - a.x) * f, z = O.z + a.z + (b.z - a.z) * f;
-    out.set(x, this.floorAt(x, z) + 0.55, z);
+    // (a Catmull-Rom through the rails' heights: no corner at each sample)
+    const y0 = this.railY(i - 1), y1 = this.railY(i), y2 = this.railY(i + 1), y3 = this.railY(i + 2);
+    const y = 0.5 * (2 * y1 + (-y0 + y2) * f + (2 * y0 - 5 * y1 + 4 * y2 - y3) * f * f + (-y0 + 3 * y1 - 3 * y2 + y3) * f * f * f);
+    out.set(x, y + 0.55, z);
     const tx = a.tx + (b.tx - a.tx) * f, tz = a.tz + (b.tz - a.tz) * f;
     return -Math.atan2(tz, tx);
+  }
+  /** The rails' rise ahead at `s` (radians: positive climbing toward higher `s`). */
+  railPitch(s: number): number {
+    const i = Math.max(0, Math.min(this.samples.length - 2, Math.floor(s)));
+    const a = this.railY(i - 1), b = this.railY(i + 2);
+    return Math.atan2(b - a, this.railStep(s) * 3);
+  }
+  /** Contemplating in the mine, the gaze rests down the drift, not on a lantern: a point along the
+      rails ahead (deeper) and one back the way you came, at head height, in turn. */
+  override focus(player: THREE.Vector3): THREE.Vector3[] {
+    const i = this.nearest(player.x - this.O.x, player.z - this.O.z);
+    const out: THREE.Vector3[] = [];
+    for (const k of [i + 26, i - 26]) {
+      if (k < 1 || k > this.samples.length - 2) continue;
+      const v = new THREE.Vector3();
+      this.railIn(k, v);
+      out.push(v.setY(v.y + 0.9));
+    }
+    return out;
   }
   /** Metres between two samples of the rails within. */
   railStep(s: number): number {
@@ -881,11 +932,13 @@ export class GoldMine extends Underground {
       const x = O.x + s.x - s.tz * lat, z = O.z + s.z + s.tx * lat;
       return new THREE.Vector3(x, this.floorAt(x, z) + y, z);
     };
-    // rails the whole way down, on sleepers
+    // rails the whole way down, on sleepers, laid on the rails' own eased height (`railY`), which
+    // the cart rides
+    const rl = (i: number, lat: number, y: number) => pt(i, lat, 0).setY(this.railY(i) + y);
     for (let i = 0; i < S.length - 3; i++) {
-      if (i % 2 === 0) P.beam(pt(i, -0.55, 0.05), pt(i, 0.55, 0.05), 0.11, 0.8);
+      if (i % 2 === 0) P.beam(rl(i, -0.55, 0.01), rl(i, 0.55, 0.01), 0.17, 0.8);
       for (const side of [-0.32, 0.32]) {
-        const a = pt(i, side, 0.13), b = pt(i + 1, side, 0.13);
+        const a = rl(i, side, 0.13), b = rl(i + 1, side, 0.13);
         const g = new THREE.BoxGeometry(0.05, 0.07, a.distanceTo(b) + 0.03);
         g.lookAt(b.clone().sub(a));
         g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);

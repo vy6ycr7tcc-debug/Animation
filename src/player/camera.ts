@@ -24,6 +24,9 @@ export class FollowCamera {
   /** 0..1 contemplation: the view from the wanderer's own eyes (its body gone), turned slowly
       toward `gaze` (what moves nearby), or straight ahead when there is none. */
   inward = 0;
+  /** How quickly contemplation's gaze follows its point (per second; riding, quicker, so it keeps
+      to the way ahead round the curves). */
+  gazeRate = 0.4;
   gaze: THREE.Vector3 | null = null;
   private gazeAt = new THREE.Vector3();
   private gazeHeld = false;
@@ -485,7 +488,7 @@ export class FollowCamera {
       const ahead = eye.clone().add(new THREE.Vector3(-Math.sin(this.yaw) * 20, 0.8, -Math.cos(this.yaw) * 20));
       if (!this.gazeHeld) (this.gazeAt.copy(look), (this.gazeHeld = true));
       // the gaze glides from one thing to the next, never snaps
-      this.gazeAt.lerp(this.gaze ?? ahead, Math.min(1, dt * 0.4));
+      this.gazeAt.lerp(this.gaze ?? ahead, Math.min(1, dt * this.gazeRate));
       const s = THREE.MathUtils.smoothstep(this.inward, 0, 1);
       // wide: the view stays drawn back (the whole is the thing to see), only the gaze turns
       this.cam.position.lerp(eye, s * (1 - w));
