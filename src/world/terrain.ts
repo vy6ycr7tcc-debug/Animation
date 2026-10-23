@@ -1953,10 +1953,12 @@ export class Terrain {
       const wetK = fallWet(x, z, h);
       if (wetK > 0) this.col.lerp(this.tmp.setRGB(0.045, 0.055, 0.06), wetK * 0.7).lerp(this.tmp.setRGB(0.06, 0.1, 0.045), wetK * (1 - wetK) * 1.2);
       col.setXYZ(v, this.col.r, this.col.g, this.col.b);
-      const sandy = Math.min(1, k.sand + smooth(0.45, 0.62, fbm(x * 0.01 - 30, z * 0.01 + 12)) * (1 - k.stone) * 0.6 * (1 - away * 0.7)) * (1 - fk);
-      // the earth takes the rock scan's grit and the sand's grain
-      const rocky = Math.min(1 - sandy * (1 - talus), k.stone + smooth(0.5, 1.0, 1 - nor.getY(v)) * 0.8 + earth * 0.55 + talus * 0.85 + ms * 0.55);
-      gr.setXYZ(v, sky, Math.max(0, Math.min(1 - rocky, sandy * (1 - talus) + earth * 0.3)), rocky);
+      // sand only where sand lies (shores, dunes): inland patches of the pale coast-sand scan, and
+      // the earth's own share of it, read under the moon as grey stains on the soil (the owner)
+      const sandy = Math.min(1, k.sand) * (1 - fk);
+      // the earth takes only a little of the rock scan's grit (more read as grey blotches too)
+      const rocky = Math.min(1 - sandy * (1 - talus), k.stone + smooth(0.5, 1.0, 1 - nor.getY(v)) * 0.8 + earth * 0.15 + talus * 0.85 + ms * 0.55);
+      gr.setXYZ(v, sky, Math.max(0, Math.min(1 - rocky, sandy * (1 - talus))), rocky);
     }
     pos.needsUpdate = nor.needsUpdate = col.needsUpdate = gr.needsUpdate = rA.needsUpdate = rB.needsUpdate = true;
     g.computeBoundingSphere();
