@@ -430,8 +430,11 @@ body.mapping :is(#joy, #act, #ctx, #auto, #menu-btn, #tp, #tp-mini, #whisper, #k
   .map-group { grid-template-columns: repeat(auto-fill, minmax(10em, 1fr)); }
 }
 .map-head { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.map-tabs { display: flex; justify-content: center; gap: 2px; flex-wrap: nowrap; max-width: 100%; overflow-x: auto; scrollbar-width: none; padding: 3px; }
+.map-tabs { display: flex; justify-content: flex-start; gap: 2px; flex-wrap: nowrap; max-width: 100%; overflow-x: auto; scrollbar-width: none; padding: 3px; }
 .map-tabs::-webkit-scrollbar { display: none; }
+/* centred when the tabs fit, scrollable to both ends when they don't (a centred row that overflows cuts its first tab) */
+.map-tabs > :first-child { margin-left: auto; }
+.map-tabs > :last-child { margin-right: auto; }
 .map-tabs button {
   min-height: 44px; padding: 6px 8px; border-radius: 22px; font-size: 13.5px; color: var(--dim); white-space: nowrap; flex: none;
   border: 1px solid transparent;

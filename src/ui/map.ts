@@ -471,7 +471,7 @@ export class StartMap {
         : this.sectionButtons(s, shore)));
       body.scrollTop = 0;
     };
-    const keepTab = (): void => (tabs.querySelector('[aria-selected="true"]') as HTMLElement | null)?.scrollIntoView({ inline: "center", block: "nearest" });
+    const keepTab = (): void => (tabs.querySelector('[aria-selected="true"]') as HTMLElement | null)?.scrollIntoView({ inline: "nearest", block: "nearest" });
     for (const { s: sec, title } of shown) {
       const b = document.createElement("button");
       b.type = "button";

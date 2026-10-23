@@ -298,7 +298,7 @@ export class Input {
     let dx = x - this.joyCenter.x, dy = y - this.joyCenter.y;
     let d = Math.hypot(dx, dy);
     // dragged on well past its rim, the stick follows the thumb (it may go up the screen only so)
-    const lead = R * 1.6;
+    const lead = R * 2;
     if (d > lead) {
       const k = (d - lead) / d;
       this.joyCenter = { x: this.joyCenter.x + dx * k, y: this.joyCenter.y + dy * k };

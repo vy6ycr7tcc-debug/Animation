@@ -295,7 +295,7 @@ scene.add(sky);
 const hemi = new THREE.HemisphereLight(0x7a86d0, 0x221a36, 0.85);
 scene.add(hemi);
 const star = new THREE.DirectionalLight(0xffe0bc, 1.8);
-star.castShadow = true;
+star.castShadow = !new URLSearchParams(location.search).has("noshadow"); // ?noshadow: to tell shadows from stains
 star.shadow.camera.left = -26;
 star.shadow.camera.right = 26;
 star.shadow.camera.top = 26;
