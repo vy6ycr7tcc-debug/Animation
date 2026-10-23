@@ -158,6 +158,13 @@ export class Reflections {
     return (performance.now() - this.last) / 1000;
   }
 
+  /** The next question to carry (shown elsewhere, as on the "Where next" card), or "" when off. */
+  take(): string {
+    if (!this.on) return "";
+    this.last = performance.now();
+    return nextQuestion();
+  }
+
   /** Ask the next question (or `q`), held `ms` before it goes. */
   ask(ms = 17000, q?: string): string {
     if (!this.on) return "";

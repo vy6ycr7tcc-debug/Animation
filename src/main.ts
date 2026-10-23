@@ -4224,7 +4224,7 @@ function offerNext(doneId: string, title: string, opts: { first?: Dest; stay?: s
     const p = d.at();
     return { label: d.label, note: d.id === "tree" && temple.inside ? "out through the temple's door" : bearingTo(p.x, p.z), go: () => d.go() };
   });
-  nextUp.show(`${title}: complete`, options, opts.stay);
+  nextUp.show(`${title}: complete`, options, opts.stay, reflect.take());
 }
 // a lesson, a vision, an ancient world's telling, an area's last word: heard to its end
 narration.onEnd = (id) => {
