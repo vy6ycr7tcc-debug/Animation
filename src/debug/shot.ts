@@ -414,7 +414,9 @@ export function runShot(ctx: ShotCtx): void {
     }
     const ux = Math.cos(a), uz = Math.sin(a), gy = heightAt(px, pz);
     base = [px, gy, pz];
-    view = { eye: [-ux * 6, 4.5, -uz * 6], look: [ux * 40, heightAt(px + ux * 40, pz + uz * 40) - gy + 0.5, uz * 40] };
+    view = new URLSearchParams(location.search).has("down")
+      ? { eye: [-ux * 2.5, 10, -uz * 2.5], look: [ux * 2, 0, uz * 2] } // the ground from above, as the game's steep view sees it
+      : { eye: [-ux * 6, 4.5, -uz * 6], look: [ux * 40, heightAt(px + ux * 40, pz + uz * 40) - gy + 0.5, uz * 40] };
     ctx.player.pos.set(px, gy, pz);
   } else if (id.startsWith("temple-complex-") && ctx.templeGate) {
     // the temple's precinct, in the pylon's frame (+z toward the shore): a the gateway from the

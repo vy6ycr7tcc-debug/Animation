@@ -19,6 +19,8 @@ import { fbm, heightAt, nileFields, nileValley, PEAKS, regionAt, regionIndex, ri
 export type Group = "Shore" | "Mind" | "Body" | "Spirit" | "Choice" | "Deep";
 /** Where a place is listed below the map: by kind, the ancient worlds by era. */
 export type Section = "Monuments" | "Ancient" | "Wonders" | "Lessons" | "Archetypes" | "Deep";
+/** The tabs below the map: places by kind, nearest first, and the guided walks. */
+type Tab = "Near" | "Monuments" | "Ancient" | "Nature" | "Lessons" | "Archetypes" | "Tours";
 export interface Place {
   numeral: string; // "" for the shore
   label: string;
@@ -37,6 +39,21 @@ export interface Place {
   narration: string;
   start: { x: number; z: number; heading: number };
 }
+export type Travel = "arrive" | "glide" | "float";
+const TRAVEL_KEY = "inward-journey:travel";
+function loadTravel(): Travel {
+  try {
+    const t = localStorage.getItem(TRAVEL_KEY);
+    if (t === "glide" || t === "float") return t;
+  } catch { /* storage may be unavailable */ }
+  return "arrive";
+}
+const TRAVELS: { t: Travel; label: string; hint: string }[] = [
+  { t: "arrive", label: "Arrive", hint: "at once, through the dark" },
+  { t: "glide", label: "Glide", hint: "fly there yourself, the guide's light ahead" },
+  { t: "float", label: "Float", hint: "a floating car carries you, the land going by" },
+];
+
 export interface Choice {
   place: Place; // the nearest place: its narration comes first
   x: number;
@@ -98,6 +115,17 @@ const REGION_DIRS = [0, -1, -2, -3, 4, 3, 2, 1].map((k) => (k * Math.PI) / 4);
 const toSRGB = (c: number) => 255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
 const contourStep = (size: number) => [5, 10, 20, 25, 50].find((m) => size / m < 260) ?? 50;
 const fieldC = new Color();
+/** A smooth value noise, 0..1 (cheap: one lattice, bilinear with eased weights). */
+function vnoise(x: number, z: number): number {
+  const ix = Math.floor(x), iz = Math.floor(z), fx = x - ix, fz = z - iz;
+  const h = (a: number, b: number) => {
+    const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
+    return n - Math.floor(n);
+  };
+  const u = fx * fx * (3 - 2 * fx), w = fz * fz * (3 - 2 * fz);
+  const a = h(ix, iz), b = h(ix + 1, iz), c = h(ix, iz + 1), d = h(ix + 1, iz + 1);
+  return a + (b - a) * u + (c - a) * w + (a - b - c + d) * u * w;
+}
 function groundColour(x: number, z: number, v: number, vr: number, vd: number, step: number, ci: number): RGB {
   const gx = (vr - v) / step, gz = (vd - v) / step, slope = Math.max(1e-4, Math.hypot(gx, gz));
   // shaded relief: light from the north-west and high, as maps are lit; steeper the farther out
@@ -120,12 +148,16 @@ function groundColour(x: number, z: number, v: number, vr: number, vd: number, s
     const grove = smooth(0.46, 0.64, fbm(x * 0.008 + 71, z * 0.008 - 33));
     const forest = Math.min(1, grove * dense * 1.1) * smooth(0.7, 2, v) * (1 - smooth(24, 32, v)) * (1 - smooth(0.5, 0.9, slope));
     if (forest > 0.02) {
-      const leafC: RGB = rg.away > 0.5 && rg.leaf >= 0 ? (rg.leaf < 0.9 ? [150, 92, 38] : [118, 130, 122]) : [38, 72, 44];
+      // the country's own leaf, coming in as the country does (a threshold here drew a hard-edged block)
+      const own: RGB = rg.leaf >= 0 ? (rg.leaf < 0.9 ? [150, 92, 38] : [118, 130, 122]) : [38, 72, 44];
+      const leafC = lerp([38, 72, 44], own, smooth(0.25, 0.85, rg.away));
       col = lerp(col, leafC, forest * 0.7);
-      // a stipple of crowns
-      const hsh = Math.abs(Math.sin(Math.floor(x / 6) * 127.1 + Math.floor(z / 6) * 311.7) * 43758.5453) % 1;
-      if (hsh < forest * 0.55) col = col.map((c) => c * 0.72) as RGB;
+      // crowns as soft dappling, never square specks; far out, only their average shade
+      const dapple = step < 8 ? vnoise(x / 7, z / 7) * smooth(8, 3, step) + 0.5 * smooth(3, 8, step) : 0.5;
+      col = col.map((c) => c * (1 - forest * 0.5 * dapple)) as RGB;
     }
+    // broad, gentle variation over every country, so none reads as one flat colour
+    col = col.map((c) => c * (0.9 + 0.2 * vnoise(x / 160 + 9.3, z / 160 - 4.1))) as RGB;
     // the Nile's floodplain: its fields
     const fk = nileFields(x, z, fieldC);
     if (fk > 0) col = lerp(col, [toSRGB(fieldC.r) * 0.85, toSRGB(fieldC.g) * 0.85, toSRGB(fieldC.b) * 0.85], fk * 0.8);
@@ -214,6 +246,11 @@ export class StartMap {
   onWhisper: ((id: string) => void) | null = null;
   /** "Ask the guide" (while travelling): the map closes and the guide asks where to go. */
   onGuide: (() => void) | null = null;
+  /** How a chosen place is gone to (the owner: "think of better ways to travel"), remembered on
+      the device: "arrive" through the dark at once; "glide" the wanderer flies there by itself
+      behind the guide's light (the stick takes over); "float" a floating car comes for you and
+      carries you there along the aetheric way. */
+  travel: Travel = loadTravel();
   private places: Place[] = [];
   private you: { x: number; z: number; heading?: number } | null = null;
   private view: View = { cx: 0, cz: 0, size: 1000 };
@@ -373,48 +410,68 @@ export class StartMap {
       by kind (the monuments, the ancient worlds by era, the lessons, the archetypes by realm,
       the deep, the tours). Any destination is two taps away: its tab, then its name. Each name
       says which way it lies and how far, from where you stand. */
-  private tab: Section | "Tours" | "Whispers" = "Monuments";
+  private tab: Tab = "Near";
   private sectionOf(p: Place): Section {
     if (p.section) return p.section;
     if (p.group === "Deep") return "Deep";
     if (p.group !== "Shore") return "Archetypes";
     return "Monuments";
   }
+  /** What kind of place it is, said under its name in "Near you". */
+  private kindOf(p: Place): string {
+    const s = this.sectionOf(p);
+    if (s === "Archetypes") return GROUPS.find(({ g }) => g === p.group)?.title ?? "";
+    return { Monuments: "Monument", Ancient: "Ancient", Wonders: "Wonder", Lessons: "Lesson", Deep: "Beneath the water", Archetypes: "" }[s];
+  }
   private buildList(): HTMLElement[] {
     const head = document.createElement("div");
     head.className = "map-head";
     const shore = this.places.find((q) => q.label === "The shore");
+    const top = document.createElement("div");
+    top.className = "map-top";
     if (shore) {
       const b = this.placeButton(shore, "⌂ The shore");
       b.classList.add("map-home");
-      head.append(b);
+      top.append(b);
     }
+    // how to go: one choice, kept, so a place is still one tap away
+    if (!this.closeBtn.hidden && !this.routing) top.append(this.travelChooser());
+    head.append(top);
     const tabs = document.createElement("div");
     tabs.className = "map-tabs";
     tabs.setAttribute("role", "tablist");
     head.append(tabs);
     const body = document.createElement("div");
     body.className = "map-group";
-    const SECTIONS: { s: Section | "Tours" | "Whispers"; title: string }[] = [
+    const SECTIONS: { s: Tab; title: string }[] = [
+      { s: "Near", title: "Near you" },
       { s: "Monuments", title: "Monuments" },
       { s: "Ancient", title: "Ancient" },
-      { s: "Wonders", title: "Wonders" },
+      { s: "Nature", title: "Nature" },
       { s: "Lessons", title: "Lessons" },
       { s: "Archetypes", title: "Archetypes" },
-      { s: "Deep", title: "Deep" },
       { s: "Tours", title: "Tours" },
-      { s: "Whispers", title: "Whispers" },
     ];
-    const has = (s: Section | "Tours" | "Whispers") =>
-      s === "Tours" ? this.tours.length > 0 && !this.closeBtn.hidden && !this.routing : s === "Whispers" ? this.whispers.length > 0 && !this.closeBtn.hidden && !this.routing : this.places.some((q) => q !== shore && this.sectionOf(q) === s);
+    const touring = !this.closeBtn.hidden && !this.routing;
+    const has = (s: Tab): boolean =>
+      s === "Near" ? this.places.length > 1
+      : s === "Tours" ? touring && (this.tours.length > 0 || this.whispers.length > 0)
+      : s === "Nature" ? this.places.some((q) => q !== shore && (this.sectionOf(q) === "Wonders" || this.sectionOf(q) === "Deep"))
+      : this.places.some((q) => q !== shore && this.sectionOf(q) === s);
     const shown = SECTIONS.filter(({ s }) => has(s));
-    const show = (s: Section | "Tours" | "Whispers") => {
+    const show = (s: Tab) => {
       this.tab = s;
       for (const b of tabs.children) b.setAttribute("aria-selected", String((b as HTMLElement).dataset.s === s));
-      body.className = s === "Archetypes" ? "map-group map-realms" : "map-group";
-      body.replaceChildren(...(s === "Tours" ? this.tourButtons() : s === "Whispers" ? this.whisperButtons() : s === "Archetypes" ? this.realms() : this.sectionButtons(s, shore)));
+      body.className = s === "Archetypes" || s === "Nature" || s === "Tours" ? "map-group map-realms" : "map-group";
+      body.replaceChildren(...(
+        s === "Near" ? this.nearButtons(shore)
+        : s === "Tours" ? this.tourButtons()
+        : s === "Nature" ? this.natureButtons(shore)
+        : s === "Archetypes" ? this.realms()
+        : this.sectionButtons(s, shore)));
+      body.scrollTop = 0;
     };
-    const keepTab = (): void => (tabs.querySelector('[aria-selected="true"]') as HTMLElement | null)?.scrollIntoView({ inline: "center", block: "nearest" });
+    const keepTab = (): void => (tabs.querySelector('[aria-selected="true"]') as HTMLElement | null)?.scrollIntoView({ inline: "nearest", block: "nearest" });
     for (const { s: sec, title } of shown) {
       const b = document.createElement("button");
       b.type = "button";
@@ -424,9 +481,70 @@ export class StartMap {
       b.addEventListener("click", () => (show(sec), keepTab()));
       tabs.append(b);
     }
-    show(shown.some(({ s: sec }) => sec === this.tab) ? this.tab : (shown[0]?.s ?? "Monuments"));
+    show(shown.some(({ s: sec }) => sec === this.tab) ? this.tab : (shown[0]?.s ?? "Near"));
     window.requestAnimationFrame(keepTab);
     return [head, body];
+  }
+  /** Arrive · Glide · Float, and a word on what the chosen one does. */
+  private travelChooser(): HTMLElement {
+    const wrap = document.createElement("div");
+    wrap.className = "map-travel";
+    const seg = document.createElement("div");
+    seg.className = "map-travel-seg";
+    seg.setAttribute("role", "radiogroup");
+    seg.setAttribute("aria-label", "How to go");
+    const hint = document.createElement("span");
+    hint.className = "map-travel-hint";
+    const mark = (): void => {
+      for (const b of seg.children) b.setAttribute("aria-checked", String((b as HTMLElement).dataset.t === this.travel));
+      hint.textContent = TRAVELS.find(({ t }) => t === this.travel)!.hint;
+    };
+    for (const { t, label } of TRAVELS) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.setAttribute("role", "radio");
+      b.dataset.t = t;
+      b.textContent = label;
+      b.addEventListener("click", () => {
+        this.travel = t;
+        try { localStorage.setItem(TRAVEL_KEY, t); } catch { /* storage may be unavailable */ }
+        mark();
+        this.showPick();
+      });
+      seg.append(b);
+    }
+    const lab = document.createElement("span");
+    lab.className = "map-travel-lab";
+    lab.textContent = "Go by";
+    wrap.append(lab, seg, hint);
+    mark();
+    return wrap;
+  }
+  /** Everywhere, nearest first: what is close is what you most often want. */
+  private nearButtons(except?: Place): HTMLElement[] {
+    const from = this.you ?? except ?? { x: 0, z: 0 };
+    return this.places
+      .filter((p) => p !== except)
+      .map((p) => ({ p, d: Math.hypot(p.x - from.x, p.z - from.z) }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 18)
+      .map(({ p }) => this.placeButton(p, undefined, this.kindOf(p)));
+  }
+  /** The wonders on the land, then what lies beneath the water. */
+  private natureButtons(except?: Place): HTMLElement[] {
+    const out: HTMLElement[] = [];
+    for (const [sec, title] of [["Wonders", "On the land"], ["Deep", "Beneath the water"]] as [Section, string][]) {
+      const list = this.sectionButtons(sec, except);
+      if (!list.length) continue;
+      const h = document.createElement("p");
+      h.className = "map-realm";
+      h.textContent = title;
+      const row = document.createElement("div");
+      row.className = "map-row";
+      row.append(...list);
+      out.push(h, row);
+    }
+    return out;
   }
   /** Which way, and how far, from where you stand (or the shore). */
   private bearing(p: Place): string {
@@ -438,7 +556,7 @@ export class StartMap {
     const dir = names[(Math.round(Math.atan2(dx, -dz) / (Math.PI / 4)) + 8) % 8];
     return `${dir} · ${d < 1000 ? `${Math.round(d / 10) * 10} m` : `${(d / 1000).toFixed(1)} km`}`;
   }
-  private placeButton(p: Place, text?: string): HTMLButtonElement {
+  private placeButton(p: Place, text?: string, kind?: string): HTMLButtonElement {
     const b = document.createElement("button");
     b.type = "button";
     const name = document.createElement("span");
@@ -446,7 +564,7 @@ export class StartMap {
     name.textContent = text ?? (p.numeral ? `${p.numeral} · ${p.label.replace(/^The /, "")}` : p.label);
     const sub = document.createElement("span");
     sub.className = "map-sub";
-    sub.textContent = [p.note, p.deep ? "in the deep" : "", this.bearing(p)].filter(Boolean).join(" · ");
+    sub.textContent = [kind, kind ? "" : p.note, p.deep && kind !== "Beneath the water" ? "in the deep" : "", this.bearing(p)].filter(Boolean).join(" · ");
     b.append(name, sub);
     b.addEventListener("click", () => {
       if (this.routing) return this.addStop(p.label, p.start.x, p.start.z);
@@ -481,6 +599,22 @@ export class StartMap {
   }
   /** Each walk-through: the whole way, end to end; "walked" once you have been all the way. */
   private tourButtons(): HTMLElement[] {
+    const out: HTMLElement[] = [];
+    const add = (title: string, list: HTMLElement[]): void => {
+      if (!list.length) return;
+      const h = document.createElement("p");
+      h.className = "map-realm";
+      h.textContent = title;
+      const row = document.createElement("div");
+      row.className = "map-row";
+      row.append(...list);
+      out.push(h, row);
+    };
+    add("Guided walks", this.walkButtons());
+    add("Whispers you found", this.whisperButtons());
+    return out;
+  }
+  private walkButtons(): HTMLElement[] {
     return this.tours.map((t) => {
       const b = document.createElement("button");
       b.type = "button";
@@ -595,7 +729,7 @@ export class StartMap {
     this.pickName.textContent = onPlace
       ? `${p.numeral ? `${p.numeral} · ` : ""}${p.label}${p.deep ? ", in the deep: you wake on the water above" : ""}`
       : `${water ? "Open water" : "Open land"}, near ${p.numeral ? `${p.numeral} · ` : ""}${p.label}`;
-    this.goBtn.textContent = "Wake here";
+    this.goBtn.textContent = this.closeBtn.hidden ? "Wake here" : { arrive: "Go there", glide: "Glide there", float: "Float there" }[this.travel];
   }
 
   private go(): void {
@@ -662,7 +796,8 @@ export class StartMap {
       const gap = parseFloat(cs.rowGap) || 0;
       const kids = [...this.el.children].filter((c) => !(c as HTMLElement).hidden && c !== this.canvas.parentElement && c.id !== "map-places") as HTMLElement[];
       const used = kids.reduce((n, c) => n + c.offsetHeight + gap, 0) + (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0) + gap * 2;
-      const rest = this.el.clientHeight - used - 250; // the shore row, the tabs and about three rows of names
+      const head = (this.list.querySelector(".map-head") as HTMLElement | null)?.offsetHeight ?? 100;
+      const rest = this.el.clientHeight - used - head - 150; // the shore and how to go, the tabs, and about three rows of names
       h = Math.floor(Math.max(170, Math.min(w, rest)));
     }
     this.size(w, h);
@@ -1066,30 +1201,16 @@ export class StartMap {
     const labels: { text: string; x: number; y: number; align: CanvasTextAlign; font: string; fill: string; rank: number }[] = [];
     // every mark's own room, so no name is written across a mark
     const marks: [number, number, number, number][] = [];
-    // the countries' names, written large and faint across them, under every mark and name
+    // the countries' names, written large and faint across them: gathered here, written last and
+    // only where no mark or name already stands (they were drawn under them, and read through them)
+    const lands: { text: string; x: number; y: number; font: string; ink: string }[] = [];
     if (this.view.size > 450 && this.view.size < 12000) {
       const fs = Math.min(16, Math.max(10, 10000 / this.view.size)) * k;
       const spaced = (t: string) => t.toUpperCase().split("").join("\u2009");
-      g.save();
-      g.textAlign = "center";
-      g.shadowColor = "rgba(0,0,0,0.85)";
-      g.shadowBlur = 5 * k;
-      g.font = `${fs}px ${SERIF}`;
-      g.lineJoin = "round";
-      g.lineWidth = 3.2 * k;
-      g.strokeStyle = "rgba(12,10,24,0.7)";
-      for (const r of regionLabels(this.view.size * 0.32)) {
-        const x = this.toMapX(r.x), y = this.toMapY(r.z);
-        g.strokeText(spaced(r.name), x, y);
-        g.fillStyle = r.ink;
-        g.fillText(spaced(r.name), x, y);
-      }
-      if (this.view.size < 2600) {
-        g.fillStyle = "rgba(206,226,180,0.8)";
-        g.font = `${fs * 0.85}px ${SERIF}`;
-        g.fillText(spaced("The Meadow"), this.toMapX(SPAWN.x), this.toMapY(SPAWN.z - 120));
-      }
-      g.restore();
+      for (const r of regionLabels(this.view.size * 0.32))
+        lands.push({ text: spaced(r.name), x: this.toMapX(r.x), y: this.toMapY(r.z), font: `${fs}px ${SERIF}`, ink: r.ink });
+      if (this.view.size < 2600)
+        lands.push({ text: spaced("The Meadow"), x: this.toMapX(SPAWN.x), y: this.toMapY(SPAWN.z - 120), font: `${fs * 0.85}px ${SERIF}`, ink: "rgba(206,226,180,0.8)" });
     }
     // the massifs' summits: a small triangle and the height
     for (const pk of peakSummits()) {
@@ -1287,6 +1408,29 @@ export class StartMap {
       g.fillText(l.text, l.x, l.y);
       g.shadowBlur = 0;
     }
+    g.save();
+    g.textAlign = "center";
+    g.shadowColor = "rgba(0,0,0,0.85)";
+    g.shadowBlur = 5 * k;
+    g.lineJoin = "round";
+    g.lineWidth = 3.2 * k;
+    g.strokeStyle = "rgba(12,10,24,0.7)";
+    for (const l of lands) {
+      g.font = l.font;
+      const w = g.measureText(l.text).width, h = 14 * k, x0 = l.x - w / 2;
+      // its own line, or one a little above or below it, whichever is clear
+      const dy = [0, -16, 16, -32, 32].map((v) => v * k).find((o) => {
+        const y0 = l.y + o - h / 2;
+        const hit = ([a, b, c, d]: [number, number, number, number]) => x0 < c + 2 * k && x0 + w + 2 * k > a && y0 < d && y0 + h > b;
+        return !taken.some(hit) && !marks.some(hit);
+      });
+      if (dy === undefined) continue;
+      taken.push([x0, l.y + dy - h / 2, x0 + w, l.y + dy + h / 2]);
+      g.strokeText(l.text, l.x, l.y + dy);
+      g.fillStyle = l.ink;
+      g.fillText(l.text, l.x, l.y + dy);
+    }
+    g.restore();
     this.compass(g, W - 26 * k, 28 * k, k);
     if (this.keyOn) this.key(g, k, H);
     // a chosen spot on open land

@@ -379,6 +379,16 @@ export class Railway {
     st.car.visible = true;
   }
 
+  /** A station's car brought to where you stand (the map's "Float"): floating there, turned
+      toward where it will carry you. It is away until parked again. */
+  summon(st: Station, x: number, z: number, heading: number): void {
+    st.away = true;
+    st.car.position.set(x, Math.max(heightAt(x, z), WATER_Y) + HOVER + CAR_Y, z);
+    st.car.rotation.set(0, heading, 0);
+    st.car.userData.rest = st.car.position.y;
+    st.car.visible = true;
+  }
+
   /** The route to ride (null lets its light go). */
   setRoute(r: Route | null): void {
     this.route = r;
