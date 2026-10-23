@@ -329,17 +329,20 @@ export class Railway {
     m.colorNode = T.Fn(() => {
       const u = T.uv().x.sub(0.5).mul(1.8); // metres across the band (±0.9)
       const along = T.attribute("aS", "float");
-      const w = T.max(T.fwidth(u), 0.004);
+      const w = T.max(T.fwidth(u), 0.002);
       const d = T.abs(T.abs(u).sub(0.32));
-      // a thread a few centimetres wide, never brighter for being far (its light spread over a pixel)
-      const thread = T.smoothstep(w.mul(1.2).add(0.025), 0.0, d).mul(T.min(1, T.float(0.035).div(w)));
-      const band = T.exp(u.mul(u).mul(-7)).mul(0.07);
+      // a hairline (a centimetre or so), its light spread thinner where it is finer than a pixel,
+      // and a faint halo about it
+      const core = T.smoothstep(w.add(0.008), 0.0, d).mul(T.min(1, T.float(0.012).div(w)));
+      const halo = T.exp(d.mul(d).mul(-900)).mul(0.18);
+      // light flowing on along it: long soft swells with quiet between, so it reads as moving light
+      const flow = T.pow(T.sin(along.sub(this.uT.mul(6)).mul(0.11)).mul(0.5).add(0.5), 3);
+      const breath = T.float(0.22).add(flow.mul(0.78));
       const rel = along.sub(this.uS);
-      const shown = T.smoothstep(-45, -6, rel).mul(T.float(1).sub(T.smoothstep(140, 320, rel)));
-      const swell = T.float(0.55).add(T.pow(T.sin(along.sub(this.uT.mul(7)).mul(0.17)).mul(0.5).add(0.5), 6).mul(0.6));
-      const far = T.float(1).sub(T.smoothstep(160, 360, T.positionWorld.sub(T.cameraPosition).length()));
-      const k = thread.add(band).mul(shown).mul(swell).mul(far);
-      return T.vec4(T.vec3(1.0, 0.86, 0.62).mul(k.mul(0.62)), 1);
+      const shown = T.smoothstep(-35, -4, rel).mul(T.float(1).sub(T.smoothstep(90, 240, rel)));
+      const far = T.float(1).sub(T.smoothstep(120, 260, T.positionWorld.sub(T.cameraPosition).length()));
+      const k = core.add(halo).mul(breath).mul(shown).mul(far);
+      return T.vec4(T.vec3(1.0, 0.88, 0.66).mul(k.mul(0.34)), 1);
     })();
     this.trackMat = m;
     // the soft pool of light a resting car floats over
