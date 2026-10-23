@@ -2160,12 +2160,80 @@ export const NILE = (() => {
 })();
 /** The river's middle, in the valley's frame (x across, east +; z along, south +). */
 const nileRx = (lz: number) => 120 + 22 * Math.sin(lz * 0.006) + 10 * Math.sin(lz * 0.017 + 1);
-/** How much of the valley is here (0 outside it … 1 within), and the river's middle near it. */
+/** How much of the valley is here (0 outside it … 1 within), and the river's middle near it. The
+    valley's edge wanders (a slow noise moves it ±90 m) and its corners are round, so it meets the
+    land and the lakes round it as country does, never along a ruled line. */
 function nileFrame(x: number, z: number): { lx: number; lz: number; wv: number; d: number } | null {
   const lx = x - NILE.x, lz = z - NILE.z;
-  if (Math.abs(lz) > NILE_LEN + 260 || Math.abs(lx) > NILE_HALF + 160) return null;
-  const wv = smooth(NILE_LEN + 250, NILE_LEN, Math.abs(lz)) * smooth(NILE_HALF + 150, NILE_HALF, Math.abs(lx - 40));
+  if (Math.abs(lz) > NILE_LEN + 360 || Math.abs(lx - 40) > NILE_HALF + 260) return null;
+  const ex = (Math.abs(lx - 40) - NILE_HALF) / 150, ez = (Math.abs(lz) - NILE_LEN) / 250;
+  const e = Math.hypot(Math.max(ex, 0), Math.max(ez, 0)) + Math.min(Math.max(ex, ez), 0) + (vnoise(x * 0.005 + 41, z * 0.005 - 13) - 0.5) * 1.1;
+  const wv = smooth(1, 0, e);
   return { lx, lz, wv, d: Math.abs(lx - nileRx(lz)) };
+}
+/** Where the Nile goes beyond its valley: at each end it runs on, curving, to the nearest lake (it
+    flows from the one and into the other: it no longer begins and ends in the sand). Each reach a
+    polyline (world x, z), found when the valley wakes. */
+let NILE_REACHES: { x: number; z: number }[][] = [];
+function nileReaches(): { x: number; z: number }[][] {
+  const out: { x: number; z: number }[][] = [];
+  const near = (x: number, z: number) =>
+    LANDMARK_SITES.some(([lx, lz]) => Math.hypot(x - lx, z - lz) < 120) ||
+    MONUMENT_SITES.some((m) => Math.hypot(x - m.x, z - m.z) < m.r + 70) ||
+    CAVES.some((c) => Math.hypot(x - c.x, z - c.z) < 80) ||
+    MINE_SITES.some((c) => Math.hypot(x - c.x, z - c.z) < 120) ||
+    WATERFALLS.some((f) => Math.hypot(x - f.x, z - f.z) < 160) ||
+    [RAPA_NUI, NAN_MADOL, GOBEKLI].some((q) => Math.hypot(x - q.x, z - q.z) < 320);
+  for (const end of [-1, 1]) {
+    const lz0 = end * (NILE_LEN - 60), ax = NILE.x + nileRx(lz0), az = NILE.z + lz0;
+    let best: { x: number; z: number }[] | null = null, bestL = Infinity;
+    for (let k = -14; k <= 14; k++) {
+      const a = (k / 14) * 1.25; // up to ±72° off the valley's axis
+      const dx = Math.sin(a), dz = Math.cos(a) * end;
+      // the first water (deep enough to be a lake, not a puddle) along this bearing
+      for (let r = 120; r <= 1500; r += 20) {
+        const bx = ax + dx * r, bz = az + dz * r;
+        if (heightAt(bx, bz) > -1.4 || heightAt(bx + dx * 30, bz + dz * 30) > -1.4) continue;
+        const len = r * (1 + Math.abs(a) * 0.35);
+        if (len >= bestL) break;
+        // a gentle curve: out along the valley's axis first, then round to the water
+        const cx = ax, cz = az + end * Math.min(r * 0.5, 260);
+        const pts: { x: number; z: number }[] = [];
+        for (let i = 0; i <= 40; i++) {
+          const t = i / 40, u = 1 - t;
+          pts.push({ x: u * u * ax + 2 * u * t * cx + t * t * (bx + dx * 30), z: u * u * az + 2 * u * t * cz + t * t * (bz + dz * 30) });
+        }
+        if (pts.some((q) => near(q.x, q.z))) break;
+        best = pts;
+        bestL = len;
+        break;
+      }
+    }
+    if (best) out.push(best);
+  }
+  return out;
+}
+let REACH_BOX = { x0: 0, x1: 0, z0: 0, z1: 0 };
+/** How far from a reach's middle (Infinity when there is none near). */
+function reachDist(x: number, z: number): number {
+  if (x < REACH_BOX.x0 || x > REACH_BOX.x1 || z < REACH_BOX.z0 || z > REACH_BOX.z1) return Infinity;
+  let d = Infinity;
+  for (const R of NILE_REACHES)
+    for (let i = 0; i < R.length - 1; i++) {
+      const a = R[i], b = R[i + 1];
+      if (Math.abs(x - a.x) > 400 && Math.abs(x - b.x) > 400) continue;
+      if (Math.abs(z - a.z) > 400 && Math.abs(z - b.z) > 400) continue;
+      const vx = b.x - a.x, vz = b.z - a.z, L = vx * vx + vz * vz || 1;
+      const t = Math.max(0, Math.min(1, ((x - a.x) * vx + (z - a.z) * vz) / L));
+      d = Math.min(d, Math.hypot(x - a.x - vx * t, z - a.z - vz * t));
+    }
+  return d;
+}
+/** How much of the valley is here (0 … 1), for the map. */
+export function nileValley(x: number, z: number): number {
+  if (!nileOn) return 0;
+  const f = nileFrame(x, z);
+  return f ? f.wv : 0;
 }
 /** The pyramid, on the desert plateau west of the river, its north face square to the north. */
 export const PYRAMID = { x: NILE.x - 90, z: NILE.z - 40, y: 7, half: 55, height: 70 };
@@ -2173,6 +2241,16 @@ export const PYRAMID = { x: NILE.x - 90, z: NILE.z - 40, y: 7, half: 55, height:
     it, the step up to the desert (higher on the west, where the pyramid's plateau is), and the
     dunes rising farther out. Blended into the world's land at the valley's edges. */
 function nileLand(x: number, z: number, h: number): number {
+  // the reaches to the lakes: the river's bed and a strip of floodplain, cut into whatever land is
+  // there (its banks rising at 1 in 3), never raising it
+  if (NILE_REACHES.length) {
+    const rd = reachDist(x, z);
+    if (rd < 400) {
+      const fl = 0.85 + (vnoise(x * 0.02, z * 0.02) - 0.5) * 0.3;
+      const prof = rd < 24 ? -3.4 + (fl + 3.4) * smooth(12, 24, rd) : fl + Math.max(0, rd - 60) / 3;
+      h = Math.min(h, prof);
+    }
+  }
   const f = nileFrame(x, z);
   if (!f || f.wv <= 0) return h;
   const { d, lx, lz } = f;
@@ -2182,7 +2260,9 @@ function nileLand(x: number, z: number, h: number): number {
   const desert = (west ? 7 : 4.5) + r * r * 6 * smooth(170, 300, d) + (vnoise(x * 0.06, z * 0.06) - 0.5) * 0.5;
   let v = flood + (desert - flood) * smooth(85, 165, d);
   if (d < 26) v = -3.4 + (flood + 3.4) * smooth(13, 26, d);
-  return h + (v - h) * f.wv;
+  const out = h + (v - h) * f.wv;
+  // (where a reach leaves the valley, its channel runs on through the valley's own edge)
+  return NILE_REACHES.length && reachDist(x, z) < 60 ? Math.min(out, h) : out;
 }
 /** How much of the floodplain's green is here (0 … 1): the regions give way to the meadow there. */
 export function nileGreen(x: number, z: number): number {
@@ -2225,6 +2305,10 @@ export const NILE_REACH = NILE_LEN;
     clear, and the valley's land comes into the world. */
 export function wakeTheNile(): void {
   if (nileOn) return;
+  // (the reaches look for the lakes as the land is without the valley)
+  NILE_REACHES = nileReaches();
+  const all = NILE_REACHES.flat();
+  if (all.length) REACH_BOX = { x0: Math.min(...all.map((q) => q.x)) - 400, x1: Math.max(...all.map((q) => q.x)) + 400, z0: Math.min(...all.map((q) => q.z)) - 400, z1: Math.max(...all.map((q) => q.z)) + 400 };
   nileOn = true;
   const pi = PADS.indexOf(FORMER_PAD);
   if (pi >= 0) PADS.splice(pi, 1);

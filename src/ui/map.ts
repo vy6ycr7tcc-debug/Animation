@@ -13,7 +13,8 @@
      marks: a round tree for a grove, a tall diamond for a crystal garden, a ringed disc for a
      planet, a four-pointed sparkle for a star. A wave beneath a mark means its home is in the
      deep: you wake on the water above it. */
-import { fbm, heightAt, PEAKS, regionAt, regionIndex, riverDist, smooth, SPAWN, WATER_Y } from "../world/terrain";
+import { Color } from "three/webgpu";
+import { fbm, heightAt, nileFields, nileValley, PEAKS, regionAt, regionIndex, riverDist, smooth, SPAWN, WATER_Y } from "../world/terrain";
 
 export type Group = "Shore" | "Mind" | "Body" | "Spirit" | "Choice" | "Deep";
 /** Where a place is listed below the map: by kind, the ancient worlds by era. */
@@ -85,6 +86,7 @@ const REGION_NAMES = ["Frost Tundra", "Autumn Wood", "Ash Fields", "Heather Moor
 const REGION_DIRS = [0, -1, -2, -3, 4, 3, 2, 1].map((k) => (k * Math.PI) / 4);
 const toSRGB = (c: number) => 255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
 const contourStep = (size: number) => [5, 10, 20, 25, 50].find((m) => size / m < 260) ?? 50;
+const fieldC = new Color();
 function groundColour(x: number, z: number, v: number, vr: number, vd: number, step: number, ci: number): RGB {
   const gx = (vr - v) / step, gz = (vd - v) / step, slope = Math.max(1e-4, Math.hypot(gx, gz));
   // shaded relief: light from the north-west and high, as maps are lit; steeper the farther out
@@ -113,14 +115,18 @@ function groundColour(x: number, z: number, v: number, vr: number, vd: number, s
       const hsh = Math.abs(Math.sin(Math.floor(x / 6) * 127.1 + Math.floor(z / 6) * 311.7) * 43758.5453) % 1;
       if (hsh < forest * 0.55) col = col.map((c) => c * 0.72) as RGB;
     }
-    col = lerp(col, SAND, smooth(1.4, 0.35, v));
+    // the Nile's floodplain: its fields
+    const fk = nileFields(x, z, fieldC);
+    if (fk > 0) col = lerp(col, [toSRGB(fieldC.r) * 0.85, toSRGB(fieldC.g) * 0.85, toSRGB(fieldC.b) * 0.85], fk * 0.8);
+    col = lerp(col, SAND, smooth(1.4, 0.35, v) * (1 - fk));
     col = lerp(col, HIGH, smooth(30, 90, v) * 0.55);
     col = lerp(col, ROCK, smooth(0.6, 1.3, slope));
     const snowLine = 100 + (fbm(x * 0.004 + 3, z * 0.004) - 0.5) * 50;
     col = lerp(col, SNOW, smooth(snowLine, snowLine + 10, v) * (1 - smooth(1.0, 1.7, slope) * 0.7));
     col = col.map((c) => c * (0.42 + 0.8 * shade)) as RGB;
     // rivers: a fine blue line, never thinner than a pixel
-    const rd = riverDist(x, z);
+    // (none drawn across the Nile's valley, whose land the world's rivers do not cross)
+    const rd = nileValley(x, z) > 0.5 ? Infinity : riverDist(x, z);
     if (rd < Infinity) col = lerp(col, RIVER, 1.2 - (rd - Math.max(5, step * 0.4)) / step);
     // contours, every fifth stronger
     const f = v / ci, line = (Math.abs(f - Math.round(f)) * ci) / (slope * step);
