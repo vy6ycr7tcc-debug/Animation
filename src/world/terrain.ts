@@ -1345,9 +1345,7 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
     // into each other; both samples share the ground's own derivatives, so no seam shows either.
     const pick = gN(q.mul(0.045)).mul(8).toVar();
     const pa = floor(pick);
-    // (a short crossfade: where two copies average, their grain washes out and their colour falls
-    // to a flat grey, and over half of each stretch those zones read as grey stains, the owner)
-    const pf = smoothstep(0.42, 0.58, fract(pick)).toVar();
+    const pf = smoothstep(0.25, 0.75, fract(pick)).toVar();
     const offA = sin(vec2(3, 7).mul(pa)).toVar(), offB = sin(vec2(3, 7).mul(pa.add(1))).toVar();
     const samp = (t: THREE.Texture, sc: number) => {
       const u = q.div(sc), dx = dqx.div(sc), dy = dqy.div(sc);
