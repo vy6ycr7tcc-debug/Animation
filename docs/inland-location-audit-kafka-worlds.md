@@ -614,7 +614,7 @@ changes, per the nothing-gets-lost protocol (same-turn filing).
 
 ---
 
-## 4. Kafka worlds — full build specifications (📝 DRAFT)
+## 4. Kafka worlds — full build specifications (K1 READY & sent 2026-10-22; K2–K7 📝 DRAFT)
 
 ### 4.0 Shared Kafka rules (bind all seven)
 
@@ -648,6 +648,11 @@ changes, per the nothing-gets-lost protocol (same-turn filing).
    highest-risk world on this rule; K4 second. The owner decides cuts.
 
 ### 4.1 K1. The Waiting Room (from "Before the Law")
+
+**Status: ✅ READY — sent to Opus 2026-10-22.** Prompt:
+`~/workspace/your_files/opus-waiting-room-k1-prompt.md` (launch plan; cites
+§4.1 lines 650–706, §4.0, §1, and the four standing docs). Narration audio
++ keeper "Not yet" line + cue sheet are a separate Muse task, still open.
 
 **Source — read first.** Kafka's parable "Before the Law" (~700 words, the
 cathedral chapter of *The Trial*): a man from the country comes seeking
@@ -1129,7 +1134,10 @@ the system is outgrown, never suffered under.
 Per protocol, the Kafka worlds in §4 enter as **DRAFT** items. When the
 owner confirms any of them, each becomes a batch item with its own row
 (Draft → Ready → Deployed to game) and its own narration + cue-sheet
-requirement, in the suggested build order of §4.8. The gaps in §3 are
-triage items, not batch items, until the owner says which to work on.
+requirement, in the suggested build order of §4.8. **K1 was confirmed
+2026-10-22 and sent to Opus** (prompt:
+`~/workspace/your_files/opus-waiting-room-k1-prompt.md`); K2–K7 remain
+Draft. The gaps in §3 are triage items, not batch items, until the owner
+says which to work on.
 This document supersedes the v1 audit entirely; the v1 file is replaced by
 this file, not kept alongside it.
