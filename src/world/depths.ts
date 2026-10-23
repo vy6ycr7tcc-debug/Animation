@@ -153,20 +153,7 @@ export const MOUTH_SITES: MouthSite[] = (() => {
 })();
 
 /* ---------------------------------------------------------------- stillness rings */
-const REFLECTIONS = [
-  "What are you carrying that was never yours to carry?",
-  "Where in you is it already quiet?",
-  "What would you do today if you trusted yourself completely?",
-  "Who taught you to be afraid of the dark?",
-  "What in you is asking to be forgiven?",
-  "When did you last feel entirely at home?",
-  "What do you love that you have not yet said aloud?",
-  "What gift is hidden in what hurts?",
-  "If nothing needed to change, what would you notice?",
-  "Which part of you have you been waiting to meet?",
-  "Let the water hold you. What do you hear?",
-  "What is the oldest thing you know about yourself?",
-];
+// (their questions are the game's one pool, ui/reflections.ts)
 
 function ringMaterial(glow: { value: number }, tint: THREE.Color): THREE.MeshBasicNodeMaterial {
   const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false });
@@ -643,7 +630,6 @@ export class Depths {
   readonly exitAt = new THREE.Vector3();
   private local = new THREE.Vector3();
   private ray = new THREE.Raycaster();
-  private lastReflection = -1;
   private uT = uniform(0);
   /** Each ruin's merged stone, shown only within `RUIN_SEEN` of the wanderer. */
   private ruinParts: { x: number; z: number; group: THREE.Group }[] = [];
@@ -1003,13 +989,6 @@ export class Depths {
   }
 
   /** A question to sit with, not the one just asked. */
-  reflection(): string {
-    let i = Math.floor(Math.random() * REFLECTIONS.length);
-    if (i === this.lastReflection) i = (i + 1) % REFLECTIONS.length;
-    this.lastReflection = i;
-    return REFLECTIONS[i];
-  }
-
   show(inside: boolean): void {
     this.inside = inside;
     this.grotto.visible = inside;

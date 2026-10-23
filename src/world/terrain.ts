@@ -133,7 +133,7 @@ const REGIONS: Region[] = [
   { dir: -3 * Q, col: new THREE.Color("#7c4a74"), sand: 0, rock: 0.2, trees: 0.45, leaf: -1 }, // NW heather moor
   { dir: 4 * Q, col: new THREE.Color("#c88a4c"), sand: 0.95, rock: 0.05, trees: 0.04, leaf: 0.87 }, // W ochre dunes
   { dir: 3 * Q, col: new THREE.Color("#b44a2c"), sand: 0.15, rock: 0.85, trees: 0.15, leaf: -1 }, // SW red rock
-  { dir: 2 * Q, col: new THREE.Color("#3f8f5c"), sand: 0, rock: 0, trees: 1.5, leaf: -1 }, // S mossland
+  { dir: 2 * Q, col: new THREE.Color("#4e8c3f"), sand: 0, rock: 0, trees: 1.5, leaf: -1 }, // S mossland
   { dir: Q, col: new THREE.Color("#e2dad2"), sand: 0.1, rock: 0.8, trees: 0.3, leaf: 0.97 }, // SE chalk downs
 ];
 /** The blend of regions at a point: `away` (0 the home meadow … 1 wholly the regions), and the
@@ -1271,10 +1271,12 @@ const LEVELS: Level[] = [
 const C = {
   wet: new THREE.Color("#35334f"),
   sand: new THREE.Color("#a79dc0"),
-  meadowA: new THREE.Color("#3f5f73"), // silver-blue
-  meadowB: new THREE.Color("#58497e"), // violet
-  meadowC: new THREE.Color("#6d5268"), // rose
-  stone: new THREE.Color("#4b4563"),
+  // the home meadow in greens and earth (the owner: "make greener"; it was silver-blue, violet, rose)
+  meadowA: new THREE.Color("#4b6a46"), // moss green
+  meadowB: new THREE.Color("#5c6c3c"), // olive grass
+  meadowC: new THREE.Color("#5e4c37"), // brown earth
+  stone: new THREE.Color("#58514a"), // warm grey stone
+  hollow: new THREE.Color("#4a3a2b"), // the brown earth gathered in hollows
   snow: new THREE.Color("#bcb9da"),
   granite: new THREE.Color("#3b3942"), // the mountains' bare rock, dark under the snow
   alpine: new THREE.Color("#3e3f31"), // a massif's lower slopes: thin tussock
@@ -1314,7 +1316,7 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
   const [sand, meadow, rock, cliff] = [surface("sand"), surface("meadow"), surface("rock"), surface("cliff")];
   const moon = vec3(...starDirection().toArray());
   // x: sky seen (1 open … darker in hollows), y: how sandy, z: how rocky
-  const gr = attribute("aGround", "vec3");
+  const gr = attribute("aGround", "vec4"); // w: how thick the forest stands (the far canopy)
   const regA = attribute("aRegA", "vec4"), regB = attribute("aRegB", "vec4");
   const regTex = regionScans();
   const vGW = positionWorld;
@@ -1629,6 +1631,21 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
         g0.assign(g0.mul(tmix(vec3(1), vec3(1.45, 1.42, 1.32), chalk.mul(0.6).mul(regW[7]).mul(nk))));
       });
     });
+    // The far canopy (for the view from the air): where the trees' likenesses end (~480 m), the
+    // forest goes on as the ground's own cover: clumps of crowns as thick as the groves stand, each
+    // lit on the side toward the moon or the low sun and darker in the gaps, green, gold in the
+    // autumn wood, silvered in the frost and the ash. Seen only far off.
+    If(CD.greaterThan(360).and(gr.w.greaterThan(0.03)).and(SEA.lessThan(0.5)), () => {
+      const cq = q.mul(0.12);
+      const n = gN(cq).mul(0.62).add(gN(q.mul(0.37).add(5)).mul(0.38));
+      const thr = float(1).sub(gr.w.mul(0.8)).sub(0.08);
+      const cover = smoothstep(thr, thr.add(0.1), n).mul(smoothstep(380, 470, CD)).mul(float(1).sub(ST));
+      const lit = gN(cq.add(fogUniforms.glowDir.xz.mul(0.35))).sub(gN(cq)).mul(-2.2).add(0.8).clamp(0.45, 1.25);
+      const crown = smoothstep(thr, thr.add(0.35), n).mul(0.55).add(0.55).mul(lit);
+      const gold = regW[1], silver = regW[0].add(regW[2]).add(regW[7]).min(1);
+      const leafC = tmix(tmix(vec3(0.045, 0.085, 0.035), vec3(0.2, 0.11, 0.035), gold), vec3(0.09, 0.11, 0.1), silver);
+      base.assign(tmix(base, leafC.mul(crown), cover));
+    });
     return vec4(tmix(base.mul(crev).mul(gully.w), snowC, SN).mul(gr.x).mul(wetDark), 1);
   })();
 
@@ -1869,7 +1886,7 @@ export class Terrain {
     g.rotateX(-Math.PI / 2);
     const n = g.attributes.position.count;
     g.setAttribute("color", new THREE.BufferAttribute(new Float32Array(n * 3), 3));
-    g.setAttribute("aGround", new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+    g.setAttribute("aGround", new THREE.BufferAttribute(new Float32Array(n * 4), 4));
     // each region's weight there (away × its share): E, NE, N, NW | W, SW, S, SE
     g.setAttribute("aRegA", new THREE.BufferAttribute(new Float32Array(n * 4), 4));
     g.setAttribute("aRegB", new THREE.BufferAttribute(new Float32Array(n * 4), 4));
@@ -1947,6 +1964,9 @@ export class Terrain {
       this.tmp.copy(C.earth).lerp(C.loam, smooth(0.3, 0.7, fbm(x * 0.03 - 9, z * 0.03 + 4)));
       this.col.lerp(this.tmp, earth * 0.8);
       if (talus > 0) this.col.lerp(this.tmp.copy(C.stone).lerp(C.granite, 0.5), talus * 0.45);
+      // the hollows hold brown earth (soil washed down into them), the crests keep their green
+      const dip = smooth(0.98, 0.7, sky) * (1 - k.sand) * (1 - ms) * smooth(0.3, 1.2, h);
+      if (dip > 0) this.col.lerp(C.hollow, dip * 0.7);
       // the Nile's floodplain: a patchwork of fields along the river
       const fk = nileFields(x, z, this.tmp);
       if (fk > 0) this.col.lerp(this.tmp, fk * 0.9);
@@ -1958,7 +1978,15 @@ export class Terrain {
       const sandy = Math.min(1, k.sand + smooth(0.45, 0.62, fbm(x * 0.01 - 30, z * 0.01 + 12)) * (1 - k.stone) * 0.6 * (1 - away * 0.7)) * (1 - fk);
       // the earth takes the rock scan's grit and the sand's grain
       const rocky = Math.min(1 - sandy * (1 - talus), k.stone + smooth(0.5, 1.0, 1 - nor.getY(v)) * 0.8 + earth * 0.55 + talus * 0.85 + ms * 0.55);
-      gr.setXYZ(v, sky, Math.max(0, Math.min(1 - rocky, sandy * (1 - talus) + earth * 0.3)), rocky);
+      // how thick the forest stands here (the same groves and densities the trees are placed by), for
+      // the far canopy the ground draws where the trees' likenesses end
+      let forest = 0;
+      if (h > WATER_Y + 0.7 && h < 28 && k.stone < 0.5 && up > 0.8) {
+        const grove = smooth(0.46, 0.64, fbm(x * 0.008 + 71, z * 0.008 - 33));
+        forest = Math.min(1, (0.035 + grove * 0.36) * (1 + (rg.trees - 1) * rg.away) * 1.7) * (1 - fk) * (1 - ms);
+        if (forest > 0.03 && keptClear(x, z)) forest = 0;
+      }
+      gr.setXYZW(v, sky, Math.max(0, Math.min(1 - rocky, sandy * (1 - talus) + earth * 0.3)), rocky, forest);
     }
     pos.needsUpdate = nor.needsUpdate = col.needsUpdate = gr.needsUpdate = rA.needsUpdate = rB.needsUpdate = true;
     g.computeBoundingSphere();

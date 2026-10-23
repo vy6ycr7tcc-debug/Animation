@@ -142,6 +142,19 @@ body.loading #title h1, body.loading #title p { animation-play-state: paused; }
 .whisper.on { opacity: 1; }
 #whisper { top: calc(18% + env(safe-area-inset-top, 0px)); }
 #sub { bottom: calc(152px + env(safe-area-inset-bottom, 0px)); font-style: normal; color: var(--pearl); }
+/* a question to sit with: low in the view, rising slowly, gone after a while; its one word answers it */
+#reflect {
+  position: fixed; left: 0; right: 0; bottom: calc(168px + env(safe-area-inset-bottom, 0px)); margin: 0 auto; padding: 0 28px; max-width: 30em;
+  text-align: center; opacity: 0; transform: translateY(8px); filter: blur(3px); pointer-events: none;
+  transition: opacity 3.2s ease, transform 3.2s ease, filter 3.2s ease;
+}
+#reflect.on { opacity: 1; transform: none; filter: none; }
+#reflect .q { margin: 0; font: italic 400 clamp(19px, 4.6vw, 26px)/1.45 var(--serif); color: #f6eedf; letter-spacing: 0.01em; text-shadow: 0 0 18px rgba(20, 12, 30, 0.85), 0 0 3px rgba(20, 12, 30, 0.6); }
+#reflect .ans { margin-top: 14px; min-height: 40px; padding: 6px 16px; border: 0; background: none; font: italic 14px var(--serif); color: var(--gold); opacity: 0.75; letter-spacing: 0.04em; text-shadow: 0 0 12px rgba(20, 12, 30, 0.9); }
+#reflect.on .ans { pointer-events: auto; }
+body.touring #reflect, body.recording #reflect, body.film #reflect, body.mapping #reflect, body.hearting #reflect, body.oracling #reflect, body.reading #reflect { opacity: 0 !important; pointer-events: none; }
+#heart-compose .asked { margin: -4px 8px 14px; font: italic 17px/1.45 var(--serif); color: #f3e9d6; text-align: center; }
+#heart-compose .asked[hidden] { display: none; }
 
 /* ---- touch controls ---- */
 /* the stick: a quiet ring that always rests in the bottom-left corner, and a soft knob of light */

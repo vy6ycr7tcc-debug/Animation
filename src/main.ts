@@ -58,6 +58,7 @@ import { SpiritCritters } from "./world/spiritCritters";
 import { Readables, type Reading } from "./world/readables";
 import { Reader } from "./ui/reader";
 import { Heart, heartNotes, keepToItself } from "./ui/heart";
+import { Reflections } from "./ui/reflections";
 import { Oracle, type Lens } from "./ui/oracle";
 import { Install, buildIntro, isStandalone } from "./ui/intro";
 import { StationGlow } from "./world/stationGlow";
@@ -1712,6 +1713,9 @@ input.capture = sanct.capture;
    while seated or laying hands. The oracle (ui/oracle.ts) is offered at the Choice's seat and at
    the maze's still centre. */
 const myHeart = new Heart();
+// questions to sit with, asked at the quiet moments (ui/reflections.ts); one answers into a heart note
+const reflect = new Reflections();
+reflect.answer = (q) => myHeart.openCompose(q);
 const oracle = new Oracle();
 watchKeyboard();
 myHeart.place = () => {
@@ -1826,6 +1830,8 @@ const med = new Meditation({
   invite: () => {
     // the small heart, twice, softly: if something moved, write it down
     heartInviteUntil = S.t + 9;
+    // and a question to sit with, for what moved
+    if (!narration.progress() && !tp.playing) reflect.ask(20000);
     const m = document.getElementById("heart-mini");
     if (m) {
       m.classList.remove("blink");
@@ -3031,6 +3037,7 @@ const INWARD_AFTER = 8000;
 /** Sitting at a lesson's seat or a monument room's (not with an archetype, whose panel is open). */
 const lessonSeated = (): boolean => sitting.phase === "seated" && (!!tourScenes.seatedId || !!inHall()?.journey.sitting);
 let tourWatchK = 0;
+let inwardFor = 0, askedSpell = false, floatStill = 0;
 const gazeV = new THREE.Vector3(); // the gaze contemplation gives the camera, reused each frame
 const gazePts = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
 const gzEye = new THREE.Vector3(), gzGlow = new THREE.Vector3(), gzPeak = new THREE.Vector3(), gzUp = new THREE.Vector3();
@@ -3050,6 +3057,16 @@ function contemplationFrame(dt: number): void {
   const watch = tourScenes.tour.watching ? 1 : 0;
   tourWatchK += (watch - tourWatchK) * Math.min(1, dt * (watch ? 1.2 : 2.5));
   wanderer.presence = hallPresence * (1 - inwardK) * (1 - tourWatchK);
+  // a question to sit with, once in a spell of contemplation, when no voice speaks (at most every 2½ min)
+  inwardFor = want ? inwardFor + dt : 0;
+  if (!want) askedSpell = false;
+  else if (!askedSpell && inwardFor > 7 && reflect.since() > 150 && !narration.progress() && !narration.loading && !tp.playing && !STILL) {
+    askedSpell = true;
+    reflect.ask();
+  }
+  // lying still on the shallows, the same
+  floatStill = player.floating && player.speed < 0.45 && idle ? floatStill + dt : 0;
+  if (floatStill > 20 && reflect.since() > 150 && !narration.progress() && !tp.playing && !STILL) reflect.ask();
   if (want && inwardK > 0.5 && !toldInward) {
     toldInward = true;
     whisper("Contemplation: touch anywhere to return", 6000);
@@ -5140,7 +5157,7 @@ function deepFrame(dt: number, wt: number, inWater: boolean): void {
     audio.duck(true);
     audio.bell(528, 0.03, 7);
     if (ring) seaLife.bubbles(player.pos, 4);
-    whisper(depths.reflection(), 11000);
+    reflect.ask(16000);
   } else if (ringStill === 0 && ringSpoke) {
     ringSpoke = false;
     audio.duck(false);
@@ -5204,6 +5221,11 @@ $("#howto-open").addEventListener("click", () => {
   $("#howto").scrollTop = 0;
 });
 $("#howto-close").addEventListener("click", () => ($("#howto").hidden = true));
+{
+  const q = $<HTMLInputElement>("#questions");
+  q.checked = reflect.on;
+  q.addEventListener("change", () => reflect.setOn(q.checked));
+}
 {
   const box = $<HTMLInputElement>("#contemplate");
   box.checked = inwardOn;

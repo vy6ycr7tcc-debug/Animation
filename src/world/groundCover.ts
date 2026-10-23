@@ -32,7 +32,7 @@ interface Kind {
 const RECIPES: Record<number, { p: number; kinds: Kind[] }> = {
   [-1]: { p: 0.34, kinds: [
     { shape: "tuft", w: 5, a: [0.05, 0.09, 0.06], b: [0.1, 0.13, 0.07], s: [0.7, 1.2] },
-    { shape: "stone", w: 2, a: [0.12, 0.11, 0.12], b: [0.2, 0.19, 0.18], s: [0.5, 1.2] },
+    { shape: "stone", w: 4, a: [0.12, 0.1, 0.08], b: [0.22, 0.19, 0.15], s: [0.5, 1.5] },
     { shape: "shrub", w: 1, a: [0.035, 0.07, 0.05], b: [0.07, 0.1, 0.06], s: [0.6, 1.1] },
   ] },
   0: { p: 0.3, kinds: [ // tundra
@@ -64,7 +64,7 @@ const RECIPES: Record<number, { p: number; kinds: Kind[] }> = {
   6: { p: 0.62, kinds: [ // mossland
     { shape: "fern", w: 5, a: [0.03, 0.08, 0.02], b: [0.06, 0.15, 0.04], s: [0.8, 1.4] },
     { shape: "shrub", w: 4, a: [0.03, 0.09, 0.015], b: [0.07, 0.17, 0.03], s: [0.4, 0.8] },
-    { shape: "stone", w: 1, a: [0.07, 0.09, 0.06], b: [0.12, 0.14, 0.1], s: [0.5, 1] },
+    { shape: "stone", w: 3, a: [0.1, 0.09, 0.07], b: [0.19, 0.16, 0.12], s: [0.5, 1.4] },
   ] },
   7: { p: 0.4, kinds: [ // chalk downs
     { shape: "tuft", w: 5, a: [0.07, 0.12, 0.05], b: [0.13, 0.18, 0.08], s: [0.6, 1] },

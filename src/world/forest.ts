@@ -146,7 +146,11 @@ export class Forest {
     // walking in, the likeness thins away as the living tree takes its place
     const d = length(toCam);
     const keep = smoothstep(NEAR - 8, NEAR + 14, d);
-    mat.opacityNode = t.a.mul(keep);
+    // and far off they give way to the ground's own canopy (terrain.ts), dissolving in a fine
+    // dither rather than ending at a ring
+    const far = smoothstep(RING * TCELL - 10, RING * TCELL - 85, d);
+    const dither = fract(sin(T.screenCoordinate.x.mul(12.9898).add(T.screenCoordinate.y.mul(78.233))).mul(43758.5453));
+    mat.opacityNode = t.a.mul(keep).mul(step(dither.mul(0.98), far));
     this.mesh = new THREE.Mesh(this.geo, mat);
     this.mesh.frustumCulled = false;
   }

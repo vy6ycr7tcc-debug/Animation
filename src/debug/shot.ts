@@ -354,6 +354,16 @@ export function runShot(ctx: ShotCtx): void {
     const lx = Math.cos(along) * 60 - (px - 0) * 0, lz = Math.sin(along) * 60;
     view = { eye: [0, 9, 0], look: [lx, -gy - 2, lz] };
     ctx.player.pos.set(px, gy, pz);
+  } else if (/^far-\d$/.test(id)) {
+    // as autofly sees it: `h` metres over the land (320 its high cruise, 6 its low) along region k's
+    // bearing, `r` out, looking on outward a little below the horizon
+    const a = -Number(id.slice(4)) * (Math.PI / 4), ux = Math.cos(a), uz = Math.sin(a);
+    const qs = new URLSearchParams(location.search);
+    const r = Number(qs.get("r") ?? 400), hh = Number(qs.get("h") ?? 320), pitch = Number(qs.get("pitch") ?? (hh > 60 ? 0.2 : 0.05));
+    const px = ux * r, pz = uz * r, gy = Math.max(heightAt(px, pz), 0) + hh;
+    base = [px, gy, pz];
+    view = { eye: [0, 0, 0], look: [ux * 100, -Math.tan(pitch) * 100, uz * 100] };
+    ctx.player.pos.set(px, gy, pz);
   } else if (/^aerial-\d$/.test(id)) {
     // the land of a region from the air (0 E … 7 SE, as region-k): 140 m up, 500 m out, looking
     // on outward and down over its rivers, craters and landforms
