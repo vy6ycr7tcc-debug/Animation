@@ -80,6 +80,11 @@ const lerp = (a: RGB, b: RGB, t: number): RGB => {
 };
 const MEADOW: RGB = [92, 116, 68], SAND: RGB = [212, 190, 142], ROCK: RGB = [112, 104, 100], HIGH: RGB = [132, 118, 98], SNOW: RGB = [238, 241, 248];
 const RIVER: RGB = [74, 132, 182], CONTOUR: RGB = [52, 38, 28], COAST: RGB = [236, 228, 206];
+/** The railway, for the map (set by main.ts): its track's middle, and its stations. */
+let rail: { px: Float32Array; pz: Float32Array; n: number; stations: { x: number; z: number }[] } | null = null;
+export function setMapRailway(r: { px: Float32Array; pz: Float32Array; n: number; stations: { x: number; z: number }[] }): void {
+  rail = r;
+}
 const MARSH: RGB = [74, 104, 92], SHALLOW: RGB = [78, 132, 150], MIDWATER: RGB = [32, 70, 110], DEEP: RGB = [12, 24, 58];
 /** The regions' names, each in its own country (terrain.ts REGIONS: E, NE, N, NW, W, SW, S, SE). */
 const REGION_NAMES = ["Frost Tundra", "Autumn Wood", "Ash Fields", "Heather Moor", "Ochre Dunes", "Red Rocks", "Mossland", "Chalk Downs"];
@@ -816,6 +821,13 @@ export class StartMap {
     };
     rows.push(["The Mind", ring(INK.Mind, "Mind")], ["The Body", ring(INK.Body, "Body")], ["The Spirit", ring(INK.Spirit, "Spirit")], ["The Choice", ring(INK.Choice, "Choice")]);
     rows.push(["Monuments", dot(SECTION_INK.Monuments!)], ["Ancient worlds", dot(SECTION_INK.Ancient!)], ["Wonders", dot(SECTION_INK.Wonders!)], ["Lessons", dot(SECTION_INK.Lessons!)], ["Beneath the water", ring(INK.Deep, "Deep")]);
+    const railKey = (x: number, y: number) => {
+      g.fillStyle = "rgb(34,26,22)";
+      g.fillRect(x - 7 * k, y - 1.5 * k, 14 * k, 3 * k);
+      g.fillStyle = "rgba(244,239,230,0.7)";
+      for (let i = -1; i <= 1; i++) g.fillRect(x + i * 4.5 * k - 0.6 * k, y - 3 * k, 1.2 * k, 6 * k);
+    };
+    rows.push(["Railway", railKey]);
     rows.push(["Forest", swatch("rgb(40,70,44)")], ["Rivers and lakes", swatch("rgb(50,96,140)")], ["Rock", swatch("rgb(104,98,96)")], ["Snow", swatch("rgb(232,236,244)")]);
     const lh = 15 * k, w = 128 * k, h = rows.length * lh + 12 * k, x0 = 10 * k, y0 = H - 34 * k - h;
     g.save();
@@ -851,6 +863,41 @@ export class StartMap {
     v.addColorStop(1, "rgba(11,10,28,0.6)");
     g.fillStyle = v;
     g.fillRect(0, 0, W, H);
+
+    // the railway: a dark line with pale ties across it, drawn over the land at every scale; its
+    // stations small squares
+    if (rail) {
+      const every = Math.max(1, Math.floor((this.mpp * 2.5) / 1.6));
+      g.save();
+      g.lineJoin = g.lineCap = "round";
+      const path = () => {
+        g.beginPath();
+        for (let i = 0; i <= rail!.n; i += every) {
+          const j = i % rail!.n, x = this.toMapX(rail!.px[j]), y = this.toMapY(rail!.pz[j]);
+          if (i === 0) g.moveTo(x, y);
+          else g.lineTo(x, y);
+        }
+        g.closePath();
+      };
+      path();
+      g.strokeStyle = "rgba(28,22,18,0.92)";
+      g.lineWidth = 3 * k;
+      g.stroke();
+      g.setLineDash([1.2 * k, 3.2 * k]);
+      g.strokeStyle = "rgba(236,226,204,0.75)";
+      g.lineWidth = 1.2 * k;
+      g.stroke();
+      g.setLineDash([]);
+      for (const st of rail.stations) {
+        const x = this.toMapX(st.x), y = this.toMapY(st.z);
+        g.fillStyle = "rgba(28,22,18,0.95)";
+        g.strokeStyle = "rgba(236,226,204,0.9)";
+        g.lineWidth = 1 * k;
+        g.fillRect(x - 3 * k, y - 3 * k, 6 * k, 6 * k);
+        g.strokeRect(x - 3 * k, y - 3 * k, 6 * k, 6 * k);
+      }
+      g.restore();
+    }
 
     // a scale: how far a stretch of the map is on foot
     const metres = [100, 250, 500, 1000, 2000].find((m) => m / this.mpp > W * 0.12) ?? 2000;

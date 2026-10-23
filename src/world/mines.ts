@@ -151,7 +151,7 @@ function mouthLit(m: THREE.MeshStandardNodeMaterial, L: MouthLight | null | unde
 /** Old timber: the scanned weathered wood (Poly Haven rough_wood), its grain running along each
     piece, each piece its own warm brown gone silver with weather, end grain darker, a little damp
     and rot toward the ground. */
-function timberMaterial(L?: MouthLight | null): THREE.MeshStandardNodeMaterial {
+export function timberMaterial(L?: MouthLight | null): THREE.MeshStandardNodeMaterial {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.9, metalness: 0 });
   const W = surface("wood");
   const col = T.attribute("color", "vec3");
@@ -176,7 +176,7 @@ function timberMaterial(L?: MouthLight | null): THREE.MeshStandardNodeMaterial {
 }
 /** Iron gone to rust (the scanned coarse rust), worn back to grey steel where wheels and boots
     rub: the rails' heads, the top edges. */
-function ironMaterial(L?: MouthLight | null): THREE.MeshStandardNodeMaterial {
+export function ironMaterial(L?: MouthLight | null): THREE.MeshStandardNodeMaterial {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.8, metalness: 0.3 });
   const R = surface("rust");
   const pw = T.positionWorld;
@@ -207,7 +207,7 @@ function goldMaterial(): THREE.MeshStandardNodeMaterial {
 
 /** Broken stone (the rails' bed, the spoil heap): the scanned rocky ground seen from above,
     greyed to waste rock, its pebbles in shade. */
-function gravel(light = 1): THREE.MeshStandardNodeMaterial {
+export function gravel(light = 1): THREE.MeshStandardNodeMaterial {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 1 });
   const R = surface("rock");
   const pw = T.positionWorld;
@@ -219,7 +219,7 @@ function gravel(light = 1): THREE.MeshStandardNodeMaterial {
 }
 
 /* ---- built pieces, merged ---- */
-class Pieces {
+export class Pieces {
   timber: THREE.BufferGeometry[] = [];
   steel: THREE.BufferGeometry[] = [];
   gold: THREE.BufferGeometry[] = [];
@@ -318,7 +318,9 @@ class Pieces {
     g.translate(c.x, c.y, c.z);
     list.push(g.toNonIndexed());
   }
-  build(add: (o: THREE.Object3D) => void, L?: MouthLight | null): void {
+  /** Merged into meshes, one per material (`mats`: shared timber and steel, for things built many
+      times over, like the railway's stretches). */
+  build(add: (o: THREE.Object3D) => void, L?: MouthLight | null, mats?: { timber: THREE.Material; steel: THREE.Material }): void {
     const mk = (list: THREE.BufferGeometry[], mat: THREE.Material, keep: string[]) => {
       if (!list.length) return;
       const g = mergeGeometries(
@@ -333,8 +335,8 @@ class Pieces {
       mesh.castShadow = false;
       add(mesh);
     };
-    mk(this.timber, timberMaterial(L), ["position", "normal", "uv", "color", "aGrain", "aFoot"]);
-    mk(this.steel, ironMaterial(L), ["position", "normal", "uv"]);
+    mk(this.timber, mats?.timber ?? timberMaterial(L), ["position", "normal", "uv", "color", "aGrain", "aFoot"]);
+    mk(this.steel, mats?.steel ?? ironMaterial(L), ["position", "normal", "uv"]);
     mk(this.gold, goldMaterial(), ["position", "normal", "uv"]);
     mk(
       this.ore,
@@ -540,6 +542,57 @@ export function spinCart(car: THREE.Group, from: THREE.Vector3, to: THREE.Vector
   for (const a of axles) a.rotation.z -= along / CAR.wheelR;
 }
 
+/** A mine car into `P` at `c`, turned `yaw` (`ore`: heaped with ore, `gold`: some gold in it;
+  else a bench to sit on). */
+function cartPieces(P: Pieces, c: THREE.Vector3, yaw: number, gold: boolean, ore = true): void {
+  const M = new THREE.Matrix4().makeRotationY(yaw).setPosition(c);
+  const put = (g: THREE.BufferGeometry) => (g.applyMatrix4(M), P.steel.push(g));
+  put(carBody());
+  const L = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z).applyMatrix4(M);
+  // timber buffers across both ends of the chassis
+  for (const e of [-1, 1]) P.beam(L(e * 0.74, -0.08, -0.36), L(e * 0.74, -0.08, 0.36), 0.12);
+  if (ore) {
+    for (const [ax] of [[-CAR.axle], [CAR.axle]]) {
+      const W = new Pieces();
+      carWheels(W);
+      for (const g of W.steel) {
+        g.translate(ax, CAR.wheelY, 0);
+        put(g);
+      }
+    }
+  }
+  // a plank bench across it at sitting height, in a car that carries people
+  if (!ore) {
+    P.beam(L(0.02, 0.4, -0.4), L(0.02, 0.4, 0.4), 0.09);
+    P.beam(L(0.02, 0.21, -0.38), L(0.02, 0.21, 0.38), 0.05, 0.8); // its brace under
+  }
+  // the ore heaped in it, crowning over the lip
+  if (ore) for (let k = 0; k < 14; k++) P.lump(P.ore, L((rnd() - 0.5) * 1.05, 0.5 + rnd() * 0.14, (rnd() - 0.5) * 0.66), 0.12 + rnd() * 0.1);
+  if (gold && ore) for (let k = 0; k < 5; k++) P.lump(P.gold, L((rnd() - 0.5) * 0.8, 0.6 + rnd() * 0.08, (rnd() - 0.5) * 0.5), 0.05 + rnd() * 0.05);
+}
+
+/** A car of its own, empty but for a bench to sit on: its origin is the car's reference point
+    (0.55 m over the rails, as the rails' own helpers give it); its two axles' wheels turn as it
+    rolls (`userData.axles`, spun by `spinCart`). */
+export function rideCar(L?: MouthLight | null): THREE.Group {
+  const P = new Pieces();
+  const g = new THREE.Group();
+  cartPieces(P, new THREE.Vector3(0, 0, 0), 0, false, false);
+  P.build((o) => g.add(o), L);
+  const axles: THREE.Group[] = [];
+  for (const ax of [-CAR.axle, CAR.axle]) {
+    const W = new Pieces();
+    carWheels(W);
+    const a = new THREE.Group();
+    a.position.set(ax, CAR.wheelY, 0);
+    W.build((o) => a.add(o), L);
+    g.add(a);
+    axles.push(a);
+  }
+  g.userData.axles = axles;
+  return g;
+}
+
 /** A gold mine: its portal in the hillside, and the mine within. */
 export class GoldMine extends Underground {
   /** The cart at the mouth, which carries you in (its own object, so it can roll). */
@@ -551,26 +604,8 @@ export class GoldMine extends Underground {
   declare portalYaw: number;
   /** The cart that rides the rails within (built with the mine, at the start of the rails). */
   cartIn: THREE.Group | null = null;
-  /** A car of its own, empty but for a bench to sit on: its origin is the car's reference point
-      (0.55 m over the rails, as the rails' own helpers give it); its two axles' wheels turn as it
-      rolls (`userData.axles`, spun by `spinCart`). */
   private makeCart(L?: MouthLight | null): THREE.Group {
-    const P = new Pieces();
-    const g = new THREE.Group();
-    this.cart(P, new THREE.Vector3(0, 0, 0), 0, false, false);
-    P.build((o) => g.add(o), L);
-    const axles: THREE.Group[] = [];
-    for (const ax of [-CAR.axle, CAR.axle]) {
-      const W = new Pieces();
-      carWheels(W);
-      const a = new THREE.Group();
-      a.position.set(ax, CAR.wheelY, 0);
-      W.build((o) => a.add(o), L);
-      g.add(a);
-      axles.push(a);
-    }
-    g.userData.axles = axles;
-    return g;
+    return rideCar(L);
   }
   /** The rails' own height at each sample within: the floor under both rails, eased over a few
       metres (the floor's small bumps and the nearest sample's steps made the cart rise and fall in
@@ -896,30 +931,7 @@ export class GoldMine extends Underground {
       it); else empty, a plank bench across it at sitting height. Wheels come with it unless it
       rolls (`makeCart` gives those their own axles). */
   private cart(P: Pieces, c: THREE.Vector3, yaw: number, gold: boolean, ore = true): void {
-    const M = new THREE.Matrix4().makeRotationY(yaw).setPosition(c);
-    const put = (g: THREE.BufferGeometry) => (g.applyMatrix4(M), P.steel.push(g));
-    put(carBody());
-    const L = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z).applyMatrix4(M);
-    // timber buffers across both ends of the chassis
-    for (const e of [-1, 1]) P.beam(L(e * 0.74, -0.08, -0.36), L(e * 0.74, -0.08, 0.36), 0.12);
-    if (ore) {
-      for (const [ax] of [[-CAR.axle], [CAR.axle]]) {
-        const W = new Pieces();
-        carWheels(W);
-        for (const g of W.steel) {
-          g.translate(ax, CAR.wheelY, 0);
-          put(g);
-        }
-      }
-    }
-    // a plank bench across it at sitting height, in a car that carries people
-    if (!ore) {
-      P.beam(L(0.02, 0.4, -0.4), L(0.02, 0.4, 0.4), 0.09);
-      P.beam(L(0.02, 0.21, -0.38), L(0.02, 0.21, 0.38), 0.05, 0.8); // its brace under
-    }
-    // the ore heaped in it, crowning over the lip
-    if (ore) for (let k = 0; k < 14; k++) P.lump(P.ore, L((rnd() - 0.5) * 1.05, 0.5 + rnd() * 0.14, (rnd() - 0.5) * 0.66), 0.12 + rnd() * 0.1);
-    if (gold && ore) for (let k = 0; k < 5; k++) P.lump(P.gold, L((rnd() - 0.5) * 0.8, 0.6 + rnd() * 0.08, (rnd() - 0.5) * 0.5), 0.05 + rnd() * 0.05);
+    cartPieces(P, c, yaw, gold, ore);
   }
 
   /* ---------------------------------------------------------------- the workings within */

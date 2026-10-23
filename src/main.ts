@@ -66,7 +66,7 @@ import { allVoices, chosenVoice, onSpeechFail, onSpeechStart, readAloud, sayAlou
 import { Vessels } from "./world/vessels";
 import { TranscriptPlayer } from "./ui/transcriptPlayer";
 import { tourBar, type TourBarOwner } from "./ui/tourBar";
-import { StartMap, type Choice, type Place } from "./ui/map";
+import { setMapRailway, StartMap, type Choice, type Place } from "./ui/map";
 import { buildSky, skyUniforms, starDirection } from "./world/sky";
 import { floorHook, GOBEKLI, gobekliAt, NAN_MADOL, nanMadolAt, RAPA_NUI, rapaNuiAt, groundUniforms, heightAt, heightCoarse, LANDMARK_SITES, MONUMENT, PEAKS, SPAWN, standAt, Terrain, WATER_Y } from "./world/terrain";
 import { Temple } from "./world/temple";
@@ -81,7 +81,8 @@ import { Ancients } from "./world/ancient";
 import { Pyramid, DUAT_ORIGIN } from "./world/pyramid";
 import { Cavern, type Underground } from "./world/cavern";
 import { GoldMine, spinCart } from "./world/mines";
-import { MINE_SITES, wakeTheNile } from "./world/terrain";
+import { ADEPT_HALL, DENSITY_HALL, MAZE_HALL, MINE_SITES, PAST_HALL, PYRAMID, VEIL_HALL, WANDERER_HALL, wakeTheNile } from "./world/terrain";
+import { Railway, settle, type Station } from "./world/railway";
 import { FalseDoors } from "./world/falseDoors";
 import { Gobekli } from "./world/ancient/gobekli";
 import { NanMadol } from "./world/ancient/nanMadol";
@@ -405,6 +406,41 @@ scene.add(temple.group, temple.gate);
 // the temple's precinct round the pylon: its walls, gateway, forecourt garden and fountain; it levels
 // its ground and keeps the wild growth off it, so it is made before any ground or tree
 const templeComplex = new TempleComplex(temple.gate, temple.gateHeading);
+// the railway: one loop through every gold mine and the great places, a car waiting at each station
+// (planned now, after every site is chosen and before any tree grows, so they keep off it)
+const railway = (() => {
+  const g = temple.gate.position, h = temple.gateHeading;
+  const W = (lx: number, lz: number) => ({ x: g.x + lx * Math.cos(h) + lz * Math.sin(h), z: g.z - lx * Math.sin(h) + lz * Math.cos(h) });
+  const toShore = (x: number, z: number, d: number) => {
+    const L = Math.hypot(SPAWN.x - x, SPAWN.z - z) || 1;
+    return { x: x + ((SPAWN.x - x) / L) * d, z: z + ((SPAWN.z - z) / L) * d };
+  };
+  const hall = (H: { x: number; z: number; r: number; face: number }, name: string) => ({ name, x: H.x + Math.sin(H.face) * (H.r * 1.35 + 16), z: H.z + Math.cos(H.face) * (H.r * 1.35 + 16) });
+  const compass = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+  const specs = [
+    { name: "The temple", ...W(0, 48) },
+    hall(DENSITY_HALL, "The monument of the densities"),
+    hall(ADEPT_HALL, "The school of the adept"),
+    hall(PAST_HALL, "The monument of past choices"),
+    hall(VEIL_HALL, "The world after the veil"),
+    hall(WANDERER_HALL, "The long descent"),
+    hall(MAZE_HALL, "The mind's maze"),
+    { name: "The pyramid", x: PYRAMID.x, z: PYRAMID.z - 108 },
+    { name: "Göbekli Tepe", ...toShore(GOBEKLI.x, GOBEKLI.z, 110) },
+    { name: "Nan Madol", ...toShore(NAN_MADOL.x, NAN_MADOL.z, 150) },
+    { name: "Rapa Nui", ...toShore(RAPA_NUI.x, RAPA_NUI.z, 130) },
+    ...MINE_SITES.map((m) => ({
+      name: `A gold mine, ${compass[(Math.round(Math.atan2(m.x, -m.z) / (Math.PI / 4)) + 8) % 8]}`,
+      x: m.x + Math.cos(m.face) * 30,
+      z: m.z + Math.sin(m.face) * 30,
+      spur: { x: m.x + Math.cos(m.face) * 15, z: m.z + Math.sin(m.face) * 15 },
+    })),
+  ];
+  return new Railway(specs.map(settle), `inward-journey:rail:${__BUILD__}`);
+})();
+scene.add(railway.group);
+setMapRailway({ px: railway.px, pz: railway.pz, n: railway.n, stations: railway.stations });
+console.info(`railway: ${(railway.length / 1000).toFixed(1)} km, ${railway.stations.length} stations, planned in ${railway.planMs.toFixed(0)} ms`);
 let hallsReady = false; // the halls are made further down; until then their floor is level
 floorHook.fn = (x, z) => (x > 55000 ? (under()?.floorAt(x, z) ?? 0) : inJourney(x) ? (hallsReady ? (inHall()?.journey.floorAt(x, z) ?? 0) : 0) : x > 45000 ? pyramid.floorAt(x, z) : x > 35000 ? depths.floorAt() : temple.floorAt(x, z));
 /** The figure the beings wear, once loaded (the mind's maze dresses its archetypes in it too). */
@@ -1473,6 +1509,10 @@ function choiceFrame(): void {
 function templeFrame(dt: number): void {
   temple.update(S.wt, dt, player.pos, S.reduced);
   templeComplex.update(S.wt, player.pos, !apart());
+  railway.update(player.pos, !apart(), ride?.kind === "line" ? ride.st : null);
+  // a car left out along the line goes home to its station once you are well away from it
+  for (const st of railway.stations)
+    if (st.carAt !== st.s && !(ride?.kind === "line" && ride.st === st) && player.pos.distanceTo(st.car.position) > 220) railway.park(st);
   // the view never stands behind a wall (the temple's walls as they are now: it is rebuilt per visit)
   follow.blockers = temple.inside ? temple.blockers : apart() ? apartBlockers() : NO_BLOCKERS;
   if (S.mode !== "play") return;
@@ -2961,7 +3001,7 @@ let sunStill = false;
 function contemplationFrame(dt: number): void {
   const idle = performance.now() - lastTouch > INWARD_AFTER && Math.hypot(input.move.x, input.move.y) < 0.05 && !input.hold;
   const want = inwardOn && idle && S.mode === "play" && !startMap.isOpen && $("#menu").hidden && !oracle.isOpen && player.speed < 0.3 &&
-    !player.flying && !player.diving && !player.floating && !follow.underwater && !autofly.active && !autorun.active && !crossing && (!ride || (ride.kind === "cart" && ride.where === "in")) && !boardFor &&
+    !player.flying && !player.diving && !player.floating && !follow.underwater && !autofly.active && !autorun.active && !crossing && (!ride || (ride.kind === "cart" && ride.where === "in") || ride.kind === "line") && !boardFor &&
     (sitting.phase === "none" || lessonSeated()) && !document.body.classList.contains("touring") && !sanct.building && !sanct.formingNow && !med.active;
   inwardK += ((want ? 1 : 0) - inwardK) * Math.min(1, dt * (want ? 0.35 : 3));
   if (inwardK < 0.002 && !want) inwardK = 0;
@@ -2991,10 +3031,17 @@ function contemplationFrame(dt: number): void {
   if (mz && !sunStill) mz.setNourish(inwardK, gzEye.copy(player.pos).setY(player.pos.y + 1.6));
   // riding a mine car: a rider's eyes (seated, lower), looking on down the tunnel ahead
   const cart = ride?.kind === "cart" && ride.where === "in" ? ride : null;
-  if (cart) follow.eyeLift = -0.5;
-  follow.gazeRate = cart ? 4 : 0.4;
+  const line = ride?.kind === "line" ? ride : null;
+  if (cart || line) follow.eyeLift = -0.5;
+  follow.gazeRate = cart || line ? 4 : 0.4;
   if (!want) return void (follow.gaze = null);
   gazeFor += dt;
+  if (line) {
+    // the railway: the rider looks on along the line ahead
+    railway.at(line.s + 14, gazeV);
+    follow.gaze = gazeV.setY(gazeV.y + 0.75);
+    return;
+  }
   if (cart) {
     const m = cart.mine, ahead = cart.s + (cart.dir * 9) / m.railStep(cart.s);
     m.railIn(Math.max(1, Math.min(m.samples.length - 2, ahead)), gazeV);
@@ -4242,12 +4289,13 @@ const mines = MINE_SITES.map((_, i) => new GoldMine(i));
    lets you out: the canoe makes for the nearest shore and you step out there; the cart stops. */
 type Ride =
   | { kind: "canoe"; boat: Boat; speed: number; turnV: number; ashore: THREE.Vector3 | null; ripple: number; lap: number }
-  | { kind: "cart"; mine: GoldMine; where: "out" | "wait" | "in"; s: number; speed: number; dir: 1 | -1; stop: boolean; clack: number };
+  | { kind: "cart"; mine: GoldMine; where: "out" | "wait" | "in"; s: number; speed: number; dir: 1 | -1; stop: boolean; clack: number }
+  | { kind: "line"; st: Station; s: number; speed: number; stop: boolean; clack: number; dwell: number; next: Station; left: Station | null };
 let ride: Ride | null = null;
 let rideSnap = false; // the view comes round behind once, as you get in
-let boardFor: { kind: "canoe"; boat: Boat } | { kind: "cart"; mine: GoldMine; inside: boolean } | null = null;
+let boardFor: { kind: "canoe"; boat: Boat } | { kind: "cart"; mine: GoldMine; inside: boolean } | { kind: "line"; st: Station } | null = null;
 const rideV = new THREE.Vector3(), rideScr = new THREE.Vector3();
-const toldRide = { canoe: false, cart: false };
+const toldRide = { canoe: false, cart: false, line: false };
 function seatInRide(): void {
   stopAuto();
   if (sitting.phase !== "none") standUp();
@@ -4278,6 +4326,16 @@ function boardCart(m: GoldMine, inside: boolean): void {
     whisper(MOBILE ? "The cart rolls down the rails by itself. Tap the round button to stop it." : "The cart rolls down the rails by itself. E or Space stops it.", 6500);
   }
 }
+/** Into a station's car: it carries you on round the whole loop, stopping at each station. */
+function boardLine(st: Station): void {
+  seatInRide();
+  const s = st.carAt;
+  ride = { kind: "line", st, s, speed: 0, stop: false, clack: 0, dwell: 1.2, next: railway.nextStation(s).st, left: null };
+  if (!toldRide.line) {
+    toldRide.line = true;
+    whisper(MOBILE ? "The railway carries you round all the world's places, stopping at each. Tap the round button to stop." : "The railway carries you round all the world's places, stopping at each. E or Space stops it.", 7500);
+  }
+}
 /** Out of what carries you: on the land beside it. */
 function leaveRide(at?: THREE.Vector3): void {
   if (!ride) return;
@@ -4286,6 +4344,13 @@ function leaveRide(at?: THREE.Vector3): void {
   wanderer.setGesture("none");
   if (r.kind === "canoe") {
     const p = at ?? r.boat.pos;
+    player.pos.set(p.x, Math.max(heightAt(p.x, p.z), WATER_Y), p.z);
+  } else if (r.kind === "line") {
+    // beside the track, on the land; the car waits where it stopped
+    r.st.carAt = r.s;
+    const c = r.st.car.position;
+    const side = new THREE.Vector3(Math.cos(player.heading), 0, -Math.sin(player.heading)).multiplyScalar(1.4);
+    const p = c.clone().add(side);
     player.pos.set(p.x, Math.max(heightAt(p.x, p.z), WATER_Y), p.z);
   } else {
     const g = r.where === "out" ? r.mine.cartOut : r.mine.cartIn;
@@ -4316,9 +4381,14 @@ function rideAction(): void {
     ride.ashore = nearestShore(ride.boat.pos);
     if (!ride.ashore) leaveRide();
     else whisper("To the shore", 2200);
+  } else if (ride.kind === "line") {
+    ride.stop = true;
+    // (not in the water, nor high on a trestle: on to where the land is under the track)
+    const b = railway.bedAt(ride.s);
+    if (b.ground < WATER_Y + 0.1 || b.bed - b.ground > 1.5) whisper("It stops where the land is under it", 2600);
   } else ride.stop = true;
 }
-/** What a tap lands on: a canoe, or a mine's cart. */
+/** What a tap lands on: a canoe, a mine's cart, or a railway car. */
 function rideAt(x: number, y: number): boolean {
   if (ride) {
     rideAction();
@@ -4341,6 +4411,16 @@ function rideAt(x: number, y: number): boolean {
     return false;
   }
   if (apart()) return false;
+  const st = railway.pick(x, y, camera, innerWidth, innerHeight);
+  if (st) {
+    if (player.pos.distanceTo(st.car.position) < 4) boardLine(st);
+    else {
+      boardFor = { kind: "line", st };
+      stopAuto();
+      courseTo(st.car.position.x, st.car.position.z);
+    }
+    return true;
+  }
   const b = canoes.pick(x, y, camera, innerWidth, innerHeight);
   if (b) {
     if (Math.hypot(b.pos.x - player.pos.x, b.pos.z - player.pos.z) < 5) boardCanoe(b);
@@ -4379,6 +4459,8 @@ function rideFrame(dt: number, t: number): void {
     else if (boardFor.kind === "canoe") {
       const b = boardFor.boat;
       if (Math.hypot(b.pos.x - player.pos.x, b.pos.z - player.pos.z) < 3.4) boardCanoe(b);
+    } else if (boardFor.kind === "line") {
+      if (player.pos.distanceTo(boardFor.st.car.position) < 2.4) boardLine(boardFor.st);
     } else {
       const c = boardFor.inside ? boardFor.mine.cartIn : boardFor.mine.cartOut;
       if (!c || (boardFor.inside && under() !== boardFor.mine)) boardFor = null;
@@ -4437,6 +4519,54 @@ function rideFrame(dt: number, t: number): void {
       r.lap = 2.2 + Math.random() * 2.5;
       audio.step(true);
     }
+    return;
+  }
+  if (ride.kind === "line") {
+    const r = ride, car = r.st.car;
+    // the station ahead: slow into it, a pause and its name, then on
+    const nx = railway.nextStation(r.s);
+    if (nx.st !== r.next && r.dwell <= 0) r.next = nx.st;
+    const toNext = (((r.next.s - r.s) % railway.length) + railway.length) % railway.length;
+    // round the bends no faster than a gentle sway allows (1.3 m/s² across), and on the level ground
+    const bend = railway.bendAt(r.s, 24);
+    let want = Math.min(10, Math.sqrt(1.3 / Math.max(1e-4, bend)));
+    want = Math.min(want, Math.max(0.6, Math.sqrt(2 * 0.9 * Math.max(0, toNext - 0.4))));
+    if (r.stop) {
+      const b = railway.bedAt(r.s);
+      want = b.ground < WATER_Y + 0.1 || b.bed - b.ground > 1.5 ? Math.min(want, 4) : 0;
+    }
+    if (r.dwell > 0) {
+      want = 0;
+      r.dwell -= dt;
+    } else if (toNext < 0.6 && !r.stop) {
+      r.dwell = 4.5;
+      r.left = r.next;
+      whisper(r.next.name, 3200);
+      audio.bowl(330, 0.025, undefined, 2.5);
+      r.next = railway.nextStation(r.next.s + 1).st;
+    }
+    const acc = want > r.speed ? 0.8 : 2.2;
+    r.speed += Math.max(-acc * dt, Math.min(acc * dt, want - r.speed));
+    if (r.dwell > 0) r.speed = Math.min(r.speed, Math.max(0, toNext));
+    r.s = (r.s + r.speed * dt) % railway.length;
+    railway.roll(car, r.s);
+    player.pos.set(car.position.x, car.position.y + 0.03, car.position.z);
+    const yaw = car.rotation.y;
+    const fx = Math.cos(-yaw), fz = Math.sin(-yaw);
+    player.heading = Math.atan2(-fx, -fz);
+    player.vel.set(fx, 0, fz).multiplyScalar(r.speed);
+    if (rideSnap) {
+      rideSnap = false;
+      follow.yaw = player.heading;
+      follow.snapTo(player.pos);
+    }
+    // the rails' joints, every nine metres
+    r.clack -= dt * r.speed;
+    if (r.clack <= 0) {
+      r.clack = 9;
+      if (r.speed > 1) audio.step(false);
+    }
+    if (r.stop && r.speed < 0.05) leaveRide();
     return;
   }
   // the cart
@@ -6745,5 +6875,5 @@ addX(document.getElementById("next-up"), () => nextUp.hide(), "Stay here");
   new MutationObserver(sync).observe($("#map-close"), { attributes: true, attributeFilter: ["hidden"] });
   sync();
 }
-Object.assign(window, { __ij: { canoes, boardCanoe, boardCart, rideAction, rideState: () => ride, cavern, setCavern, mines, setUnder, med, sanct, garden, canTouch, beginBuild, beginHoverBuild, groundPoint, solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, nile, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, myHeart, oracle, oracleVision, stepFrames: (n: number, dt = 1 / 60) => { realDt = dt; for (let i = 0; i < n; i++) update(dt); post.render(); }, heartFrame, maze: () => maze, tourInfo: () => tourBar().info() } });
+Object.assign(window, { __ij: { railway, boardLine, canoes, boardCanoe, boardCart, rideAction, rideState: () => ride, cavern, setCavern, mines, setUnder, med, sanct, garden, canTouch, beginBuild, beginHoverBuild, groundPoint, solidity, offerNext, nextUp, player, follow, quality, audio, narration, playlist, scene, S, wanderer, lanterns, flowers, landmarks, creation, beings, startMap, arrive, places, heightAt, communion, creatures, sitting, setMed: (v: number) => { medK = v; stillFor = 99; }, vessels, tp, post, renderer, camera, THREE, duatTourStart, walkStart, walkState: () => walk && { phase: walk.phase, i: walk.i, n: walk.stops.length, t: walk.t }, walkSkip, duatTourState: () => duatTour, companion, cpu: () => cpuMs, moods, fauna, presences, guide, terrain, water, grass, seaLife, blooms, input, archiveHeard, wilds, nile, autofly, setAutofly, autorun, setAutorun, breath, temple, setInside, crossTemple, openCards, setCard, beginTempleRite, endTempleRite, kindled, touch, beginTouch, depths, setDeep, crossDeep, RUIN_SITES, ancients, falseDoors, gobekli, nanMadol, pyramid, setPyr, crossPyr, vision, tourScenes, halls, densityHall, adeptHall, pastHall, veilHall, descentHall, mazeHall, myHeart, oracle, oracleVision, stepFrames: (n: number, dt = 1 / 60) => { realDt = dt; for (let i = 0; i < n; i++) update(dt); post.render(); }, heartFrame, maze: () => maze, tourInfo: () => tourBar().info() } });
 Object.assign((window as unknown as { __ij: object }).__ij, { whispers, hearWhisper, rapaNui });
