@@ -4666,7 +4666,11 @@ function rideFrame(dt: number, t: number): void {
   const r = ride, m = r.mine;
   const want = r.stop ? 0 : r.where === "in" && m.samples[Math.round(r.s)]?.zone > 0 ? 1.4 : 2.6;
   r.speed += (want - r.speed) * Math.min(1, dt * (r.stop ? 1.6 : 0.5));
-  if (r.where === "out") {
+  if (r.where === "out" && (crossing || under() === m)) {
+    // through the mouth: the outside rails are left behind (moving along them now would set you
+    // down outside, in the mine's place apart, far from its tunnel)
+    r.where = "wait";
+  } else if (r.where === "out") {
     // in along the rails to the mouth (out is less): through it, into the mine
     r.s -= r.speed * dt;
     const p = m.railOut(r.s);
@@ -4788,13 +4792,16 @@ function undergroundFrame(): void {
         toldUnder.add(w);
         whisper(w === cavern ? "A cold breath comes from a crack at the back of the cave, and a faint violet light." : "An old mine: its adit runs into the hill, a lantern by the door.", 7000);
       }
-      if (!crossing && !autofly.active && !player.flying && !player.swimming && w.atDoor(player.pos)) crossUnder(w, true);
+      // (not while a cart carries you: it crosses at the mouth itself, and the door firing first
+      // left the ride placing you along the outside rails, inside, far from the tunnel: the owner)
+      if (!crossing && !ride && !autofly.active && !player.flying && !player.swimming && w.atDoor(player.pos)) crossUnder(w, true);
     }
     return;
   }
   if (player.flying) player.flying = false;
   if (follow.dist > 4.4) follow.dist = 4.4;
-  if (u.confine(player.pos) && !crossing) crossUnder(u, false);
+  // (a cart keeps you on its rails: the way out is walked, never ridden)
+  if (ride?.kind !== "cart" && u.confine(player.pos) && !crossing) crossUnder(u, false);
   const said = u.arrived(player.pos);
   if (said) whisper(said, 6000);
   audio.quartzHum(u.heartNear);
