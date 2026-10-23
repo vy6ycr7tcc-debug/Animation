@@ -853,7 +853,14 @@ export class GoldMine extends Underground {
     halo.rotation.y = Math.atan2(fx, fz);
     this.world.add(halo);
     // rails out of the mouth to the spoil heap, and a cart standing at their end
-    const railLen = 15;
+    // the rails run out over the level bench before the mouth, and stop where it ends: past it the
+    // hill falls away, and rails laid on over the edge plunged down it with the cart at the brink
+    let railLen = 15;
+    for (let t = 4; t <= 15; t += 0.5)
+      if ([-0.9, 0, 0.9].some((sd) => Math.abs(at(t + 1.5, sd).y - base) > 0.3)) {
+        railLen = Math.max(7, t);
+        break;
+      }
     const tb = (t: number, side: number, y: number) => (t < 0 ? new THREE.Vector3(s.x + fx * t + lx * side, base + y, s.z + fz * t + lz * side) : at(t, side, y));
     for (let t = -DEEP + 0.3; t < railLen; t += 0.7) P.beam(tb(t + 0.2, -0.6, 0.03), tb(t + 0.2, 0.6, 0.03), 0.13, 0.8);
     for (const side of [-0.32, 0.32])
