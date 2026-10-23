@@ -80,10 +80,16 @@ const lerp = (a: RGB, b: RGB, t: number): RGB => {
 };
 const MEADOW: RGB = [92, 116, 68], SAND: RGB = [212, 190, 142], ROCK: RGB = [112, 104, 100], HIGH: RGB = [132, 118, 98], SNOW: RGB = [238, 241, 248];
 const RIVER: RGB = [74, 132, 182], CONTOUR: RGB = [52, 38, 28], COAST: RGB = [236, 228, 206];
-/** The railway, for the map (set by main.ts): its track's middle, and its stations. */
-let rail: { px: Float32Array; pz: Float32Array; n: number; stations: { x: number; z: number }[] } | null = null;
-export function setMapRailway(r: { px: Float32Array; pz: Float32Array; n: number; stations: { x: number; z: number }[] }): void {
-  rail = r;
+/** The floating cars, for the map (set by main.ts): where each waits, and the route being ridden. */
+let rides: { stations: { x: number; z: number }[]; route: { px: Float32Array; pz: Float32Array; n: number } | null } | null = null;
+export function setMapRides(r: { stations: { x: number; z: number }[]; route: { px: Float32Array; pz: Float32Array; n: number } | null }): void {
+  rides = r;
+}
+/** A stop on a route chosen on the map. */
+export interface RouteStop {
+  name: string;
+  x: number;
+  z: number;
 }
 const MARSH: RGB = [74, 104, 92], SHALLOW: RGB = [78, 132, 150], MIDWATER: RGB = [32, 70, 110], DEEP: RGB = [12, 24, 58];
 /** The regions' names, each in its own country (terrain.ts REGIONS: E, NE, N, NW, W, SW, S, SE). */
@@ -216,6 +222,10 @@ export class StartMap {
   private resolve: ((c: Choice | null) => void) | null = null;
   private pointers = new Map<number, { x: number; y: number }>();
   private gesture: { moved: number; t: number; pinch: number } | null = null;
+  private undoBtn = document.getElementById("map-undo") as HTMLButtonElement;
+  /** Building a route for a car: the stops tapped so far, in order (null when travelling). */
+  private routing: RouteStop[] | null = null;
+  private routeResolve: ((r: RouteStop[] | null) => void) | null = null;
 
   constructor() {
     const c = this.canvas;
@@ -272,6 +282,12 @@ export class StartMap {
       this.draw();
     });
     this.goBtn.addEventListener("click", () => this.go());
+    this.undoBtn.addEventListener("click", () => {
+      if (!this.routing?.length) return;
+      this.routing.pop();
+      this.showPick();
+      this.draw();
+    });
     this.continueBtn.addEventListener("click", () => {
       const y = this.you;
       if (!y) return;
@@ -300,6 +316,9 @@ export class StartMap {
   open(places: Place[], you: { x: number; z: number; heading?: number } | null, closable: boolean, resume = false): Promise<Choice | null> {
     this.places = places;
     this.you = you;
+    this.routing = null;
+    this.note("Drag to move · pinch to come closer · ◎ where you are · tap a place, or open land, to go there");
+    this.closeBtn.textContent = "Stay where I am";
     this.closeBtn.hidden = !closable;
     document.getElementById("map-title")!.textContent = closable ? "Where would you like to go?" : "Where will you begin?";
     this.guideBtn.hidden = !closable;
@@ -320,6 +339,34 @@ export class StartMap {
     // focus the open tab (focusing the first place chose it, and drew a box round the shore)
     (this.continueBtn.hidden ? (this.list.querySelector('.map-tabs [aria-selected="true"]') as HTMLButtonElement | null) : this.continueBtn)?.focus({ preventScroll: true, focusVisible: false } as FocusOptions);
     return new Promise((res) => (this.resolve = res));
+  }
+
+  /** Choose a car's route (the owner: "tap train > map view where you tap all the destinations to
+      build a route"): each tap on a place, its name below, or open land adds a stop, in order;
+      Undo takes the last away; Ride resolves with the stops, Not now with null. */
+  route(places: Place[], you: { x: number; z: number; heading?: number }): Promise<RouteStop[] | null> {
+    void this.open(places, you, true);
+    this.routing = [];
+    this.note("Tap places, or open land, in the order to visit them · Undo takes the last away · Ride sets off");
+    this.closeBtn.textContent = "Not now";
+    this.guideBtn.hidden = true;
+    document.getElementById("map-title")!.textContent = "Where shall it carry you?";
+    this.list.replaceChildren(...this.buildList());
+    this.showPick();
+    this.draw();
+    return new Promise((res) => (this.routeResolve = res));
+  }
+  private note(t: string): void {
+    const n = this.el.querySelector(".note");
+    if (n) n.textContent = t;
+  }
+  private addStop(name: string, x: number, z: number): void {
+    if (!this.routing) return;
+    const last = this.routing[this.routing.length - 1];
+    if (last && Math.hypot(last.x - x, last.z - z) < 30) return;
+    this.routing.push({ name, x, z });
+    this.showPick();
+    this.draw();
   }
 
   /** The places below the map: the way back to the shore, then one tab of places at a time,
@@ -359,7 +406,7 @@ export class StartMap {
       { s: "Whispers", title: "Whispers" },
     ];
     const has = (s: Section | "Tours" | "Whispers") =>
-      s === "Tours" ? this.tours.length > 0 && !this.closeBtn.hidden : s === "Whispers" ? this.whispers.length > 0 && !this.closeBtn.hidden : this.places.some((q) => q !== shore && this.sectionOf(q) === s);
+      s === "Tours" ? this.tours.length > 0 && !this.closeBtn.hidden && !this.routing : s === "Whispers" ? this.whispers.length > 0 && !this.closeBtn.hidden && !this.routing : this.places.some((q) => q !== shore && this.sectionOf(q) === s);
     const shown = SECTIONS.filter(({ s }) => has(s));
     const show = (s: Section | "Tours" | "Whispers") => {
       this.tab = s;
@@ -402,10 +449,11 @@ export class StartMap {
     sub.textContent = [p.note, p.deep ? "in the deep" : "", this.bearing(p)].filter(Boolean).join(" · ");
     b.append(name, sub);
     b.addEventListener("click", () => {
+      if (this.routing) return this.addStop(p.label, p.start.x, p.start.z);
       this.select(p, true);
       this.go();
     });
-    b.addEventListener("focus", () => this.select(p, false));
+    b.addEventListener("focus", () => !this.routing && this.select(p, false));
     return b;
   }
   private sectionButtons(s: Section, except?: Place): HTMLElement[] {
@@ -469,6 +517,17 @@ export class StartMap {
     this.el.classList.remove("on");
     document.body.classList.remove("mapping");
     window.setTimeout(() => (this.el.hidden = true), 600);
+    if (this.routing) {
+      // a route: Ride gives its stops, anything else (Not now) none
+      const stops = c ? this.routing : null;
+      this.routing = null;
+      this.undoBtn.hidden = true;
+      const rr = this.routeResolve;
+      this.routeResolve = null;
+      this.resolve = null;
+      rr?.(stops && stops.length ? stops : null);
+      return;
+    }
     const r = this.resolve;
     this.resolve = null;
     r?.(c);
@@ -498,6 +557,11 @@ export class StartMap {
   private tapAt(e: PointerEvent): void {
     const [px, py] = this.local(e);
     const hit = this.hit(px, py);
+    if (this.routing) {
+      if (hit) return this.addStop(hit.label, hit.start.x, hit.start.z);
+      const x = this.toWorldX(px), z = this.toWorldZ(py);
+      return this.addStop(`${heightAt(x, z) < WATER_Y ? "Open water" : "Open land"} near ${this.nearest(x, z).label.replace(/^The /, "the ")}`, x, z);
+    }
     // a tap is enough: tapping a place (or open land) takes you there
     if (hit) {
       this.select(hit, false);
@@ -510,6 +574,18 @@ export class StartMap {
   }
 
   private showPick(): void {
+    if (this.routing) {
+      const r = this.routing;
+      this.pick.hidden = false;
+      this.undoBtn.hidden = !r.length;
+      this.goBtn.disabled = !r.length;
+      this.goBtn.textContent = "Ride";
+      const names = r.map((q, i) => `${i + 1} ${q.name.replace(/^The /, "")}`);
+      this.pickName.textContent = r.length ? (names.length > 4 ? [...names.slice(0, 2), "…", ...names.slice(-2)] : names).join(" → ") : "Tap the places to visit, in order";
+      return;
+    }
+    this.undoBtn.hidden = true;
+    this.goBtn.disabled = false;
     const s = this.selected;
     this.pick.hidden = !s;
     if (!s) return;
@@ -523,6 +599,10 @@ export class StartMap {
   }
 
   private go(): void {
+    if (this.routing) {
+      if (this.routing.length) this.finish({ place: this.places[0], x: 0, z: 0, heading: 0 });
+      return;
+    }
     const s = this.selected;
     if (!s) return;
     const p = s.place;
@@ -821,13 +901,7 @@ export class StartMap {
     };
     rows.push(["The Mind", ring(INK.Mind, "Mind")], ["The Body", ring(INK.Body, "Body")], ["The Spirit", ring(INK.Spirit, "Spirit")], ["The Choice", ring(INK.Choice, "Choice")]);
     rows.push(["Monuments", dot(SECTION_INK.Monuments!)], ["Ancient worlds", dot(SECTION_INK.Ancient!)], ["Wonders", dot(SECTION_INK.Wonders!)], ["Lessons", dot(SECTION_INK.Lessons!)], ["Beneath the water", ring(INK.Deep, "Deep")]);
-    const railKey = (x: number, y: number) => {
-      g.fillStyle = "rgb(34,26,22)";
-      g.fillRect(x - 7 * k, y - 1.5 * k, 14 * k, 3 * k);
-      g.fillStyle = "rgba(244,239,230,0.7)";
-      for (let i = -1; i <= 1; i++) g.fillRect(x + i * 4.5 * k - 0.6 * k, y - 3 * k, 1.2 * k, 6 * k);
-    };
-    rows.push(["Railway", railKey]);
+    rows.push(["A floating car", (x: number, y: number) => this.carMark(g, x, y, k)]);
     rows.push(["Forest", swatch("rgb(40,70,44)")], ["Rivers and lakes", swatch("rgb(50,96,140)")], ["Rock", swatch("rgb(104,98,96)")], ["Snow", swatch("rgb(232,236,244)")]);
     const lh = 15 * k, w = 128 * k, h = rows.length * lh + 12 * k, x0 = 10 * k, y0 = H - 34 * k - h;
     g.save();
@@ -850,6 +924,27 @@ export class StartMap {
     g.restore();
   }
 
+  /** A floating car: a small dark tub over a soft pool of light. */
+  private carMark(g: CanvasRenderingContext2D, x: number, y: number, k: number): void {
+    g.save();
+    g.fillStyle = "rgba(255,222,150,0.35)";
+    g.beginPath();
+    g.ellipse(x, y + 3 * k, 7 * k, 2.6 * k, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "rgba(34,28,26,0.95)";
+    g.strokeStyle = "rgba(255,230,180,0.9)";
+    g.lineWidth = 1 * k;
+    g.beginPath();
+    g.moveTo(x - 5 * k, y - 3 * k);
+    g.lineTo(x + 5 * k, y - 3 * k);
+    g.lineTo(x + 4 * k, y + 1.5 * k);
+    g.lineTo(x - 4 * k, y + 1.5 * k);
+    g.closePath();
+    g.fill();
+    g.stroke();
+    g.restore();
+  }
+
   private draw(): void {
     const g = this.canvas.getContext("2d")!;
     const W = this.canvas.width, H = this.canvas.height;
@@ -864,38 +959,53 @@ export class StartMap {
     g.fillStyle = v;
     g.fillRect(0, 0, W, H);
 
-    // the railway: a dark line with pale ties across it, drawn over the land at every scale; its
-    // stations small squares
-    if (rail) {
-      const every = Math.max(1, Math.floor((this.mpp * 2.5) / 1.6));
+    // the floating cars where they wait, and the route being ridden: a soft line of gold
+    if (rides) {
       g.save();
       g.lineJoin = g.lineCap = "round";
-      const path = () => {
+      const rt = rides.route;
+      if (rt && !this.routing) {
+        const every = Math.max(1, Math.floor((this.mpp * 2.5) / 1.6));
         g.beginPath();
-        for (let i = 0; i <= rail!.n; i += every) {
-          const j = i % rail!.n, x = this.toMapX(rail!.px[j]), y = this.toMapY(rail!.pz[j]);
-          if (i === 0) g.moveTo(x, y);
-          else g.lineTo(x, y);
-        }
-        g.closePath();
-      };
-      path();
-      g.strokeStyle = "rgba(28,22,18,0.92)";
-      g.lineWidth = 3 * k;
-      g.stroke();
-      g.setLineDash([1.2 * k, 3.2 * k]);
-      g.strokeStyle = "rgba(236,226,204,0.75)";
-      g.lineWidth = 1.2 * k;
+        for (let i = 0; i < rt.n; i += every) i === 0 ? g.moveTo(this.toMapX(rt.px[i]), this.toMapY(rt.pz[i])) : g.lineTo(this.toMapX(rt.px[i]), this.toMapY(rt.pz[i]));
+        g.lineTo(this.toMapX(rt.px[rt.n - 1]), this.toMapY(rt.pz[rt.n - 1]));
+        g.strokeStyle = "rgba(255,226,160,0.28)";
+        g.lineWidth = 5 * k;
+        g.stroke();
+        g.strokeStyle = "rgba(255,236,190,0.9)";
+        g.lineWidth = 1.4 * k;
+        g.stroke();
+      }
+      for (const st of rides.stations) this.carMark(g, this.toMapX(st.x), this.toMapY(st.z), k);
+      g.restore();
+    }
+    // a route being chosen: from you through each stop, in order, numbered
+    if (this.routing) {
+      const pts = [...(this.you ? [this.you] : []), ...this.routing];
+      g.save();
+      g.lineJoin = g.lineCap = "round";
+      g.setLineDash([4 * k, 4 * k]);
+      g.strokeStyle = "rgba(255,230,170,0.85)";
+      g.lineWidth = 1.6 * k;
+      g.beginPath();
+      pts.forEach((q, i) => (i ? g.lineTo(this.toMapX(q.x), this.toMapY(q.z)) : g.moveTo(this.toMapX(q.x), this.toMapY(q.z))));
       g.stroke();
       g.setLineDash([]);
-      for (const st of rail.stations) {
-        const x = this.toMapX(st.x), y = this.toMapY(st.z);
-        g.fillStyle = "rgba(28,22,18,0.95)";
-        g.strokeStyle = "rgba(236,226,204,0.9)";
-        g.lineWidth = 1 * k;
-        g.fillRect(x - 3 * k, y - 3 * k, 6 * k, 6 * k);
-        g.strokeRect(x - 3 * k, y - 3 * k, 6 * k, 6 * k);
-      }
+      g.font = `${10 * k}px ${SERIF}`;
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      this.routing.forEach((q, i) => {
+        const x = this.toMapX(q.x), y = this.toMapY(q.z);
+        g.fillStyle = "rgba(20,16,30,0.9)";
+        g.strokeStyle = "rgba(255,230,170,0.95)";
+        g.lineWidth = 1.3 * k;
+        g.beginPath();
+        g.arc(x, y, 7.5 * k, 0, Math.PI * 2);
+        g.fill();
+        g.stroke();
+        g.fillStyle = "rgba(255,240,210,0.98)";
+        g.fillText(String(i + 1), x, y + 0.5 * k);
+      });
       g.restore();
     }
 
