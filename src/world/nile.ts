@@ -42,7 +42,7 @@ const REED_R = 170;
 /** One stand of papyrus: twelve stems (three-sided, tapering, leaning out a little), each crowned by
     a burst of fine rays arching out and down. `aH` is the height along the stem (0 foot … 1 crown),
     `aKind` 0 stem, 1 ray. */
-function papyrusGeometry(seed: number): THREE.BufferGeometry {
+export function papyrusGeometry(seed: number): THREE.BufferGeometry {
   const pos: number[] = [], nor: number[] = [], hh: number[] = [], kind: number[] = [], idx: number[] = [];
   const rnd = (k: number) => hash(k, seed, 9);
   const up = new V(0, 1, 0);
@@ -104,7 +104,7 @@ function papyrusGeometry(seed: number): THREE.BufferGeometry {
   return g;
 }
 
-function papyrusMaterial(uT: ReturnType<typeof uniform>): THREE.MeshStandardNodeMaterial {
+export function papyrusMaterial(uT: ReturnType<typeof uniform>): THREE.MeshStandardNodeMaterial {
   const m = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide, roughness: 0.8, metalness: 0 });
   const h = attribute("aH", "float"), kind = attribute("aKind", "float");
   // the wind: each stand on its own time, strongest at the crowns

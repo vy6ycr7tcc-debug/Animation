@@ -143,14 +143,15 @@ function mouthLit(m: THREE.MeshStandardNodeMaterial, L: MouthLight | null | unde
   const face = T.clamp(T.dot(T.normalize(T.normalWorld), T.normalize(toL)).mul(0.75).add(0.25), 0, 1);
   const flick = T.sin(gpuUniforms.time.mul(9.1)).mul(T.sin(gpuUniforms.time.mul(3.7))).mul(0.06).add(0.94);
   const col = m.colorNode as N;
-  const warm = col.rgb.mul(T.vec3(1, 0.6, 0.28)).mul(face).mul(flick).mul(T.float(1.3).div(T.float(1).add(d2.mul(1.1))));
+  // (held under bloom's threshold: right by the lantern, a pale worn edge had flared)
+  const warm = T.min(col.rgb.mul(T.vec3(1, 0.6, 0.28)).mul(face).mul(flick).mul(T.float(1.3).div(T.float(1).add(d2.mul(1.1)))), T.vec3(0.42, 0.26, 0.12));
   m.colorNode = T.vec4(col.rgb.mul(fade), 1);
   m.emissiveNode = m.emissiveNode ? (m.emissiveNode as N).mul(fade).add(warm) : warm;
 }
 /** Old timber: the scanned weathered wood (Poly Haven rough_wood), its grain running along each
     piece, each piece its own warm brown gone silver with weather, end grain darker, a little damp
     and rot toward the ground. */
-function timberMaterial(L?: MouthLight | null): THREE.MeshStandardNodeMaterial {
+export function timberMaterial(L?: MouthLight | null): THREE.MeshStandardNodeMaterial {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.9, metalness: 0 });
   const W = surface("wood");
   const col = T.attribute("color", "vec3");
@@ -175,7 +176,7 @@ function timberMaterial(L?: MouthLight | null): THREE.MeshStandardNodeMaterial {
 }
 /** Iron gone to rust (the scanned coarse rust), worn back to grey steel where wheels and boots
     rub: the rails' heads, the top edges. */
-function ironMaterial(L?: MouthLight | null): THREE.MeshStandardNodeMaterial {
+export function ironMaterial(L?: MouthLight | null): THREE.MeshStandardNodeMaterial {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 0.8, metalness: 0.3 });
   const R = surface("rust");
   const pw = T.positionWorld;
@@ -206,7 +207,7 @@ function goldMaterial(): THREE.MeshStandardNodeMaterial {
 
 /** Broken stone (the rails' bed, the spoil heap): the scanned rocky ground seen from above,
     greyed to waste rock, its pebbles in shade. */
-function gravel(light = 1): THREE.MeshStandardNodeMaterial {
+export function gravel(light = 1): THREE.MeshStandardNodeMaterial {
   const m = new THREE.MeshStandardNodeMaterial({ roughness: 1 });
   const R = surface("rock");
   const pw = T.positionWorld;
@@ -218,7 +219,7 @@ function gravel(light = 1): THREE.MeshStandardNodeMaterial {
 }
 
 /* ---- built pieces, merged ---- */
-class Pieces {
+export class Pieces {
   timber: THREE.BufferGeometry[] = [];
   steel: THREE.BufferGeometry[] = [];
   gold: THREE.BufferGeometry[] = [];
@@ -317,7 +318,9 @@ class Pieces {
     g.translate(c.x, c.y, c.z);
     list.push(g.toNonIndexed());
   }
-  build(add: (o: THREE.Object3D) => void, L?: MouthLight | null): void {
+  /** Merged into meshes, one per material (`mats`: shared timber and steel, for things built many
+      times over, like the railway's stretches). */
+  build(add: (o: THREE.Object3D) => void, L?: MouthLight | null, mats?: { timber: THREE.Material; steel: THREE.Material }): void {
     const mk = (list: THREE.BufferGeometry[], mat: THREE.Material, keep: string[]) => {
       if (!list.length) return;
       const g = mergeGeometries(
@@ -332,8 +335,8 @@ class Pieces {
       mesh.castShadow = false;
       add(mesh);
     };
-    mk(this.timber, timberMaterial(L), ["position", "normal", "uv", "color", "aGrain", "aFoot"]);
-    mk(this.steel, ironMaterial(L), ["position", "normal", "uv"]);
+    mk(this.timber, mats?.timber ?? timberMaterial(L), ["position", "normal", "uv", "color", "aGrain", "aFoot"]);
+    mk(this.steel, mats?.steel ?? ironMaterial(L), ["position", "normal", "uv"]);
     mk(this.gold, goldMaterial(), ["position", "normal", "uv"]);
     mk(
       this.ore,
@@ -362,6 +365,234 @@ class Pieces {
   }
 }
 
+/** A mine car's measure (its own frame: x along the rails, its reference point 0.55 m over them). */
+const CAR = {
+  /** the tub's floor, and its lip */
+  floor: 0,
+  top: 0.62,
+  /** half its length and width at the floor and at the lip */
+  hx0: 0.56, hz0: 0.34, hx1: 0.68, hz1: 0.46,
+  /** the axles' places along it, the wheels' centre height and radius, the gauge (half) */
+  axle: 0.36, wheelY: -0.215, wheelR: 0.17, gauge: 0.32,
+};
+
+/** Flat-shaded triangles, gathered (position, normal, uv), for the car's plates and parts. */
+class Tris {
+  p: number[] = [];
+  n: number[] = [];
+  private v = new THREE.Vector3();
+  tri(a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3): void {
+    const n = this.v.subVectors(b, a).cross(new THREE.Vector3().subVectors(c, a)).normalize();
+    for (const q of [a, b, c]) this.p.push(q.x, q.y, q.z), this.n.push(n.x, n.y, n.z);
+  }
+  /** a quad a-b-c-d, its face toward the side it winds counter-clockwise from */
+  quad(a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, d: THREE.Vector3): void {
+    this.tri(a, b, c);
+    this.tri(a, c, d);
+  }
+  geometry(): THREE.BufferGeometry {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(this.p, 3));
+    g.setAttribute("normal", new THREE.Float32BufferAttribute(this.n, 3));
+    g.setAttribute("uv", new THREE.Float32BufferAttribute(new Array((this.p.length / 3) * 2).fill(0), 2));
+    return g;
+  }
+}
+/** A round bar from a to b (rims, angle irons, straps, axles). */
+function rod(a: THREE.Vector3, b: THREE.Vector3, r: number, sides = 8): THREE.BufferGeometry {
+  const d = b.clone().sub(a), L = d.length();
+  const g = new THREE.CylinderGeometry(r, r, L, sides, 1);
+  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()));
+  g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+  return g.toNonIndexed();
+}
+/** The car's steel, all but its wheels: the tub of plate (outside, inside and floor), the rolled
+    lip, corner angle irons, straps, a band at the foot, rivets along the lip and the straps, the
+    chassis of two channels and cross members, axle boxes, and a coupling link at each end. */
+function carBody(): THREE.BufferGeometry {
+  const { floor: y0, top: y1, hx0, hz0, hx1, hz1 } = CAR;
+  const T2 = new Tris(), t = 0.022;
+  const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+  // the four corners at the floor and at the lip (a, b, c, d round the tub, counter-clockwise from above)
+  const lo = [V(-hx0, y0, -hz0), V(hx0, y0, -hz0), V(hx0, y0, hz0), V(-hx0, y0, hz0)];
+  const hi = [V(-hx1, y1, -hz1), V(hx1, y1, -hz1), V(hx1, y1, hz1), V(-hx1, y1, hz1)];
+  const shrink = (v: THREE.Vector3, k: number) => V(v.x - Math.sign(v.x) * k, v.y, v.z - Math.sign(v.z) * k);
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4;
+    // outside: its face outward
+    T2.quad(lo[i], hi[i], hi[j], lo[j]);
+    // inside, a plate's thickness in: its face inward
+    const li = shrink(lo[i], t), lj = shrink(lo[j], t), hi_ = shrink(hi[i], t), hj = shrink(hi[j], t);
+    li.y += t;
+    lj.y += t;
+    T2.quad(li, lj, hj, hi_);
+    // the plate's top edge between them
+    T2.quad(hi[i], hi_, hj, hi[j]);
+  }
+  // the floor: inside face up, underside down
+  const fi = lo.map((v) => {
+    const s = shrink(v, t);
+    s.y += t;
+    return s;
+  });
+  T2.quad(fi[0], fi[3], fi[2], fi[1]);
+  T2.quad(lo[0], lo[1], lo[2], lo[3]);
+  const parts: THREE.BufferGeometry[] = [T2.geometry()];
+  // the rolled lip round the top, and its corners
+  for (let i = 0; i < 4; i++) {
+    const a = hi[i].clone(), b = hi[(i + 1) % 4].clone();
+    a.y = b.y = y1 + 0.012;
+    parts.push(rod(a, b, 0.024, 8));
+    const s = new THREE.SphereGeometry(0.026, 8, 6).toNonIndexed();
+    s.translate(a.x, a.y, a.z);
+    parts.push(s);
+  }
+  // the band round the foot
+  for (let i = 0; i < 4; i++) parts.push(rod(lo[i].clone().setY(y0 + 0.03), lo[(i + 1) % 4].clone().setY(y0 + 0.03), 0.016, 6));
+  // angle irons up the four corners, a little proud
+  for (let i = 0; i < 4; i++) {
+    const o = V(Math.sign(lo[i].x) * 0.012, 0, Math.sign(lo[i].z) * 0.012);
+    parts.push(rod(lo[i].clone().add(o), hi[i].clone().add(o), 0.02, 4));
+  }
+  // straps down the faces: three along each side, one on each end; rivets along them and the lip
+  const rivet = (p: THREE.Vector3, out: THREE.Vector3) => {
+    const r = new THREE.IcosahedronGeometry(0.011, 0).toNonIndexed();
+    r.translate(p.x + out.x * 0.01, p.y, p.z + out.z * 0.01);
+    parts.push(r);
+  };
+  for (const sz of [-1, 1]) {
+    const out = V(0, 0, sz);
+    for (const f of [-0.5, 0, 0.5]) {
+      const a = V(f * hx0 * 1.4, y0 + 0.03, sz * (hz0 + 0.012)), b = V(f * hx1 * 1.4, y1 - 0.03, sz * (hz1 + 0.012));
+      parts.push(rod(a, b, 0.014, 4));
+      for (let k = 1; k < 5; k++) rivet(a.clone().lerp(b, k / 5), out);
+    }
+    for (let k = -6; k <= 6; k++) rivet(V((k / 6.5) * hx1 * 0.97, y1 - 0.05, sz * (hz1 - 0.005)), out);
+  }
+  for (const sx of [-1, 1]) {
+    const out = V(sx, 0, 0);
+    const a = V(sx * (hx0 + 0.012), y0 + 0.03, 0), b = V(sx * (hx1 + 0.012), y1 - 0.03, 0);
+    parts.push(rod(a, b, 0.014, 4));
+    for (let k = 1; k < 5; k++) rivet(a.clone().lerp(b, k / 5), out);
+    for (let k = -4; k <= 4; k++) rivet(V(sx * (hx1 - 0.005), y1 - 0.05, (k / 4.5) * hz1 * 0.95), out);
+  }
+  // the chassis: two channels along it under the tub, cross members, axle boxes
+  const box = (x: number, y: number, z: number, sx: number, sy: number, sz: number) => {
+    const g = new THREE.BoxGeometry(sx, sy, sz).toNonIndexed();
+    g.translate(x, y, z);
+    parts.push(g);
+  };
+  for (const sz of [-1, 1]) {
+    box(0, -0.06, sz * 0.24, 1.42, 0.1, 0.05);
+    for (const ax of [-CAR.axle, CAR.axle]) box(ax, CAR.wheelY + 0.03, sz * 0.24, 0.13, 0.12, 0.09); // axle box
+  }
+  for (const x of [-0.66, 0, 0.66]) box(x, -0.06, 0, 0.06, 0.08, 0.5);
+  // a coupling link and pin at each end
+  for (const e of [-1, 1]) {
+    box(e * 0.83, -0.08, 0, 0.12, 0.05, 0.08);
+    const link = new THREE.TorusGeometry(0.05, 0.012, 6, 14).toNonIndexed();
+    link.rotateX(Math.PI / 2);
+    link.translate(e * 0.92, -0.08, 0);
+    parts.push(link);
+  }
+  return mergeGeometries(parts.map((g) => {
+    for (const name of Object.keys(g.attributes)) if (!["position", "normal", "uv"].includes(name)) g.deleteAttribute(name);
+    return g;
+  }))!;
+}
+/** One axle's pair of wheels about its own centre (the axle along z): flanged cast-iron wheels,
+    each a tread with its flange on the inside, a web ring, five spokes and a hub, on the axle. */
+function carWheels(P: Pieces): void {
+  const { wheelR: R, gauge: G } = CAR;
+  // a ring of iron (an annulus in section: `r0` in, `r1` out, `w` wide), about z at `z`
+  const ring = (r0: number, r1: number, w: number, z: number, seg = 22) => {
+    const g = new THREE.LatheGeometry([new THREE.Vector2(r0, -w / 2), new THREE.Vector2(r1, -w / 2), new THREE.Vector2(r1, w / 2), new THREE.Vector2(r0, w / 2), new THREE.Vector2(r0, -w / 2)], seg);
+    g.rotateX(Math.PI / 2);
+    g.translate(0, 0, z);
+    const n = g.toNonIndexed();
+    n.computeVertexNormals();
+    P.steel.push(n);
+  };
+  for (const s of [-1, 1]) {
+    const z = s * G;
+    ring(R - 0.035, R, 0.055, z); // the tread
+    ring(R - 0.02, R + 0.024, 0.014, z - s * 0.034); // the flange, inside the rail
+    // the web: a rim ring, spokes and a hub, set a little in from the tread's face
+    const rim = new THREE.TorusGeometry(R - 0.03, 0.014, 6, 20).toNonIndexed();
+    rim.translate(0, 0, z + s * 0.02);
+    P.steel.push(rim);
+    for (let k = 0; k < 5; k++) {
+      const a = (k / 5) * Math.PI * 2;
+      const sp = new THREE.BoxGeometry(0.022, R - 0.06, 0.018).toNonIndexed();
+      sp.translate(0, (R - 0.06) / 2 + 0.035, 0);
+      sp.rotateZ(a);
+      sp.translate(0, 0, z + s * 0.02);
+      P.steel.push(sp);
+    }
+    ring(0.02, 0.045, 0.09, z, 12); // the hub
+  }
+  P.steel.push(rod(new THREE.Vector3(0, 0, -G - 0.06), new THREE.Vector3(0, 0, G + 0.06), 0.024, 10)); // the axle
+}
+/** Turn a rolling car's wheels by how far it moved along its own length. */
+export function spinCart(car: THREE.Group, from: THREE.Vector3, to: THREE.Vector3): void {
+  const axles = car.userData.axles as THREE.Group[] | undefined;
+  if (!axles) return;
+  const yaw = car.rotation.y;
+  const along = (to.x - from.x) * Math.cos(yaw) - (to.z - from.z) * Math.sin(yaw);
+  for (const a of axles) a.rotation.z -= along / CAR.wheelR;
+}
+
+/** A mine car into `P` at `c`, turned `yaw` (`ore`: heaped with ore, `gold`: some gold in it;
+  else a bench to sit on). */
+function cartPieces(P: Pieces, c: THREE.Vector3, yaw: number, gold: boolean, ore = true): void {
+  const M = new THREE.Matrix4().makeRotationY(yaw).setPosition(c);
+  const put = (g: THREE.BufferGeometry) => (g.applyMatrix4(M), P.steel.push(g));
+  put(carBody());
+  const L = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z).applyMatrix4(M);
+  // timber buffers across both ends of the chassis
+  for (const e of [-1, 1]) P.beam(L(e * 0.74, -0.08, -0.36), L(e * 0.74, -0.08, 0.36), 0.12);
+  if (ore) {
+    for (const [ax] of [[-CAR.axle], [CAR.axle]]) {
+      const W = new Pieces();
+      carWheels(W);
+      for (const g of W.steel) {
+        g.translate(ax, CAR.wheelY, 0);
+        put(g);
+      }
+    }
+  }
+  // a plank bench across it at sitting height, in a car that carries people
+  if (!ore) {
+    P.beam(L(0.02, 0.4, -0.4), L(0.02, 0.4, 0.4), 0.09);
+    P.beam(L(0.02, 0.21, -0.38), L(0.02, 0.21, 0.38), 0.05, 0.8); // its brace under
+  }
+  // the ore heaped in it, crowning over the lip
+  if (ore) for (let k = 0; k < 14; k++) P.lump(P.ore, L((rnd() - 0.5) * 1.05, 0.5 + rnd() * 0.14, (rnd() - 0.5) * 0.66), 0.12 + rnd() * 0.1);
+  if (gold && ore) for (let k = 0; k < 5; k++) P.lump(P.gold, L((rnd() - 0.5) * 0.8, 0.6 + rnd() * 0.08, (rnd() - 0.5) * 0.5), 0.05 + rnd() * 0.05);
+}
+
+/** A car of its own, empty but for a bench to sit on: its origin is the car's reference point
+    (0.55 m over the rails, as the rails' own helpers give it); its two axles' wheels turn as it
+    rolls (`userData.axles`, spun by `spinCart`). */
+export function rideCar(L?: MouthLight | null): THREE.Group {
+  const P = new Pieces();
+  const g = new THREE.Group();
+  cartPieces(P, new THREE.Vector3(0, 0, 0), 0, false, false);
+  P.build((o) => g.add(o), L);
+  const axles: THREE.Group[] = [];
+  for (const ax of [-CAR.axle, CAR.axle]) {
+    const W = new Pieces();
+    carWheels(W);
+    const a = new THREE.Group();
+    a.position.set(ax, CAR.wheelY, 0);
+    W.build((o) => a.add(o), L);
+    g.add(a);
+    axles.push(a);
+  }
+  g.userData.axles = axles;
+  return g;
+}
+
 /** A gold mine: its portal in the hillside, and the mine within. */
 export class GoldMine extends Underground {
   /** The cart at the mouth, which carries you in (its own object, so it can roll). */
@@ -373,24 +604,70 @@ export class GoldMine extends Underground {
   declare portalYaw: number;
   /** The cart that rides the rails within (built with the mine, at the start of the rails). */
   cartIn: THREE.Group | null = null;
-  /** A cart of its own, empty but for a plank to sit on. */
   private makeCart(L?: MouthLight | null): THREE.Group {
-    const P = new Pieces();
-    this.cart(P, new THREE.Vector3(0, 0.55, 0), 0, false, false);
-    const g = new THREE.Group();
-    P.build((o) => g.add(o), L);
-    return g;
+    return rideCar(L);
+  }
+  /** The rails' own height at each sample within: the floor under both rails, eased over a few
+      metres (the floor's small bumps and the nearest sample's steps made the cart rise and fall in
+      jolts every 0.6 m). The rails and their sleepers are laid on it too, so the cart rides them. */
+  private railYs: number[] | null = null;
+  railY(i: number): number {
+    if (!this.railYs) {
+      const S = this.samples, O = this.O;
+      const raw = S.map((s) => {
+        let y = 0;
+        for (const lat of [-0.32, 0.32]) {
+          const x = O.x + s.x - s.tz * lat, z = O.z + s.z + s.tx * lat;
+          y += this.floorAt(x, z) - O.y - s.y;
+        }
+        return y / 2;
+      });
+      // the bumps eased (a window of ±3 samples), the decline itself kept exact
+      this.railYs = S.map((s, k) => {
+        let a = 0, n = 0;
+        for (let j = -3; j <= 3; j++) {
+          const q = raw[Math.max(0, Math.min(S.length - 1, k + j))], w = 4 - Math.abs(j);
+          a += q * w;
+          n += w;
+        }
+        return O.y + s.y + a / n;
+      });
+    }
+    return this.railYs[Math.max(0, Math.min(this.railYs.length - 1, i))];
   }
   /** The rails within at `s` (a sample index, fractional): where the cart's middle is, and its
-      turn (a rotation about y that lays its length along the rails). */
+      turn (a rotation about y that lays its length along the rails). The height is the rails'
+      own, eased between samples (a smoothstep), so the ride flows. */
   railIn(s: number, out: THREE.Vector3): number {
     const S = this.samples, O = this.O;
     const i = Math.max(0, Math.min(S.length - 2, Math.floor(s))), f = Math.min(1, Math.max(0, s - i));
     const a = S[i], b = S[i + 1];
     const x = O.x + a.x + (b.x - a.x) * f, z = O.z + a.z + (b.z - a.z) * f;
-    out.set(x, this.floorAt(x, z) + 0.55, z);
+    // (a Catmull-Rom through the rails' heights: no corner at each sample)
+    const y0 = this.railY(i - 1), y1 = this.railY(i), y2 = this.railY(i + 1), y3 = this.railY(i + 2);
+    const y = 0.5 * (2 * y1 + (-y0 + y2) * f + (2 * y0 - 5 * y1 + 4 * y2 - y3) * f * f + (-y0 + 3 * y1 - 3 * y2 + y3) * f * f * f);
+    out.set(x, y + 0.55, z);
     const tx = a.tx + (b.tx - a.tx) * f, tz = a.tz + (b.tz - a.tz) * f;
     return -Math.atan2(tz, tx);
+  }
+  /** The rails' rise ahead at `s` (radians: positive climbing toward higher `s`). */
+  railPitch(s: number): number {
+    const i = Math.max(0, Math.min(this.samples.length - 2, Math.floor(s)));
+    const a = this.railY(i - 1), b = this.railY(i + 2);
+    return Math.atan2(b - a, this.railStep(s) * 3);
+  }
+  /** Contemplating in the mine, the gaze rests down the drift, not on a lantern: a point along the
+      rails ahead (deeper) and one back the way you came, at head height, in turn. */
+  override focus(player: THREE.Vector3): THREE.Vector3[] {
+    const i = this.nearest(player.x - this.O.x, player.z - this.O.z);
+    const out: THREE.Vector3[] = [];
+    for (const k of [i + 26, i - 26]) {
+      if (k < 1 || k > this.samples.length - 2) continue;
+      const v = new THREE.Vector3();
+      this.railIn(k, v);
+      out.push(v.setY(v.y + 0.9));
+    }
+    return out;
   }
   /** Metres between two samples of the rails within. */
   railStep(s: number): number {
@@ -646,35 +923,15 @@ export class GoldMine extends Underground {
     for (const c of solid) colliders.push(c);
   }
 
-  /** An ore cart on the rails: a timber box bound in iron on four iron wheels, heaped with ore
-      (`gold`: a few lumps of gold among it). */
+  /** A mine car on the rails (after the riveted steel cars of the old hard-rock mines): a tub of
+      plate steel flaring to a rolled lip, its plates riveted to angle irons at the corners and
+      straps down the sides, on a chassis of two channels with timber buffers at the ends and a
+      coupling link, on two axles of flanged spoked wheels set on the rails. `c` is its reference
+      point (0.55 m over the rails); `ore`: heaped with ore (`gold`: a few lumps of gold among
+      it); else empty, a plank bench across it at sitting height. Wheels come with it unless it
+      rolls (`makeCart` gives those their own axles). */
   private cart(P: Pieces, c: THREE.Vector3, yaw: number, gold: boolean, ore = true): void {
-    const fwd = new THREE.Vector3(Math.cos(-yaw), 0, Math.sin(-yaw)), side = new THREE.Vector3(-fwd.z, 0, fwd.x);
-    const corner = (a: number, b: number, y: number) => c.clone().addScaledVector(fwd, a).addScaledVector(side, b).setY(c.y + y);
-    // the box: planks on four sides and the floor
-    for (const s of [-1, 1]) {
-      P.beam(corner(-0.55, s * 0.36, 0.05), corner(0.55, s * 0.36, 0.05), 0.08);
-      P.beam(corner(-0.55, s * 0.36, 0.35), corner(0.55, s * 0.36, 0.35), 0.08);
-      P.beam(corner(s * 0.55, -0.36, 0.05), corner(s * 0.55, 0.36, 0.05), 0.08);
-      P.beam(corner(s * 0.55, -0.36, 0.35), corner(s * 0.55, 0.36, 0.35), 0.08);
-      for (const t of [-1, 1]) P.beam(corner(s * 0.55, t * 0.36, -0.05), corner(s * 0.55, t * 0.36, 0.42), 0.07);
-    }
-    P.box(P.ore, corner(0, 0, -0.02), 1.1, 0.06, 0.72, yaw);
-    // iron wheels
-    for (const a of [-0.38, 0.38])
-      for (const s of [-0.34, 0.34]) {
-        const g = new THREE.CylinderGeometry(0.16, 0.16, 0.06, 12);
-        g.rotateX(Math.PI / 2);
-        g.rotateY(yaw + Math.PI / 2);
-        const p = corner(a, s, -0.28);
-        g.translate(p.x, p.y, p.z);
-        P.steel.push(g);
-      }
-    // a plank across it to sit on, in a cart that carries people
-    if (!ore) P.beam(corner(-0.05, -0.36, 0.22), corner(-0.05, 0.36, 0.22), 0.1);
-    // the ore heaped in it
-    if (ore) for (let k = 0; k < 9; k++) P.lump(P.ore, corner((rnd() - 0.5) * 0.8, (rnd() - 0.5) * 0.5, 0.32 + rnd() * 0.12), 0.12 + rnd() * 0.1);
-    if (gold && ore) for (let k = 0; k < 4; k++) P.lump(P.gold, corner((rnd() - 0.5) * 0.7, (rnd() - 0.5) * 0.4, 0.42 + rnd() * 0.08), 0.05 + rnd() * 0.05);
+    cartPieces(P, c, yaw, gold, ore);
   }
 
   /* ---------------------------------------------------------------- the workings within */
@@ -687,11 +944,13 @@ export class GoldMine extends Underground {
       const x = O.x + s.x - s.tz * lat, z = O.z + s.z + s.tx * lat;
       return new THREE.Vector3(x, this.floorAt(x, z) + y, z);
     };
-    // rails the whole way down, on sleepers
+    // rails the whole way down, on sleepers, laid on the rails' own eased height (`railY`), which
+    // the cart rides
+    const rl = (i: number, lat: number, y: number) => pt(i, lat, 0).setY(this.railY(i) + y);
     for (let i = 0; i < S.length - 3; i++) {
-      if (i % 2 === 0) P.beam(pt(i, -0.55, 0.05), pt(i, 0.55, 0.05), 0.11, 0.8);
+      if (i % 2 === 0) P.beam(rl(i, -0.55, 0.01), rl(i, 0.55, 0.01), 0.17, 0.8);
       for (const side of [-0.32, 0.32]) {
-        const a = pt(i, side, 0.13), b = pt(i + 1, side, 0.13);
+        const a = rl(i, side, 0.13), b = rl(i + 1, side, 0.13);
         const g = new THREE.BoxGeometry(0.05, 0.07, a.distanceTo(b) + 0.03);
         g.lookAt(b.clone().sub(a));
         g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);

@@ -27,14 +27,14 @@ function rng(seed: number): () => number {
   return () => (s = (s * 16807) % 2147483647) / 2147483647;
 }
 /** Place a geometry: rotate (x, y, z radians), then move. */
-function put(g: THREE.BufferGeometry, x: number, y: number, z: number, rx = 0, ry = 0, rz = 0): THREE.BufferGeometry {
+export function put(g: THREE.BufferGeometry, x: number, y: number, z: number, rx = 0, ry = 0, rz = 0): THREE.BufferGeometry {
   g.rotateX(rx).rotateY(ry).rotateZ(rz).translate(x, y, z);
   for (const k of Object.keys(g.attributes)) if (k !== "position" && k !== "normal") g.deleteAttribute(k);
   return g.index ? g.toNonIndexed() : g;
 }
 
 /** A cavetto cornice: the Egyptian gorge, flaring out and up from a roll, as a length along x. */
-function cavetto(len: number, depth: number, h: number, flare: number): THREE.BufferGeometry {
+export function cavetto(len: number, depth: number, h: number, flare: number): THREE.BufferGeometry {
   // the profile in (z, y), front half; mirrored for the back
   const pts: [number, number][] = [];
   const half = depth / 2;
@@ -61,7 +61,7 @@ function cavetto(len: number, depth: number, h: number, flare: number): THREE.Bu
 
 /** A winged sun, worn: a raised disc between two long wings, each a single low relief in three
     stepped rows of feathers (deeper toward the disc), its tip curling up. */
-function wingedSun(): THREE.BufferGeometry[] {
+export function wingedSun(): THREE.BufferGeometry[] {
   const out: THREE.BufferGeometry[] = [];
   out.push(put(new THREE.CylinderGeometry(0.21, 0.22, 0.07, 32), 0, 0, 0.035, Math.PI / 2));
   for (const s of [1, -1]) {

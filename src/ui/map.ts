@@ -13,7 +13,8 @@
      marks: a round tree for a grove, a tall diamond for a crystal garden, a ringed disc for a
      planet, a four-pointed sparkle for a star. A wave beneath a mark means its home is in the
      deep: you wake on the water above it. */
-import { fbm, heightAt, PEAKS, regionAt, regionIndex, riverDist, smooth, SPAWN, WATER_Y } from "../world/terrain";
+import { Color } from "three/webgpu";
+import { fbm, heightAt, nileFields, nileValley, PEAKS, regionAt, regionIndex, riverDist, smooth, SPAWN, WATER_Y } from "../world/terrain";
 
 export type Group = "Shore" | "Mind" | "Body" | "Spirit" | "Choice" | "Deep";
 /** Where a place is listed below the map: by kind, the ancient worlds by era. */
@@ -79,12 +80,18 @@ const lerp = (a: RGB, b: RGB, t: number): RGB => {
 };
 const MEADOW: RGB = [92, 116, 68], SAND: RGB = [212, 190, 142], ROCK: RGB = [112, 104, 100], HIGH: RGB = [132, 118, 98], SNOW: RGB = [238, 241, 248];
 const RIVER: RGB = [74, 132, 182], CONTOUR: RGB = [52, 38, 28], COAST: RGB = [236, 228, 206];
+/** The railway, for the map (set by main.ts): its track's middle, and its stations. */
+let rail: { px: Float32Array; pz: Float32Array; n: number; stations: { x: number; z: number }[] } | null = null;
+export function setMapRailway(r: { px: Float32Array; pz: Float32Array; n: number; stations: { x: number; z: number }[] }): void {
+  rail = r;
+}
 const MARSH: RGB = [74, 104, 92], SHALLOW: RGB = [78, 132, 150], MIDWATER: RGB = [32, 70, 110], DEEP: RGB = [12, 24, 58];
 /** The regions' names, each in its own country (terrain.ts REGIONS: E, NE, N, NW, W, SW, S, SE). */
 const REGION_NAMES = ["Frost Tundra", "Autumn Wood", "Ash Fields", "Heather Moor", "Ochre Dunes", "Red Rocks", "Mossland", "Chalk Downs"];
 const REGION_DIRS = [0, -1, -2, -3, 4, 3, 2, 1].map((k) => (k * Math.PI) / 4);
 const toSRGB = (c: number) => 255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
 const contourStep = (size: number) => [5, 10, 20, 25, 50].find((m) => size / m < 260) ?? 50;
+const fieldC = new Color();
 function groundColour(x: number, z: number, v: number, vr: number, vd: number, step: number, ci: number): RGB {
   const gx = (vr - v) / step, gz = (vd - v) / step, slope = Math.max(1e-4, Math.hypot(gx, gz));
   // shaded relief: light from the north-west and high, as maps are lit; steeper the farther out
@@ -113,14 +120,18 @@ function groundColour(x: number, z: number, v: number, vr: number, vd: number, s
       const hsh = Math.abs(Math.sin(Math.floor(x / 6) * 127.1 + Math.floor(z / 6) * 311.7) * 43758.5453) % 1;
       if (hsh < forest * 0.55) col = col.map((c) => c * 0.72) as RGB;
     }
-    col = lerp(col, SAND, smooth(1.4, 0.35, v));
+    // the Nile's floodplain: its fields
+    const fk = nileFields(x, z, fieldC);
+    if (fk > 0) col = lerp(col, [toSRGB(fieldC.r) * 0.85, toSRGB(fieldC.g) * 0.85, toSRGB(fieldC.b) * 0.85], fk * 0.8);
+    col = lerp(col, SAND, smooth(1.4, 0.35, v) * (1 - fk));
     col = lerp(col, HIGH, smooth(30, 90, v) * 0.55);
     col = lerp(col, ROCK, smooth(0.6, 1.3, slope));
     const snowLine = 100 + (fbm(x * 0.004 + 3, z * 0.004) - 0.5) * 50;
     col = lerp(col, SNOW, smooth(snowLine, snowLine + 10, v) * (1 - smooth(1.0, 1.7, slope) * 0.7));
     col = col.map((c) => c * (0.42 + 0.8 * shade)) as RGB;
     // rivers: a fine blue line, never thinner than a pixel
-    const rd = riverDist(x, z);
+    // (none drawn across the Nile's valley, whose land the world's rivers do not cross)
+    const rd = nileValley(x, z) > 0.5 ? Infinity : riverDist(x, z);
     if (rd < Infinity) col = lerp(col, RIVER, 1.2 - (rd - Math.max(5, step * 0.4)) / step);
     // contours, every fifth stronger
     const f = v / ci, line = (Math.abs(f - Math.round(f)) * ci) / (slope * step);
@@ -810,6 +821,13 @@ export class StartMap {
     };
     rows.push(["The Mind", ring(INK.Mind, "Mind")], ["The Body", ring(INK.Body, "Body")], ["The Spirit", ring(INK.Spirit, "Spirit")], ["The Choice", ring(INK.Choice, "Choice")]);
     rows.push(["Monuments", dot(SECTION_INK.Monuments!)], ["Ancient worlds", dot(SECTION_INK.Ancient!)], ["Wonders", dot(SECTION_INK.Wonders!)], ["Lessons", dot(SECTION_INK.Lessons!)], ["Beneath the water", ring(INK.Deep, "Deep")]);
+    const railKey = (x: number, y: number) => {
+      g.fillStyle = "rgb(34,26,22)";
+      g.fillRect(x - 7 * k, y - 1.5 * k, 14 * k, 3 * k);
+      g.fillStyle = "rgba(244,239,230,0.7)";
+      for (let i = -1; i <= 1; i++) g.fillRect(x + i * 4.5 * k - 0.6 * k, y - 3 * k, 1.2 * k, 6 * k);
+    };
+    rows.push(["Railway", railKey]);
     rows.push(["Forest", swatch("rgb(40,70,44)")], ["Rivers and lakes", swatch("rgb(50,96,140)")], ["Rock", swatch("rgb(104,98,96)")], ["Snow", swatch("rgb(232,236,244)")]);
     const lh = 15 * k, w = 128 * k, h = rows.length * lh + 12 * k, x0 = 10 * k, y0 = H - 34 * k - h;
     g.save();
@@ -845,6 +863,41 @@ export class StartMap {
     v.addColorStop(1, "rgba(11,10,28,0.6)");
     g.fillStyle = v;
     g.fillRect(0, 0, W, H);
+
+    // the railway: a dark line with pale ties across it, drawn over the land at every scale; its
+    // stations small squares
+    if (rail) {
+      const every = Math.max(1, Math.floor((this.mpp * 2.5) / 1.6));
+      g.save();
+      g.lineJoin = g.lineCap = "round";
+      const path = () => {
+        g.beginPath();
+        for (let i = 0; i <= rail!.n; i += every) {
+          const j = i % rail!.n, x = this.toMapX(rail!.px[j]), y = this.toMapY(rail!.pz[j]);
+          if (i === 0) g.moveTo(x, y);
+          else g.lineTo(x, y);
+        }
+        g.closePath();
+      };
+      path();
+      g.strokeStyle = "rgba(28,22,18,0.92)";
+      g.lineWidth = 3 * k;
+      g.stroke();
+      g.setLineDash([1.2 * k, 3.2 * k]);
+      g.strokeStyle = "rgba(236,226,204,0.75)";
+      g.lineWidth = 1.2 * k;
+      g.stroke();
+      g.setLineDash([]);
+      for (const st of rail.stations) {
+        const x = this.toMapX(st.x), y = this.toMapY(st.z);
+        g.fillStyle = "rgba(28,22,18,0.95)";
+        g.strokeStyle = "rgba(236,226,204,0.9)";
+        g.lineWidth = 1 * k;
+        g.fillRect(x - 3 * k, y - 3 * k, 6 * k, 6 * k);
+        g.strokeRect(x - 3 * k, y - 3 * k, 6 * k, 6 * k);
+      }
+      g.restore();
+    }
 
     // a scale: how far a stretch of the map is on foot
     const metres = [100, 250, 500, 1000, 2000].find((m) => m / this.mpp > W * 0.12) ?? 2000;
