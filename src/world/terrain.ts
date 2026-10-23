@@ -1575,7 +1575,9 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
     const snowC = tmix(vec3(0.5, 0.49, 0.7), vec3(0.76, 0.78, 0.89), smoothstep(150, 230, vGW.y)).mul(grain).mul(tmix(vec3(1.03), vec3(0.8, 0.86, 1.02), hollow));
     const base = ground.mul(T.vertexColor().rgb).toVar();
     // Each region's own ground at a scale the eye reads walking (the scans alone are a fine grain
-    // that reads as the same noise everywhere): frost crusts and lichen on the tundra, drifts of
+    // that reads as the same noise everywhere). Broad patches (frost, chalk) lighten the ground
+    // under them, keeping its grain: laid as a flat colour they read as grey stains from above.
+    // Frost crusts and lichen on the tundra, drifts of
     // fallen leaves in the autumn forest, pale ash blown over black, heather mottling the moor,
     // the red rock's cracked plates, moss cushions, chalk showing white through the downs.
     If(CD.lessThan(160).and(SEA.lessThan(0.5)), () => {
@@ -1587,7 +1589,7 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
         const frost = ptc(0.35, 0.55, 0.7, 11);
         const lc = floor(q.mul(3)), lf = fract(q.mul(3)).sub(0.5);
         const lichen = step(0.72, gH(lc.add(3))).mul(smoothstep(0.32, 0.12, length(lf)));
-        g0.assign(tmix(g0, vec3(0.36, 0.4, 0.5), frost.mul(0.6).mul(regW[0]).mul(nk)));
+        g0.assign(g0.mul(tmix(vec3(1), vec3(1.35, 1.45, 1.7), frost.mul(0.6).mul(regW[0]).mul(nk))));
         g0.assign(tmix(g0, vec3(0.2, 0.22, 0.06), lichen.mul(0.6).mul(regW[0]).mul(nk)));
       });
       // NE: fallen leaves, gathered in drifts, each its own colour
@@ -1623,8 +1625,8 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
       });
       // SE: chalk showing white through thin turf
       If(regW[7].greaterThan(L), () => {
-        const chalk = ptc(0.45, 0.55, 0.68, 71);
-        g0.assign(tmix(g0, vec3(0.55, 0.54, 0.5), chalk.mul(0.65).mul(regW[7]).mul(nk)));
+        const chalk = ptc(0.45, 0.6, 0.74, 71);
+        g0.assign(g0.mul(tmix(vec3(1), vec3(1.45, 1.42, 1.32), chalk.mul(0.6).mul(regW[7]).mul(nk))));
       });
     });
     return vec4(tmix(base.mul(crev).mul(gully.w), snowC, SN).mul(gr.x).mul(wetDark), 1);

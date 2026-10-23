@@ -391,6 +391,7 @@ scene.add(canoes.group);
 const cover = new GroundCover();
 scene.add(cover.group);
 (window as unknown as { __palmAt?: () => { x: number; y: number; z: number } | null }).__palmAt = () => wilds.nearestPalm(SPAWN.x, SPAWN.z);
+(window as unknown as { __datePalmAt?: (x: number, z: number) => { x: number; y: number; z: number } | null }).__datePalmAt = (x, z) => nile.nearestPalm(x, z);
 const landmarks = new Landmarks(scene, audio, wanderer);
 // The archetypes themselves, each at home in its landmark.
 const beings = new Beings(landmarks.list, sparks);

@@ -1,23 +1,23 @@
 /* The wilder places (Samuel: "caves, mountains with snow, palm trees, tall grass"):
-   - Palms on the beaches, where the sand meets the water: real coconut palms (the owner: the old
-     balloon fronds looked "odd" beside the realistic trees). A leaning, gently swollen trunk in
-     grey-brown bark scarred with old leaf rings; a crown of feathery fronds, each a midrib with
-     dozens of narrow leaflets drooping more toward its tip; a few dead fronds hanging brown
-     against the trunk; a cluster of coconuts. Lit by the moon, they sway.
+   - Palms on the beaches, where the sand meets the water: real coconut palms. A leaning, gently
+     swollen grey trunk scarred with old leaf rings; a crown of feathery fronds, each a midrib with
+     dozens of narrow folded leaflets drooping more toward its tip; a few dead fronds hanging brown
+     against the trunk; a cluster of coconuts. Lit by the moon, they sway. (`palmGeometry` also
+     grows the date palms of the Nile and the temple's garden.)
    - Caves in the steep hillsides (placed in terrain.ts): a hollow of etched stone running into
      the hill, crystals glowing at the back, glow-worm lights on the ceiling. The rock dissolves
      wherever it would hide the wanderer from the camera.
    (The tall grass grows in life.ts; the snowy mountains rise in terrain.ts.) */
 import * as THREE from "three/webgpu";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { outOfTheWay, T, worldPoints } from "../gpu/tsl";
+import { fogUniforms, outOfTheWay, T, worldPoints } from "../gpu/tsl";
 import { surface } from "./textures";
 import { crystalMaterial, prismGeometry } from "./creation";
 import { etchedStone } from "./etching";
 import type { LifeFrame } from "./life";
 import { CAVES, colliders, type Collider, fbm, groundKind, heightAt, keptClear, LANDMARK_SITES, SPAWN, WATER_Y } from "./terrain";
 
-const { attribute, cos, dot, float, fract, Fn, If, mix, positionLocal, positionWorld, sin, smoothstep, abs, screenCoordinate, step, texture, uniform, vec2, vec3 } = T;
+const { attribute, cameraPosition, cameraViewMatrix, cos, cross, dot, float, floor, fract, Fn, If, max, mix, normalize, positionGeometry, positionLocal, positionWorld, pow, sin, smoothstep, abs, screenCoordinate, step, texture, uniform, vec2, vec3, vec4 } = T;
 const V = THREE.Vector3;
 
 function hash(i: number, j: number, salt: number): number {
@@ -72,125 +72,188 @@ function tagged(pos: number[], nor: number[], part: number[], us: number[], xs: 
   return g;
 }
 
-/** One palm, about 6.5 m tall, leaning by `lean` metres at the crown. Parts (`aPart`): 0 trunk,
-    1 green leaflet, 2 coconut, 3 midrib, 4 dead frond. `aU` runs along the trunk or the frond,
-    `aX` around the trunk or out along a leaflet. */
-export function palmGeometry(lean: number): THREE.BufferGeometry {
-  const H = 6.4;
-  const trunk = new THREE.CatmullRomCurve3([new V(0, -0.3, 0), new V(lean * 0.15, H * 0.3, 0), new V(lean * 0.62, H * 0.7, 0), new V(lean, H, 0)]);
-  // a swollen foot, a slight bulge low, narrowing to the crown
-  const parts = [tube(trunk, 30, 12, (u) => 0.17 * (1 - u * 0.32) + 0.16 * Math.max(0, 1 - u * 7) + 0.015 * Math.sin(u * 9), (u) => u * u * 0.3)];
+export type PalmKind = "coconut" | "date";
+
+/** Where a frond's midrib runs: out from the crown at its elevation `e` and bending down under its
+    own weight (`g`), as a real frond does. */
+function frondPoint(crown: THREE.Vector3, dir: THREE.Vector3, e: number, g: number, len: number, u: number, out: THREE.Vector3): THREE.Vector3 {
+  return out
+    .copy(crown)
+    .addScaledVector(dir, len * u * Math.cos(e))
+    .add(new V(0, len * (u * Math.sin(e) - g * u * u), 0));
+}
+
+/** One palm. A coconut palm (the beaches, Nan Madol): ~6.5 m, leaning by `lean` metres at the
+    crown, a smooth grey trunk ringed with old leaf scars, long fronds arching over, coconuts. A date
+    palm (the Nile, the temple's garden): ~8 m and nearly straight, its trunk clad in the stubs of old
+    leaf bases, a rounder crown of stiffer grey-green fronds (the young ones reaching up, the old
+    arching out), its leaflets folded and set in two planes, bunches of dates under the crown.
+    Parts (`aPart`): 0 coconut trunk, 1 leaflet, 2 coconut, 3 midrib, 4 dead frond, 5 far frond
+    (cut into leaflets by the shader), 6 date trunk, 7 dates and their stalks. `aU` runs along the
+    trunk or the frond; `aX` around the trunk, out along a leaflet, or across a far frond. */
+export function palmGeometry(lean: number, kind: PalmKind = "coconut"): THREE.BufferGeometry {
+  const date = kind === "date";
+  const H = date ? 7.8 : 6.4, L = date ? lean * 0.3 : lean;
+  const trunk = new THREE.CatmullRomCurve3([new V(0, -0.3, 0), new V(L * 0.15, H * 0.3, 0), new V(L * 0.62, H * 0.7, 0), new V(L, H, 0)]);
+  // a swollen foot narrowing to the crown (a date palm's stays thick: its old leaf bases clad it)
+  const rT = date ? (u: number) => 0.22 + 0.12 * Math.max(0, 1 - u * 8) + 0.015 * Math.sin(u * 7) : (u: number) => 0.17 * (1 - u * 0.32) + 0.16 * Math.max(0, 1 - u * 7) + 0.015 * Math.sin(u * 9);
+  const parts = [retag(tube(trunk, date ? 36 : 30, date ? 14 : 12, rT, (u) => u * u * 0.3), date ? 6 : 0)];
   const crown = trunk.getPoint(1);
   const up = new V(0, 1, 0);
   // the crown's boot where the fronds spring from
   {
-    const g = new THREE.SphereGeometry(0.24, 12, 8).scale(1, 1.35, 1).translate(crown.x, crown.y + 0.05, crown.z);
-    parts.push(tagGeo(g, 0, 1, 0.5, 0.3));
+    const g = new THREE.SphereGeometry(date ? 0.36 : 0.24, 12, 8).scale(1, date ? 1.5 : 1.35, 1).translate(crown.x, crown.y + 0.05, crown.z);
+    parts.push(tagGeo(g, date ? 6 : 0, 1, 0.5, 0.3));
   }
   const rnd = (k: number) => {
-    const v = Math.sin(k * 91.7 + lean * 13.1) * 43758.5453;
+    const v = Math.sin(k * 91.7 + lean * 13.1 + (date ? 5.3 : 0)) * 43758.5453;
     return v - Math.floor(v);
   };
-  const fronds = 16;
+  const live = date ? 24 : 13, fronds = live + (date ? 5 : 3);
+  const p = new V(), q = new V(), t = new V(), side = new V(), plane = new V(), d = new V(), acr = new V(), n = new V(), nE = new V();
   for (let k = 0; k < fronds; k++) {
-    const dead = k >= 13; // the last few hang dead against the trunk
-    const a = (k / 13) * Math.PI * 2 * 1.618 + rnd(k) * 0.4;
+    const dead = k >= live;
+    const age = dead ? 1 : k / (live - 1); // the young reach up from the heart, the old arch out
+    const a = k * 2.39996 + rnd(k) * 0.35;
     const dir = new V(Math.cos(a), 0, Math.sin(a));
-    const rise = dead ? -1 : k % 3 === 0 ? 0.55 : 0.2 + rnd(k + 3) * 0.3; // some reach up, most arch over
-    const len = dead ? 1.9 : 2.8 + rnd(k + 7) * 0.8;
+    const e = dead ? -1.35 : date ? 1.2 - age * 1.05 + (rnd(k + 3) - 0.5) * 0.15 : k % 3 === 0 ? 0.55 : 0.18 + rnd(k + 3) * 0.3;
+    const g = dead ? 0.05 : date ? 0.16 + age * 0.3 : 0.5;
+    const len = dead ? (date ? 2.4 : 1.9) : date ? 3.1 + rnd(k + 7) * 0.9 - (age < 0.12 ? 0.7 : 0) : 2.8 + rnd(k + 7) * 0.8;
     const pts: THREE.Vector3[] = [];
-    for (let i = 0; i <= 16; i++) {
-      const u = i / 16;
-      if (dead) pts.push(crown.clone().addScaledVector(dir, 0.45 * Math.sin(u * 1.5)).addScaledVector(up, -len * u - 0.1));
-      else pts.push(crown.clone().addScaledVector(dir, len * u).addScaledVector(up, len * (rise * Math.sin(u * Math.PI * 0.5) * 0.9 - 0.42 * u * u)));
-    }
+    for (let i = 0; i <= 16; i++) pts.push(frondPoint(crown, dir, e, g, len, i / 16, new V()));
+    if (dead) for (const pt of pts) pt.addScaledVector(dir, 0.35); // hung against the trunk, not in it
     const rach = new THREE.CatmullRomCurve3(pts);
-    parts.push(retag(tube(rach, 14, 4, (u) => 0.032 * (1 - u * 0.75), (u) => 0.3 + u * 0.9), dead ? 4 : 3));
-    // the leaflets: narrow blades either side of the midrib, longest at the middle, drooping more
-    // toward the tip; a dead frond's hang folded close
+    parts.push(retag(tube(rach, 12, 4, (u) => (date ? 0.038 : 0.032) * (1 - u * 0.75), (u) => 0.3 + u * 0.9), dead ? 4 : 3));
+    // the leaflets: narrow blades either side of the midrib, longest at the middle, each folded
+    // along its length (its two halves turned to the light differently); a date palm's stiff and
+    // set alternately up and down out of the frond's plane, a coconut's drooping more toward the tip
     const pos: number[] = [], nor: number[] = [], part: number[] = [], us: number[] = [], xs: number[] = [], sw: number[] = [], idx: number[] = [];
-    const N = dead ? 20 : 34;
-    const p = new V(), t = new V(), side = new V(), d = new V(), wv = new V(), n = new V();
+    const N = dead ? 16 : date ? 22 : 34;
+    const seg = date || dead ? 2 : 3;
     for (let i = 1; i <= N; i++) {
-      const u = 0.06 + (i / N) * 0.92;
+      const u = (date ? 0.14 : 0.06) + (i / N) * (date ? 0.84 : 0.92);
       rach.getPoint(u, p);
       rach.getTangent(u, t);
       side.crossVectors(t, up);
       if (side.lengthSq() < 1e-4) side.set(-dir.z, 0, dir.x);
       side.normalize();
+      plane.crossVectors(side, t).normalize();
+      if (plane.y < 0) plane.negate();
       for (const sgn of [-1, 1]) {
         const j = rnd(k * 97 + i * 7 + (sgn > 0 ? 1 : 0));
-        const droop = dead ? 1.35 : 0.25 + u * 0.85 + (j - 0.5) * 0.35;
-        d.copy(side).multiplyScalar(sgn * Math.cos(droop)).addScaledVector(up, -Math.sin(droop)).addScaledVector(t, 0.45).normalize();
-        const L = (dead ? 0.55 : 0.95) * Math.sin(Math.PI * (0.12 + u * 0.8)) * (0.85 + j * 0.3);
-        const W = dead ? 0.04 : 0.055;
-        wv.crossVectors(d, side).normalize();
-        if (wv.y < 0) wv.negate();
-        n.copy(wv);
-        // a blade: wide at its root, narrowing to a point, bowed a little along its length
+        if (date && !dead) {
+          const el = ((i + (sgn > 0 ? 1 : 0)) % 2 ? 0.55 : -0.2) + (j - 0.5) * 0.3;
+          d.copy(side).multiplyScalar(sgn * Math.cos(el)).addScaledVector(plane, Math.sin(el)).addScaledVector(t, 0.75).normalize();
+        } else {
+          const droop = dead ? 1.35 : 0.25 + u * 0.85 + (j - 0.5) * 0.35;
+          d.copy(side).multiplyScalar(sgn * Math.cos(droop)).addScaledVector(up, -Math.sin(droop)).addScaledVector(t, 0.45).normalize();
+        }
+        const Lf = (dead ? 0.55 : date ? 0.68 : 0.95) * Math.sin(Math.PI * (0.12 + u * 0.8)) * (0.85 + j * 0.3);
+        const W = dead ? 0.04 : date ? 0.032 : 0.055;
+        acr.crossVectors(d, plane).normalize(); // across the blade
+        n.crossVectors(acr, d).normalize();
+        if (n.y < 0) n.negate();
+        const bow = date ? 0.015 : 0.06;
         const base = pos.length / 3;
-        const seg = 3;
-        for (let q = 0; q <= seg; q++) {
-          const f = q / seg, w = W * (1 - f * 0.85);
-          const c = p.clone().addScaledVector(d, L * f).addScaledVector(up, -0.06 * Math.sin(f * Math.PI) * L);
-          for (const e of [-1, 1]) {
-            const v = c.clone().addScaledVector(t, e * w);
+        for (let s = 0; s <= seg; s++) {
+          const f = s / seg, w = W * (1 - f * 0.85);
+          q.copy(p).addScaledVector(d, Lf * f).addScaledVector(up, -bow * Math.sin(f * Math.PI) * Lf);
+          for (const e2 of [-1, 1]) {
+            // the edges stand a little above the crease, and their normals lean in toward it
+            const v = q.clone().addScaledVector(acr, e2 * w).addScaledVector(n, w * 0.45);
+            nE.copy(n).addScaledVector(acr, -e2 * 0.7).normalize();
             pos.push(v.x, v.y, v.z);
-            nor.push(n.x, n.y, n.z);
+            nor.push(nE.x, nE.y, nE.z);
             part.push(dead ? 4 : 1);
             us.push(u);
             xs.push(f);
             sw.push(0.3 + u * 0.9 + f * 0.25);
           }
         }
-        for (let q = 0; q < seg; q++) {
-          const a0 = base + q * 2;
+        for (let s = 0; s < seg; s++) {
+          const a0 = base + s * 2;
           idx.push(a0, a0 + 2, a0 + 1, a0 + 1, a0 + 2, a0 + 3);
         }
       }
     }
     parts.push(tagged(pos, nor, part, us, xs, sw, idx));
   }
-  // coconuts clustered under the crown
-  for (let k = 0; k < 6; k++) {
-    const a = (k / 6) * Math.PI * 2 + 0.4, r = 0.2 + (k % 2) * 0.06;
-    const g = new THREE.SphereGeometry(0.12, 10, 8).scale(1, 1.12, 1).translate(crown.x + Math.cos(a) * r, crown.y - 0.3 - (k % 3) * 0.08, crown.z + Math.sin(a) * r);
-    parts.push(tagGeo(g, 2, 1, 0, 0.3));
+  if (date) {
+    // bunches of dates on their stalks, arching out of the crown under the fronds and hanging
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2 + 0.7 + rnd(k + 50) * 0.5;
+      const dir = new V(Math.cos(a), 0, Math.sin(a));
+      const end = crown.clone().addScaledVector(dir, 0.75).add(new V(0, -0.85, 0));
+      const stalk = new THREE.CatmullRomCurve3([crown.clone().addScaledVector(dir, 0.2).add(new V(0, -0.2, 0)), crown.clone().addScaledVector(dir, 0.6).add(new V(0, -0.15, 0)), end]);
+      parts.push(retag(tube(stalk, 6, 4, () => 0.03, () => 0.3), 7));
+      const b = new THREE.IcosahedronGeometry(0.2, 2).scale(1, 1.55, 1);
+      const bp = b.attributes.position as THREE.BufferAttribute;
+      for (let i = 0; i < bp.count; i++) {
+        q.fromBufferAttribute(bp, i);
+        const lump = 1 + 0.16 * Math.sin(q.x * 41 + k) * Math.sin(q.y * 37) * Math.sin(q.z * 43);
+        bp.setXYZ(i, q.x * lump, q.y * lump, q.z * lump);
+      }
+      b.computeVertexNormals();
+      b.translate(end.x, end.y - 0.22, end.z);
+      parts.push(tagGeo(b, 7, 1, 0, 0.3));
+    }
+  } else {
+    // coconuts clustered under the crown
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI * 2 + 0.4, r = 0.2 + (k % 2) * 0.06;
+      const g = new THREE.SphereGeometry(0.12, 10, 8).scale(1, 1.12, 1).translate(crown.x + Math.cos(a) * r, crown.y - 0.3 - (k % 3) * 0.08, crown.z + Math.sin(a) * r);
+      parts.push(tagGeo(g, 2, 1, 0, 0.3));
+    }
   }
   return mergeGeometries(parts)!;
 }
 
-/** The same palm drawn cheaply, for groves seen from afar (a few hundred triangles): a plain trunk
-    and a dozen fronds, each one broad blade arching out and down. Tagged as `palmGeometry` is. */
-export function palmFarGeometry(lean: number): THREE.BufferGeometry {
-  const H = 6.4;
-  const trunk = new THREE.CatmullRomCurve3([new V(0, -0.3, 0), new V(lean * 0.15, H * 0.3, 0), new V(lean * 0.62, H * 0.7, 0), new V(lean, H, 0)]);
-  const parts = [tube(trunk, 6, 5, (u) => 0.19 * (1 - u * 0.32) + 0.1 * Math.max(0, 1 - u * 5), (u) => u * u * 0.3)];
+/** The same palm drawn cheaply, for palms seen from afar (a few hundred triangles): a plain trunk
+    and its fronds, each one blade folded along its midrib, its outline cut into leaflets in the
+    shader (`aPart` 5, `aX` across the blade). Its normals are the crown's round, so from afar it is
+    lit as a crown is, not as a few flat boards. Tagged as `palmGeometry` is. */
+export function palmFarGeometry(lean: number, kind: PalmKind = "coconut"): THREE.BufferGeometry {
+  const date = kind === "date";
+  const H = date ? 7.8 : 6.4, L = date ? lean * 0.3 : lean;
+  const trunk = new THREE.CatmullRomCurve3([new V(0, -0.3, 0), new V(L * 0.15, H * 0.3, 0), new V(L * 0.62, H * 0.7, 0), new V(L, H, 0)]);
+  const parts = [retag(tube(trunk, 6, 5, (u) => (date ? 0.24 : 0.19 * (1 - u * 0.32)) + 0.1 * Math.max(0, 1 - u * 5), (u) => u * u * 0.3), date ? 6 : 0)];
   const crown = trunk.getPoint(1);
-  const up = new V(0, 1, 0);
+  const heart = crown.clone().add(new V(0, -0.5, 0));
   const pos: number[] = [], nor: number[] = [], part: number[] = [], us: number[] = [], xs: number[] = [], sw: number[] = [], idx: number[] = [];
-  for (let k = 0; k < 12; k++) {
+  const count = date ? 16 : 12;
+  const c = new V(), t = new V(), side = new V(), plane = new V(), v = new V(), nn = new V();
+  for (let k = 0; k < count; k++) {
+    const age = k / (count - 1);
     const a = k * 2.39996 + lean;
-    const dir = new V(Math.cos(a), 0, Math.sin(a)), side = new V(-dir.z, 0, dir.x);
-    const rise = k % 3 === 0 ? 0.6 : 0.25, len = 3 + (k % 4) * 0.2;
+    const dir = new V(Math.cos(a), 0, Math.sin(a));
+    const e = date ? 1.15 - age * 1.0 : k % 3 === 0 ? 0.55 : 0.22;
+    const g = date ? 0.16 + age * 0.3 : 0.5;
+    const len = date ? 3.4 : 3 + (k % 4) * 0.2;
+    side.set(-dir.z, 0, dir.x);
     const base = pos.length / 3;
     const seg = 5;
-    for (let q = 0; q <= seg; q++) {
-      const u = q / seg, w = 0.62 * Math.sin(Math.PI * (0.1 + u * 0.85));
-      const c = crown.clone().addScaledVector(dir, len * u).addScaledVector(up, len * (rise * Math.sin(u * Math.PI * 0.5) * 0.9 - 0.45 * u * u));
-      for (const e of [-1, 1]) {
-        const v = c.clone().addScaledVector(side, e * w).addScaledVector(up, -0.12 * u);
+    for (let s = 0; s <= seg; s++) {
+      const u = s / seg;
+      frondPoint(crown, dir, e, g, len, u, c);
+      frondPoint(crown, dir, e, g, len, Math.min(1, u + 0.05), t).sub(frondPoint(crown, dir, e, g, len, Math.max(0, u - 0.05), v)).normalize();
+      plane.crossVectors(side, t).normalize();
+      if (plane.y < 0) plane.negate();
+      const w = (date ? 0.62 : 0.78) * Math.sin(Math.PI * (0.08 + u * 0.86));
+      for (const [ax, e2] of [[0, -1], [0.5, 0], [1, 1]] as const) {
+        // folded: the two halves of the frond rise a little either side of the midrib
+        v.copy(c).addScaledVector(side, e2 * w).addScaledVector(plane, Math.abs(e2) * w * (date ? 0.45 : 0.2));
+        nn.copy(v).sub(heart).normalize().addScaledVector(plane, 0.6).normalize();
         pos.push(v.x, v.y, v.z);
-        nor.push(0, 1, 0);
-        part.push(1);
+        nor.push(nn.x, nn.y, nn.z);
+        part.push(5);
         us.push(u);
-        xs.push(0.5);
+        xs.push(ax);
         sw.push(0.3 + u * 0.9);
       }
     }
-    for (let q = 0; q < seg; q++) {
-      const a0 = base + q * 2;
-      idx.push(a0, a0 + 2, a0 + 1, a0 + 1, a0 + 2, a0 + 3);
+    for (let s = 0; s < seg; s++) {
+      const a0 = base + s * 3;
+      for (const o of [0, 1]) idx.push(a0 + o, a0 + 3 + o, a0 + 1 + o, a0 + 1 + o, a0 + 3 + o, a0 + 4 + o);
     }
   }
   parts.push(tagged(pos, nor, part, us, xs, sw, idx));
@@ -216,7 +279,7 @@ function retag(g: THREE.BufferGeometry, part: number): THREE.BufferGeometry {
 
 export function palmMaterial(uT: ReturnType<typeof uniform>): THREE.MeshStandardNodeMaterial {
   const bark = surface("bark");
-  const m = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide, roughness: 0.85, metalness: 0 });
+  const m = new THREE.MeshStandardNodeMaterial({ side: THREE.DoubleSide, roughness: 0.85, metalness: 0, alphaTest: 0.5 });
   const aSway = attribute("aSway", "float");
   // the wind: slow, and strongest at the fronds' tips (positionLocal here is the placed palm);
   // the leaflets flutter a little on their own
@@ -224,34 +287,78 @@ export function palmMaterial(uT: ReturnType<typeof uniform>): THREE.MeshStandard
   const flutter = sin(uT.mul(3.1).add(attribute("aU", "float").mul(23)).add(ph)).mul(attribute("aX", "float")).mul(0.035);
   m.positionNode = positionLocal.add(vec3(sin(uT.mul(0.9).add(ph)), 0, cos(uT.mul(0.7).add(ph.mul(1.3)))).mul(aSway).mul(0.14)).add(vec3(0, flutter, 0));
   const part = attribute("aPart", "float"), u = attribute("aU", "float"), x = attribute("aX", "float");
+  const is = (k: number) => abs(part.sub(k)).lessThan(0.5);
+  const leafy = is(1).or(is(5));
+  // a date palm's trunk: diamonds of old leaf bases, row over row, each stub standing out more
+  // toward its upper edge, where it was cut, and fibre dark in the gaps between
+  const cell = vec2(x.mul(9), u.mul(46)).toVar();
+  const row = floor(cell.y);
+  const cx = fract(cell.x.add(row.mul(0.5))).sub(0.5), cy = fract(cell.y);
+  const stub = smoothstep(0.5, 0.18, abs(cx)).mul(smoothstep(0.0, 0.35, cy));
+  const lip = smoothstep(0.72, 0.95, cy).mul(stub);
   m.colorNode = Fn(() => {
-    // the trunk: grey-brown bark, scarred in rings where old fronds fell, darker at the foot
     const bk = texture(bark.diff, vec2(x.mul(3), u.mul(16))).rgb;
+    const grain = bk.div(vec3(0.053, 0.034, 0.02)).clamp(0.4, 1.8); // the scan's own grain about its mean
+    // the coconut's trunk: grey, scarred in rings where old fronds fell, darker at the foot
     const ring = smoothstep(0.1, 0.0, abs(fract(u.mul(40)).sub(0.5)).sub(0.38));
-    const trunk = bk.mul(vec3(0.62, 0.55, 0.48)).mul(float(1).sub(ring.mul(0.5))).mul(mix(0.7, 1, smoothstep(0, 0.15, u)));
-    // the leaflets: deep green, yellower toward their tips and on the older outer fronds
+    const coco = mix(vec3(0.05, 0.045, 0.038), vec3(0.075, 0.068, 0.058), grain.g.mul(0.5)).mul(float(1).sub(ring.mul(0.45))).mul(mix(0.65, 1, smoothstep(0, 0.15, u)));
+    // the date's: warm brown fibre, the stubs' cut lips paler, the gaps between them dark
+    const fibre = vec3(0.06, 0.042, 0.028).mul(grain);
+    const datew = mix(mix(vec3(0.018, 0.013, 0.009), fibre, stub), vec3(0.12, 0.085, 0.055), lip).mul(mix(0.7, 1, smoothstep(0, 0.12, u)));
+    // leaflets: deep green, yellower toward their tips and on the old outer fronds (seen from below
+    // they read paler); a date palm's greyer
     const h = fract(sin(positionWorld.x.mul(12.9).add(positionWorld.z.mul(78.2))).mul(43758.5));
-    const leaf = mix(vec3(0.03, 0.068, 0.028), vec3(0.1, 0.15, 0.05), x.mul(0.6).add(u.mul(0.3)).add(h.mul(0.15)));
-    const rib = vec3(0.24, 0.23, 0.13);
-    const nut = vec3(0.16, 0.12, 0.06);
-    const dead = vec3(0.3, 0.22, 0.12).mul(h.mul(0.3).add(0.8));
-    const c = trunk.toVar();
-    If(part.greaterThan(0.5), () => {
+    const leaf = mix(vec3(0.035, 0.07, 0.03), vec3(0.11, 0.15, 0.055), x.mul(0.5).add(u.mul(0.35)).add(h.mul(0.15)));
+    const rib = vec3(0.2, 0.18, 0.1);
+    const nut = vec3(0.13, 0.1, 0.05);
+    const dead = vec3(0.26, 0.19, 0.1).mul(h.mul(0.3).add(0.8));
+    // dates: amber to brown, each fruit its own
+    const fruit = mix(vec3(0.32, 0.12, 0.02), vec3(0.14, 0.05, 0.015), fract(sin(positionGeometry.x.mul(91).add(positionGeometry.y.mul(57)).add(positionGeometry.z.mul(73))).mul(4375.5)));
+    const c = coco.toVar();
+    If(is(6), () => {
+      c.assign(datew);
+    });
+    If(leafy, () => {
       c.assign(leaf);
     });
-    If(part.greaterThan(1.5), () => {
+    If(is(2), () => {
       c.assign(nut);
     });
-    If(part.greaterThan(2.5), () => {
+    If(is(3), () => {
       c.assign(rib);
     });
-    If(part.greaterThan(3.5), () => {
+    If(is(4), () => {
       c.assign(dead);
+    });
+    If(is(7), () => {
+      c.assign(fruit);
     });
     return c;
   })();
-  // the leaflets let a little of the moon through, and the glossy upper side catches it
-  m.roughnessNode = mix(float(0.88), float(0.62), step(0.5, part).mul(step(part, 1.5)));
+  // the far fronds' outline, cut into leaflets slanting toward the tip: a feather, not a board.
+  // Where the leaflets would be finer than a pixel the frond is simply narrower.
+  const ac = abs(x.sub(0.5)).mul(2);
+  const lf = u.mul(26).add(ac.mul(1.4));
+  const comb = step(fract(lf), 0.45).max(step(ac, 0.08));
+  const tipCut = step(ac, float(0.95).sub(fract(sin(floor(lf).mul(17.3)).mul(437.5)).mul(0.3)));
+  const fine = smoothstep(0.35, 0.9, T.fwidth(lf));
+  const keep = mix(comb.mul(tipCut), step(ac, 0.7), fine);
+  m.opacityNode = T.select(is(5), keep, float(1));
+  // which way each part faces: the date trunk's stubs tilt the light; the far fronds keep the
+  // crown's round (seen from below they are still a crown, not the backs of boards)
+  const upV = normalize(cameraViewMatrix.mul(vec4(0, 1, 0, 0)).xyz);
+  const n0 = T.normalView;
+  const along = normalize(upV.sub(n0.mul(dot(upV, n0))));
+  const round = cross(n0, along);
+  const bumped = normalize(n0.sub(along.mul(stub.mul(0.55).sub(lip.mul(0.9)))).add(round.mul(cx.mul(stub).mul(1.1))));
+  const farN = n0.mul(T.faceDirection);
+  m.normalNode = T.select(is(6), bumped, T.select(is(5), farN, n0));
+  // the low sun or the moon behind a crown comes through its leaflets (small: never a glow)
+  const view = normalize(positionWorld.sub(cameraPosition));
+  const through = pow(max(dot(view, fogUniforms.glowDir), 0), 4);
+  (m as unknown as { emissiveNode: unknown }).emissiveNode = T.select(leafy, fogUniforms.glow.mul(vec3(0.5, 0.75, 0.25)).mul(through).mul(0.16), vec3(0));
+  // the leaflets' upper sides are a little glossy and catch the moon
+  m.roughnessNode = T.select(leafy, float(0.62), T.select(is(7), float(0.45), float(0.88)));
   return m;
 }
 
