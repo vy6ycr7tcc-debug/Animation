@@ -1640,6 +1640,30 @@ Samuel works mainly from an **iPhone**. Mobile Safari performance and audio are 
   - After: the shore 186k, the mossland 320k, the west 180k (below where they were before the detail came).
 - 2026-10-22: wet ground holds the sky (the owner: "verticality is reflected but ground not really, it's mostly ray tracing not actual reflection"). A wet pixel's ray that met nothing on the screen (most of what a puddle sees: the sky) took a flat colour of the air, so only upright things showed in puddles. Now it takes the sky in that direction as the lakes mirror it (`skyColor`, the mirrored stars, the bright star kept under bloom; never the nebulae or galaxies), in `gpu/wet.ts`. The ray is turned into the world by the scene camera's own matrix (the post pass's `cameraViewMatrix` is its quad's, so the glow's direction there had been wrong). Underground is unchanged.
 - 2026-10-22: build mode's gold as real gold (the owner: "gold textures in build mode don't look realistic"). `goldMaterial` in `sanctuary.ts`: a full metal whose colour is all reflection. Its base is gold's own reflectance (F0 ≈ 1.0, 0.77, 0.34), whitening at the edges by Schlick's Fresnel. What it reflects is drawn in the shader, so nothing is mirrored: above, the sky in that direction as the lakes see it (`skyColorPlain`: colours and glows, never stars, nebulae or galaxies), mostly as brightness, since a teal sky times gold reads olive; below, the dim earth. Two highlights toward the moon or the low sun (sharp and broad), fine hammering (a faint normal noise; stronger, it broke into blotches of horizon and sky), edges worn brighter, a little dull patina, and a whisper of warmth from within. Gone: the bands every 2 m, the brushed streaks and the rising line, which read as paint. Still: `?shot=sanctuary-joint&webgl&warm=8`.
+- 2026-10-22: K1, the Waiting Room (the owner's build prompt; `docs/inland-location-audit-kafka-worlds.md` §4.1; the first Kafka world). `scenes/kafka/waitingRoom.ts` (the room), `scenes/kafka/hall.ts` (its building in the world). Stills: `docs/sweeps/k1-waiting-room/`.
+  - Outside: a round building of the same dark stone under a low dome, its gold circle unbroken at eye height, a plain doorway toward home with velvet dark in it and a faint warmth low inside. On the map as "The waiting room".
+    - Its ground is chosen after every other site, once the temple's gate stands (`chooseWaitingSite`, called in main.ts before the trees and stones are laid), so nothing moved: dry, level land 150–420 m out, clear of every home, monument, lesson, grove, cave, mine, waterfall, river and glade.
+  - Within (a journey of one stage at x = 22000, floor 1.5 m over the water line; built on entering, freed on leaving):
+    - a round room 14 m across: dark stone (#1c1a2c: the shared masonry, its grain pulled to the room's blue-violet), a floor of flagstones, open to the world's night sky (the NIGHT mood forced, `moodForce`);
+    - one hairline circle of gold (#e9c37d) etched at eye height, unbroken, running on across the door;
+    - one door of warm light (0xffe6a0, soft veils, kept well under white). Behind the opening is an opaque surface: the empty place apart's haze had shown through it as a white slab;
+    - one low seat (`seatStone`; "sit");
+    - the keeper: the game's glass-light figure in warm gold, kneeling on the floor beside the door, facing it. Its head turns and lifts by turning bones over the clip; each bone is reset to the clip's pose every frame, or a bone the clip doesn't move kept every turn and folded over. A small warmth at its chest swells when it smiles.
+    - Nothing else.
+  - Behaviour, exactly the brief's:
+    - On arrival the keeper looks up and smiles, and one word fades in: "wait.".
+    - The first time you come to the door, "Not yet." plays once (`audio/kafka/k1_not_yet.mp3`). Until it is delivered the two words fade in instead.
+    - Going to the keeper is asking. Asked since you were last at the door, it stays shut.
+    - Come to it straight, or stand after sitting more than 20 s, and it opens: its light parts from the middle over 4.5 s into a warm passage, a wedge of light spills over the floor, and the keeper bows once.
+    - Walk through: the crossing goes white and you stand before the building, facing home. The room's door is its only way out (`Room.leaving`, a new hook in `journey.ts`).
+    - Seated, the room's clock slows to 0.6, the motes brighten, and a faint warm tone sounds (`audio.waitTone`: A3, E4, A4 sines, above 200 Hz). Now and then the keeper glances up at the door.
+    - A later visit (`inward-journey:k1-door`): the keeper looks up and waves you through, and the door opens.
+    - No timer, counter, fail state or text explaining the turn.
+  - Sound (`audio.setWaiting`): near-silence; the water bed and night tones very low (0.14), not gone; no chant.
+  - Narration: `audio/kafka/k1_waiting_room.mp3` plays from its start on arrival when the file exists (HEAD, `narration.available`) and fades out on leaving. Silent until it is delivered; nothing is synthesized. Subtitles: the game has none (the owner, 2026-09-26). When the cue sheet arrives it goes into `content/narration.json`.
+  - No guided tour begins there (`arrivalFrame`).
+  - Stills: `?shot=waiting-door|waiting-a|waiting-b` (outside; arrival; the door open, the keeper mid-bow), `waiting-3`/`waiting-4` (the keeper close: looking up; bowing).
+  - The owner merges this PR (the brief: scene PRs, the owner merges).
 - 2026-10-22: the mine car made real (the owner, a screenshot riding it: "poor execution": an open timber frame on flat discs, floating above the rails, the rider's legs through its floor). `world/mines.ts` (`CAR`, `carBody`, `carWheels`, `spinCart`); supersedes the timber box in the gold-mines and canoes entries.
   - The cause of the floating: the car's group already stood 0.55 m over the rails, and its body was built another 0.55 m up inside it. The car is now built about the group's own origin.
   - After the riveted steel cars of old hard-rock mines:

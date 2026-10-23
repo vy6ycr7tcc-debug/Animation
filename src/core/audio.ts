@@ -746,6 +746,59 @@ export class AudioEngine {
     if (this.chant) this.ramp(this.chant.gain, on && chant ? 0.55 : 0, 1.5);
   }
 
+  /* ---------- the waiting room (scenes/kafka/waitingRoom.ts) ---------- */
+  /** Within the waiting room (or out): near-silence; the water bed and the night's tones very low,
+      not gone. */
+  setWaiting(on: boolean): void {
+    if (!this.ctx) return;
+    this.ramp(this.worldDry.gain, on ? 0.14 : 1, on ? 1.5 : 2.5);
+    this.ramp(this.worldWet.gain, on ? 0.08 : 1, on ? 1.5 : 2.5);
+  }
+  private waitT: { g: GainNode; o: OscillatorNode[] } | null = null;
+  /** A faint warm tone while you sit in the waiting room: three soft sine voices (A3, E4, A4),
+      breathing very slowly, all above 200 Hz; it swells in over a few seconds and fades out. */
+  waitTone(on: boolean): void {
+    const c = this.ctx;
+    if (!c) return;
+    const now = c.currentTime;
+    if (on && !this.waitT) {
+      const g = c.createGain();
+      g.gain.value = 0;
+      const lp = c.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 900;
+      const o = [220, 330.4, 440.6].map((f, i) => {
+        const osc = c.createOscillator();
+        osc.frequency.value = f;
+        const og = c.createGain();
+        og.gain.value = [0.6, 0.32, 0.12][i];
+        osc.connect(og).connect(lp);
+        osc.start();
+        return osc;
+      });
+      const lfo = c.createOscillator();
+      lfo.frequency.value = 0.07;
+      const lg = c.createGain();
+      lg.gain.value = 0.003;
+      lfo.connect(lg).connect(g.gain);
+      lfo.start();
+      o.push(lfo);
+      lp.connect(g);
+      g.connect(this.bed);
+      g.connect(this.rev);
+      g.gain.setValueAtTime(0, now);
+      g.gain.linearRampToValueAtTime(0.011, now + 4);
+      this.waitT = { g, o };
+    } else if (!on && this.waitT) {
+      const { g, o } = this.waitT;
+      this.waitT = null;
+      g.gain.cancelScheduledValues(now);
+      g.gain.setValueAtTime(g.gain.value, now);
+      g.gain.linearRampToValueAtTime(0, now + 3);
+      for (const osc of o) osc.stop(now + 3.2);
+    }
+  }
+
   /** A short recorded line (the opening's voice), decoded for playing on the voice bus. */
   async clip(url: string): Promise<AudioBuffer | null> {
     if (!this.ctx) return null;
