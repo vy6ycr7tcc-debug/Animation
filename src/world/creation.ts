@@ -24,7 +24,7 @@ import { GROVE_SITES } from "./sites";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { floatAttributes, loadBytes } from "../core/assets";
-import { CAVES, MINE_SITES, colliders, fbm, keptClear, groundKind, heightAt, regionAt, LANDMARK_SITES, SPAWN, smooth, WATER_Y, type Collider } from "./terrain";
+import { CAVES, MINE_SITES, colliders, fbm, keptClear, groundKind, heightAt, regionAt, LANDMARK_SITES, SPAWN, smooth, treeline, WATER_Y, type Collider } from "./terrain";
 
 /** Shared by every shader here; main.ts copies the scene's fog in. */
 export const creationUniforms = {
@@ -877,7 +877,7 @@ export class Creation {
     if (cellHash(i, j, 40) < (0.035 + grove * 0.36) * dense && clearOf(x, z, 11, 16)) {
       const h = heightAt(x, z);
       const k = groundKind(x, z, h);
-      if (h > WATER_Y + 0.7 && h < 28 && k.stone < 0.5) {
+      if (h > WATER_Y + 0.7 && h < 150 && k.stone < 0.5 && (h < 30 || cellHash(i, j, 49) < treeline(x, z, h))) {
         const elder = cellHash(i, j, 43) < 0.05;
         t = {
           x, y: h, z,

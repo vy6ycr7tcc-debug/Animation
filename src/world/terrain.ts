@@ -38,6 +38,13 @@ export const smooth = (a: number, b: number, x: number) => {
   return t * t * (3 - 2 * t);
 };
 const mix = (a: number, b: number, t: number) => a + (b - a) * t;
+/** How far trees grow up the land here (0 … 1): every tree below 30 m, thinning above, none past a
+    wandering treeline at 100–150 m. (They used to stop at 28 m, so since the regions' uplands rose
+    the land seen from the air was nearly bare.) Below 30 m it is 1, so no tree that stood moved. */
+export function treeline(x: number, z: number, h: number): number {
+  if (h < 30) return 1;
+  return 1 - smooth(30, 100 + fbm(x * 0.004 - 12, z * 0.004 + 40) * 50, h);
+}
 /** Rectangular level grounds (`levelRect`), declared first: `heightAt` reads them from the start. */
 const RECTS: { x: number; z: number; h: number; c: number; s: number; hx: number; hz: number; blend: number; reach: number }[] = [];
 
@@ -1638,7 +1645,9 @@ function groundMaterial(): THREE.MeshStandardNodeMaterial {
     If(CD.greaterThan(360).and(gr.w.greaterThan(0.03)).and(SEA.lessThan(0.5)), () => {
       const cq = q.mul(0.12);
       const n = gN(cq).mul(0.62).add(gN(q.mul(0.37).add(5)).mul(0.38));
-      const thr = float(1).sub(gr.w.mul(0.8)).sub(0.08);
+      // the noise (~0.25 … 0.75) passes this about as often as the groves stand thick: scattered
+      // crowns over the meadow, closed canopy in the deep woods
+      const thr = float(0.84).sub(gr.w.mul(1.25));
       const cover = smoothstep(thr, thr.add(0.1), n).mul(smoothstep(380, 470, CD)).mul(float(1).sub(ST));
       const lit = gN(cq.add(fogUniforms.glowDir.xz.mul(0.35))).sub(gN(cq)).mul(-2.2).add(0.8).clamp(0.45, 1.25);
       const crown = smoothstep(thr, thr.add(0.35), n).mul(0.55).add(0.55).mul(lit);
@@ -1981,9 +1990,9 @@ export class Terrain {
       // how thick the forest stands here (the same groves and densities the trees are placed by), for
       // the far canopy the ground draws where the trees' likenesses end
       let forest = 0;
-      if (h > WATER_Y + 0.7 && h < 28 && k.stone < 0.5 && up > 0.8) {
+      if (h > WATER_Y + 0.7 && h < 150 && k.stone < 0.5 && up > 0.8) {
         const grove = smooth(0.46, 0.64, fbm(x * 0.008 + 71, z * 0.008 - 33));
-        forest = Math.min(1, (0.035 + grove * 0.36) * (1 + (rg.trees - 1) * rg.away) * 1.7) * (1 - fk) * (1 - ms);
+        forest = Math.min(1, (0.035 + grove * 0.36) * (1 + (rg.trees - 1) * rg.away) * 1.7) * (1 - fk) * (1 - ms) * treeline(x, z, h);
         if (forest > 0.03 && keptClear(x, z)) forest = 0;
       }
       gr.setXYZW(v, sky, Math.max(0, Math.min(1 - rocky, sandy * (1 - talus) + earth * 0.3)), rocky, forest);
