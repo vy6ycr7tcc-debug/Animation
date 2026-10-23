@@ -66,7 +66,7 @@ import { allVoices, chosenVoice, onSpeechFail, onSpeechStart, readAloud, sayAlou
 import { Vessels } from "./world/vessels";
 import { TranscriptPlayer } from "./ui/transcriptPlayer";
 import { tourBar, type TourBarOwner } from "./ui/tourBar";
-import { setMapRides, StartMap, type Choice, type Place } from "./ui/map";
+import { setMapRides, StartMap, type Choice, type Place, type RouteStop } from "./ui/map";
 import { buildSky, skyUniforms, starDirection } from "./world/sky";
 import { floorHook, GOBEKLI, gobekliAt, NAN_MADOL, nanMadolAt, RAPA_NUI, rapaNuiAt, groundUniforms, heightAt, heightCoarse, LANDMARK_SITES, MONUMENT, PEAKS, SPAWN, standAt, Terrain, WATER_Y } from "./world/terrain";
 import { Temple } from "./world/temple";
@@ -4399,17 +4399,21 @@ function boardCart(m: GoldMine, inside: boolean): void {
 /** Into a waiting car: you sit, and the map asks where it should carry you (the owner: "tap train >
     map view where you tap all the destinations to build a route > system follows the route as if
     it was an auto ride"). Not now, and you step out again. */
-function boardLine(st: Station): void {
+function boardLine(st: Station, stops?: RouteStop[]): void {
   seatInRide();
   st.away = true;
   const r: Ride = { kind: "line", st, route: null, s: 0, speed: 0, stop: false, dwell: 0, next: 0, yaw: st.car.rotation.y, done: false };
   ride = r;
-  void chooseRoute(r);
+  void chooseRoute(r, stops);
 }
-async function chooseRoute(r: Extract<Ride, { kind: "line" }>): Promise<void> {
-  input.enabled = false;
-  const stops = await startMap.route(places(), { x: player.pos.x, z: player.pos.z, heading: player.heading });
-  input.enabled = true;
+/** The car's way: asked of the map (its route mode), or given (the map's "Float" travel). */
+async function chooseRoute(r: Extract<Ride, { kind: "line" }>, given?: RouteStop[]): Promise<void> {
+  let stops: RouteStop[] | null | undefined = given;
+  if (!stops) {
+    input.enabled = false;
+    stops = await startMap.route(places(), { x: player.pos.x, z: player.pos.z, heading: player.heading });
+    input.enabled = true;
+  }
   if (ride !== r) return;
   if (!stops) return leaveRide();
   // the way is found over the land: the loading mark painted first, then the work
@@ -5388,9 +5392,42 @@ $("#map-open").addEventListener("click", () => {
   startMap.whispers = whispers.list().map((w) => ({ id: w.id, label: w.title, note: w.where }));
   void startMap.open(places(), { x: player.pos.x, z: player.pos.z, heading: player.heading }, true).then((c) => {
     input.enabled = true;
-    if (c) arrive(c, false);
+    if (c) goByMap(c);
   });
 });
+
+/* Better ways to travel (the owner: "think of better ways to travel"). The map's "Go by" choice,
+   kept on the device: Arrive (through the dark, at once), Glide (the wanderer flies there by
+   itself behind the guide's light; the stick takes over at any moment), Float (the nearest
+   floating car comes to you and carries you there on the aetheric way, the land going by). From a
+   place apart, to a place in the deep, or a few steps away, it is always Arrive. */
+function goByMap(c: Choice): void {
+  const d = Math.hypot(c.x - player.pos.x, c.z - player.pos.z);
+  const mode = startMap.travel;
+  if (mode === "arrive" || apart() || c.place.deep || d < 60 || S.mode !== "play") return arrive(c, false);
+  if (mode === "float" && floatTo(c)) return;
+  stopAuto();
+  standUp();
+  const label = c.place.label === "The shore" || (c.x === c.place.start.x && c.z === c.place.start.z) ? c.place.label : `Near ${c.place.label}`;
+  guide.lead({ label, x: c.x, z: c.z, y: Math.max(heightAt(c.x, c.z), WATER_Y) }, player.pos);
+  guideAuto = { since: 0 };
+  whisper(`Gliding to ${label.replace(/^The /, "the ")}. The stick takes over.`, 5000);
+}
+/** A floating car comes for you: the nearest one waiting, brought to where you stand, and the way
+    planned straight to the place. False when none is free (then the wanderer glides instead). */
+function floatTo(c: Choice): boolean {
+  let st: Station | null = null, best = Infinity;
+  for (const q of railway.stations) {
+    const dd = Math.hypot(q.car.position.x - player.pos.x, q.car.position.z - player.pos.z);
+    if (!q.away && dd < best) (st = q), (best = dd);
+  }
+  if (!st) return false;
+  stopAuto();
+  standUp();
+  railway.summon(st, player.pos.x, player.pos.z, -Math.atan2(c.z - player.pos.z, c.x - player.pos.x));
+  boardLine(st, [{ name: c.place.label, x: c.x, z: c.z }]);
+  return true;
+}
 
 /** Where a screen point meets the ground or the water. */
 const gpRay = new THREE.Raycaster(), gpNdc = new THREE.Vector2();

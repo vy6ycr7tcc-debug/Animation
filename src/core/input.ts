@@ -1,7 +1,8 @@
 /* Input: keyboard + mouse on desktop. On touch: a classic 360° joystick that rests in the
    bottom-left corner, look-drag anywhere else, and one round button, as in Sky and Genshin:
-   - a thumb landing anywhere in the lower left takes the stick: it comes to the thumb (a
-     floating stick is quicker to find than a fixed one), and goes home when let go;
+   - a thumb landing in the lower left band (where the stick rests) takes the stick: it comes
+     to the thumb, never up the screen, and goes home when let go; only dragged on past its rim
+     does it follow the thumb further;
    - the inner half of the stick walks, as gently as the thumb pushes; further out the walk
      rises smoothly into a run (the ring turns gold), with no sudden step between them;
    - tap the round button to jump, and tap again in the air to take off; hold it to take off
@@ -85,6 +86,8 @@ export class Input {
   private keys = new Set<string>();
   private joyId: number | null = null;
   private joyCenter = { x: 0, y: 0 };
+  /** Where the stick rests (its centre on screen), taken as a thumb takes it. */
+  private joyHome = { x: 0, y: 0 };
   private joyR = 56;
   private joyVec = { x: 0, y: 0 };
   private joyRun = 0;
@@ -197,9 +200,13 @@ export class Input {
         this.joyEl.style.transform = "";
         const r = this.joyEl.getBoundingClientRect();
         const home = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        this.joyHome = home;
         this.joyR = r.width / 2 - 8;
         const near = Math.hypot(e.clientX - home.x, e.clientY - home.y) < r.width * 0.85;
-        const zone = e.clientX < innerWidth * 0.45 && e.clientY > innerHeight * 0.4;
+        // the stick lives in the foot of the screen: only a thumb landing in the lower left band
+        // (about where the stick rests) brings it, never one up by the wanderer
+        const band = innerHeight - Math.max(220, innerHeight * 0.3);
+        const zone = e.clientX < innerWidth * 0.5 && e.clientY > band;
         // away from the stick itself, a touch something else claims (the sanctuary's stone to draw
         // on) is that thing's, even in the lower left (it took the stick there: "nothing happened")
         if (!near && zone && this.capture?.down(e)) {
@@ -214,7 +221,7 @@ export class Input {
             const m = r.width / 2 + 6;
             this.joyCenter = {
               x: Math.min(Math.max(e.clientX, m), innerWidth - m),
-              y: Math.min(Math.max(e.clientY, m), innerHeight - m),
+              y: Math.min(Math.max(e.clientY, band + m * 0.6), innerHeight - m),
             };
             this.joyEl.style.transform = `translate(${this.joyCenter.x - home.x}px, ${this.joyCenter.y - home.y}px)`;
           }
@@ -289,7 +296,17 @@ export class Input {
   private stick(x: number, y: number): void {
     const R = this.joyR;
     let dx = x - this.joyCenter.x, dy = y - this.joyCenter.y;
-    const d = Math.hypot(dx, dy);
+    let d = Math.hypot(dx, dy);
+    // dragged on well past its rim, the stick follows the thumb (it may go up the screen only so)
+    const lead = R * 1.6;
+    if (d > lead) {
+      const k = (d - lead) / d;
+      this.joyCenter = { x: this.joyCenter.x + dx * k, y: this.joyCenter.y + dy * k };
+      this.joyEl.style.transform = `translate(${this.joyCenter.x - this.joyHome.x}px, ${this.joyCenter.y - this.joyHome.y}px)`;
+      dx = x - this.joyCenter.x;
+      dy = y - this.joyCenter.y;
+      d = lead;
+    }
     if (d > R) {
       dx *= R / d;
       dy *= R / d;
